@@ -2,8 +2,8 @@ import os
 import tempfile
 import pandas as pd
 import gradio as gr
-from bioseq_dl.cli.blast_aligment import databases as BLAST_DATABASES
-from bioseq_dl.cli.blast_aligment import (
+from bioseq_dl.cli.blast_alignment import databases as BLAST_DATABASES
+from bioseq_dl.cli.blast_alignment import (
     download_uniprot_database,
     check_blast,
     make_blast_database,

@@ -396,7 +396,7 @@ class UniprotInterface(UniprotBase):
                     print(f"All attempts failed: {e}.")
                     return response
 
-    def parse_stream_response(self, query: str, response: requests.Response) -> pd.DataFrame:
+    def parse_stream_response(self, query: str, response: requests.Response, extract_fields: Optional[List[str]]) -> pd.DataFrame:
         """
         Parse the response from the UniProt stream API depending on the format.
         Args:
@@ -410,7 +410,7 @@ class UniprotInterface(UniprotBase):
         return_df = pd.DataFrame()
 
         if self.format == "json":
-            return_df = self.parse(response.json())
+            return_df = self.parse(response.json(), extract_fields)
         
         elif self.format == "tsv":
             tsv_data = response.text
@@ -435,7 +435,7 @@ class UniprotInterface(UniprotBase):
             adapted_map[key] = (new_path, extractor)
         return adapted_map
 
-    def _parse_result(self, result: Dict) -> Dict:
+    def _parse_result(self, result: Dict, extract_fields: Optional[List[str]]) -> Dict:
         """Parse a single UniProt result"""
         parsed = {}
         field_map = {}
@@ -462,16 +462,20 @@ class UniprotInterface(UniprotBase):
                     parsed[field] = extractor(data) if data else None
             except (KeyError, AttributeError, IndexError):
                 parsed[field] = None
-                
+        
+        # Apply filtering
+        if extract_fields is not None:
+            parsed = {k: v for k, v in parsed.items() if k in extract_fields}
+
         return parsed
 
-    def parse(self, results: Dict) -> pd.DataFrame:
+    def parse(self, results: Dict, extract_fields: Optional[List[str]]) -> pd.DataFrame:
         """Parse UniProt JSON results into a DataFrame"""
         parsed_data = []
         
         # Process successful results
         for result in results.get('results', []):
-            parsed = self._parse_result(result)
+            parsed = self._parse_result(result, extract_fields)
             if 'source_db' in result:
                 parsed['source_db'] = results.get('source_db', 'unknown')
             parsed_data.append(parsed)
@@ -486,11 +490,11 @@ class UniprotInterface(UniprotBase):
             
         return pd.DataFrame(parsed_data).dropna(axis=1, how='all')
     
-    def parse_results(self, results: List[Dict]) -> pd.DataFrame:
+    def parse_results(self, results: List[Dict], extract_fields: Optional[List[str]]) -> pd.DataFrame:
         export_df = pd.DataFrame()
 
         for result in results:
-            parsed_results = self.parse(result)
+            parsed_results = self.parse(result, extract_fields)
             export_df = pd.concat([export_df, parsed_results], ignore_index=True)
 
         return export_df

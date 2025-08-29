@@ -1,6 +1,5 @@
 bioseq_dl
 examples
 results
-scripts
-tests
+tmp
 uniprot_search

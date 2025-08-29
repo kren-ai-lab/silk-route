@@ -256,7 +256,7 @@ class BrendaInterface(BaseAPIInterface):
 
             # Add credentials
             parameters = [self.email, self.password] + param_list
-
+            
             func = getattr(self.client.service, method)
             result = serialize_object(func(*parameters))
             result = [dict(entry) for entry in result] if isinstance(result, list) else dict(result)

@@ -1,93 +1,669 @@
+import os, json
 import gradio as gr
 import pandas as pd
+from functools import partial
+
+try:
+    from dotenv import load_dotenv, find_dotenv
+    load_dotenv(find_dotenv(usecwd=True), override=True)
+except Exception:
+    pass
+
+def has_options(method_info: dict) -> bool:
+    """Return True if the method defines non-empty 'options'."""
+    return isinstance(method_info.get("options"), dict) and bool(method_info["options"])
+
+
+def toggle_visibility(selected: str, option_names: list[str]):
+    """Return visibility updates for option groups given the selected option."""
+    from gradio import update
+    return [update(visible=(name == selected)) for name in option_names]
+
+def truncate_dataframe(df: pd.DataFrame, max_len: int = 40) -> pd.DataFrame:
+    """
+    Return a copy of df where long cell values are truncated for display.
+    - Only string-like content is truncated (str, list, dict).
+    - Numeric and boolean values are left intact.
+    - Lists are joined by ', ' before truncation.
+    - Dicts are JSON-serialized (compact) before truncation.
+    """
+    def _fmt(v):
+        if v is None or (isinstance(v, float) and pd.isna(v)):
+            return v
+
+        if isinstance(v, (list, tuple, set)):
+            s = ", ".join(map(str, v))
+        elif isinstance(v, dict):
+            try:
+                s = json.dumps(v, ensure_ascii=False, separators=(",", ":"))
+            except Exception:
+                s = str(v)
+        elif isinstance(v, str):
+            s = v
+        else:
+            # Non-string types: keep as-is (numbers, bools, etc.)
+            return v
+
+        return s if len(s) <= max_len else s[:max_len - 1] + "…"
+
+    out = df.copy()
+    for c in out.columns:
+        out[c] = out[c].map(_fmt)
+    return out
+
+def get_init_defs(api_info):
+    """
+    Return the list of constructor parameters declared under 'init' in registry,
+    or an empty list if none is present.
+    """
+    return api_info.get("init", []) or []
+
+def resolve_init_kwargs(api_name, init_defs, ui_values):
+    """
+    Build kwargs for API constructor from UI values and environment variables.
+
+    Rules:
+    - Prefer the non-empty UI value if provided.
+    - Otherwise, read from environment using the key in param['env'] if set,
+      else fallback to f"{API}_{NAME}".upper().
+    - If 'required' and still missing, raise ValueError.
+
+    Parameters
+    ----------
+    api_name : str
+        Name of the API (used to build fallback env var keys).
+    init_defs : list[dict]
+        Param specs: {'name','label','type','required','env'(optional)}.
+    ui_values : list
+        Values captured from the UI in the same order as init_defs.
+
+    Returns
+    -------
+    dict
+        Kwargs for the API constructor.
+    """
+    kwargs = {}
+    for spec, ui_val in zip(init_defs, ui_values):
+        name = spec["name"]
+        required = spec.get("required", True)
+        env_key = spec.get("env") or f"{api_name.upper()}_{name.upper()}"
+
+        # prefer UI value if non-empty
+        if ui_val not in (None, ""):
+            kwargs[name] = ui_val
+            continue
+
+        # fallback to env
+        env_val = os.getenv(env_key)
+        if env_val not in (None, ""):
+            kwargs[name] = env_val
+            continue
+
+        if required:
+            raise ValueError(
+                f"Missing constructor parameter '{name}'. "
+                f"Provide it in the UI or set env var '{env_key}'."
+            )
+
+    return kwargs
+
+def _env_keys_for_param(spec: dict, api_name: str, param_name: str):
+    """
+    Return a list of environment variable names to try for a constructor param.
+    - spec['env'] can be a string or list of strings.
+    - If not provided, fallback to f"{API}_{PARAM}" (uppercased).
+    - Also add UPPERCASE variants of provided keys for convenience.
+    """
+    raw = spec.get("env")
+    if isinstance(raw, str):
+        keys = [raw]
+    elif isinstance(raw, (list, tuple)):
+        keys = [str(k) for k in raw]
+    else:
+        keys = [f"{api_name.upper()}_{param_name.upper()}"]
+
+    # Add uppercase versions if needed
+    out = []
+    for k in keys:
+        if isinstance(k, str):
+            out.append(k)
+            ku = k.upper()
+            if ku != k:
+                out.append(ku)
+    return out
+
+
+def _getenv_first(keys):
+    """
+    Return the first non-empty environment value among keys (strings).
+    Ignores non-string entries defensively.
+    """
+    for k in keys:
+        if not isinstance(k, str):
+            continue
+        v = os.getenv(k)
+        if v not in (None, ""):
+            return v
+    return None
+
+def _resolve_init_kwargs_simple(api_name: str, init_defs: list, ui_values: list):
+    """
+    Build constructor kwargs:
+    - Prefer non-empty UI values.
+    - Else take the first non-empty env var among the candidates.
+    - If required and still missing, raise ValueError.
+    """
+    kwargs = {}
+    if not init_defs:
+        return kwargs
+
+    # ui_values puede llegar vacío si el Accordion estaba oculto
+    if not ui_values:
+        ui_values = [None] * len(init_defs)
+
+    for spec, ui_val in zip(init_defs, ui_values):
+        name = spec["name"]
+        if ui_val not in (None, ""):
+            kwargs[name] = ui_val
+            continue
+
+        keys = _env_keys_for_param(spec, api_name, name)
+        found = _getenv_first(keys)
+        if found not in (None, ""):
+            kwargs[name] = found
+            continue
+
+        if spec.get("required", True):
+            raise ValueError(
+                f"Falta el parámetro de inicialización '{name}'. "
+                f"Proporciónalo en la UI o define una de estas variables: {keys}"
+            )
+
+    return kwargs
+
+def coerce_value(type_str, raw):
+    """
+    Coerce UI value to declared type.
+    list[...] -> Python list (parse comma-separated text or accept widget lists).
+    Returns (value, is_empty).
+    """
+    if type_str.startswith("list[") and type_str.endswith("]"):
+        inner = type_str[5:-1]  # 'str' | 'int' | 'float'
+        if raw is None:
+            items = []
+        elif isinstance(raw, (list, tuple, set)):
+            items = [x for x in raw if not (isinstance(x, str) and x.strip() == "")]
+        else:
+            items = [t.strip() for t in str(raw).split(",") if t.strip() != ""]
+        caster = str
+        if inner == "int":   caster = int
+        elif inner == "float": caster = float
+        items = [caster(x) for x in items]
+        return items, (len(items) == 0)
+
+    # Scalars
+    if raw is None or (isinstance(raw, str) and raw.strip() == ""):
+        return None, True
+    if type_str == "int":   return int(raw), False
+    if type_str == "float": return float(raw), False
+    return str(raw), False  # default 'str'
+
 
 #############################
-# API Related Functions
+# Visual components
 #############################
+
+
+def create_input_component(param, prefix: str = ""):
+    """
+    Build UI components recursively from a registry param spec.
+
+    Returns
+    -------
+    List[Tuple[str, str, gr.Component]]
+        A flat list of (full_name, type_str, component) ready to be wired in build_method_ui.
+
+    Notes
+    -----
+    - Supports primitives: 'str', 'int', 'float', 'list[str]', 'list[int]', 'list[float]'.
+    - Supports 'choices' (Dropdown) and 'checkboxgroup' (CheckboxGroup).
+    - If 'inputs' is present, renders a visual group and recurses on children.
+    - Nested field names are joined as "<group>.<child>" (e.g., "filters.type").
+    """
+    out = []
+
+    # Group / nested case (e.g., list[dict] or any compound spec with 'inputs')
+    if "inputs" in param and isinstance(param["inputs"], list):
+        group_name = param.get("name", prefix.rstrip(".")) or ""
+        # Visual grouping only; the children are appended to 'out'
+        with gr.Group():
+            if param.get("label"):
+                gr.Markdown(f"**{param['label']}**")
+            child_prefix = f"{prefix}{group_name}." if group_name else prefix
+            for child in param["inputs"]:
+                out.extend(create_input_component(child, prefix=child_prefix))
+        return out
+    
+    # Leaf (primitive) case
+    name = param["name"]
+    full_name = f"{prefix}{name}" if prefix else name
+    type_str = param.get("type", "str")
+    required = param.get("required", False)
+
+    common = {
+        "label": param.get("label", name),
+        "info": "Required" if required else None,
+    }
+
+    # Numeric
+    if type_str in ("int", "float"):
+        comp = gr.Number(
+            **common,
+            value=param.get("default", None),
+        )
+        out.append((full_name, type_str, comp))
+        return out
+
+    # Free text (scalar)
+    if type_str == "str" and "choices" not in param and "checkboxgroup" not in param:
+        comp = gr.Textbox(
+            **common,
+            placeholder=param.get("placeholder", param.get("default", "")),
+            value=param.get("default", ""),
+            lines=1
+        )
+        out.append((full_name, type_str, comp))
+        return out
+
+    # List-as-text (comma-separated)
+    if type_str in ("list[str]", "list[int]", "list[float]") and "checkboxgroup" not in param and "choices" not in param:
+        comp = gr.Textbox(
+            **common,
+            placeholder=param.get("placeholder", ""),
+            lines=2
+        )
+        out.append((full_name, type_str, comp))
+        return out
+
+    # Dropdown (choices)
+    if "choices" in param:
+        comp = gr.Dropdown(
+            choices=param["choices"],
+            **common,
+            multiselect=("list" in type_str),
+            value=param.get("selected", param.get("default", None))
+        )
+        out.append((full_name, type_str, comp))
+        return out
+
+    # CheckboxGroup
+    if "checkboxgroup" in param:
+        comp = gr.CheckboxGroup(
+            choices=param["checkboxgroup"],
+            **common,
+            value=param.get("selected", param.get("default", []))
+        )
+        out.append((full_name, type_str, comp))
+        return out
+
+    # Fallback → Textbox
+    comp = gr.Textbox(
+        **common,
+        placeholder=param.get("placeholder", param.get("default", "")),
+        value=param.get("default", "")
+    )
+    out.append((full_name, type_str, comp))
+    return out
+
+
+def build_method_ui(api_name, api_class, method_name, method_info, init_defs, init_inputs):
+    """Render UI for a method using the recursive `create_input_components`.
+
+    - If the method has no 'options', render a flat list of inputs produced by `create_input_components`.
+    - If the method defines 'options', render a Radio to select an option and, per option,
+      render its own flat list of inputs (again via `create_input_components`).
+    - The click handler always calls `run_query` (unified runner) with the same signature you already use.
+    """
+    with gr.Tab(method_name):
+        # A) Método normal (sin options)
+        if not (isinstance(method_info.get("options"), dict) and method_info["options"]):
+            inputs = []
+            for p in method_info.get("inputs", []):
+                inputs.extend(create_input_component(p))  # <- recursivo, devuelve lista aplanada
+
+            df_out = gr.Dataframe(label="Resultado (DataFrame)", interactive=False, wrap=True, visible=False)
+            json_out = gr.JSON(label="Resultado (JSON)", visible=False)
+            run_btn = gr.Button("Ejecutar")
+
+            # Orden de inputs: init..., luego todos los componentes del método (aplanados)
+            all_inputs = [c for (_n, c) in init_inputs] + [c for (_full, _t, c) in inputs]
+
+            run_btn.click(
+                partial(
+                    run_query,
+                    api_name=api_name,
+                    api_class=api_class,
+                    method_name=method_name,
+                    method_info=method_info,
+                    init_defs=init_defs,
+                    init_count=len(init_inputs),
+                    df_out=df_out,
+                    json_out=json_out,
+                    options_def=None,
+                    option_names=None,
+                    option_len_map=None,
+                ),
+                inputs=all_inputs,
+                outputs=[df_out, json_out],
+            )
+            return
+
+        # B) Método con 'options'
+        options_def = method_info["options"]
+        option_names = list(options_def.keys())
+        first_opt = option_names[0]
+
+        # Selector de opción (sin accordion)
+        opt_selector = gr.Radio(option_names, label="Options", value=first_opt, interactive=True)
+
+        # Construye un grupo e inputs aplanados por opción
+        option_groups = {}
+        option_inputs_map = {}  # nombre_opción -> [(full_name, type_str, component), ...]
+        option_len_map = {}     # nombre_opción -> cantidad de componentes aplanados
+
+        for name in option_names:
+            params = options_def[name].get("inputs", [])
+            with gr.Group(visible=(name == first_opt)) as grp:
+                flat_inputs = []
+                for p in params:
+                    flat_inputs.extend(create_input_component(p))  # <- recursivo/flatten
+                option_groups[name] = grp
+                option_inputs_map[name] = flat_inputs
+                option_len_map[name] = len(flat_inputs)
+
+        # Toggle de visibilidad al cambiar opción
+        def _toggle(selected):
+            return [gr.update(visible=(n == selected)) for n in option_names]
+
+        opt_selector.change(
+            _toggle,
+            inputs=[opt_selector],
+            outputs=[option_groups[n] for n in option_names]
+        )
+
+        # Outputs + botón
+        df_out = gr.Dataframe(label="Resultado (DataFrame)", interactive=False, wrap=True, visible=False)
+        json_out = gr.JSON(label="Resultado (JSON)", visible=False)
+        run_btn = gr.Button("Ejecutar")
+
+        # Inputs: init..., selector, y todos los componentes (aplanados) de todas las opciones (en orden de option_names)
+        flat_option_components = []
+        for n in option_names:
+            flat_option_components.extend([c for (_full, _t, c) in option_inputs_map[n]])
+
+        all_inputs = [c for (_n, c) in init_inputs] + [opt_selector] + flat_option_components
+
+        run_btn.click(
+            partial(
+                run_query,
+                api_name=api_name,
+                api_class=api_class,
+                method_name=method_name,
+                method_info=method_info,      # el runner elegirá la opción seleccionada
+                init_defs=init_defs,
+                init_count=len(init_inputs),
+                df_out=df_out,
+                json_out=json_out,
+                options_def=options_def,
+                option_names=option_names,
+                option_len_map=option_len_map,  # importante: le dice al runner cuántos inputs tiene cada opción
+            ),
+            inputs=all_inputs,
+            outputs=[df_out, json_out],
+        )
 
 def build_api_ui(api_name, api_info):
     """Construye la pestaña de una API completa"""
     with gr.Tab(api_name):
         api_class = api_info["class"]
+        
+        # Init Constructor parameters
+        init_defs = get_init_defs(api_info)
+        init_inputs = []
+
+        if init_defs:
+            missing_required = False
+            for spec in init_defs:
+                if not spec.get("required", True):
+                    continue
+                keys = _env_keys_for_param(spec, api_name, spec["name"])
+                if _getenv_first(keys) is None:
+                    missing_required = True
+                    break
+            
+            if missing_required:
+                with gr.Accordion("Initialization parameters", open=True):
+                    for spec in init_defs:
+                        label = spec.get("label", spec["name"])
+                        keys = _env_keys_for_param(spec, api_name, spec["name"])
+                        # Prefill only non-password fields from env
+                        prefill = None if spec.get("type") == "password" else _getenv_first(keys)
+                        comp = gr.Textbox(
+                            label=label,
+                            value=prefill,
+                            type="password" if spec.get("type") == "password" else "text",
+                            info="Requerido" if spec.get("required", True) else None
+                        )
+                        init_inputs.append((spec["name"], comp))
+
         for method_name, method_info in api_info["methods"].items():
-            build_method_ui(api_class, method_name, method_info)
-
-
-def build_method_ui(api_class, method_name, method_info):
-    """Construye la pestaña de un método dentro de una API"""
-    with gr.Tab(method_name):
-        inputs = []
-        for param in method_info["inputs"]:
-            inp = create_input_component(param)
-            inputs.append((param["name"], param["type"], inp))
-
-        # Output
-        df_out = gr.Dataframe(label="Resultado (DataFrame)", interactive=False, wrap=True, visible=True)
-        json_out = gr.JSON(label="Resultado (JSON)", visible=True)
-        run_btn = gr.Button("Ejecutar")
-
-        run_btn.click(
-            lambda *args, api_class=api_class, method_name=method_name, method_info=method_info, inputs=inputs:
-                run_query(api_class, method_name, method_info, inputs, args, df_out, json_out),
-            inputs=[i[2] for i in inputs],
-            outputs=[df_out, json_out]
-        )
-
-
-def create_input_component(param):
-    """Crea un input de Gradio según el tipo definido en el REGISTRY"""
-    if param["type"] == "str" and "choices" not in param:
-        return gr.Textbox(
-            label=param.get("label", param["name"]),
-            placeholder=param.get("default", ""),
-            value=param.get("default", "")
+            build_method_ui(
+                api_name,
+                api_class, 
+                method_name, 
+                method_info, 
+                init_defs, 
+                init_inputs
             )
 
-    if param["type"] == "list[str]" and "checkboxgroup" not in param:
-        return gr.Textbox(label=f"{param.get('label', param['name'])} (comma separated)")
+##############################
+# Logic to run queries
+##############################
 
-    if "choices" in param:
-        return gr.Dropdown(
-            param["choices"],
-            label=param.get("label", param["name"]),
-            multiselect=("list" in param["type"]),
-        )
-    if "checkboxgroup" in param:
-        return gr.CheckboxGroup(
-            param["checkboxgroup"],
-            label=param.get("label", param["name"]),
-        )
+def _flatten_input_specs(specs: list, prefix: str = "") -> list[dict]:
+    """
+    Flatten registry input specs into a list of leaves with full dotted names.
 
-    return gr.Textbox(label=param.get("label", param["name"]))
+    Returns a list of dicts:
+      {"full_name": "<name or group.sub>", "type": "<type_str>", "required": bool}
 
-
-def run_query(api_class, method_name, method_info, inputs, args, df_out, json_out):
-    """Ejecuta el método de la API con los valores de los inputs"""
-    api = api_class()
-
-    if method_info["input_type"] == "dict":
-        query = {}
-        for (name, typ, inp), val in zip(inputs, args):
-            if "list" in typ:
-                if isinstance(val, list):
-                    query[name] = val
-                else:
-                    query[name] = [x.strip() for x in val.split(",") if x.strip()]
-            else:
-                query[name] = val
-    elif method_info["input_type"] == "list":
-        query = [x.strip() for x in args[0].split(",") if x.strip()]
-    else:
-        raise ValueError(f"Unsupported input_type {method_info['input_type']}")
-
-    if isinstance(query, dict):
-        query = [query]
-    try:
-        result = api.fetch_batch(queries=query, method=method_name, parse=True, to_dataframe=True)
-        # Si es DataFrame, mostrar en df_out
-        if isinstance(result, pd.DataFrame):
-            return result, gr.update(visible=False)
+    If a spec has "inputs" (e.g., list[dict] container), children are emitted as
+    "<group>.<child>" leaves using the children's own types/required flags.
+    """
+    out = []
+    for p in specs or []:
+        if isinstance(p, dict) and isinstance(p.get("inputs"), list):
+            group = p.get("name", "")
+            child_prefix = f"{prefix}{group}." if group else prefix
+            out.extend(_flatten_input_specs(p["inputs"], prefix=child_prefix))
         else:
-            return gr.update(visible=False), gr.update(value=result, visible=True)
+            out.append({
+                "full_name": f"{prefix}{p['name']}" if prefix else p["name"],
+                "type": p.get("type", "str"),
+                "required": bool(p.get("required", False)),
+            })
+    return out
+
+def run_query(
+        *all_values, 
+        api_name, 
+        api_class, 
+        method_name,
+        method_info,
+        init_defs,
+        init_count,
+        options_def=None,
+        option_names=None,
+        option_len_map=None,
+        df_out, 
+        json_out
+    ):
+    """Executor for methods
+
+    Contract (inputs order):
+    - Normal method: [init..., method_inputs...]
+    - Method with options: [init..., selected_option, *all_options_inputs_flattened_in_option_names_order]
+
+    Behavior:
+    - Instantiates API using init values (UI > env).
+    - Picks effective method schema: method_info or selected option's schema.
+    - Coerces and validates values according to declared types (str/int/float/list[..]).
+    - Minimal multisearch support (atomic + single str input + multisearch=True):
+        * multisearch=False -> fetch_single(query=<string>)
+        * multisearch=True  -> fetch_batch(queries=[...]) using comma split
+    - Otherwise:
+        * 'atomic' -> batch with a single query dict by default
+        * 'composite' -> batch with a single query dict (expansion can be layered on top if needed)
+    """
+    # --- 1) Split init values ---
+    ui_init_values = list(all_values[:init_count])
+    idx = init_count
+
+    # --- 2) Select effective schema and capture UI values for it ---
+    eff_info = method_info
+    selected_vals = []
+
+    has_opts = isinstance(options_def, dict) and options_def
+    selected_option = None
+    
+    if has_opts and option_names and options_def:
+        selected_option = all_values[idx]; idx += 1
+        flat_vals = list(all_values[idx:])
+        # slice values of selected option based on option_len_map
+        offset = 0
+        for name in option_names:
+            n = option_len_map.get(name, 0) if option_len_map else 0
+            chunk = flat_vals[offset:offset+n]
+            if name == selected_option:
+                selected_vals = chunk
+            offset += n
+        eff_info = options_def[selected_option]
+    else:
+        selected_vals = list(all_values[idx:])
+
+    # --- 3) Instantiate API (UI > env) ---
+    try:
+        ctor_kwargs = _resolve_init_kwargs_simple(api_name, init_defs, ui_init_values) if init_defs else {}
+        api = api_class(**ctor_kwargs) if ctor_kwargs else api_class()
     except Exception as e:
-        return None, {"error": str(e), "method": method_name, "query": query}
+        return gr.update(visible=False), gr.update(value={"error": str(e)}, visible=True)
+
+    # --- 4) Coerce + validate according to eff_info['inputs'] ---
+    inputs_schema = eff_info.get("inputs", [])
+
+    # Mapa de specs top-level y sub-especificaciones de list[dict]
+    top_specs = {p["name"]: p for p in inputs_schema}
+    listdict_subspecs = {
+        name: {c["name"]: c for c in spec.get("inputs", [])}
+        for name, spec in top_specs.items()
+        if spec.get("type") == "list[dict]"
+    }
+
+    # Aplana el schema tal como lo renderiza la UI (nombres con punto)
+    flat_specs = _flatten_input_specs(inputs_schema)
+
+    vals = {}
+    groups = {}  # group -> {"spec": top_spec, "obj": {sub: val}, "empties": {sub: bool}}
+
+    # Coerce + validar usando el schema aplanado y los valores de la UI
+    for spec, raw in zip(flat_specs, selected_vals):
+        full_name = spec["full_name"]
+        t = spec["type"]
+        required = spec["required"]
+
+        if "." in full_name:
+            group, sub = full_name.split(".", 1)
+            gspec = top_specs.get(group)
+            # Solo plegamos si el padre es list[dict]
+            if gspec and gspec.get("type") == "list[dict]":
+                # Usa el tipo/required del subcampo (el del flat spec ya es el del hijo)
+                v, empty = coerce_value(t, raw)
+                g = groups.setdefault(group, {"spec": gspec, "obj": {}, "empties": {}})
+                g["obj"][sub] = v
+                g["empties"][sub] = empty
+                continue
+
+        # Hoja normal (o grupo no list[dict])
+        v, empty = coerce_value(t, raw)
+        if required and empty:
+            return gr.update(visible=False), gr.update(value={"error": f"El campo '{full_name}' es requerido y no puede estar vacío."}, visible=True)
+        if not required and empty:
+            continue
+        vals[full_name] = v
+
+    # Plegar los grupos list[dict] en vals (como lista con UN dict)
+    for gname, data in groups.items():
+        gspec = data["spec"]
+        subs_map = listdict_subspecs.get(gname, {})
+
+        # ¿todos los subcampos vacíos?
+        all_empty = all(data["empties"].get(s, True) for s in subs_map.keys())
+        if all_empty:
+            if gspec.get("required", False):
+                return gr.update(visible=False), gr.update(value={"error": f"El grupo '{gname}' es requerido y no puede estar vacío."}, visible=True)
+            continue  # grupo opcional vacío -> omitir
+
+        # Validar subcampos requeridos
+        for sname, ssub in subs_map.items():
+            if ssub.get("required", False) and data["empties"].get(sname, True):
+                return gr.update(visible=False), gr.update(value={"error": f"El subcampo requerido '{gname}.{sname}' no puede estar vacío."}, visible=True)
+
+        # Construye el objeto con subcampos no vacíos
+        obj = {
+            sname: data["obj"].get(sname)
+            for sname in subs_map.keys()
+            if not data["empties"].get(sname, True)
+        }
+        vals[gname] = [obj]  # contrato: list con 1 dict para list[dict]
+
+
+    
+    # Build call kwargs; include 'option' if present
+    call_kwargs = {"method": method_name, "parse": True, "to_dataframe": True}
+    if has_opts and selected_option:
+        call_kwargs["option"] = selected_option
+
+    itype = eff_info.get("input_type", "atomic")
+    multisearch = bool(eff_info.get("multisearch", False))
+
+    # --- 5) Execute according to minimal rules ---
+    try:
+        if multisearch and len(inputs_schema) == 1 and inputs_schema[0].get("type", "str") == "str":
+            # Atomic, single string input with optional commas -> single or batch
+            field = inputs_schema[0]["name"]
+            tokens = [t.strip() for t in vals.get(field, "").split(",") if t.strip()]
+            if tokens:
+                result = api.fetch_batch(queries=tokens, **call_kwargs)
+            else:
+                # single empty is handled above; single non-empty with no commas
+                result = api.fetch_single(query=vals.get(field), **call_kwargs)
+        else:
+            # Default: send one dict as a batch of size 1 (keeps previous semantics for dict methods)
+            query_dict = vals
+            result = api.fetch_batch(queries=[query_dict], **call_kwargs)
+
+        # --- 6) Show only one output ---
+        if isinstance(result, pd.DataFrame) and not result.empty:
+            try:
+                df_preview = truncate_dataframe(result, max_len=40)  # optional pretty display
+            except Exception:
+                df_preview = result
+            return gr.update(value=df_preview, visible=True), gr.update(visible=False)
+
+        payload = {"message": "No se encontraron resultados", "method": method_name}
+        if not isinstance(result, pd.DataFrame):
+            payload = result
+        return gr.update(visible=False), gr.update(value=payload, visible=True)
+
+    except Exception as e:
+        return gr.update(visible=False), gr.update(value={"error": str(e), "method": method_name}, visible=True)

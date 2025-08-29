@@ -14,24 +14,24 @@ FIELDS = [
     "sequence"
 ]
 
-CROSS_REF_FIELDS = [
-    "xref_pfam",
-    "xref_kegg",
-    "xref_alphafolddb",
-    "xref_chembl",
-    "xref_refseq",
-    "xref_brenda",
-    "xref_reactome",
-    "xref_pdb",
-    "xref_interpro",
-    "xref_panther",
-    "xref_pathwaycommons",
-    "xref_pride",
-    "xref_string",
-    "rhea",
-    "go_id"
-]
-
+CROSS_REF_FIELDS = {
+    "alphafold": "xref_alphafolddb",
+    "biogrid": "xref_biogrid",
+    "brenda": "xref_brenda",
+    "go": "go_id",
+    "chembl": "xref_chembl",
+    "interpro": "xref_interpro",
+    "kegg": "xref_kegg",
+    "panther": "xref_panther",
+    "pathwaycommons": "xref_pathwaycommons",
+    "pdb": "xref_pdb",
+    "pfam": "xref_pfam",
+    "pride": "xref_pride",
+    "refseq": "xref_refseq",
+    "reactome": "xref_reactome",
+    "string": "xref_string",
+    "rhea": "rhea",
+}
 
 @app.command()
 def run(
@@ -48,7 +48,7 @@ def run(
         help="Fields to include in the output"
     ),
     crossref_fields: str = typer.Option(
-        ",".join(CROSS_REF_FIELDS), "-xr", "--crossref_fields", 
+        ",".join(CROSS_REF_FIELDS.keys()), "-xr", "--crossref_fields", 
         help="Cross reference fields to include in the output"
     ),
     sort: str = typer.Option(
@@ -69,9 +69,11 @@ def run(
     )):
     instance = UniprotInterface()
     print(f"Downloading data using\nquery {query}\nfields {fields}\ncrossref_fields {crossref_fields}\nformat {format}\nsort {sort}\ninclude_isoform {include_isoform}\ndownload {download}")
+    xref = ",".join([CROSS_REF_FIELDS[c] for c in crossref_fields.split(",") if c in CROSS_REF_FIELDS])
+
     response = instance.submit_stream(
         query=query,
-        fields=fields + "," + crossref_fields,
+        fields=fields + "," + xref,
         sort=sort,
         include_isoform=include_isoform,
         download=download,
@@ -83,7 +85,8 @@ def run(
     print("Parsing results...")
     export_df = instance.parse_stream_response(
         query=query,
-        response=response
+        response=response,
+        extract_fields=None
     )
 
     export_df.to_csv(output, index=False)

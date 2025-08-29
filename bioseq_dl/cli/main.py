@@ -4,7 +4,7 @@ from bioseq_dl.cli.set_biogrid_key import app as set_biogrid_key_app
 from bioseq_dl.cli.uniprot_search_ids import app as uniprot_search_ids_app
 from bioseq_dl.cli.uniprot_search_query import app as uniprot_search_query_app
 from bioseq_dl.cli.download_variants import app as uniprot_search_variants_app
-from bioseq_dl.cli.blast_aligment import app as run_blast
+from bioseq_dl.cli.blast_alignment import app as run_blast
 from bioseq_dl.cli.gui import app as launch_gradio_app
 
 app = typer.Typer(name="bioseq-dl", help="Download sequences from multiple biological databases")

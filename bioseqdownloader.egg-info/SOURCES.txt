@@ -83,4 +83,3 @@ bioseqdownloader.egg-info/dependency_links.txt
 bioseqdownloader.egg-info/entry_points.txt
 bioseqdownloader.egg-info/requires.txt
 bioseqdownloader.egg-info/top_level.txt
-tests/test_xxx.py

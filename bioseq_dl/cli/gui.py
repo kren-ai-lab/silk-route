@@ -7,7 +7,8 @@ app = typer.Typer(name="gui", help="Launch GUI interface for BioSeqDownloader")
 @app.command("run")
 def run(
     host: str = "127.0.0.1",
-    port: int = 7860,
+    # TODO Cambiar a 7860
+    port: int = 7560,
     share: bool = False
 ):
     """

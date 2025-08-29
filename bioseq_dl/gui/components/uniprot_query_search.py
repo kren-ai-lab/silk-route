@@ -59,7 +59,7 @@ def run_uniprot_query(query, fields, crossref_fields, sort, fmt, include_isoform
         logs.append(f"Response received (status code {response.status_code})")
 
         logs.append("Parsing response...")
-        df = instance.parse_stream_response(query=query, response=response)
+        df = instance.parse_stream_response(query=query, response=response, extract_fields=None)
 
     except Exception as e:
         logs.append(f"Error: {e}")
