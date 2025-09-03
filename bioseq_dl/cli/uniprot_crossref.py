@@ -97,7 +97,7 @@ def fetch_crossref(
         df: pd.DataFrame, 
         config_data: dict,
         endpoint: str, 
-        option: str = None,
+        option: str|None = None,
     ):
     if database_name not in INTERFACE_CLASSES:
         raise ValueError(f"Unsupported database: {database_name}")

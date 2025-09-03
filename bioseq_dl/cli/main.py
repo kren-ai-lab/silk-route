@@ -6,6 +6,7 @@ from bioseq_dl.cli.uniprot_search_query import app as uniprot_search_query_app
 from bioseq_dl.cli.download_variants import app as uniprot_search_variants_app
 from bioseq_dl.cli.blast_alignment import app as run_blast
 from bioseq_dl.cli.gui import app as launch_gradio_app
+from bioseq_dl.cli.collect_data import app as collect_data_app
 
 app = typer.Typer(name="bioseq-dl", help="Download sequences from multiple biological databases")
 
@@ -16,6 +17,7 @@ app.add_typer(uniprot_search_query_app, name="uniprot-search-query", help="Searc
 app.add_typer(uniprot_search_variants_app, name="uniprot-search-variants", help="Search and download variants from UniProt using IDs.")
 app.add_typer(launch_gradio_app, name="gui", help="Launch the Gradio GUI for BioSeqDownloader.")
 app.add_typer(run_blast, name="blast-alignment", help="Run BLAST alignment on sequences.")
+app.add_typer(collect_data_app, name="collect-data", help="Collect data from various biological databases.")
 
 if __name__ == "__main__":
     app()
