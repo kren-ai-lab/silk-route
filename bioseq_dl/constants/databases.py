@@ -26,8 +26,8 @@ DATABASES = {
 }
 
 BASE_CACHE_DIR = Path.home() / ".cache" / "bioseq_dl"
-BASE_BLAST_DB_DIR = os.path.join(BASE_CACHE_DIR, "blast_db")
-BASE_CONFIG_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../config"))
+BASE_BLAST_DB_DIR = BASE_CACHE_DIR / "blast_db"
+BASE_CONFIG_DIR = Path.home() / ".config" / "bioseq_dl"
 
 @dataclass(frozen=True)
 class DBConfig:

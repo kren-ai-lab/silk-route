@@ -1,0 +1,11 @@
+pandas
+tqdm
+requests
+rcsb-api
+biopython
+zeep
+python-dotenv
+pyyaml
+beautifulsoup4
+typer
+gradio

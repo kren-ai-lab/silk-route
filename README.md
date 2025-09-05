@@ -2,98 +2,95 @@
 
 **BioSeqDownloader** is a Python tool designed for downloading biological sequences. Initially focused on Uniprot, this tool aims to scale and support multiple sequences databases, providing a unified and efficient way to retrieve biological data.
 
-This is just a programtic way of ID mapping and downloading sequences from Uniprot, the code is based on the [Uniprot API](https://www.uniprot.org/help/api) and the [Uniprot ID mapping](https://www.uniprot.org/help/id_mapping) service.
-
 # Installation
 
 To set up **BioSeqDownloader**, follow these steps:
 
-1. Ensure Docker is installed on your system. If not, download and install it from [Docker's official website](https://www.docker.com/).
-2. Clone the repository:
+1. Clone the repository:
     ```bash
-    git clone https://github.com/your-username/BioSeqDownloader.git
+    git clone https://github.com/ProteinEngineering-PESB2/BioSeqDownloader
     cd BioSeqDownloader
     ```
-3. Create the Conda environment using the provided `environment.yml` file:
+2. It's hightly recommended to create a virtual environment. Use your preferred method. For example, using `conda`:
     ```bash
-    git clone https://github.com/your-username/BioSeqDownloader.git
-    cd BioSeqDownloader
-    conda env create -f environment.yml
+    conda create -n bioseqdownloader python
+    conda activate bioseqdownloader
     ```
-4. Para los usuarios que usan el paguete, instalar blast
+3. Install the package and its dependencies:
+    ```bash
+    pip install -e .
+    ```
+4. Optional: Install blast for sequence alignment:
+    ```bash
+    conda install -c bioconda blast
+    ```
+5. Befure using the tool, do a first time setup running:
+    ```bash
+    bioseq-dl
+    ```
+    This will copy all the config files to your `.config` directory in your home directory.
+
+### Optional Steps for specific functionalities
+
+- To use BioGRID...
+- To use BRENDA you also need to register and use your email and password in the .env file.
 
 # Usage
-
-## Running Sequence Alignment with BLAST
-
-To perform a BLAST alignment and save the results as a CSV file, use the `aligment.py` script. Below are the available parameters:
-
-- `-d`, `--database`: The database to download (required).
-- `-e`, `--extension`: File extension of the database (default: `fasta`).
-- `-f`, `--sequences_file`: File containing sequences to run BLAST on.
-- `-c`, `--seq_column`: Column name containing sequences (default: `sequences`).
-- `-o`, `--output`: Output file for BLAST results (default: `blast_results.csv`).
-- `--evalue`: E-value threshold for the BLAST search (default: `0.001`).
-- `--blast_type`: Type of BLAST to run (default: `blastp`).
-
-### Example:
+Once installed , you can use the graphical user interface (GUI), command-line interface (CLI), or Python API to download sequences and related data.
+Lots of functionalities are available at `bioseq-dl` command. You can check them by running:
 ```bash
-python scripts/aligment.py -d uniprotkb_reviewed -f data/umami.csv -c sequence -o results/umami_blast.csv
+bioseq-dl --help
 ```
 
----
+## Graphic User Interface (GUI)
+You can launch the GUI using the following command:
+```bash
+bioseq-dl gui run
+```
+This will make a local server available at `http://localhost:7560` where you can interactively use the tool.
+
+## Command-Line Interface (CLI)
+
 
 ## Downloading UniProt Data using IDS
 
-The `uniprot_search_ids.py` script retrieves UniProt data using UniProt IDs. It can also utilize BLAST results from the previous step. Below are the available parameters:
-
-- `-i`, `--input`: CSV file containing UniProt IDs.
-- `-c`, `--column`: Column name with UniProt IDs (default: `accession`).
-- `-o`, `--output`: Output file.
-- `-f`, `--from_db`: Database to convert from (default: `UniProtKB_AC-ID`).
-- `-t`, `--to_db`: Database to convert to (default: `UniProtKB`).
-- `-b`, `--batch_size`: Batch size for downloading (default: `5000`).
-- `-a`, `--auto_db`: Automatically detect database type.
-- `--min_identity`: Minimum identity threshold for BLAST search (default: `90.0`).
-
-### Example:
+To retrieve data for a given list of UniProt IDs, you can use the command:
 ```bash
-python scripts/download.py -i results/umami_blast.csv -o results/umami_uniprot.csv
-```
-## Searching UniProt with Queries
-
-The `uniprot_search_query.py` script allows users to search UniProt using custom queries and retrieve specific fields of interest. Below are the available parameters:
-
-- `-q`, `--query`: Query string to search for (required).
-- `-o`, `--output`: Output file to save the results (required).
-- `-f`, `--fields`: Fields to include in the output (default: `accession,protein_name,sequence,ec,lineage,organism_name,xref_pfam,xref_alphafolddb,xref_pdb,go_id`).
-- `-s`, `--sort`: Sort order for the results (default: `accession asc`).
-- `-fmt`, `--format`: Format of the output (default: `json`).
-- `--include_isoform`: Include isoforms in the results (optional).
-- `--download`: Download the results directly (optional).
-
-### Example:
-```bash
-python src/uniprot_search_query.py -q "antibacterial AND reviewed:true" -o results/uniprot_stream.csv
+bioseq-dl uniprot-search-ids 
 ```
 
 This example searches for reviewed antibacterial proteins and saves the results in a CSV file. You can customize the query and fields to suit your research needs.
 
----
-
-## Annotating Gene Ontology (GO) Terms
-
-The `description_go.py` script annotates sequences with Gene Ontology (GO) terms. If UniProt does not provide GO IDs, it uses MetaStudent for prediction. Below are the available parameters:
-
-- `-i`, `--input`: Input file with sequences (required).
-- `-o`, `--output`: Output directory (default: `.`).
-- `-d`, `--amigo_data`: AmiGO data file (default: `scripts/resources/amiGO_data.csv`).
-- `-go`, `--column_go`: Column name with GO terms (default: `go_terms`).
-- `-id`, `--column_id`: Column name with IDs (default: `uniprot_id`).
-
-### Example:
-```bash
-python scripts/description_go.py -i results/umami_uniprot.csv -o results/umami_go.csv
+# Configuration
+Configuration files are located in the `.config/bioseq_dl` directory in your home directory. You can modify these files to customize the behavior of the tool.
+For every api there is a `fields.yml` file where you can define the fields to be parsed after downloading the data.
+For example the config tree should look like this:
 ```
+.config/
+└── bioseq_dl
+    ├── alphafold
+    │   └── fields.yml
+    └── uniprot
+        └── fields.yml
+```
+Where every `fields.yml` file contains the fields to be parsed for that specific API. For example, the `alphafold/fields.yml` file might look like this:
+```yaml
+prediction:
+  entry: entryId
+  gene: gene
+  tax_id: taxId
+  organism: organismScientificName
+  is_reviewed: isReviewed
+  is_reference: isReferenceProteome
+```
+Where the main keys are the names of the methods available for that API, and the values are the fields to be parsed. After the method name, the fields are defined as key-value pairs, where the key is the name of the field in the output dataframe, and the value is the name of the field in the API response.
 
-These tools provide a streamlined workflow for downloading, aligning, and annotating biological sequences, making it easier to analyze and interpret biological data.
+
+# To do list
+- [x] Add .env definition in README
+- [x] Add example for blast aligment in examples
+- [x] Polish the othe API example notebook
+- [x] Add examples to the main README
+
+# Aknowledgements
+Some of the code is based on the [Uniprot API](https://www.uniprot.org/help/api) and the [Uniprot ID mapping](https://www.uniprot.org/help/id_mapping) service.

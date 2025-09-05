@@ -255,6 +255,16 @@ class UniprotInterface(UniprotBase):
             to_db: str, 
             batch_size: int
             ):
+        """
+        Download data from UniProt in batches based on a DataFrame of IDs.
+        Args:
+            dataset (pd.DataFrame): DataFrame containing the IDs.
+            column_ids (str): Column name in the DataFrame with the IDs.
+            auto_db (bool): Whether to automatically detect the database type.
+            from_db (str): Database to convert from (used if auto_db is False).
+            to_db (str): Database to convert to (used if auto_db is False).
+            batch_size (int): Number of IDs to process in each batch.
+        """
         ids = dataset[column_ids].dropna().unique().tolist()
 
         results = []
