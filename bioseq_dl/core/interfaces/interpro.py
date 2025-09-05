@@ -168,9 +168,9 @@ class InterproInterface(BaseAPIInterface):
         """
         pages_to_fetch = kwargs.get("pages_to_fetch", 1)
   
-        if method not in data_types:
-            raise ValueError("Method must be one of the following: " + ", ".join(data_types))
-        
+        if method not in self.METHODS.keys():
+            raise ValueError("Method must be one of the following: " + ", ".join(self.METHODS.keys()))
+
         if not isinstance(query, dict):
             raise ValueError("Query must be a dictionary containing 'db', 'entry_integration', 'modifiers', 'filter_type', 'filter_db', and 'filter_value' keys.")
 

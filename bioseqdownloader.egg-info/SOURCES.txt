@@ -2,7 +2,8 @@ README.md
 pyproject.toml
 bioseq_dl/__init__.py
 bioseq_dl/cli/__init__.py
-bioseq_dl/cli/blast_aligment.py
+bioseq_dl/cli/blast_alignment.py
+bioseq_dl/cli/collect_data.py
 bioseq_dl/cli/download_variants.py
 bioseq_dl/cli/gui.py
 bioseq_dl/cli/main.py

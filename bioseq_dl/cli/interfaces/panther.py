@@ -1,0 +1,109 @@
+import typer
+
+from bioseq_dl import PantherInterface
+
+app = typer.Typer(help="Fetch data from PANTHER database.")
+
+@app.command("geneinfo")
+def run_geneinfo(
+    gene_list: str = typer.Argument(
+        ...,
+        help="Comma-separated list of gene identifiers."
+    ),
+    taxon_filter: str = typer.Option(
+        None, "--taxon-filter", "-tf",
+        help="Taxon filter (e.g., '9606' for human).",
+    ),
+    output: str = typer.Option(
+        None, "--output", "-o",
+        help="Output file to save the data.",
+    )
+):
+    
+    interface = PantherInterface()
+
+    query = {
+        "geneInputList": [gene.strip() for gene in gene_list.split(",")],
+        "taxonFltr": taxon_filter
+    }
+
+    result = interface.fetch_single(
+        query=query,
+        method="geneinfo",
+        parse=True,
+        to_dataframe=True
+    )
+
+    if output:
+        result.to_csv(output, index=False)
+    else:
+        typer.echo(result.head(5))
+
+
+@app.command("familyortholog")
+def run_familyortholog(
+    id: str = typer.Argument(
+        ...,
+        help="PANTHER ID (e.g., 'PTHR10000')."
+    ),
+    taxon_filter: str = typer.Option(
+        None, "--taxon-filter", "-tf",
+        help="Taxon filter (e.g., '9606' for human).",
+    ),
+    output: str = typer.Option(
+        None, "--output", "-o",
+        help="Output file to save the data.",
+    )
+):
+    interface = PantherInterface()
+
+    query = {
+        "family": id,
+        "taxonFltr": taxon_filter
+    }
+
+    result = interface.fetch_single(
+        query=query,
+        method="familyortholog",
+        parse=True,
+        to_dataframe=True
+    )
+
+    if output:
+        result.to_csv(output, index=False)
+    else:
+        typer.echo(result.head(5))
+
+@app.command("familymsa")
+def run_familymsa(
+    id: str = typer.Argument(
+        ...,
+        help="PANTHER ID (e.g., 'PTHR10000')."
+    ),
+    taxon_filter: str = typer.Option(
+        ..., "--taxon-filter", "-tf",
+        help="Taxon filter (e.g., '9606' for human).",
+    ),
+    output: str = typer.Option(
+        None, "--output", "-o",
+        help="Output file to save the data.",
+    )
+):
+    interface = PantherInterface()
+
+    query = {
+        "family": id,
+        "taxonFltr": taxon_filter
+    }
+
+    result = interface.fetch_single(
+        query=query,
+        method="familymsa",
+        parse=True,
+        to_dataframe=True
+    )
+
+    if output:
+        result.to_csv(output, index=False)
+    else:
+        typer.echo(result.head(5))
