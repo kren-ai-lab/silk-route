@@ -69,7 +69,11 @@ For example the config tree should look like this:
 .config/
 └── bioseq_dl
     ├── alphafold
+    │   ├── init.yml
     │   └── fields.yml
+    ├── biogrid
+    │   └── fields.yml
+    ...
     └── uniprot
         └── fields.yml
 ```
@@ -84,6 +88,12 @@ prediction:
   is_reference: isReferenceProteome
 ```
 Where the main keys are the names of the methods available for that API, and the values are the fields to be parsed. After the method name, the fields are defined as key-value pairs, where the key is the name of the field in the output dataframe, and the value is the name of the field in the API response.
+
+The `init.yml` file contains the configuration for that specific API. For example, the `alphafold/init.yml` file might look like this:
+```yaml
+download_folder: /path/to/download/folder
+```
+
 
 
 # To do list

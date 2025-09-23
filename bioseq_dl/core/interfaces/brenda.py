@@ -182,7 +182,6 @@ class BrendaInterface(BaseAPIInterface):
             password: str,
             cache_dir: Optional[str] = None,
             config_dir: Optional[str] = None,
-            output_dir: Optional[str] = None,
             **kwargs
         ):
         """
@@ -203,8 +202,6 @@ class BrendaInterface(BaseAPIInterface):
             config_dir = BRENDA.CONFIG_DIR if BRENDA.CONFIG_DIR is not None else ""
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs, min_wait=2.0, max_wait=5.0)
-        self.output_dir = output_dir or cache_dir
-        os.makedirs(self.output_dir, exist_ok=True)
 
         self.email = email
         self.password = hashlib.sha256(password.encode("utf-8")).hexdigest()

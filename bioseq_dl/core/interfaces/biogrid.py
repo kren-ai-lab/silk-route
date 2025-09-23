@@ -48,7 +48,6 @@ class BioGRIDInterface(BaseAPIInterface):
             self,
             cache_dir: Optional[str] = None,
             config_dir: Optional[str] = None,
-            output_dir: Optional[str] = None,
             **kwargs
     ):
         """
@@ -67,8 +66,6 @@ class BioGRIDInterface(BaseAPIInterface):
             config_dir = BIOGRID.CONFIG_DIR if BIOGRID.CONFIG_DIR is not None else ""
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
-        self.output_dir = output_dir or cache_dir
-        os.makedirs(self.output_dir, exist_ok=True)
 
     # Critiacl to ignore the accessKey when caching
     def get_cache_ignore_keys(self) -> Set[str]:

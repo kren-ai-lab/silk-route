@@ -33,7 +33,6 @@ class InterproInterface(BaseAPIInterface):
             self,
             cache_dir: Optional[str] = None,
             config_dir: Optional[str] = None,
-            output_dir: Optional[str] = None,
             **kwargs
     ):
         """
@@ -53,8 +52,6 @@ class InterproInterface(BaseAPIInterface):
             config_dir = INTERPRO.CONFIG_DIR if INTERPRO.CONFIG_DIR is not None else ""
             
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
-        self.output_dir = output_dir or cache_dir
-        os.makedirs(self.output_dir, exist_ok=True)
     
     def validate_query(self, method: str, query: Dict):
         """
