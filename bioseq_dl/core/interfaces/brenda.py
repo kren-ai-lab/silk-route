@@ -1,7 +1,5 @@
-import os, time, random
-from typing import Optional, List, Dict, Any, Union
-from requests import Request, Response
-from requests.exceptions import RequestException
+import os
+from typing import Optional, List, Any, Union
 import hashlib
 from zeep import Client
 from zeep.helpers import serialize_object

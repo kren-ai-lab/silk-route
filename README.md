@@ -87,10 +87,11 @@ Where the main keys are the names of the methods available for that API, and the
 
 
 # To do list
-- [x] Add .env definition in README
-- [x] Add example for blast aligment in examples
-- [x] Polish the othe API example notebook
-- [x] Add examples to the main README
+- [ ] Add .env definition in README
+- [ ] Add example for blast alignment in examples
+- [ ] Polish the other API example notebook
+- [ ] Add examples to the main README
+- [ ] Add a logging system
 
 # Future Features
 - [ ] Make a GUI for the config files

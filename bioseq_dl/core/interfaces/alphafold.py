@@ -1,5 +1,5 @@
-import requests, os, json
-from typing import Union, List, Dict, Optional
+import os, json, yaml
+from typing import Union, List, Dict, Optional, Literal
 from requests import Request
 from requests.exceptions import RequestException
 
@@ -26,7 +26,7 @@ class AlphafoldInterface(BaseAPIInterface):
 
     def __init__(
             self,  
-            structures: List[str] = ["pdb"],
+            structures: Optional[List[Literal["pdb", "cif", "bcif"]]] = None,
             cache_dir: Optional[str] = None,
             config_dir: Optional[str] = None,
             output_dir: Optional[str] = None,
@@ -35,7 +35,7 @@ class AlphafoldInterface(BaseAPIInterface):
         """
         Initialize the AlphafoldInterface.
         Args:
-            structures (List[str]): List of structures extensions to download. Available options are ["pdb", "cif", "bcif"] or none.
+            structures (List[str]): List of structures extensions to download. Available options are pdb, cif, bcif, none.
             cache_dir (str): Directory to cache API responses. If None, defaults to the cache directory defined in constants.
             config_dir (str): Directory for configuration files. If None, defaults to the config directory defined in constants.
             output_dir (str): Directory to save downloaded files. If None, defaults to the cache directory.
@@ -48,8 +48,14 @@ class AlphafoldInterface(BaseAPIInterface):
         if config_dir is None:
             config_dir = ALPHAFOLD.CONFIG_DIR if ALPHAFOLD.CONFIG_DIR is not None else ""
 
+        download_folder_fallback = cache_dir
+        if os.path.exists(config_dir + "/init.yml"):
+            with open(config_dir + "/init.yml", "r") as f:
+                config = yaml.safe_load(f)
+            download_folder_fallback = config.get("download_folder", cache_dir)
+
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
-        self.output_dir = output_dir or cache_dir
+        self.output_dir = output_dir or download_folder_fallback
         os.makedirs(self.output_dir, exist_ok=True)
 
         self.structures = structures
@@ -57,7 +63,6 @@ class AlphafoldInterface(BaseAPIInterface):
     def fetch_single(self, query: Union[str, dict], parse: bool = False, *args, **kwargs) -> Union[List, Dict, pd.DataFrame]:
         if not isinstance(query, str):
             raise ValueError("Query must be a string representing a UniProt ID.")
-        
 
         result = super().fetch_single(query, parse=parse, *args, **kwargs)
 
@@ -66,9 +71,13 @@ class AlphafoldInterface(BaseAPIInterface):
             if isinstance(result, list):
                 for res in result:
                     self.download_structures(res)
+            elif isinstance(result, pd.DataFrame):
+                for _, row in result.iterrows():
+                    row_dict = row.to_dict()
+                    self.download_structures(row_dict)
             elif isinstance(result, dict):
                 self.download_structures(result)
-
+            
         return result
     
     def fetch_batch(self, queries: List[Union[str, dict]], parse: bool = False, *args, **kwargs) -> Union[List, pd.DataFrame]:
@@ -83,6 +92,10 @@ class AlphafoldInterface(BaseAPIInterface):
                 if isinstance(result, list):
                     for res in result:
                         new_results.append(self.download_structures(res))
+                elif isinstance(result, pd.DataFrame):
+                    for _, row in result.iterrows():
+                        row_dict = row.to_dict()
+                        new_results.append(self.download_structures(row_dict))
                 elif isinstance(result, dict):
                     new_results = [self.download_structures(result)]
         
@@ -167,11 +180,13 @@ class AlphafoldInterface(BaseAPIInterface):
 
             # Check if the file already exists
             if os.path.exists(file_path):
+                print(f"Structure {file_name} already exists. Skipping download.")
                 continue
 
             try:
                 response = self.session.get(structure_url)
                 with open(file_path, "wb") as f:
+                    print(f"Downloading structure {file_name}...")
                     f.write(response.content)
 
             except Exception as e:

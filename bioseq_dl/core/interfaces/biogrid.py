@@ -1,10 +1,6 @@
 import os
-from typing import Optional, Set, Tuple, Union, List, Dict, Any
+from typing import Optional, Set, Union, List, Dict, Any
 import requests
-from requests import Request
-from requests.exceptions import RequestException
-
-import pandas as pd
 
 from .base import BaseAPIInterface
 from ...constants.databases import BIOGRID

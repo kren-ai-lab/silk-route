@@ -1,5 +1,4 @@
-import os
-import requests
+import os, requests, yaml
 from typing import Optional, Union, List, Dict, Any
 from requests import Request
 from requests.exceptions import RequestException
@@ -57,9 +56,15 @@ class PDBInterface(BaseAPIInterface):
         
         if config_dir is None:
             config_dir = PDB.CONFIG_DIR if PDB.CONFIG_DIR is not None else ""
+
+        download_folder_fallback = cache_dir
+        if os.path.exists(config_dir + "/init.yml"):
+            with open(config_dir + "/init.yml", "r") as f:
+                config = yaml.safe_load(f)
+            download_folder_fallback = config.get("download_folder", cache_dir)
         
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
-        self.output_dir = output_dir or cache_dir
+        self.output_dir = output_dir or download_folder_fallback
         os.makedirs(self.output_dir, exist_ok=True)
 
         self.batch_size = batch_size
@@ -121,14 +126,16 @@ class PDBInterface(BaseAPIInterface):
         Returns:
             str: Path to the downloaded file.
         """
-        if os.path.exists(self.output_dir + "/pdb_files/" + f"{pdb_id}.{file_format}"):
+        print(self.output_dir + f"/{pdb_id}.{file_format}")
+        if os.path.exists(self.output_dir + f"/{pdb_id}.{file_format}"):
             print(f"Info: Structure for {pdb_id} already exists in {file_format} format.")
-            return self.output_dir + "/pdb_files/" + f"{pdb_id}.{file_format}"
-        
+            return self.output_dir + f"/{pdb_id}.{file_format}"
+
+
         print(f"Info: Downloading {pdb_id} in {file_format} format...")
 
-        if not os.path.exists(self.output_dir + "/pdb_files"):
-            os.makedirs(self.output_dir + "/pdb_files")
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
 
         url = f"{PDB.STRUCTURE_URL}{pdb_id}.{file_format}"
 
@@ -136,7 +143,7 @@ class PDBInterface(BaseAPIInterface):
             response = self.session.get(url)
             self._delay()
             response.raise_for_status()
-            file_path = os.path.join(self.output_dir + "/pdb_files/", f"{pdb_id}.{file_format}")
+            file_path = os.path.join(self.output_dir, f"{pdb_id}.{file_format}")
             with open(file_path, "wb") as f:
                 f.write(response.content)
             return file_path
