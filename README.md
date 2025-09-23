@@ -20,11 +20,11 @@ To set up **BioSeqDownloader**, follow these steps:
     ```bash
     pip install -e .
     ```
-4. Optional: Install blast for sequence alignment:
+4. Optional: To use BLAST functionalities, install BLAST+ from Bioconda:
     ```bash
     conda install -c bioconda blast
     ```
-5. Befure using the tool, do a first time setup running:
+5. Before using the tool, do a first time setup running:
     ```bash
     bioseq-dl
     ```
@@ -91,6 +91,9 @@ Where the main keys are the names of the methods available for that API, and the
 - [x] Add example for blast aligment in examples
 - [x] Polish the othe API example notebook
 - [x] Add examples to the main README
+
+# Future Features
+- [ ] Make a GUI for the config files
 
 # Aknowledgements
 Some of the code is based on the [Uniprot API](https://www.uniprot.org/help/api) and the [Uniprot ID mapping](https://www.uniprot.org/help/id_mapping) service.

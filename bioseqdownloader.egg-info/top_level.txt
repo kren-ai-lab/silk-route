@@ -1,2 +1,0 @@
-bioseq_dl
-examples

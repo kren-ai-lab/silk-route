@@ -157,7 +157,7 @@ def _resolve_init_kwargs_simple(api_name: str, init_defs: list, ui_values: list)
     if not init_defs:
         return kwargs
 
-    # ui_values puede llegar vacío si el Accordion estaba oculto
+    # ui_values may be empty if the Accordion was hidden
     if not ui_values:
         ui_values = [None] * len(init_defs)
 
@@ -175,8 +175,8 @@ def _resolve_init_kwargs_simple(api_name: str, init_defs: list, ui_values: list)
 
         if spec.get("required", True):
             raise ValueError(
-                f"Falta el parámetro de inicialización '{name}'. "
-                f"Proporciónalo en la UI o define una de estas variables: {keys}"
+                f"Missing initialization parameter '{name}'. "
+                f"Provide it in the UI or define one of these variables: {keys}"
             )
 
     return kwargs
@@ -325,17 +325,17 @@ def build_method_ui(api_name, api_class, method_name, method_info, init_defs, in
     - The click handler always calls `run_query` (unified runner) with the same signature you already use.
     """
     with gr.Tab(method_name):
-        # A) Método normal (sin options)
+        # A) Normal method (without options)
         if not (isinstance(method_info.get("options"), dict) and method_info["options"]):
             inputs = []
             for p in method_info.get("inputs", []):
-                inputs.extend(create_input_component(p))  # <- recursivo, devuelve lista aplanada
+                inputs.extend(create_input_component(p))  # <- recursive, returns flattened list
 
-            df_out = gr.Dataframe(label="Resultado (DataFrame)", interactive=False, wrap=True, visible=False)
-            json_out = gr.JSON(label="Resultado (JSON)", visible=False)
-            run_btn = gr.Button("Ejecutar")
+            df_out = gr.Dataframe(label="Result (DataFrame)", interactive=False, wrap=True, visible=False)
+            json_out = gr.JSON(label="Result (JSON)", visible=False)
+            run_btn = gr.Button("Run")
 
-            # Orden de inputs: init..., luego todos los componentes del método (aplanados)
+            # Input order: init..., then all method components (flattened)
             all_inputs = [c for (_n, c) in init_inputs] + [c for (_full, _t, c) in inputs]
 
             run_btn.click(
@@ -358,30 +358,30 @@ def build_method_ui(api_name, api_class, method_name, method_info, init_defs, in
             )
             return
 
-        # B) Método con 'options'
+        # B) Method with 'options'
         options_def = method_info["options"]
         option_names = list(options_def.keys())
         first_opt = option_names[0]
 
-        # Selector de opción (sin accordion)
+        # Option selector (no accordion)
         opt_selector = gr.Radio(option_names, label="Options", value=first_opt, interactive=True)
 
-        # Construye un grupo e inputs aplanados por opción
+        # Build a group and flattened inputs per option
         option_groups = {}
-        option_inputs_map = {}  # nombre_opción -> [(full_name, type_str, component), ...]
-        option_len_map = {}     # nombre_opción -> cantidad de componentes aplanados
+        option_inputs_map = {}  # option_name -> [(full_name, type_str, component), ...]
+        option_len_map = {}     # option_name -> number of flattened components
 
         for name in option_names:
             params = options_def[name].get("inputs", [])
             with gr.Group(visible=(name == first_opt)) as grp:
                 flat_inputs = []
                 for p in params:
-                    flat_inputs.extend(create_input_component(p))  # <- recursivo/flatten
+                    flat_inputs.extend(create_input_component(p))  # <- recursive/flatten
                 option_groups[name] = grp
                 option_inputs_map[name] = flat_inputs
                 option_len_map[name] = len(flat_inputs)
 
-        # Toggle de visibilidad al cambiar opción
+        # Toggle visibility when changing option
         def _toggle(selected):
             return [gr.update(visible=(n == selected)) for n in option_names]
 
@@ -391,12 +391,12 @@ def build_method_ui(api_name, api_class, method_name, method_info, init_defs, in
             outputs=[option_groups[n] for n in option_names]
         )
 
-        # Outputs + botón
-        df_out = gr.Dataframe(label="Resultado (DataFrame)", interactive=False, wrap=True, visible=False)
-        json_out = gr.JSON(label="Resultado (JSON)", visible=False)
-        run_btn = gr.Button("Ejecutar")
+        # Outputs + button
+        df_out = gr.Dataframe(label="Result (DataFrame)", interactive=False, wrap=True, visible=False)
+        json_out = gr.JSON(label="Result (JSON)", visible=False)
+        run_btn = gr.Button("Run")
 
-        # Inputs: init..., selector, y todos los componentes (aplanados) de todas las opciones (en orden de option_names)
+        # Inputs: init..., selector, and all components (flattened) of all options (in option_names order)
         flat_option_components = []
         for n in option_names:
             flat_option_components.extend([c for (_full, _t, c) in option_inputs_map[n]])
@@ -409,21 +409,21 @@ def build_method_ui(api_name, api_class, method_name, method_info, init_defs, in
                 api_name=api_name,
                 api_class=api_class,
                 method_name=method_name,
-                method_info=method_info,      # el runner elegirá la opción seleccionada
+                method_info=method_info,      # runner will choose the selected option
                 init_defs=init_defs,
                 init_count=len(init_inputs),
                 df_out=df_out,
                 json_out=json_out,
                 options_def=options_def,
                 option_names=option_names,
-                option_len_map=option_len_map,  # importante: le dice al runner cuántos inputs tiene cada opción
+                option_len_map=option_len_map,  # important: tells runner how many inputs each option has
             ),
             inputs=all_inputs,
             outputs=[df_out, json_out],
         )
 
 def build_api_ui(api_name, api_info):
-    """Construye la pestaña de una API completa"""
+    """Builds the tab for a complete API"""
     with gr.Tab(api_name):
         api_class = api_info["class"]
         
@@ -452,7 +452,7 @@ def build_api_ui(api_name, api_info):
                             label=label,
                             value=prefill,
                             type="password" if spec.get("type") == "password" else "text",
-                            info="Requerido" if spec.get("required", True) else None
+                            info="Required" if spec.get("required", True) else None
                         )
                         init_inputs.append((spec["name"], comp))
 
@@ -561,7 +561,7 @@ def run_query(
     # --- 4) Coerce + validate according to eff_info['inputs'] ---
     inputs_schema = eff_info.get("inputs", [])
 
-    # Mapa de specs top-level y sub-especificaciones de list[dict]
+    # Map of top-level specs and sub-specs for list[dict]
     top_specs = {p["name"]: p for p in inputs_schema}
     listdict_subspecs = {
         name: {c["name"]: c for c in spec.get("inputs", [])}
@@ -569,13 +569,13 @@ def run_query(
         if spec.get("type") == "list[dict]"
     }
 
-    # Aplana el schema tal como lo renderiza la UI (nombres con punto)
+    # Flatten the schema as rendered by the UI (dot names)
     flat_specs = _flatten_input_specs(inputs_schema)
 
     vals = {}
     groups = {}  # group -> {"spec": top_spec, "obj": {sub: val}, "empties": {sub: bool}}
 
-    # Coerce + validar usando el schema aplanado y los valores de la UI
+    # Coerce + validate using the flattened schema and UI values
     for spec, raw in zip(flat_specs, selected_vals):
         full_name = spec["full_name"]
         t = spec["type"]
@@ -584,47 +584,47 @@ def run_query(
         if "." in full_name:
             group, sub = full_name.split(".", 1)
             gspec = top_specs.get(group)
-            # Solo plegamos si el padre es list[dict]
+            # Only fold if parent is list[dict]
             if gspec and gspec.get("type") == "list[dict]":
-                # Usa el tipo/required del subcampo (el del flat spec ya es el del hijo)
+                # Use the type/required from the subfield (flat spec is already the child's)
                 v, empty = coerce_value(t, raw)
                 g = groups.setdefault(group, {"spec": gspec, "obj": {}, "empties": {}})
                 g["obj"][sub] = v
                 g["empties"][sub] = empty
                 continue
 
-        # Hoja normal (o grupo no list[dict])
+        # Normal leaf (or group not list[dict])
         v, empty = coerce_value(t, raw)
         if required and empty:
-            return gr.update(visible=False), gr.update(value={"error": f"El campo '{full_name}' es requerido y no puede estar vacío."}, visible=True)
+            return gr.update(visible=False), gr.update(value={"error": f"The field '{full_name}' is required and cannot be empty."}, visible=True)
         if not required and empty:
             continue
         vals[full_name] = v
 
-    # Plegar los grupos list[dict] en vals (como lista con UN dict)
+    # Fold list[dict] groups into vals (as a list with ONE dict)
     for gname, data in groups.items():
         gspec = data["spec"]
         subs_map = listdict_subspecs.get(gname, {})
 
-        # ¿todos los subcampos vacíos?
+        # Are all subfields empty?
         all_empty = all(data["empties"].get(s, True) for s in subs_map.keys())
         if all_empty:
             if gspec.get("required", False):
-                return gr.update(visible=False), gr.update(value={"error": f"El grupo '{gname}' es requerido y no puede estar vacío."}, visible=True)
-            continue  # grupo opcional vacío -> omitir
+                return gr.update(visible=False), gr.update(value={"error": f"The group '{gname}' is required and cannot be empty."}, visible=True)
+            continue  # optional group empty -> skip
 
-        # Validar subcampos requeridos
+        # Validate required subfields
         for sname, ssub in subs_map.items():
             if ssub.get("required", False) and data["empties"].get(sname, True):
-                return gr.update(visible=False), gr.update(value={"error": f"El subcampo requerido '{gname}.{sname}' no puede estar vacío."}, visible=True)
+                return gr.update(visible=False), gr.update(value={"error": f"The required subfield '{gname}.{sname}' cannot be empty."}, visible=True)
 
-        # Construye el objeto con subcampos no vacíos
+        # Build the object with non-empty subfields
         obj = {
             sname: data["obj"].get(sname)
             for sname in subs_map.keys()
             if not data["empties"].get(sname, True)
         }
-        vals[gname] = [obj]  # contrato: list con 1 dict para list[dict]
+        vals[gname] = [obj]  # contract: list with 1 dict for list[dict]
 
 
     
@@ -660,7 +660,7 @@ def run_query(
                 df_preview = result
             return gr.update(value=df_preview, visible=True), gr.update(visible=False)
 
-        payload = {"message": "No se encontraron resultados", "method": method_name}
+        payload = {"message": "No results found", "method": method_name}
         if not isinstance(result, pd.DataFrame):
             payload = result
         return gr.update(visible=False), gr.update(value=payload, visible=True)

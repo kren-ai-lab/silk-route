@@ -1,3 +1,0 @@
-[console_scripts]
-bioseq-dl = bioseq_dl.cli.main:app
-bioseq-dl-init = bioseq_dl.init_config:main_init
