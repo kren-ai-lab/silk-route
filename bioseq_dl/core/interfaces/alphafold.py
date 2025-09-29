@@ -1,4 +1,4 @@
-import os, json, yaml
+import os, json
 from typing import Union, List, Dict, Optional, Literal
 from requests import Request
 from requests.exceptions import RequestException
@@ -8,6 +8,7 @@ import pandas as pd
 from .base import BaseAPIInterface
 from ...constants.databases import ALPHAFOLD
 from ..utils.base_auxiliary_methods import validate_parameters
+from bioseq_dl.core.interfacesconfig import ConfigLoader
 
 # TODO Test get_dummy
 
@@ -49,10 +50,10 @@ class AlphafoldInterface(BaseAPIInterface):
             config_dir = ALPHAFOLD.CONFIG_DIR if ALPHAFOLD.CONFIG_DIR is not None else ""
 
         download_folder_fallback = cache_dir
-        if os.path.exists(config_dir + "/init.yml"):
-            with open(config_dir + "/init.yml", "r") as f:
-                config = yaml.safe_load(f)
-            download_folder_fallback = config.get("download_folder", cache_dir)
+
+        config = ConfigLoader(config_dir=config_dir)
+        if config.load_config("init"):
+            download_folder_fallback = config.get_parameter("download_folder") or cache_dir
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
         self.output_dir = output_dir or download_folder_fallback

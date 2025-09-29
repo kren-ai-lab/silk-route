@@ -4,6 +4,7 @@ import requests
 
 from .base import BaseAPIInterface
 from ...constants.databases import BIOGRID
+from bioseq_dl.core.interfacesconfig import ConfigLoader
 
 # Rest documentation: https://wiki.thebiogrid.org/doku.php/biogridrest
 
@@ -46,6 +47,7 @@ class BioGRIDInterface(BaseAPIInterface):
 
     def __init__(
             self,
+            api_key: Optional[str] = None,
             cache_dir: Optional[str] = None,
             config_dir: Optional[str] = None,
             **kwargs
@@ -64,6 +66,17 @@ class BioGRIDInterface(BaseAPIInterface):
 
         if config_dir is None:
             config_dir = BIOGRID.CONFIG_DIR if BIOGRID.CONFIG_DIR is not None else ""
+
+        if api_key is None:
+            self.config = ConfigLoader(config_dir=config_dir)
+
+        if self.config.load_config("init"):
+            self.api_key = api_key or self.config.get_parameter("api_key")
+        else:
+            self.api_key = api_key
+
+        if not self.api_key:
+            raise ValueError("An API key must be provided either directly or via a config file.")
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
 
@@ -86,6 +99,9 @@ class BioGRIDInterface(BaseAPIInterface):
         Returns:
             any: response from the API.
         """
+        if isinstance(query, dict) and "accessKey" not in query:
+            query["accessKey"] = self.api_key
+    
         response = super()._do_request(query, method=method, api_url=BIOGRID.API_URL, **kwargs)
         response = response.json() if isinstance(response, requests.models.Response) else response
         match method:

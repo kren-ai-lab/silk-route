@@ -31,7 +31,6 @@ class PDBInterface(BaseAPIInterface):
             self,
             batch_size: int = 5000, 
             download_structures: bool = False,
-            return_data_list: Optional[List] = None,
             cache_dir: Optional[str] = None,
             config_dir: Optional[str] = None,
             output_dir: Optional[str] = None,
@@ -42,7 +41,6 @@ class PDBInterface(BaseAPIInterface):
         Args:.
             batch_size (int): Number of entries to process in each batch.
             download_structures (bool): Whether to download structure files. Default is False.
-            return_data_list (list): List of data fields to return. by default includes "rcsb_entry_info". return_data_list (list): List of data fields to return. by default includes "rcsb_entry_info".
             more info: https://data.rcsb.org/rest/v1/schema/entry
             more info: https://data.rcsb.org/redoc/index.html#tag/Entry-Service/operation/getEntryById
             cache_dir (str): Directory to cache API responses. If None, defaults to the cache directory defined in constants.
@@ -69,7 +67,6 @@ class PDBInterface(BaseAPIInterface):
 
         self.batch_size = batch_size
         self.download_structures = download_structures
-        self.return_data_list = return_data_list if return_data_list else ["rcsb_entry_info"]
         
        
     def fetch(self, query: Union[str, dict, list], *, method: str = "entry",**kwargs):

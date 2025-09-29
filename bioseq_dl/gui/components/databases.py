@@ -3,6 +3,9 @@ import gradio as gr
 import pandas as pd
 from functools import partial
 
+import yaml
+import importlib
+
 try:
     from dotenv import load_dotenv, find_dotenv
     load_dotenv(find_dotenv(usecwd=True), override=True)
@@ -107,6 +110,10 @@ def resolve_init_kwargs(api_name, init_defs, ui_values):
 
     return kwargs
 
+#####################
+# Env var helpers
+#####################
+
 def _env_keys_for_param(spec: dict, api_name: str, param_name: str):
     """
     Return a list of environment variable names to try for a constructor param.
@@ -146,37 +153,101 @@ def _getenv_first(keys):
             return v
     return None
 
-def _resolve_init_kwargs_simple(api_name: str, init_defs: list, ui_values: list):
+def _config_keys_for_param(spec: dict, api_name: str, param_name: str):
     """
-    Build constructor kwargs:
-    - Prefer non-empty UI values.
-    - Else take the first non-empty env var among the candidates.
-    - If required and still missing, raise ValueError.
+    Return a list of config keys to try for a constructor param.
+    - spec['config'] can be a string or list of strings.
+    - If not provided, fallback to param_name (as-is).
+    """
+    raw = spec.get("config")
+    if isinstance(raw, str):
+        keys = [raw]
+    elif isinstance(raw, (list, tuple)):
+        keys = [str(k) for k in raw]
+    else:
+        keys = [param_name]
+    return keys
+
+def _getconfig_first(keys, api_name: str):
+    """
+    Return the first non-empty config value among keys taken from the API's init.yml.
+
+    It resolves CONFIG_DIR from the constants module:
+      bioseq_dl.constants.databases -> <DBConfig object by UPPERCASE api_name> -> CONFIG_DIR
+
+    Example:
+      api_name='brenda' -> constants.BRENDA.CONFIG_DIR/init.yml
+    """
+    if not keys:
+        return None
+
+    try:
+        # Import the constants module (it's a module, not a package of per-API submodules)
+        const_mod = importlib.import_module("bioseq_dl.constants.databases")
+        dbcfg = getattr(const_mod, api_name.upper())  # e.g., BRENDA, BIOGRID, REFSEQ
+        config_dir = getattr(dbcfg, "CONFIG_DIR")
+    except Exception as e:
+        print(f"Error resolving CONFIG_DIR for '{api_name}': {e}")
+        return None
+
+    config_path = os.path.join(config_dir, "init.yml")
+    try:
+        if not os.path.exists(config_path):
+            return None
+        with open(config_path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        for k in keys:
+            if isinstance(k, str) and k in data:
+                val = data.get(k)
+                if val not in (None, ""):
+                    return val
+    except Exception as e:
+        print(f"Error reading config file {config_path}: {e}")
+    return None
+
+def _resolve_init_kwargs_config_first(api_name: str, init_defs: list, ui_values: list):
+    """
+    Build constructor kwargs with precedence:
+      1) Non-empty UI values
+      2) Config file (init.yml in constants' CONFIG_DIR)
+      3) Environment variables (fallback)
+
+    Raises ValueError if a required param remains missing.
     """
     kwargs = {}
     if not init_defs:
         return kwargs
 
-    # ui_values may be empty if the Accordion was hidden
     if not ui_values:
         ui_values = [None] * len(init_defs)
 
     for spec, ui_val in zip(init_defs, ui_values):
         name = spec["name"]
+        required = spec.get("required", True)
+
+        # 1) UI
         if ui_val not in (None, ""):
             kwargs[name] = ui_val
             continue
 
-        keys = _env_keys_for_param(spec, api_name, name)
-        found = _getenv_first(keys)
-        if found not in (None, ""):
-            kwargs[name] = found
+        # 2) Config
+        cfg_keys = _config_keys_for_param(spec, api_name, name)
+        cfg_val = _getconfig_first(cfg_keys, api_name)
+        if cfg_val not in (None, ""):
+            kwargs[name] = cfg_val
             continue
 
-        if spec.get("required", True):
+        # 3) Env
+        env_keys = _env_keys_for_param(spec, api_name, name)
+        env_val = _getenv_first(env_keys)
+        if env_val not in (None, ""):
+            kwargs[name] = env_val
+            continue
+
+        if required:
             raise ValueError(
                 f"Missing initialization parameter '{name}'. "
-                f"Provide it in the UI or define one of these variables: {keys}"
+                f"Provide it via UI or config keys {cfg_keys} or env vars {env_keys}."
             )
 
     return kwargs
@@ -433,11 +504,25 @@ def build_api_ui(api_name, api_info):
 
         if init_defs:
             missing_required = False
+            # Check if any required param is missing in env or config
             for spec in init_defs:
                 if not spec.get("required", True):
                     continue
+                # First check config
+                cfg_keys = _config_keys_for_param(spec, api_name, spec["name"])
+                in_config = False
+                if _getconfig_first(cfg_keys, api_name) is not None:
+                    in_config = True
+                
+                # Then check env
                 keys = _env_keys_for_param(spec, api_name, spec["name"])
+                in_env = False
                 if _getenv_first(keys) is None:
+                    in_env = True
+                
+                # The parameter is missing if not in config and not in env
+                # So it's required to input the missing parameter in the UI
+                if not in_config and not in_env:
                     missing_required = True
                     break
             
@@ -445,13 +530,26 @@ def build_api_ui(api_name, api_info):
                 with gr.Accordion("Initialization parameters", open=True):
                     for spec in init_defs:
                         label = spec.get("label", spec["name"])
-                        keys = _env_keys_for_param(spec, api_name, spec["name"])
-                        # Prefill only non-password fields from env
-                        prefill = None if spec.get("type") == "password" else _getenv_first(keys)
+
+                        # First try config (init.yml), then env
+                        cfg_keys = _config_keys_for_param(spec, api_name, spec["name"])
+                        prefill_cfg = _getconfig_first(cfg_keys, api_name)
+
+                        env_keys = _env_keys_for_param(spec, api_name, spec["name"])
+                        prefill_env = _getenv_first(env_keys)
+
+                        # Choose non-sensitive prefill. Avoid prefill for type "password"
+                        if spec.get("name") == "password":
+                            prefill = None
+                            input_type = "password"
+                        else:
+                            prefill = prefill_cfg if prefill_cfg not in (None, "") else prefill_env
+                            input_type = "text"
+                        
                         comp = gr.Textbox(
                             label=label,
                             value=prefill,
-                            type="password" if spec.get("type") == "password" else "text",
+                            type=input_type,
                             info="Required" if spec.get("required", True) else None
                         )
                         init_inputs.append((spec["name"], comp))
@@ -553,7 +651,7 @@ def run_query(
 
     # --- 3) Instantiate API (UI > env) ---
     try:
-        ctor_kwargs = _resolve_init_kwargs_simple(api_name, init_defs, ui_init_values) if init_defs else {}
+        ctor_kwargs = _resolve_init_kwargs_config_first(api_name, init_defs, ui_init_values) if init_defs else {}
         api = api_class(**ctor_kwargs) if ctor_kwargs else api_class()
     except Exception as e:
         return gr.update(visible=False), gr.update(value={"error": str(e)}, visible=True)

@@ -27,13 +27,6 @@ BIOGRID ={
                     "type": "str",
                     "label": "Taxon ID",
                     "placeholder": "9606"
-                },
-                {
-                    "name": "accessKey",
-                    "required": True,
-                    "type": "str",
-                    "label": "API Key",
-                    "placeholder": "Your BioGRID API key"
                 }
             ]
         }

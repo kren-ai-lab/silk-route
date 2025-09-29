@@ -7,6 +7,7 @@ from .base import BaseAPIInterface
 from ...constants.databases import REFSEQ
 from ..utils.base_auxiliary_methods import get_nested
 from ...constants.refseq import databases
+from bioseq_dl.core.interfacesconfig import ConfigLoader
 
 class RefSeqInterface(BaseAPIInterface):
     METHODS = {
@@ -64,8 +65,11 @@ class RefSeqInterface(BaseAPIInterface):
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
 
+        config = ConfigLoader(config_dir=self.config_dir)
+        config.load_config("init")
+
         # Set Entrez email
-        Entrez.email = email
+        Entrez.email = email or config.get_parameter("email")
 
     def to_native(self, obj):
         """

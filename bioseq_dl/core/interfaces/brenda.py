@@ -8,6 +8,7 @@ from zeep.helpers import serialize_object
 from .base import BaseAPIInterface
 from ...constants.databases import BRENDA
 from ..utils.base_auxiliary_methods import validate_parameters
+from bioseq_dl.core.interfacesconfig import ConfigLoader
 
 # For aditional implementations see: https://www.brenda-enzymes.org/soap.php
 class BrendaInterface(BaseAPIInterface):
@@ -178,8 +179,8 @@ class BrendaInterface(BaseAPIInterface):
 
     def __init__(
             self, 
-            email: str, 
-            password: str,
+            email: Optional[str] = None, 
+            password: Optional[str] = None,
             cache_dir: Optional[str] = None,
             config_dir: Optional[str] = None,
             **kwargs
@@ -203,8 +204,14 @@ class BrendaInterface(BaseAPIInterface):
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs, min_wait=2.0, max_wait=5.0)
 
-        self.email = email
-        self.password = hashlib.sha256(password.encode("utf-8")).hexdigest()
+        config = ConfigLoader(config_dir=config_dir)
+        config.load_config("init")
+        self.email = email or config.get_parameter("email")
+        self.password = password or config.get_parameter("password")
+
+        if self.password is None:
+            raise ValueError("Password for BRENDA API must be provided.")
+        self.password = hashlib.sha256(self.password.encode("utf-8")).hexdigest()
         self.client = Client(BRENDA.API_URL)
 
 

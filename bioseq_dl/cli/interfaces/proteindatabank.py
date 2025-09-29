@@ -24,7 +24,6 @@ def run_fetch_entry(
     """
     interface = PDBInterface(
         download_structures=download_structures,
-        return_data_list=["rcsb_entry_info", "struct_ref", "pdbx_audit_revision_history"],
         output_dir="/".join(output_file.split("/")[:-1]) if output_file else None
     )
 

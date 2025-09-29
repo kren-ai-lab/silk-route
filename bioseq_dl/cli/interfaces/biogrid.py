@@ -1,4 +1,6 @@
 import typer
+import os
+import pandas as pd
 
 from bioseq_dl import BioGRIDInterface
 
@@ -32,9 +34,7 @@ def run_interactions(
 
     instance = BioGRIDInterface()
 
-    query = {
-        "accessKey": access_key
-    }
+    query = {}
 
     if gene_list:
         query["geneList"] = gene_list.split(",")

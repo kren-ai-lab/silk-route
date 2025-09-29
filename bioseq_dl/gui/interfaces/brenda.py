@@ -9,14 +9,14 @@ BRENDA = {
             "label": "BRENDA Email",
             "type": "str",
             "required": True,
-            "env": ["brenda_email"]
+            "env": ["brenda_email"],
         },
         {
             "name": "password",
             "label": "BRENDA Password",
             "type": "str",
             "required": True,
-            "env": ["brenda_password"]
+            "env": ["brenda_password"],
         }
     ],
     "methods": {

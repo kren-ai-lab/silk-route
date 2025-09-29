@@ -1,7 +1,7 @@
-from dataclasses import dataclass
 import os
 from pathlib import Path
-from typing import Optional
+
+from bioseq_dl.core.dbconfig import DBConfig
 
 POLLING_INTERVAL = 3
 
@@ -28,13 +28,6 @@ DATABASES = {
 BASE_CACHE_DIR = Path.home() / ".cache" / "bioseq_dl"
 BASE_BLAST_DB_DIR = BASE_CACHE_DIR / "blast_db"
 BASE_CONFIG_DIR = Path.home() / ".config" / "bioseq_dl"
-
-@dataclass(frozen=True)
-class DBConfig:
-    API_URL: str = ""
-    STRUCTURE_URL: Optional[str] = None
-    CACHE_DIR: Optional[str] = None
-    CONFIG_DIR: Optional[str] = None
 
 ALPHAFOLD = DBConfig(
     API_URL="https://alphafold.ebi.ac.uk/api/",
