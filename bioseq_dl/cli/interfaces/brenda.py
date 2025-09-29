@@ -18,12 +18,6 @@ def run_km_values(
     output: str = typer.Option(None, "--output", "-o", help="Output file to save the fetched data.",)
 ):
     """Fetch Km values from BRENDA database."""
-    if email is None or password is None:
-        email = os.getenv("brenda_email", None)
-        password = os.getenv("brenda_password", None)
-        if email is None or password is None:
-            raise ValueError("Email and password are required. Provide them via --email and --password or set the brenda_email and brenda_password environment variables.")
-    
     instance = BrendaInterface(email=email, password=password)
 
     query = {}
@@ -56,12 +50,6 @@ def run_ic50_values(
     output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
 ):
     """Fetch IC50 values from BRENDA."""
-    if email is None or password is None:
-        email = os.getenv("brenda_email", None)
-        password = os.getenv("brenda_password", None)
-        if email is None or password is None:
-            raise ValueError("Email and password are required. Provide them via --email and --password or set the brenda_email and brenda_password environment variables.")
-    
     instance = BrendaInterface(email=email, password=password)
 
     query = {}
@@ -87,12 +75,6 @@ def run_kcat_km_values(
     output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
 ):
     """Fetch kcat/Km values from BRENDA."""
-    if email is None or password is None:
-        email = os.getenv("brenda_email", None)
-        password = os.getenv("brenda_password", None)
-        if email is None or password is None:
-            raise ValueError("Email and password are required. Provide them via --email and --password or set the brenda_email and brenda_password environment variables.")
-    
     instance = BrendaInterface(email=email, password=password)
 
     query = {}
@@ -118,12 +100,6 @@ def run_ki_values(
     output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
 ):
     """Fetch Ki values from BRENDA."""
-    if email is None or password is None:
-        email = os.getenv("brenda_email", None)
-        password = os.getenv("brenda_password", None)
-        if email is None or password is None:
-            raise ValueError("Email and password are required. Provide them via --email and --password or set the brenda_email and brenda_password environment variables.")
-    
     instance = BrendaInterface(email=email, password=password)
 
     query = {}
@@ -148,12 +124,6 @@ def run_ph_range(
     output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
 ):
     """Fetch pH range data from BRENDA."""
-    if email is None or password is None:
-        email = os.getenv("brenda_email", None)
-        password = os.getenv("brenda_password", None)
-        if email is None or password is None:
-            raise ValueError("Email and password are required. Provide them via --email and --password or set the brenda_email and brenda_password environment variables.")
-    
     instance = BrendaInterface(email=email, password=password)
 
     query = {}
@@ -179,12 +149,6 @@ def run_ph_optimum(
     output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
 ):
     """Fetch pH optimum data from BRENDA."""
-    if email is None or password is None:
-        email = os.getenv("brenda_email", None)
-        password = os.getenv("brenda_password", None)
-        if email is None or password is None:
-            raise ValueError("Email and password are required. Provide them via --email and --password or set the brenda_email and brenda_password environment variables.")
-    
     instance = BrendaInterface(email=email, password=password)
 
     query = {}
@@ -209,12 +173,6 @@ def run_ph_stability(
     output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
 ):
     """Fetch pH stability data from BRENDA."""
-    if email is None or password is None:
-        email = os.getenv("brenda_email", None)
-        password = os.getenv("brenda_password", None)
-        if email is None or password is None:
-            raise ValueError("Email and password are required. Provide them via --email and --password or set the brenda_email and brenda_password environment variables.")
-    
     instance = BrendaInterface(email=email, password=password)
 
     query = {}
@@ -236,12 +194,6 @@ def run_cofactor(
     output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
 ):
     """Fetch cofactor data from BRENDA."""
-    if email is None or password is None:
-        email = os.getenv("brenda_email", None)
-        password = os.getenv("brenda_password", None)
-        if email is None or password is None:
-            raise ValueError("Email and password are required. Provide them via --email and --password or set the brenda_email and brenda_password environment variables.")
-    
     instance = BrendaInterface(email=email, password=password)
 
     query = {}
@@ -263,12 +215,6 @@ def run_temperature_optimum(
     output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
 ):
     """Fetch temperature optimum data from BRENDA."""
-    if email is None or password is None:
-        email = os.getenv("brenda_email", None)
-        password = os.getenv("brenda_password", None)
-        if email is None or password is None:
-            raise ValueError("Email and password are required. Provide them via --email and --password or set the brenda_email and brenda_password environment variables.")
-    
     instance = BrendaInterface(email=email, password=password)
 
     query = {}
@@ -292,12 +238,6 @@ def run_temperature_stability(
     output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
 ):
     """Fetch temperature stability data from BRENDA."""
-    if email is None or password is None:
-        email = os.getenv("brenda_email", None)
-        password = os.getenv("brenda_password", None)
-        if email is None or password is None:
-            raise ValueError("Email and password are required. Provide them via --email and --password or set the brenda_email and brenda_password environment variables.")
-    
     instance = BrendaInterface(email=email, password=password)
 
     query = {}
@@ -321,12 +261,6 @@ def run_temperature_range(
     output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
 ):
     """Fetch temperature range data from BRENDA."""
-    if email is None or password is None:
-        email = os.getenv("brenda_email", None)
-        password = os.getenv("brenda_password", None)
-        if email is None or password is None:
-            raise ValueError("Email and password are required. Provide them via --email and --password or set the brenda_email and brenda_password environment variables.")
-    
     instance = BrendaInterface(email=email, password=password)
 
     query = {}

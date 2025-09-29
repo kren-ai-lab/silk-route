@@ -30,7 +30,6 @@ def run_db2db(
         None, "--output", "-out",
         help="Output file to save the fetched data.",
     )
-
 ):
     """Fetch interaction data from BioGRID database."""
     instance = BioDBNetInterface()
@@ -41,7 +40,6 @@ def run_db2db(
             "input": input,
             "inputValues": value.split(","),
             "outputs": outputs,
-            "pathways": pathways,
             "taxonId": taxon_id
         },
         method="db2db",
@@ -79,8 +77,6 @@ def run_pathways(
 
         query={
             "input": input,
-            "inputValues": value.split(","),
-            "outputs": outputs,
             "pathways": pathways,
             "taxonId": taxon_id
         },
