@@ -1,5 +1,6 @@
 import gradio as gr
 import pandas as pd
+from typing import List, Tuple
 from .components.uniprot_query_search import build_ui as build_uniprot_search_ui
 from .components.uniprot_blast_search import build_ui as build_uniprot_blast_search_ui
 from .components.databases import build_api_ui
@@ -59,20 +60,175 @@ REGISTRY = {
 
 # For every code in the component module, there should be a subtab in the main UI
 
+# -------------------------
+# Visibility helpers
+# -------------------------
+
+def api_panel_and_button_updates(selected_name: str, all_names: List[str]) -> Tuple[List[dict], List[dict]]:
+    """Returns (group_updates, button_updates) so the selected API is visible and its button is primary."""
+    # If your Gradio version prefers per-component update, replace gr.update(...) with gr.Button.update(...)
+    group_updates  = [gr.update(visible=(n == selected_name)) for n in all_names]
+    button_updates = [gr.update(variant=("primary" if n == selected_name else "secondary")) for n in all_names]
+    return group_updates, button_updates
+
+def on_api_button_click(target_name: str, all_names: List[str]) -> List[dict]:
+    """Flattened updates for convenience: first panel updates, then button updates."""
+    groups, buttons = api_panel_and_button_updates(target_name, all_names)
+    return groups + buttons
+
+def section_updates_and_buttons(section: str) -> Tuple[dict, dict, dict, dict]:
+    """
+    Returns (apis_container_u, uniprot_container_u, apis_btn_u, uniprot_btn_u).
+    Highlights the active section button.
+    """
+    is_apis = (section == "APIs")
+    return (
+        gr.update(visible=is_apis),
+        gr.update(visible=not is_apis),
+        gr.update(variant=("primary" if is_apis else "secondary")),
+        gr.update(variant=("primary" if not is_apis else "secondary")),
+    )
+
+def uniprot_panels_and_buttons(choice: str) -> Tuple[dict, dict, dict, dict]:
+    """
+    Returns (search_group_u, blast_group_u, search_btn_u, blast_btn_u).
+    Highlights the active UniProt tool button.
+    """
+    is_search = (choice == "UniProt Search")
+    return (
+        gr.update(visible=is_search),
+        gr.update(visible=not is_search),
+        gr.update(variant=("primary" if is_search else "secondary")),
+        gr.update(variant=("primary" if not is_search else "secondary")),
+    )
+
+def toggle_sidebar(current_visible: bool) -> dict:
+    """Toggle sidebar visibility."""
+    return gr.update(visible=not current_visible)
+
+def section_updates_buttons_and_sidebar_groups(section: str) -> Tuple[dict, dict, dict, dict, dict, dict]:
+    """
+    Returns updates for:
+      1) apis_container (right side content)
+      2) uniprot_container (right side content)
+      3) btn_section_apis (variant)
+      4) btn_section_uniprot (variant)
+      5) apis_btns_group (left sidebar group with API buttons) -> visible
+      6) uniprot_btns_group (left sidebar group with UniProt buttons) -> visible
+    """
+    is_apis = (section == "APIs")
+    apis_container_u    = gr.update(visible=is_apis)
+    uniprot_container_u = gr.update(visible=not is_apis)
+    apis_btn_u          = gr.update(variant=("primary" if is_apis else "secondary"))
+    uniprot_btn_u       = gr.update(variant=("primary" if not is_apis else "secondary"))
+    apis_btns_group_u   = gr.update(visible=is_apis)
+    uniprot_btns_group_u= gr.update(visible=not is_apis)
+    return (apis_container_u, uniprot_container_u,
+            apis_btn_u, uniprot_btn_u,
+            apis_btns_group_u, uniprot_btns_group_u)
+
+# ----------------- main UI -----------------
 def build_ui():
-    """
-    This is the main UI builder.
-    At the moment it has two main tabs:
-    - APIs: Builds the main interface from the REGISTRY
-    - Uniprot search: Builds the Uniprot search and Uniprot BLAST search interfaces
-    Returns a Gradio Blocks object.
-    """
+    api_names = list(REGISTRY.keys())
+    default_api = api_names[0] if api_names else None
+
     with gr.Blocks() as demo:
-        with gr.Tab("APIs"):
-            for api_name, api_info in REGISTRY.items():
-                build_api_ui(api_name, api_info)
-        with gr.Tab("Uniprot search"):
-            build_uniprot_search_ui()
-            build_uniprot_blast_search_ui()
+        with gr.Row():
+            # --- LEFTBAR ---
+            with gr.Column(scale=0, min_width=150, visible=True) as leftbar:
+                gr.Markdown("**Navigation**")
+
+                # Section buttons
+                btn_section_apis    = gr.Button("APIs",   variant="primary")
+                btn_section_uniprot = gr.Button("UniProt", variant="secondary")
+
+                # Group API buttons
+                with gr.Group(visible=True) as apis_btns_group:
+                    gr.Markdown("**APIs**")
+                    api_buttons = []
+                    api_name_states = []
+                    for name in api_names:
+                        btn = gr.Button(name, variant=("primary" if name == default_api else "secondary"))
+                        api_buttons.append(btn)
+                        api_name_states.append(gr.State(name))
+
+                # Group UniProt buttons
+                with gr.Group(visible=False) as uniprot_btns_group:
+                    gr.Markdown("**UniProt**")
+                    btn_uniprot_search = gr.Button("UniProt Search", variant="primary")
+                    btn_uniprot_blast  = gr.Button("UniProt BLAST",  variant="secondary")
+
+                api_order_state = gr.State(api_names)
+
+            # --- RIGHT CONTENT ---
+            with gr.Column():
+                btn_toggle_sidebar = gr.Button("☰", scale=0)
+
+                with gr.Group(visible=True) as apis_container:
+                    api_groups = []
+                    for name, info in REGISTRY.items():
+                        with gr.Group(visible=(name == default_api)) as g:
+                            build_api_ui(name, info)
+                        api_groups.append(g)
+
+                with gr.Group(visible=False) as uniprot_container:
+                    with gr.Group(visible=True) as uniprot_search_group:
+                        build_uniprot_search_ui()
+                    with gr.Group(visible=False) as uniprot_blast_group:
+                        build_uniprot_blast_search_ui()
+
+        # ---- wiring ----
+
+        # Section: now also controls the visibility of the sidebar button groups
+        btn_section_apis.click(
+            fn=section_updates_buttons_and_sidebar_groups,
+            inputs=gr.State("APIs"),
+            outputs=[
+                apis_container, uniprot_container,
+                btn_section_apis, btn_section_uniprot,
+                apis_btns_group, uniprot_btns_group
+            ]
+        )
+        btn_section_uniprot.click(
+            fn=section_updates_buttons_and_sidebar_groups,
+            inputs=gr.State("UniProt"),
+            outputs=[
+                apis_container, uniprot_container,
+                btn_section_apis, btn_section_uniprot,
+                apis_btns_group, uniprot_btns_group
+            ]
+        )
+
+        # APIs: panel visibility + active button highlight (unchanged)
+        for btn, name_state in zip(api_buttons, api_name_states):
+            btn.click(
+                fn=on_api_button_click,
+                inputs=[name_state, api_order_state],
+                outputs=(api_groups + api_buttons)
+            )
+
+        # UniProt: subpanel visibility + active button highlight (unchanged)
+        btn_uniprot_search.click(
+            fn=uniprot_panels_and_buttons,
+            inputs=gr.State("UniProt Search"),
+            outputs=[uniprot_search_group, uniprot_blast_group, btn_uniprot_search, btn_uniprot_blast]
+        )
+        btn_uniprot_blast.click(
+            fn=uniprot_panels_and_buttons,
+            inputs=gr.State("UniProt BLAST"),
+            outputs=[uniprot_search_group, uniprot_blast_group, btn_uniprot_search, btn_uniprot_blast]
+        )
+
+        # Toggle sidebar (optional, unchanged)
+        sidebar_visible = gr.State(True)
+        btn_toggle_sidebar.click(
+            fn=toggle_sidebar,
+            inputs=sidebar_visible,
+            outputs=leftbar
+        ).then(
+            fn=lambda v: not v,
+            inputs=sidebar_visible,
+            outputs=sidebar_visible
+        )
 
     return demo

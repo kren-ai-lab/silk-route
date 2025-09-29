@@ -495,74 +495,82 @@ def build_method_ui(api_name, api_class, method_name, method_info, init_defs, in
 
 def build_api_ui(api_name, api_info):
     """Builds the tab for a complete API"""
-    with gr.Tab(api_name):
-        api_class = api_info["class"]
-        
-        # Init Constructor parameters
-        init_defs = get_init_defs(api_info)
-        init_inputs = []
-
-        if init_defs:
-            missing_required = False
-            # Check if any required param is missing in env or config
-            for spec in init_defs:
-                if not spec.get("required", True):
-                    continue
-                # First check config
-                cfg_keys = _config_keys_for_param(spec, api_name, spec["name"])
-                in_config = False
-                if _getconfig_first(cfg_keys, api_name) is not None:
-                    in_config = True
-                
-                # Then check env
-                keys = _env_keys_for_param(spec, api_name, spec["name"])
-                in_env = False
-                if _getenv_first(keys) is None:
-                    in_env = True
-                
-                # The parameter is missing if not in config and not in env
-                # So it's required to input the missing parameter in the UI
-                if not in_config and not in_env:
-                    missing_required = True
-                    break
+    with gr.Blocks():
+        with gr.Row():
+            with gr.Column(min_width=420):  # centered content
+                gr.Markdown(
+                    "<div style='text-align:center'>"
+                    f"<h1>{api_name}</h1>"
+                    "</div>"
+                )
+        with gr.Row():
+            api_class = api_info["class"]
             
-            if missing_required:
-                with gr.Accordion("Initialization parameters", open=True):
-                    for spec in init_defs:
-                        label = spec.get("label", spec["name"])
+            # Init Constructor parameters
+            init_defs = get_init_defs(api_info)
+            init_inputs = []
 
-                        # First try config (init.yml), then env
-                        cfg_keys = _config_keys_for_param(spec, api_name, spec["name"])
-                        prefill_cfg = _getconfig_first(cfg_keys, api_name)
+            if init_defs:
+                missing_required = False
+                # Check if any required param is missing in env or config
+                for spec in init_defs:
+                    if not spec.get("required", True):
+                        continue
+                    # First check config
+                    cfg_keys = _config_keys_for_param(spec, api_name, spec["name"])
+                    in_config = False
+                    if _getconfig_first(cfg_keys, api_name) is not None:
+                        in_config = True
+                    
+                    # Then check env
+                    keys = _env_keys_for_param(spec, api_name, spec["name"])
+                    in_env = False
+                    if _getenv_first(keys) is None:
+                        in_env = True
+                    
+                    # The parameter is missing if not in config and not in env
+                    # So it's required to input the missing parameter in the UI
+                    if not in_config and not in_env:
+                        missing_required = True
+                        break
+                
+                if missing_required:
+                    with gr.Accordion("Initialization parameters", open=True):
+                        for spec in init_defs:
+                            label = spec.get("label", spec["name"])
 
-                        env_keys = _env_keys_for_param(spec, api_name, spec["name"])
-                        prefill_env = _getenv_first(env_keys)
+                            # First try config (init.yml), then env
+                            cfg_keys = _config_keys_for_param(spec, api_name, spec["name"])
+                            prefill_cfg = _getconfig_first(cfg_keys, api_name)
 
-                        # Choose non-sensitive prefill. Avoid prefill for type "password"
-                        if spec.get("name") == "password":
-                            prefill = None
-                            input_type = "password"
-                        else:
-                            prefill = prefill_cfg if prefill_cfg not in (None, "") else prefill_env
-                            input_type = "text"
-                        
-                        comp = gr.Textbox(
-                            label=label,
-                            value=prefill,
-                            type=input_type,
-                            info="Required" if spec.get("required", True) else None
-                        )
-                        init_inputs.append((spec["name"], comp))
+                            env_keys = _env_keys_for_param(spec, api_name, spec["name"])
+                            prefill_env = _getenv_first(env_keys)
 
-        for method_name, method_info in api_info["methods"].items():
-            build_method_ui(
-                api_name,
-                api_class, 
-                method_name, 
-                method_info, 
-                init_defs, 
-                init_inputs
-            )
+                            # Choose non-sensitive prefill. Avoid prefill for type "password"
+                            if spec.get("name") == "password":
+                                prefill = None
+                                input_type = "password"
+                            else:
+                                prefill = prefill_cfg if prefill_cfg not in (None, "") else prefill_env
+                                input_type = "text"
+                            
+                            comp = gr.Textbox(
+                                label=label,
+                                value=prefill,
+                                type=input_type,
+                                info="Required" if spec.get("required", True) else None
+                            )
+                            init_inputs.append((spec["name"], comp))
+
+            for method_name, method_info in api_info["methods"].items():
+                build_method_ui(
+                    api_name,
+                    api_class, 
+                    method_name, 
+                    method_info, 
+                    init_defs, 
+                    init_inputs
+                )
 
 ##############################
 # Logic to run queries
