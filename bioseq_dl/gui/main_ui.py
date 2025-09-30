@@ -65,14 +65,17 @@ REGISTRY = {
 # -------------------------
 
 def api_panel_and_button_updates(selected_name: str, all_names: List[str]) -> Tuple[List[dict], List[dict]]:
-    """Returns (group_updates, button_updates) so the selected API is visible and its button is primary."""
-    # If your Gradio version prefers per-component update, replace gr.update(...) with gr.Button.update(...)
+    """
+    Given a selected API name and a list of all API names, returns (group_updates, button_updates) so the selected API is visible and its button is primary.
+    """
     group_updates  = [gr.update(visible=(n == selected_name)) for n in all_names]
     button_updates = [gr.update(variant=("primary" if n == selected_name else "secondary")) for n in all_names]
     return group_updates, button_updates
 
 def on_api_button_click(target_name: str, all_names: List[str]) -> List[dict]:
-    """Flattened updates for convenience: first panel updates, then button updates."""
+    """
+    Flattened updates for convenience: first panel updates, then button updates.
+    """
     groups, buttons = api_panel_and_button_updates(target_name, all_names)
     return groups + buttons
 
@@ -136,15 +139,19 @@ def build_ui():
         with gr.Row():
             # --- LEFTBAR ---
             with gr.Column(scale=0, min_width=150, visible=True) as leftbar:
-                gr.Markdown("**Navigation**")
-
+                gr.Markdown("## BioSeq-DL Explorer")
                 # Section buttons
                 btn_section_apis    = gr.Button("APIs",   variant="primary")
                 btn_section_uniprot = gr.Button("UniProt", variant="secondary")
 
                 # Group API buttons
                 with gr.Group(visible=True) as apis_btns_group:
-                    gr.Markdown("**APIs**")
+                    #gr.Markdown("**APIs**")
+                    gr.Markdown(
+                        "<div style='text-align:center'>"
+                        f"<h2>APIs</h2>"
+                        "</div>"
+                    )
                     api_buttons = []
                     api_name_states = []
                     for name in api_names:
