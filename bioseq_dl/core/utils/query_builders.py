@@ -1,4 +1,14 @@
+# bioseq_dl/core/utils/query_builders.py
+"""
+An important part to build the cross-reference queries is
+the "query builders", which are functions that take a row of
+a DataFrame, identifies if the fields required for the
+query are present, and returns a list of query parameters
+to be used in the corresponding API call.
+"""
+
 import pandas as pd
+import numpy as np
 import ast
 
 from bioseq_dl import (
@@ -43,6 +53,43 @@ INTERFACE_CLASSES = {
 }
 
 ##########################################
+# Helper functions
+###########################################
+
+def to_str_list(value):
+    """
+    Normalize a cell value into a clean list[str].
+    Handles: None/NaN, scalar strings, JSON-like strings ('[a,b]'),
+    lists/tuples/ndarrays, and returns a list of non-empty strings.
+    """
+    # Missing
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return []
+    # Numpy array -> list
+    if isinstance(value, np.ndarray):
+        value = value.tolist()
+    # Already list/tuple
+    if isinstance(value, (list, tuple)):
+        return [str(x).strip() for x in value if str(x).strip()]
+    # String cases
+    if isinstance(value, str):
+        txt = value.strip()
+        if not txt:
+            return []
+        # Try JSON/py-literal list
+        if txt.startswith("[") and txt.endswith("]"):
+            try:
+                parsed = ast.literal_eval(txt)
+                if isinstance(parsed, (list, tuple)):
+                    return [str(x).strip() for x in parsed if str(x).strip()]
+            except Exception:
+                pass
+        # Fallback: single id
+        return [txt]
+    # Fallback: scalar -> list with one string
+    return [str(value).strip()] if str(value).strip() else []
+
+##########################################
 # Query Builders
 ###########################################
 QUERY_BUILDERS = {}
@@ -81,65 +128,59 @@ def get_query_builder(database, method, option=None):
         raise ValueError(f"No query builder registered for endpoint '{key}'")
     return builder
 
+@register_query_builder("alphafold", "prediction")
+def build_query_alphafold_prediction(row, params):
+    alphafold_ids = to_str_list(row.get("alphafold_ids"))
+    if alphafold_ids:
+        return alphafold_ids
+    else:
+        return []
+
 
 @register_query_builder("biodbnet", "db2db")
 def build_query_biodbnet_db2db(row, params):
-    if pd.isna(row.get("gene_primary")) or pd.isna(row.get("taxon_id")):
+    genes = to_str_list(row.get("gene_primary"))
+    taxon = to_str_list(row.get("taxon_id"))[0]
+    if genes and taxon:
+        return [{
+            "inputValues": genes,
+            "taxonId": taxon,
+            **params
+        }]
+    else:
         return []
-    
-    gene_primary = (
-        ast.literal_eval(row["gene_primary"])
-        if isinstance(row["gene_primary"], str) and row["gene_primary"].startswith("[")
-        else [row["gene_primary"]]
-    )
-    return [{
-        "inputValues": gene_primary,
-        "taxonId": row["taxon_id"],
-        **params
-    }]
-
 
 @register_query_builder("biodbnet", "getpathways")
 def build_query_biodbnet_getpathways(row, params):
-    if pd.isna(row.get("taxon_id")):
+    taxon = to_str_list(row.get("taxon_id"))
+    if taxon:
+        return [{
+            "taxonId": taxon_id,
+            **params
+        } for taxon_id in taxon]
+    else:
         return []
     
-    return [{
-        "taxonId": row["taxon_id"],
-        **params
-    }]
 
 @register_query_builder("biogrid", "interactions")
 def build_query_biogrid_interactions(row, params):
-    if not pd.isna(row.get("gene_primary")) and not pd.isna(row.get("taxon_id")):
-        gene_primary = (
-            ast.literal_eval(row["gene_primary"])
-            if isinstance(row["gene_primary"], str) and row["gene_primary"].startswith("[")
-            else [row["gene_primary"]]
-        )
-        return_param = {
-            "accessKey": params["accessKey"],
-            "geneList": gene_primary,
-            "taxId": str(row["taxon_id"]),
-            **params,
-        }
-    elif not pd.isna(row.get("biogrid_ids")):
-        biogrid_ids = (
-            ast.literal_eval(row["biogrid_ids"])
-            if isinstance(row["biogrid_ids"], str) and row["biogrid_ids"].startswith("[")
-            else [row["biogrid_ids"]]
-        )
-        return_param = [
-            {
-                "accessKey": params["accessKey"],
-                "id": biogrid_id,
-                **params,
-            } for biogrid_id in biogrid_ids
-        ]
+    genes = to_str_list(row.get("gene_primary"))
+    taxon = to_str_list(row.get("taxon_id"))[0]
+    biogrid_ids = to_str_list(row.get("biogrid_ids"))
+
+    if genes and taxon:
+        return [{
+            "geneList": genes,
+            "taxId": taxon,
+            **params
+        }]
+    elif biogrid_ids:
+        return [{
+            "id": biogrid_id,
+            **params
+        } for biogrid_id in biogrid_ids]
     else:
-        return_param = []
-    
-    return return_param
+        return []
 
 
 @register_query_builder("brenda", "getKmValue")
@@ -154,71 +195,77 @@ def build_query_biogrid_interactions(row, params):
 @register_query_builder("brenda", "getTemperatureStability")
 @register_query_builder("brenda", "getTemperatureRange")
 def build_query_brenda(row, params):
-    # Check if column brenda_ids is not empty 
-    if not pd.isna(row.get("brenda_ids")):
-        ec_list = ast.literal_eval(row["brenda_ids"]) if row["brenda_ids"].startswith("[") else [row["brenda_ids"]]
+    ec_numbers = to_str_list(row.get("ec_numbers"))
+    if ec_numbers:
         return [{
             "ecNumber": ec,
-            "organism": row["organism_name"]
-            , **params
-        } for ec in ec_list]
+            "organism": row["organism_name"],
+            **params
+        } for ec in ec_numbers]
     else:
         return []
     
 @register_query_builder("chembl", "activity")
 @register_query_builder("chembl", "binding_site")
 def build_query_chembl(row, params):
-    if not pd.isna(row.get("chembl_ids")):
-        ids = ast.literal_eval(row["chembl_ids"]) if row["chembl_ids"].startswith("[") else [row["chembl_ids"]]
+    chembl_ids = to_str_list(row.get("chembl_ids"))
+    if chembl_ids:
         return [{
             "target_chembl_id": chembl_id,
             **params
-        } for chembl_id in ids]
+        } for chembl_id in chembl_ids]
     else:
         return []
     
 @register_query_builder("chebi", "compounds")
 def build_query_chebi_compounds(row, params):
     group_of = 5
-    if not pd.isna(row.get("chebi_ids")):
-        ids = ast.literal_eval(row["chebi_ids"]) if row["chebi_ids"].startswith("[") else [row["chebi_ids"]]
+    chebi_ids = to_str_list(row.get("chebi_ids"))
+    if chebi_ids:
         return [{
-            "chebi_ids": ids[i: i + group_of],
+            "chebi_ids": chebi_ids[i: i + group_of],
             **params
-        } for i in range(0, len(ids), group_of)]
+        } for i in range(0, len(chebi_ids), group_of)]
     else:
         return []
 
 @register_query_builder("chebi", "ontology-children")
 @register_query_builder("chebi", "ontology-parents")
 def build_query_chebi_ontology(row, params):
-    if not pd.isna(row.get("chebi_ids")):
-        ids = ast.literal_eval(row["chebi_ids"]) if row["chebi_ids"].startswith("[") else [row["chebi_ids"]]
+    chebi_ids = to_str_list(row.get("chebi_ids"))
+    if chebi_ids:
         return [{
             "chebi_id": chebi_id,
             **params
-        } for chebi_id in ids]
+        } for chebi_id in chebi_ids]
     else:
         return []
 
 @register_query_builder("genontology", "bioentity-function")
 @register_query_builder("genontology", "ontology-term")
 def build_query_genontology(row, params):
-    if not pd.isna(row.get("go_terms")):
-        go_terms = ast.literal_eval(row["go_terms"]) if row["go_terms"].startswith("[") else [row["go_terms"]]
-        return go_terms
+    go_terms = to_str_list(row.get("go_terms"))
+    if go_terms:
+        return [{
+            "id": go_term,
+            **params
+        } for go_term in go_terms]
+    else:
+        return []
 
 @register_query_builder("interpro", "entry")
 def build_query_interpro(row, params):
-    if not pd.isna(row.get("interpro_ids")):
-        interpro_ids = ast.literal_eval(row["interpro_ids"]) if row["interpro_ids"].startswith("[") else [row["interpro_ids"]]
+    interpro_ids = to_str_list(row.get("interpro_ids"))
+    accession = to_str_list(row.get("accession"))[0]
+    taxon = to_str_list(row.get("taxon_id"))[0]
+    if interpro_ids:
         return [{
             "id": interpro_id,
             "db": "InterPro",
             "modifiers": {},
             **params
         } for interpro_id in interpro_ids]
-    elif not pd.isna(row.get("accession")) and not pd.isna(row.get("taxon_id")):
+    elif accession and taxon:
         # If accession and taxon_id are present, use them to fetch InterPro entries
         return [{
             "db": "InterPro",
@@ -227,12 +274,12 @@ def build_query_interpro(row, params):
                 {
                     "type": "protein",
                     "db": "reviewed",
-                    "value": row["accession"]
+                    "value": accession
                 },
                 {
                     "type": "taxonomy",
                     "db": "uniprot",
-                    "value": str(row["taxon_id"])
+                    "value": taxon
                 }
             ],
             **params
@@ -242,8 +289,8 @@ def build_query_interpro(row, params):
 
 @register_query_builder("kegg", "get")
 def build_query_kegg(row, params):
-    if not pd.isna(row.get("kegg_ids")):
-        kegg_ids = ast.literal_eval(row["kegg_ids"]) if row["kegg_ids"].startswith("[") else [row["kegg_ids"]]
+    kegg_ids = to_str_list(row.get("kegg_ids"))
+    if kegg_ids:
         return [{
             "entries": kegg_id,
             **params
@@ -253,8 +300,8 @@ def build_query_kegg(row, params):
     
 @register_query_builder("panther", "familymsa")
 def build_query_panther_familymsa(row, params):
-    if not pd.isna(row.get("panther_ids")):
-        panther_ids = ast.literal_eval(row["panther_ids"]) if row["panther_ids"].startswith("[") else [row["panther_ids"]]
+    panther_ids = to_str_list(row.get("panther_ids"))
+    if panther_ids:
         return [{
             "family": panther_id,
             **params
@@ -264,61 +311,63 @@ def build_query_panther_familymsa(row, params):
     
 @register_query_builder("panther", "geneinfo")
 def build_query_panther_geneinfo(row, params):
-    if not pd.isna(row.get("gene_primary")) and not pd.isna(row.get("taxon_id")):
-        gene_primary = (
-            ast.literal_eval(row["gene_primary"])
-            if isinstance(row["gene_primary"], str) and row["gene_primary"].startswith("[")
-            else [row["gene_primary"]]
-        )
-        return {
-            "geneInputList": gene_primary,
-            "organism": str(row["taxon_id"]),
+    genes = to_str_list(row.get("gene_primary"))
+    taxon = to_str_list(row.get("taxon_id"))
+
+    if genes and taxon:
+        return [{
+            "geneInputList": genes,
+            "organism": taxon,
             **params
-        }
+        }]
     else:
         return []
 
 @register_query_builder("pathwaycommons", "fetch")
 def build_query_pathwaycommons_fetch(row, params):
-    if not pd.isna(row.get("reactome_ids")):
-        reactome_ids = ast.literal_eval(row["reactome_ids"]) if row["reactome_ids"].startswith("[") else [row["reactome_ids"]]
-        return [{
-            "uri": [reactome_id],
-            **params
-        } for reactome_id in reactome_ids]
+    """
+    Build PathwayCommons 'fetch' requests from 'reactome_ids' column.
+    Returns a list of query dicts. Empty if no valid IDs.
+    """
+    ids = to_str_list(row.get("reactome_ids"))
+    if not ids:  # no ambiguous truth value here
+        return []
+    return [{"uri": [rid], **params} for rid in ids]
 
 @register_query_builder("pathwaycommons", "top_pathways")
 def build_query_pathwaycommons_top_pathways(row, params):
-    if not pd.isna(row.get("gene_primary")) and not pd.isna(row.get("taxon_id")):
-        gene_primary = (
-            ast.literal_eval(row["gene_primary"])
-            if isinstance(row["gene_primary"], str) and row["gene_primary"].startswith("[")
-            else [row["gene_primary"]]
-        )
+    genes = to_str_list(row.get("gene_primary"))
+    taxon = to_str_list(row.get("taxon_id"))
+
+    if genes and taxon:
         return [{
             "q": gene,
-            "organism": [str(row["taxon_id"])],
+            "organism": taxon,
             **params
-        } for gene in gene_primary]
+        } for gene in genes]
+    else:
+        return []
 
 @register_query_builder("pathwaycommons", "neighborhood")
 def build_query_pathwaycommons_neighborhood(row, params):
-    if not pd.isna(row.get("accession")) and not pd.isna(row.get("taxon_id")):
-        return {
-            "source": [row["accession"]],
-            "organism": [str(row["taxon_id"])],
+    accession = row.get("accession") if not pd.isna(row.get("accession")) else None
+    taxon = to_str_list(row.get("taxon_id"))
+
+    if accession and taxon:
+        return [{
+            "source": [accession],
+            "organism": taxon,
             **params
-        }
+        }]
     else:
         return []
-    
+
 @register_query_builder("pdb", "entry")
 def build_query_pdb(row, params):
-    if not pd.isna(row.get("pdb_ids")):
-        pdb_ids = ast.literal_eval(row["pdb_ids"]) if row["pdb_ids"].startswith("[") else [row["pdb_ids"]]
-        return pdb_ids
-    else:
-        return []
+    pdb = to_str_list(row.get("pdb_ids"))
+    if pdb:
+        return pdb
+    return []
 
 @register_query_builder("pubchem", "compound", "summary")
 def build_query_pubchem_compound_summary(row, params):
@@ -349,49 +398,48 @@ def build_query_pubchem_protein(row, params):
 
 @register_query_builder("reactome", "data-discover")
 def build_query_reactome(row, params):
-    if not pd.isna(row.get("reactome_ids")):
-        reactome_ids = ast.literal_eval(row["reactome_ids"]) if row["reactome_ids"].startswith("[") else [row["reactome_ids"]]
-        return reactome_ids
+    ids_raw = to_str_list(row.get("reactome_ids"))
+    if ids_raw:
+        return ids_raw
     else:
         return []
     
 
 @register_query_builder("rhea", "rhea")
 def build_query_rhea(row, params):
-    if not pd.isna(row.get("rhea_ids")):
-        rhea_ids = ast.literal_eval(row["rhea_ids"]) if row["rhea_ids"].startswith("[") else [row["rhea_ids"]]
+    ids_raw = to_str_list(row.get("rhea_ids"))
+    if ids_raw:
         return [{
-            "query": rhea_id,
+            "query": id,
             **params
-        } for rhea_id in rhea_ids]
+        } for id in ids_raw]
+    else:
+        return []
 
 @register_query_builder("refseq", "protein")
 def build_query_refseq(row, params):
-    if not pd.isna(row.get("refseq_ids")):
-        refseq_ids = ast.literal_eval(row["refseq_ids"]) if row["refseq_ids"].startswith("[") else [row["refseq_ids"]]
-        return refseq_ids
+    ids_raw = to_str_list(row.get("refseq_ids"))
+    if ids_raw:
+        return ids_raw
     else:
         return []
 
 @register_query_builder("string", "interaction_partners")
 @register_query_builder("string", "get_string_ids")
 def build_query_stringdb(row, params):
-    if not pd.isna(row.get("string_ids")) and not pd.isna(row.get("taxon_id")):
-        string_ids = ast.literal_eval(row["string_ids"]) if row["string_ids"].startswith("[") else [row["string_ids"]]
+    string_ids = to_str_list(row.get("string_ids"))
+    taxon_id = row.get("taxon_id") if not pd.isna(row.get("taxon_id")) else None
+    gene_primary = to_str_list(row.get("gene_primary"))
+    if string_ids and taxon_id:
         return [{
             "identifiers": string_id,
-            "species": row["taxon_id"],
+            "species": taxon_id,
             **params
         } for string_id in string_ids]
-    elif not pd.isna(row.get("gene_primary")) and not pd.isna(row.get("taxon_id")):
-        gene_primary = (
-            ast.literal_eval(row["gene_primary"])
-            if isinstance(row["gene_primary"], str) and row["gene_primary"].startswith("[")
-            else [row["gene_primary"]]
-        )
+    elif gene_primary and taxon_id:
         return [{
             "identifiers": gene,
-            "species": row["taxon_id"],
+            "species": taxon_id,
             **params
         } for gene in gene_primary]
     else:

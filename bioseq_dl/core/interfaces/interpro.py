@@ -217,7 +217,7 @@ class InterproInterface(BaseAPIInterface):
             raise ValueError("Data must be a list or a dictionary.")
         if (isinstance(data, Dict) and not data) or \
               (isinstance(data, List) and not data):
-            raise ValueError("Data is an empty structure.")
+            return {}
         
         return self._extract_fields(data, fields_to_extract)
     

@@ -295,8 +295,10 @@ class BaseAPIInterface(ABC):
             elif isinstance(data, (dict, str)):
                 # str is the case of KEGG API, which returns a string, parse method should handle it
                 result =  self.parse(data=data, fields_to_extract=fields_to_extract, **kwargs)
+            elif data is None:
+                result = []
             else:
-                raise ValueError("Data must be a list, dictionary, or string for parsing.")
+                raise ValueError("Data must be a list, dictionary, or string for parsing. Received: {}".format(type(data)))
         else:
             result = data
         
@@ -307,6 +309,8 @@ class BaseAPIInterface(ABC):
                 return pd.DataFrame(result)
             elif isinstance(result, dict):
                 return pd.DataFrame([result])
+            elif result is None or result == []:
+                return pd.DataFrame()
             else:
                 raise ValueError(f"Cannot convert to DataFrame: unsupported type {type(result)}")
 
@@ -732,7 +736,11 @@ class BaseAPIInterface(ABC):
                 for data in results.values():
                     df = data if isinstance(data, pd.DataFrame) else pd.DataFrame(data)
                     dfs.append(df)
-                return pd.concat(dfs, ignore_index=True)
+                # TODO Check if this line of code works as intended
+                if dfs:
+                    return pd.concat(dfs, ignore_index=True)
+                else:
+                    return pd.DataFrame()
             
             return list(results.values())
         else:

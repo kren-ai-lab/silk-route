@@ -86,7 +86,7 @@ def run_blast_from_file(file, seq_column, database, evalue, blast_type, min_iden
     with open("test" + ".json", 'w') as f:
         for result in results:
             f.write(str(result) + '\n')
-    export_df = instance.parse_results(results)
+    export_df = instance.parse_results(results, None)
 
     return export_df, "\n".join(logs)
 
@@ -98,7 +98,7 @@ def save_results(df):
     return tmp_path
 
 def build_ui():
-    with gr.Tab("UniProt Sequences"):
+     with gr.Blocks():
         file_input = gr.File(label="Upload DataFrame (CSV/Excel)", file_types=[".csv", ".xlsx"])
 
         seq_column_dropdown = gr.Dropdown(label="Sequence Column", choices=[], interactive=True)

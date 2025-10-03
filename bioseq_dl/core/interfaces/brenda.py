@@ -248,7 +248,6 @@ class BrendaInterface(BaseAPIInterface):
         except ValueError as e:
             raise ValueError(f"Invalid parameters for method '{method}': {e}")
 
-
         results = []
         try:
             params = self.METHODS[method]["parameters"].keys()
