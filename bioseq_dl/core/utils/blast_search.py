@@ -1,28 +1,18 @@
-import os, re
 from typing import List
-import typer
-import shutil
+import os
+import re
 import subprocess
 import tarfile
 from pathlib import Path
 from urllib.request import urlopen
+import shutil
+
 from bioseq_dl.constants.databases import BASE_BLAST_DB_DIR as DB_DIR
-
-import pandas as pd
-
-app = typer.Typer(help="Tools for sequence alignment and database management.")
+from bioseq_dl.constants.databases import BASE_BLAST_DB_DIR as DB_DIR
+from bioseq_dl.constants.uniprot import DATABASES, BASE_URL
 
 BLAST_BASE_URL = "https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/"
-UNIPROT_BASE_URL = "https://ftp.uniprot.org/pub/databases/uniprot/current_release"
 BLAST_DIR = Path("blast_bin")
-
-databases = {
-    "uniprotkb_reviewed": "knowledgebase/complete/uniprot_sprot",
-    "uniprotkb_unreviewed": "knowledgebase/complete/uniprot_trembl",
-    "uniref100": "uniref/niref100/uniref100",
-    "uniref90": "uniref/uniref90/uniref90",
-    "uniref50": "uniref/uniref50/uniref50",
-}
 
 def download_uniprot_database(db_name: str, extension: str = "xml"):
     """ Download a Uniprot database from the Uniprot FTP server.
@@ -31,14 +21,14 @@ def download_uniprot_database(db_name: str, extension: str = "xml"):
         extension (str): File extension of the database. Default is "xml".
     """
 
-    if db_name not in databases:
-        raise ValueError(f"Database {db_name} is not supported. Supported databases are: {', '.join(databases.keys())}.")
-    
+    if db_name not in DATABASES:
+        raise ValueError(f"Database {db_name} is not supported. Supported databases are: {', '.join(DATABASES.keys())}.")
+
     db_path = os.path.join(DB_DIR, f"{db_name}.{extension}")
     
     if not os.path.exists(db_path):
         os.makedirs(DB_DIR, exist_ok=True)
-        url = f"{UNIPROT_BASE_URL}/{databases[db_name]}.{extension}.gz"
+        url = f"{BASE_URL}/{DATABASES[db_name]}.{extension}.gz"
         os.system(f"wget {url} -O {db_path}.gz")
         print(f"Unzipping {db_path}...")
         subprocess.run(["gunzip", db_path], check=True)
@@ -179,79 +169,3 @@ def parse_blast_results(file_path: str, identity_threshold: float = 90.0):
             })
     
     return parsed_results
-
-@app.command()
-def run(
-    database: str = typer.Option(
-        ..., "--database", "-d",
-        help="Database to download. Supported databases: " + ", ".join(databases.keys())
-    ),
-    extension: str = typer.Option(
-        "fasta", "--extension", "-e",
-        help="File extension of the database. Default is 'fasta'."
-    ),
-    input: str = typer.Option(
-        ..., "--input", "-i",
-        help="File with sequences to run BLAST on."
-    ),
-    seq_column: str = typer.Option(
-        "sequences", "--seq-column", "-c",
-        help="Column name with sequences."
-    ),
-    output: str = typer.Option(
-        ..., "--output", "-o",
-        help="Output file for BLAST results."
-    ),
-    evalue: float = typer.Option(
-        0.001, "--evalue", "-v",
-        help="E-value threshold for BLAST search."
-    ),
-    blast_type: str = typer.Option(
-        "blastp", "--blast-type", "-b",
-        help="Type of BLAST to run. Default is 'blastp'."
-    )
-):
-
-    df = pd.read_csv(input)
-
-    if seq_column not in df.columns:
-        raise ValueError(f"Column '{seq_column}' not found in input file.")
-
-    sequences = df[seq_column].dropna().unique().tolist()
-
-    download_uniprot_database(database, extension)
-
-    blastp_path = check_blast()
-    print(f"Using blastp at: {blastp_path}")
-
-    make_blast_database(database, extension=extension)
-
-    run_blast(sequences, database, blast_type=blast_type, evalue=evalue)
-
-    results = parse_blast_results("tmp/blast_results.txt")
-
-    # Convert to DataFrame
-    sequences_df = pd.DataFrame(sequences, columns=[seq_column])
-    sequences_df["id"] = sequences_df.index
-
-    df_blast = pd.DataFrame(results)
-
-    df_blast = df_blast.rename(columns={"query": "id", "subject": "subject_id"})
-    df_blast["id"] = df_blast["id"].astype(int)
-    df_blast = df_blast.merge(sequences_df, on="id", how="left")
-    df_blast = df_blast.drop(columns=["id"])
-    df_blast = df_blast.rename(columns={seq_column: "sequence"})
-
-    # Separate subject into source, accession, entry_name
-    df_blast["source"] = df_blast["subject_id"].apply(lambda x: x.split("|")[0])
-    df_blast["accession"] = df_blast["subject_id"].apply(lambda x: x.split("|")[1])
-    df_blast["entry_name"] = df_blast["subject_id"].apply(lambda x: x.split("|")[2])
-    df_blast = df_blast.drop(columns=["subject_id"])
-
-    # Save to CSV
-    df_blast.to_csv(output, index=False)
-    print(f"BLAST results saved to {output}")
-
-    # Clean up temporary files
-    os.remove("tmp/blast_results.txt")
-    shutil.rmtree("tmp")

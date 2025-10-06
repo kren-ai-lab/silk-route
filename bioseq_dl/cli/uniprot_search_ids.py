@@ -3,35 +3,7 @@ import argparse
 import typer
 from bioseq_dl import UniprotInterface
 from bioseq_dl.constants.databases import DATABASES
-
-# TODO poner en otro lado
-FIELDS = [
-    "accession",
-    "protein_name",
-    "gene_primary",
-    "organism_name",
-    "lineage",
-    "ec",
-    "sequence"
-]
-CROSS_REF_FIELDS = {
-    "alphafold": "alphafold_ids",
-    "biogrid": "biogrid_ids",
-    "brenda": "brenda_ids",
-    "go": "go_terms",
-    "chembl": "chembl_ids",
-    "interpro": "interpro_ids",
-    "kegg": "kegg_ids",
-    "panther": "panther_ids",
-    "pathwaycommons": "pathwaycommons_ids",
-    "pdb": "pdb_ids",
-    "pfam": "pfam_ids",
-    "pride": "pride_ids",
-    "refseq": "refseq_ids",
-    "reactome": "reactome_ids",
-    "string": "string_ids",
-    "rhea": "rhea_ids",
-}
+from bioseq_dl.constants.uniprot import VALID_FIELDS, VALID_CROSS_REF_FIELDS
 
 app = typer.Typer(help="Download data from UniProt using IDs")
 
@@ -59,11 +31,11 @@ def run(
             help="Database to convert to"
         ),
         fields: str = typer.Option(
-            ",".join(FIELDS), "-f", "--fields", 
+            ",".join(VALID_FIELDS), "-f", "--fields", 
             help="Fields to include in the output"
         ),
         crossref_fields: str = typer.Option(
-            ",".join(CROSS_REF_FIELDS), "-xr", "--crossref_fields", 
+            ",".join(VALID_CROSS_REF_FIELDS), "-xr", "--crossref_fields", 
             help="Cross reference fields to include in the output"
         ),
         batch_size: int = typer.Option(
@@ -92,8 +64,8 @@ def run(
     with open(output + ".json", 'w') as f:
         for result in results:
             f.write(str(result) + '\n')
-    
-    xref = [CROSS_REF_FIELDS[c] for c in crossref_fields.split(",") if c in CROSS_REF_FIELDS]
+
+    xref = [VALID_CROSS_REF_FIELDS[c] for c in crossref_fields.split(",") if c in VALID_CROSS_REF_FIELDS]
 
     export_df = instance.parse_results(results, fields.split(",") + xref)
     export_df.to_csv(output, index=False)
