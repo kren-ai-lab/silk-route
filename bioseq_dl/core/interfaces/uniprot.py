@@ -187,10 +187,10 @@ class UniprotInterface(UniprotBase):
         self.field_map_base = {
             'accession': ('primaryAccession', extract_simple),
             'protein_name': ('proteinDescription.recommendedName.fullName.value', extract_simple),
-            'ec_numbers': ('proteinDescription.recommendedName.ecNumbers', extract_ec_numbers),
+            'ec': ('proteinDescription.recommendedName.ecNumbers', extract_ec_numbers),
             'organism_name': ('organism.scientificName', extract_simple),
             'gene_primary': ('genes', extract_gene_names),
-            'taxon_id': ('organism.taxonId', extract_simple),
+            'organism_id': ('organism.taxonId', extract_simple),
             'lineage': ('organism.lineage', extract_simple),
             'sequence': ('sequence.value', extract_simple),
             'length': ('sequence.length', extract_simple),
@@ -213,7 +213,7 @@ class UniprotInterface(UniprotBase):
             'string_ids': ('uniProtKBCrossReferences', extract_database_terms),
             'references': ('references', extract_references),
             'features': ('features', extract_features),
-            'keywords': ('keywords', extract_keywords),
+            'keyword': ('keywords', extract_keywords),
         }
         self.format = None
     
@@ -399,7 +399,7 @@ class UniprotInterface(UniprotBase):
                 response.raise_for_status()
                 return response
             except requests.exceptions.RequestException as e:
-                if attempt < self.retries - 1:
+                if attempt < self.retries.total - 1:
                     print(f"Attempt {attempt + 1} failed: {e}. Retrying...")
                     time.sleep(POLLING_INTERVAL)
                 else:

@@ -4,16 +4,13 @@
 VALID_FIELDS = [
     "accession",
     "protein_name",
-    "ec_numbers",
+    "ec",
     "organism_name",
     "gene_primary",
-    "taxon_id",
-    "lineage",
+    "organism_id",
     "sequence",
     "length",
-    "references",
-    "features",
-    "keywords"
+    "keyword"
 ]
 
 VALID_CROSS_REF_FIELDS = {

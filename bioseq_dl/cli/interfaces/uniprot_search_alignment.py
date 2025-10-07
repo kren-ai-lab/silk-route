@@ -18,9 +18,6 @@ import pandas as pd
 
 app = typer.Typer(help="Run BLAST alignment on sequences and [optionaly] download matching sequences from UniProt.")
 
-
-
-
 @app.command()
 def run(
     database: str = typer.Option(
