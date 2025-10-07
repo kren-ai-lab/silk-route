@@ -68,13 +68,13 @@ CHEBI = DBConfig(
 
 GENONTOLOGY = DBConfig(
     API_URL="https://api.geneontology.org/api/",
-    CACHE_DIR=os.path.join(BASE_CACHE_DIR, "genontology"),
-    CONFIG_DIR=os.path.join(BASE_CONFIG_DIR, "genontology")
+    CACHE_DIR=os.path.join(BASE_CACHE_DIR, "go"),
+    CONFIG_DIR=os.path.join(BASE_CONFIG_DIR, "go")
 )
 
 KEGG = DBConfig(
     API_URL="https://rest.kegg.jp/",
-    CACHE_DIR=os.path.join(BASE_CACHE_DIR, "KEGG"),
+    CACHE_DIR=os.path.join(BASE_CACHE_DIR, "kegg"),
     CONFIG_DIR=os.path.join(BASE_CONFIG_DIR, "kegg")
 )
 

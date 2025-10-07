@@ -5,7 +5,7 @@ from bioseq_dl import UniprotInterface
 from bioseq_dl.constants.databases import DATABASES
 from bioseq_dl.constants.uniprot import VALID_FIELDS, VALID_CROSS_REF_FIELDS
 
-app = typer.Typer(help="Download data from UniProt using IDs")
+app = typer.Typer(help="Search and download sequences from UniProt using IDs.")
 
 @app.command()
 
@@ -23,11 +23,11 @@ def run(
             help="Output file"
         ),
         from_db: str = typer.Option(
-            'UniProtKB_AC-ID', "-f", "--from_db", 
+            'UniProtKB_AC-ID', "--from_db", 
             help="Database to convert from. Default is UniProtKB_AC-ID (UniProtKB_AC-ID, PDB)"
         ),
         to_db: str = typer.Option(
-            'UniProtKB', "-t", "--to_db", 
+            'UniProtKB', "--to_db", 
             help="Database to convert to"
         ),
         fields: str = typer.Option(

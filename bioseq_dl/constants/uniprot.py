@@ -27,6 +27,29 @@ VALID_CROSS_REF_FIELDS = {
     "rhea": "rhea_ids",
 }
 
+# Mapping of cross-reference fields to (field_name, endpoint_name)
+# If there is not a uniprot field associated, just use the endpoint name
+XREF_MAPPING = {
+    "AlphaFold": ("xref_alphafolddb", "alphafold"),
+    "BioDBNet": (None, "biodbnet"),
+    "BioGRID": (None, "biogrid"),
+    "Brenda": ("xref_brenda", "brenda"),
+    "ChEMBL": ("xref_chembl", "chembl"),
+    "ChEBI": (None, "chebi"),
+    "GO": ("go_id", "genontology"),
+    "InterPro": ("xref_interpro", "interpro"),
+    "KEGG": ("xref_kegg", "kegg"),
+    "Panther": ("xref_panther", "panther"),
+    "PathwayCommons": ("xref_pathwaycommons", "pathwaycommons"),
+    "PDB": ("xref_pdb", "pdb"),
+    "PubChem": (None, "pubchem"),
+    "Reactome": ("xref_reactome", "reactome"),
+    "Rhea": ("rhea", "rhea"),
+    #"PFAM": ("xref_pfam", None),
+    "RefSeq": ("xref_refseq", "refseq"),
+    "StringDB": ("xref_string", "string"),
+}
+
 DATABASES = {
     "uniprotkb_reviewed": "knowledgebase/complete/uniprot_sprot",
     "uniprotkb_unreviewed": "knowledgebase/complete/uniprot_trembl",

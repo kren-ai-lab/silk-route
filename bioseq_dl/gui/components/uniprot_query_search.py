@@ -5,43 +5,12 @@ from bioseq_dl import UniprotInterface
 from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
 from bioseq_dl.core.interfacesconfig import ConfigLoader
 from bioseq_dl.constants.databases import BASE_CONFIG_DIR
+from bioseq_dl.constants.uniprot import VALID_FIELDS, XREF_MAPPING
 ###############################
 # UniProt Search UI
 ###############################
 
-FIELDS = [
-    "accession",
-    "protein_name",
-    "gene_primary",
-    "organism_name",
-    "lineage",
-    "ec",
-    "sequence"
-]
 
-
-# Mapping of cross-reference fields to (field_name, endpoint_name)
-# If there is not a uniprot field associated, just use the endpoint name
-CROSS_REF_FIELDS = {
-    "AlphaFold": ("xref_alphafolddb", "alphafold"),
-    "BioDBNet": (None, "biodbnet"),
-    "BioGRID": (None, "biogrid"),
-    "Brenda": ("xref_brenda", "brenda"),
-    "ChEMBL": ("xref_chembl", "chembl"),
-    "ChEBI": (None, "chebi"),
-    "GO": ("go_id", "genontology"),
-    "InterPro": ("xref_interpro", "interpro"),
-    "KEGG": ("xref_kegg", "kegg"),
-    "Panther": ("xref_panther", "panther"),
-    "PathwayCommons": ("xref_pathwaycommons", "pathwaycommons"),
-    "PDB": ("xref_pdb", "pdb"),
-    "PubChem": (None, "pubchem"),
-    "Reactome": ("xref_reactome", "reactome"),
-    "Rhea": ("rhea", "rhea"),
-    #"PFAM": ("xref_pfam", None),
-    "RefSeq": ("xref_refseq", "refseq"),
-    "StringDB": ("xref_string", "string"),
-}
 
 def run_crossref_enrichment(df, crossref_fields):
     if df.empty:
@@ -52,7 +21,7 @@ def run_crossref_enrichment(df, crossref_fields):
 
     endpoint_specs = []
     # Generate the endpoint specs based on selected crossref fields
-    for key, (uniprot_field, db_name) in CROSS_REF_FIELDS.items():
+    for key, (uniprot_field, db_name) in XREF_MAPPING.items():
         if db_name and key in crossref_fields:
             print(f"Processing crossref field: {key} -> db: {db_name}, uniprot_field: {uniprot_field}")
             endpoint_config = config.get_parameter(db_name)
@@ -97,7 +66,7 @@ def run_uniprot_query(query, fields, crossref_fields, sort, fmt, include_isoform
     logs.append(f"Starting query: {query}")
     
     fields = fields or []
-    xref_fields = [CROSS_REF_FIELDS[c][0] for c in (crossref_fields or []) if c in CROSS_REF_FIELDS and CROSS_REF_FIELDS[c][0]]
+    xref_fields = [XREF_MAPPING[c][0] for c in (crossref_fields or []) if c in XREF_MAPPING and XREF_MAPPING[c][0]]
     logs.append(f"Using fields: {fields}")
     logs.append(f"Using crossref fields: {xref_fields}")
     logs.append(f"Sort: {sort}, Format: {fmt}, Include Isoform: {include_isoform}, Download: {download}")
@@ -135,13 +104,13 @@ def build_ui():
         query_input = gr.Textbox(label="Query", placeholder="Make a UniProt query")
 
         fields_select = gr.CheckboxGroup(
-            choices=FIELDS,
-            value=FIELDS,
+            choices=VALID_FIELDS,
+            value=VALID_FIELDS,
             label="Fields"
         )
         crossref_select = gr.CheckboxGroup(
-            choices=list(CROSS_REF_FIELDS.keys()),
-            value=list(CROSS_REF_FIELDS.keys()),
+            choices=list(XREF_MAPPING.keys()),
+            value=list(XREF_MAPPING.keys()),
             label="Cross-reference Fields"
         )
 

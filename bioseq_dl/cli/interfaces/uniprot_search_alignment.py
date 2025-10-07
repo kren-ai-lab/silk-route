@@ -16,7 +16,8 @@ from bioseq_dl.core.utils.blast_search import (
 
 import pandas as pd
 
-app = typer.Typer(help="Tools for sequence alignment and database management.")
+app = typer.Typer(help="Run BLAST alignment on sequences and [optionaly] download matching sequences from UniProt.")
+
 
 
 

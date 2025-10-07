@@ -10,8 +10,6 @@ from ...constants.databases import ALPHAFOLD
 from ..utils.base_auxiliary_methods import validate_parameters
 from bioseq_dl.core.interfacesconfig import ConfigLoader
 
-# TODO Test get_dummy
-
 class AlphafoldInterface(BaseAPIInterface):
     METHODS = {
         "prediction": {
@@ -27,7 +25,7 @@ class AlphafoldInterface(BaseAPIInterface):
 
     def __init__(
             self,  
-            structures: Optional[List[Literal["pdb", "cif", "bcif"]]] = None,
+            structures: Optional[List[Literal["pdb", "cif", "bcif"]]] = ["pdb"],
             cache_dir: Optional[str] = None,
             config_dir: Optional[str] = None,
             output_dir: Optional[str] = None,

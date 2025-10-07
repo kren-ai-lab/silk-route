@@ -1,10 +1,8 @@
 from __future__ import annotations
 import os
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any
 import pandas as pd
-import yaml
-import importlib.resources as pkg_resources
 
 from bioseq_dl.core.utils.query_builders import QUERY_BUILDERS, INTERFACE_CLASSES
 from bioseq_dl.constants.databases import BASE_CONFIG_DIR

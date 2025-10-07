@@ -2,7 +2,7 @@ import pandas as pd
 import typer
 from bioseq_dl import UniprotInterface
 
-app = typer.Typer(name="uniprot-search-query", help="Search and download sequences from UniProt using IDs.")    
+app = typer.Typer(name="uniprot-search-query", help="Search and download sequences from UniProt using queries.")    
 
 FIELDS = [
     "accession",

@@ -9,26 +9,11 @@ from typer.colors import YELLOW
 from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
 from bioseq_dl.core.interfacesconfig import ConfigLoader
 from bioseq_dl.constants.databases import BASE_CONFIG_DIR
-
-CROSS_REF_FIELDS = [
-    "alphafold",
-    "biodbnet",
-    "biogrid",
-    "brenda",
-    "chembl",
-    "chebi",
-    "genontology",
-    "interpro",
-    "kegg",
-    "panther",
-    "pathwaycommons",
-    "pdb",
-    "pubchem",
-    "reactome",
-    "rhea",
-]
+from bioseq_dl.constants.uniprot import XREF_MAPPING
 
 app = typer.Typer(help="Search and download cross-references from UniProt.")
+
+CROSS_REF_FIELDS = [xref.lower() for xref in XREF_MAPPING.keys()]
 
 def save_to_file(df, out_dir, filename, db, endpoint, option):
     # Make folder with filename
@@ -44,12 +29,12 @@ def save_to_file(df, out_dir, filename, db, endpoint, option):
 @app.command(name="")
 def run(
     input: str = typer.Option(
-        "--input", "-i",
+        ..., "--input", "-i",
         help="Input file with UniProt IDs.",
         case_sensitive=True,
     ),
     out_dir: str = typer.Option(
-        "--out_dir", "-o",
+        ..., "--out_dir", "-o",
         help="Output directory for results.",
         case_sensitive=True,
     ),
@@ -57,14 +42,6 @@ def run(
         "all", "--databases", "-d",
         help="List of databases to query separated by commas, or 'all' to query all databases. Options: " + ", ".join(CROSS_REF_FIELDS),
         case_sensitive=False,
-    ),
-    config_path: str = typer.Option(
-        None, "--config", "-c",
-        help="Path to the configuration file for endpoints."
-    ),
-    download_structures: bool = typer.Option(
-        False, "--download_structures", "-ds",
-        help="Download PDB structures."
     ),
     no_concat: bool = typer.Option(
         False, "--no-concat",
@@ -81,10 +58,6 @@ def run(
             df = pd.read_csv(input)
         except Exception as e:
             raise ValueError(f"Error reading input file {input}: {e}")
-
-        # Create output directory if it doesn't exist
-        if not os.path.exists(out_dir):
-            os.makedirs(out_dir)
         
         config = ConfigLoader(config_dir=str(BASE_CONFIG_DIR) + "/uniprot_crossref")
         config.load_config("config_endpoints")
@@ -130,8 +103,11 @@ def run(
 
         if isinstance(result, pd.DataFrame) and not result.empty:
             print(f"Crossref enrichment resulted in {len(result)} rows")
-            return result
        
+        # Create output directory if it doesn't exist
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+
         if no_concat:
             if isinstance(result, dict):
                 for name, result_df in result.items():
@@ -141,9 +117,9 @@ def run(
                 print("No results to save.")
         else:
             if isinstance(result, pd.DataFrame) and not result.empty:
-                output_file = os.path.join(out_dir, "crossref_results.csv")
-                result.to_csv(output_file, index=False)
-                print(f"Results saved to {output_file}")
+                filename = os.path.splitext(os.path.basename(input))[0]
+                result.to_csv(os.path.join(out_dir, f"{filename}_results.csv"), index=False)
+                print(f"Results saved to {os.path.join(out_dir, f'{filename}_results.csv')}")
             else:
                 print("No results to save.")
 

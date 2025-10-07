@@ -30,7 +30,7 @@ class PDBInterface(BaseAPIInterface):
     def __init__(
             self,
             batch_size: int = 5000, 
-            download_structures: bool = False,
+            download_structures: bool = True,
             cache_dir: Optional[str] = None,
             config_dir: Optional[str] = None,
             output_dir: Optional[str] = None,

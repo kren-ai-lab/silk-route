@@ -39,7 +39,7 @@ INTERFACE_CLASSES = {
     "brenda": BrendaInterface,
     "chembl": ChEMBLInterface,
     "chebi": ChEBIInterface,
-    "genontology": GenOntologyInterface,
+    "go": GenOntologyInterface,
     "interpro": InterproInterface,
     "kegg": KEGGInterface,
     "panther": PantherInterface,
@@ -241,15 +241,12 @@ def build_query_chebi_ontology(row, params):
     else:
         return []
 
-@register_query_builder("genontology", "bioentity-function")
-@register_query_builder("genontology", "ontology-term")
-def build_query_genontology(row, params):
+@register_query_builder("go", "bioentity-function")
+@register_query_builder("go", "ontology-term")
+def build_query_go(row, params):
     go_terms = to_str_list(row.get("go_terms"))
     if go_terms:
-        return [{
-            "id": go_term,
-            **params
-        } for go_term in go_terms]
+        return go_terms
     else:
         return []
 

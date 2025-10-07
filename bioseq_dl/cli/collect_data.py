@@ -1,5 +1,6 @@
 import typer
 
+from .interfaces.uniprot import app as uniprot_app
 from .interfaces.alphafold import app as alphafold_app
 from .interfaces.biodbnet import app as biodbnet_app
 from .interfaces.biogrid import app as biogrid_app
@@ -22,6 +23,7 @@ from .interfaces.stringdb import app as stringdb_app
 
 
 app = typer.Typer(help="Collect data from various biological databases.")
+app.add_typer(uniprot_app, name="uniprot")
 app.add_typer(alphafold_app, name="alphafold")
 app.add_typer(biodbnet_app, name="biodbnet")
 app.add_typer(biogrid_app, name="biogrid")

@@ -61,7 +61,7 @@ chebi:
       enabled: true
     ontology-parents:
       enabled: true
-genontology:
+go:
   enabled: false
   endpoints:
     bioentity-function:

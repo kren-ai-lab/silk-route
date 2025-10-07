@@ -3,6 +3,7 @@ import tempfile
 import pandas as pd
 import gradio as gr
 from bioseq_dl.core.utils.blast_search import DATABASES as BLAST_DATABASES
+from bioseq_dl.constants.uniprot import VALID_FIELDS, XREF_MAPPING
 from bioseq_dl.core.utils.blast_search import (
     download_uniprot_database,
     check_blast,
@@ -28,7 +29,7 @@ def load_dataframe(file):
     except Exception as e:
         return None, [f"Error: {e}"]
 
-def run_blast_from_file(file, seq_column, database, evalue, blast_type, min_identity):
+def run_blast_from_file(file, seq_column, database, evalue, blast_type, min_identity, fields, crossref_fields):
     logs = []
     df, _ = load_dataframe(file)
     if df is None or df.empty:
@@ -86,7 +87,9 @@ def run_blast_from_file(file, seq_column, database, evalue, blast_type, min_iden
     with open("test" + ".json", 'w') as f:
         for result in results:
             f.write(str(result) + '\n')
-    export_df = instance.parse_results(results, None)
+
+    xref = [XREF_MAPPING[c][0] for c in crossref_fields if c in XREF_MAPPING if XREF_MAPPING[c][0]]
+    export_df = instance.parse_results(results, fields + xref)
 
     return export_df, "\n".join(logs)
 
@@ -124,6 +127,17 @@ def build_ui():
         )
         min_identity_input = gr.Number(label="Minimum Identity (%)", value=90.0)
 
+        fields_select = gr.CheckboxGroup(
+            choices=VALID_FIELDS,
+            value=VALID_FIELDS,
+            label="Fields"
+        )
+        crossref_select = gr.CheckboxGroup(
+            choices=list(XREF_MAPPING.keys()),
+            value=list(XREF_MAPPING.keys()),
+            label="Cross-reference Fields"
+        )
+
         run_btn = gr.Button("Run BLAST")
         save_btn = gr.Button("Save Results", interactive=False)
         file_out = gr.File(label="Download Results", visible=False)
@@ -134,7 +148,7 @@ def build_ui():
 
         run_btn.click(
             fn=run_blast_from_file,
-            inputs=[file_input, seq_column_dropdown, db_dropdown, evalue_input, blast_type_dropdown, min_identity_input],
+            inputs=[file_input, seq_column_dropdown, db_dropdown, evalue_input, blast_type_dropdown, min_identity_input, fields_select, crossref_select],
             outputs=[results_out, logs_out]
         ).then(
             lambda: gr.update(interactive=True),
