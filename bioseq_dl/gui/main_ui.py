@@ -186,7 +186,7 @@ def build_ui():
 
         # ---- wiring ----
 
-        # Section: now also controls the visibility of the sidebar button groups
+        # Section: Controls the visibility of the sidebar button groups
         btn_section_apis.click(
             fn=section_updates_buttons_and_sidebar_groups,
             inputs=gr.State("APIs"),

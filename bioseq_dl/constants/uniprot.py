@@ -1,11 +1,19 @@
+# Constants for UniProt data fields and cross-references
+# Only should be added the fields that are available and defined
+# in the file bioseq_dl/core/interfaces/uniprot.py at line 187
 VALID_FIELDS = [
     "accession",
     "protein_name",
-    "gene_primary",
+    "ec_numbers",
     "organism_name",
+    "gene_primary",
+    "taxon_id",
     "lineage",
-    "ec",
-    "sequence"
+    "sequence",
+    "length",
+    "references",
+    "features",
+    "keywords"
 ]
 
 VALID_CROSS_REF_FIELDS = {

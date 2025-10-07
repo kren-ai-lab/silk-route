@@ -191,7 +191,7 @@ class UniprotInterface(UniprotBase):
             'organism_name': ('organism.scientificName', extract_simple),
             'gene_primary': ('genes', extract_gene_names),
             'taxon_id': ('organism.taxonId', extract_simple),
-            'ineage': ('organism.lineage', extract_simple),
+            'lineage': ('organism.lineage', extract_simple),
             'sequence': ('sequence.value', extract_simple),
             'length': ('sequence.length', extract_simple),
             'alphafold_ids': ('uniProtKBCrossReferences', extract_database_terms),

@@ -35,6 +35,9 @@ def run_blast_from_file(file, seq_column, database, evalue, blast_type, min_iden
     if df is None or df.empty:
         logs.append("Could not load DataFrame or it is empty.")
         return pd.DataFrame(), "\n".join(logs)
+    if not database:
+        logs.append("No database selected.")
+        return pd.DataFrame(), "\n".join(logs)
 
     if seq_column not in df.columns:
         logs.append(f"Column '{seq_column}' not found in DataFrame.")
@@ -116,8 +119,7 @@ def build_ui():
 
         db_dropdown = gr.Dropdown(
             label="Database",
-            choices=list(BLAST_DATABASES.keys()),
-            value="uniprot"
+            choices=list(BLAST_DATABASES.keys())
         )
         evalue_input = gr.Number(label="E-value", value=0.001)
         blast_type_dropdown = gr.Dropdown(
@@ -143,8 +145,6 @@ def build_ui():
         file_out = gr.File(label="Download Results", visible=False)
         results_out = gr.Dataframe(label="BLAST Results", interactive=False)
         logs_out = gr.Textbox(label="Logs", interactive=False)
-
-        
 
         run_btn.click(
             fn=run_blast_from_file,
