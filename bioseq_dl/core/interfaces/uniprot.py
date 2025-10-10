@@ -250,10 +250,10 @@ class UniprotInterface(UniprotBase):
             self,
             dataset: pd.DataFrame, 
             column_ids: str, 
-            auto_db: bool, 
-            from_db: str, 
-            to_db: str, 
-            batch_size: int
+            auto_db: bool = False, 
+            from_db: str = "UniProtKB_AC-ID", 
+            to_db: str = "UniProtKB", 
+            batch_size: int = 5000
             ):
         """
         Download data from UniProt in batches based on a DataFrame of IDs.

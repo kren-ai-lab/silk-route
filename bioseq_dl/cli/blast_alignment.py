@@ -112,7 +112,7 @@ def run(
 
     if do_uniprot_search:
         # Filter by identity
-        df_blast = df_blast[df_blast['identity'] >= min_identity]
+        df_blast = df_blast[df_blast['identity'].astype(float) >= min_identity]
 
         print("Downloading additional UniProt data...")
         instance = UniprotInterface()

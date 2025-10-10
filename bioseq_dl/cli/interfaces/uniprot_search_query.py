@@ -1,7 +1,7 @@
 import pandas as pd 
 import typer
 from bioseq_dl import UniprotInterface
-from bioseq_dl.constants.uniprot import VALID_FIELDS, VALID_CROSS_REF_FIELDS
+from bioseq_dl.constants.uniprot import VALID_FIELDS, XREF_MAPPING
 
 app = typer.Typer(name="uniprot-search-query", help="Search and download sequences from UniProt using queries.")    
 
@@ -20,7 +20,7 @@ def run(
         help="Fields to include in the output"
     ),
     crossref_fields: str = typer.Option(
-        ",".join(VALID_CROSS_REF_FIELDS.keys()), "-xr", "--crossref_fields", 
+        ",".join([xref[1] for xref in XREF_MAPPING.values()]), "-xr", "--crossref_fields", 
         help="Cross reference fields to include in the output"
     ),
     sort: str = typer.Option(
@@ -41,7 +41,8 @@ def run(
     )):
     instance = UniprotInterface()
     print(f"Downloading data using\nquery {query}\nfields {fields}\ncrossref_fields {crossref_fields}\nformat {format}\nsort {sort}\ninclude_isoform {include_isoform}\ndownload {download}")
-    xref = ",".join([VALID_CROSS_REF_FIELDS[c] for c in crossref_fields.split(",") if c in VALID_CROSS_REF_FIELDS])
+    xref_mapping = {v[1]: v[0] for k, v in XREF_MAPPING.items() if v[0] is not None}
+    xref = ",".join([xref_mapping[c] for c in crossref_fields.split(",") if c in xref_mapping])
 
     response = instance.submit_stream(
         query=query,

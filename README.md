@@ -2,6 +2,21 @@
 
 **BioSeqDownloader** is a Python tool designed for downloading biological sequences. Initially focused on Uniprot, this tool aims to scale and support multiple sequences databases, providing a unified and efficient way to retrieve biological data.
 
+Furthermore, it includes functionalities for sequence analysis, such as BLAST searches and multiple sequence alignments, making it a comprehensive solution for bioinformatics workflows.
+
+# Table of Contents
+
+- [Installation](#installation)
+    - [Optional Steps for specific functionalities](#optional-steps-for-specific-functionalities)
+- [Usage](#usage)
+    - [Graphic User Interface (GUI)](#graphic-user-interface-gui)
+    - [Command-Line Interface (CLI)](#command-line-interface-cli)
+    - [Programmatic API](#programmatic-api)
+- [Configuration](#configuration)
+- [To do list](#to-do-list)
+- [Future Features](#future-features)
+- [Acknowledgements](#acknowledgements)
+
 # Installation
 
 To set up **BioSeqDownloader**, follow these steps:
@@ -32,8 +47,8 @@ To set up **BioSeqDownloader**, follow these steps:
 
 ### Optional Steps for specific functionalities
 
-- To use BioGRID...
-- To use BRENDA you also need to register and use your email and password in the .env file.
+- To use BioGRID you need to generate an Access Key from [here](https://webservice.thebiogrid.org/). After that you need to add the key to the configuration file located at `~/.config/bioseq_dl/biogrid/init.yml`.
+- To use BRENDA you also need to register at [here](https://www.brenda-enzymes.org/login.php). After that you need to add your email and password to the configuration file located at `~/.config/bioseq_dl/brenda/init.yml`.
 
 # Usage
 Once installed , you can use the graphical user interface (GUI), command-line interface (CLI), or Python API to download sequences and related data.
@@ -51,15 +66,82 @@ This will make a local server available at `http://localhost:7560` where you can
 
 ## Command-Line Interface (CLI)
 
+You can use the CLI to perform various tasks. For example, you can collect data from different databases. Here are some examples:
 
-## Downloading UniProt Data using IDS
-
-To retrieve data for a given list of UniProt IDs, you can use the command:
+### To search antimicrobial proteins that have a certain length in UniProt and save the results in a CSV file:
 ```bash
-bioseq-dl uniprot-search-ids 
+bioseq-dl collect-data uniprot search-by-query run \
+    --query "(length:[50 TO 51]) AND antimicrobial AND reviewed:true" \
+    --fields accession,protein_name,gene_primary,sequence,ec \
+    --crossref_fields alphafold,pdb \
+    --output results.csv
+```
+### For a given data with other databases IDs (e.g., PDB, AlphaFold, BioGRID, BRENDA), you can retrieve more information using:
+```bash
+bioseq-dl collect-data uniprot search-crossreferences run \
+    --input results.csv \
+    --databases alphafold,pdb \
+    --out_dir enriched_results
+```
+Note: This will create a new directory called `structures` where the structure files will be downloaded.
+
+___
+
+### For a given data with unknown UniProt IDs, you can do a BLAST alignment to find the closest sequences in UniProt using:
+```bash
+bioseq-dl blast-alignment run \
+    --database uniprotkb_reviewed \
+    --seq-column sequence \
+    --input unknown_sequences.csv \ 
+    --output blast_results.csv
+```
+### Alternatively, you can do a uniprot search using:
+```bash
+bioseq-dl blast-alignment run \
+    --database uniprotkb_reviewed \
+    --seq-column sequence \
+    --input unknown_sequences.csv \ 
+    --output blast_results.csv \
+    --do-uniprot-search
 ```
 
-This example searches for reviewed antibacterial proteins and saves the results in a CSV file. You can customize the query and fields to suit your research needs.
+## Programmatic API
+You can also use the Python API to interact with the tool. Here's an example of how to use the Uniprot interface:
+```python
+from bioseq_dl import UniprotInterface
+import pandas as pd
+
+df = pd.DataFrame({
+    "id": [1, 2, 3],
+    "accession": ["A1L3X0", "A0JNC4", "A2RUC4"]
+})
+uniprot = UniprotInterface()
+results = instance.download_batch(
+    df,
+    id_column="accession",
+    auto_db=False,
+    from_db="UniProtKB_AC-ID", 
+    to_db="UniProtKB", 
+    batch_size=100
+)
+results_df = uniprot.parse_results(results, None)
+print(results_df)
+```
+___
+An enricher module is also available to enrich your data with cross references. Here's an example:
+```python
+from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
+
+specs = [
+    EndpointSpec(database="alphafold", endpoint="prediction", option=None, params={}),
+    EndpointSpec(database="pdb", endpoint="entry", option=None, params={}),
+]
+enricher = CrossRefEnricher(specs)
+concat_df = enricher.enrich(results_df, concat_results=True)
+concat_df
+```
+This will facilitate the enrichment of your data with information from multiple databases.
+
 
 # Configuration
 Configuration files are located in the `.config/bioseq_dl` directory in your home directory. You can modify these files to customize the behavior of the tool.
@@ -94,8 +176,6 @@ The `init.yml` file contains the configuration for that specific API. For exampl
 download_folder: /path/to/download/folder
 ```
 
-
-
 # To do list
 - [ ] Add .env definition in README
 - [ ] Add example for blast alignment in examples
@@ -106,5 +186,5 @@ download_folder: /path/to/download/folder
 # Future Features
 - [ ] Make a GUI for the config files
 
-# Aknowledgements
+# Acknowledgements
 Some of the code is based on the [Uniprot API](https://www.uniprot.org/help/api) and the [Uniprot ID mapping](https://www.uniprot.org/help/id_mapping) service.

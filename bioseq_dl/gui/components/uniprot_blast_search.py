@@ -3,7 +3,7 @@ import tempfile
 import pandas as pd
 import gradio as gr
 from bioseq_dl.core.utils.blast_search import DATABASES as BLAST_DATABASES
-from bioseq_dl.constants.uniprot import VALID_FIELDS, XREF_MAPPING
+from bioseq_dl.constants.uniprot import VALID_FIELDS, XREF_MAPPING, VALID_CROSS_REF_FIELDS
 from bioseq_dl.core.utils.blast_search import (
     download_uniprot_database,
     check_blast,
@@ -91,7 +91,9 @@ def run_blast_from_file(file, seq_column, database, evalue, blast_type, min_iden
         for result in results:
             f.write(str(result) + '\n')
 
-    xref = [XREF_MAPPING[c][0] for c in crossref_fields if c in XREF_MAPPING if XREF_MAPPING[c][0]]
+    # Probably this can be optimized
+    xref = [XREF_MAPPING[c][1] for c in crossref_fields if c in XREF_MAPPING if XREF_MAPPING[c][1]]
+    xref = [VALID_CROSS_REF_FIELDS[x] for x in xref if x in VALID_CROSS_REF_FIELDS]
     export_df = instance.parse_results(results, fields + xref)
 
     return export_df, "\n".join(logs)
