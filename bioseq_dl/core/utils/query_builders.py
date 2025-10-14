@@ -140,11 +140,11 @@ def build_query_alphafold_prediction(row, params):
 @register_query_builder("biodbnet", "db2db")
 def build_query_biodbnet_db2db(row, params):
     genes = to_str_list(row.get("gene_primary"))
-    taxon = to_str_list(row.get("taxon_id"))[0]
-    if genes and taxon:
+    organism = to_str_list(row.get("organism_id"))[0]
+    if genes and organism:
         return [{
             "inputValues": genes,
-            "taxonId": taxon,
+            "taxonId": organism,
             **params
         }]
     else:
@@ -152,12 +152,12 @@ def build_query_biodbnet_db2db(row, params):
 
 @register_query_builder("biodbnet", "getpathways")
 def build_query_biodbnet_getpathways(row, params):
-    taxon = to_str_list(row.get("taxon_id"))
-    if taxon:
+    organism = to_str_list(row.get("organism_id"))
+    if organism:
         return [{
-            "taxonId": taxon_id,
+            "taxonId": organism_id,
             **params
-        } for taxon_id in taxon]
+        } for organism_id in organism]
     else:
         return []
     
@@ -165,13 +165,13 @@ def build_query_biodbnet_getpathways(row, params):
 @register_query_builder("biogrid", "interactions")
 def build_query_biogrid_interactions(row, params):
     genes = to_str_list(row.get("gene_primary"))
-    taxon = to_str_list(row.get("taxon_id"))[0]
+    organism = to_str_list(row.get("organism_id"))[0] if to_str_list(row.get("organism_id")) else None
     biogrid_ids = to_str_list(row.get("biogrid_ids"))
 
-    if genes and taxon:
+    if genes and organism:
         return [{
             "geneList": genes,
-            "taxId": taxon,
+            "taxId": organism,
             **params
         }]
     elif biogrid_ids:
@@ -254,7 +254,7 @@ def build_query_go(row, params):
 def build_query_interpro(row, params):
     interpro_ids = to_str_list(row.get("interpro_ids"))
     accession = to_str_list(row.get("accession"))[0]
-    taxon = to_str_list(row.get("taxon_id"))[0]
+    organism = to_str_list(row.get("organism_id"))[0]
     if interpro_ids:
         return [{
             "id": interpro_id,
@@ -262,8 +262,8 @@ def build_query_interpro(row, params):
             "modifiers": {},
             **params
         } for interpro_id in interpro_ids]
-    elif accession and taxon:
-        # If accession and taxon_id are present, use them to fetch InterPro entries
+    elif accession and organism:
+        # If accession and organism_id are present, use them to fetch InterPro entries
         return [{
             "db": "InterPro",
             "modifiers": {},
@@ -276,7 +276,7 @@ def build_query_interpro(row, params):
                 {
                     "type": "taxonomy",
                     "db": "uniprot",
-                    "value": taxon
+                    "value": organism
                 }
             ],
             **params
@@ -309,14 +309,14 @@ def build_query_panther_familymsa(row, params):
 @register_query_builder("panther", "geneinfo")
 def build_query_panther_geneinfo(row, params):
     genes = to_str_list(row.get("gene_primary"))
-    taxon = to_str_list(row.get("taxon_id"))
+    organism = to_str_list(row.get("organism_id"))
 
-    if genes and taxon:
+    if genes and organism:
         return [{
             "geneInputList": genes,
-            "organism": taxon,
+            "organism": org,
             **params
-        }]
+        } for org in organism]
     else:
         return []
 
@@ -334,12 +334,12 @@ def build_query_pathwaycommons_fetch(row, params):
 @register_query_builder("pathwaycommons", "top_pathways")
 def build_query_pathwaycommons_top_pathways(row, params):
     genes = to_str_list(row.get("gene_primary"))
-    taxon = to_str_list(row.get("taxon_id"))
+    organism = to_str_list(row.get("organism_id"))
 
-    if genes and taxon:
+    if genes and organism:
         return [{
             "q": gene,
-            "organism": taxon,
+            "organism": organism,
             **params
         } for gene in genes]
     else:
@@ -348,12 +348,12 @@ def build_query_pathwaycommons_top_pathways(row, params):
 @register_query_builder("pathwaycommons", "neighborhood")
 def build_query_pathwaycommons_neighborhood(row, params):
     accession = row.get("accession") if not pd.isna(row.get("accession")) else None
-    taxon = to_str_list(row.get("taxon_id"))
+    organism = to_str_list(row.get("organism_id"))
 
-    if accession and taxon:
+    if accession and organism:
         return [{
             "source": [accession],
-            "organism": taxon,
+            "organism": organism,
             **params
         }]
     else:
@@ -368,7 +368,7 @@ def build_query_pdb(row, params):
 
 @register_query_builder("pubchem", "compound", "summary")
 def build_query_pubchem_compound_summary(row, params):
-    if not pd.isna(row.get("gene_primary")) and not pd.isna(row.get("taxon_id")):
+    if not pd.isna(row.get("gene_primary")) and not pd.isna(row.get("organism_id")):
         gene_primary = (
             ast.literal_eval(row["gene_primary"])
             if isinstance(row["gene_primary"], str) and row["gene_primary"].startswith("[")
@@ -376,7 +376,7 @@ def build_query_pubchem_compound_summary(row, params):
         )
         return [{
             "genesymbol": gene,
-            "taxid": str(row["taxon_id"]),
+            "taxid": str(row["organism_id"]),
             **params
         } for gene in gene_primary]
     else:
@@ -425,18 +425,18 @@ def build_query_refseq(row, params):
 @register_query_builder("string", "get_string_ids")
 def build_query_stringdb(row, params):
     string_ids = to_str_list(row.get("string_ids"))
-    taxon_id = row.get("taxon_id") if not pd.isna(row.get("taxon_id")) else None
+    organism = to_str_list(row.get("organism_id"))[0]
     gene_primary = to_str_list(row.get("gene_primary"))
-    if string_ids and taxon_id:
+    if string_ids and organism:
         return [{
             "identifiers": string_id,
-            "species": taxon_id,
+            "species": organism,
             **params
         } for string_id in string_ids]
-    elif gene_primary and taxon_id:
+    elif gene_primary and organism:
         return [{
             "identifiers": gene,
-            "species": taxon_id,
+            "species": organism,
             **params
         } for gene in gene_primary]
     else:

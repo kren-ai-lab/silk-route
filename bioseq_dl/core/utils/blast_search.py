@@ -116,7 +116,7 @@ def make_blast_database(db_name: str, db_type: str = "prot", extension: str = "x
         ]
     
         subprocess.run(blast_db_cmd, check=True)
-        print(f"BLAST database created at: {os.path.join(DB_DIR, databases[db_name])}")
+        print(f"BLAST database created at: {os.path.join(DB_DIR, DATABASES[db_name])}")
     else:
         print(f"BLAST database already exists at {blast_db_path}. No need to create it again.")
 

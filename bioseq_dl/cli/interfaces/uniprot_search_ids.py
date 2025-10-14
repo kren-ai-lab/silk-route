@@ -1,3 +1,4 @@
+import logging
 import pandas as pd 
 import argparse
 import typer
@@ -6,6 +7,17 @@ from bioseq_dl.constants.databases import DATABASES
 from bioseq_dl.constants.uniprot import VALID_FIELDS, VALID_CROSS_REF_FIELDS
 
 app = typer.Typer(help="Search and download sequences from UniProt using IDs.")
+
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.cli.uniprot_search_ids")
+# -------------------------------------------------
 
 @app.command()
 
@@ -56,7 +68,7 @@ def run(
     # Filter by identity
     df = df[df['identity'] >= min_identity]
 
-    print("Downloading data in batches of", batch_size)
+    log.info("Downloading data in batches of %d", batch_size)
     instance = UniprotInterface()
     results = instance.download_batch(df, column, auto_db, from_db, to_db, batch_size)
 
@@ -64,8 +76,10 @@ def run(
     with open(output + ".json", 'w') as f:
         for result in results:
             f.write(str(result) + '\n')
+    log.info(f"Raw results saved to {output + '.json'}")
 
     xref = [VALID_CROSS_REF_FIELDS[c] for c in crossref_fields.split(",") if c in VALID_CROSS_REF_FIELDS]
 
     export_df = instance.parse_results(results, fields.split(",") + xref)
     export_df.to_csv(output, index=False)
+    log.info(f"Results saved to {output}")

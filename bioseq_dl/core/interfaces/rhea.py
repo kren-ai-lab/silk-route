@@ -1,4 +1,4 @@
-import os
+import os, logging
 import html
 
 from typing import Union, List, Dict, Set, Optional
@@ -14,6 +14,16 @@ from .base import BaseAPIInterface
 from ...constants.databases import RHEA
 from ..utils.base_auxiliary_methods import validate_parameters, get_primary_keys
 
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.interfaces.rhea")
+# -------------------------------------------------
 
 class RheaInterface(BaseAPIInterface):
     METHODS = {
@@ -56,7 +66,8 @@ class RheaInterface(BaseAPIInterface):
             **kwargs
         ):
         if method not in self.METHODS.keys():
-            raise ValueError(f"Method '{method}' is not supported. Available methods: {list(self.METHODS.keys())}")
+            log.error(f"Method '{method}' is not supported. Available methods: {list(self.METHODS.keys())}")
+            return {}
 
         http_method, path_param, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, **kwargs)
 
@@ -64,8 +75,9 @@ class RheaInterface(BaseAPIInterface):
         try:
             validated_params = validate_parameters(inputs, parameters)
         except ValueError as e:
-            raise ValueError(f"Invalid parameters for method '{method}': {e}")
-        
+            log.error(f"Invalid parameters for method '{method}': {e}")
+            return {}
+
         url = f"{RHEA.API_URL}{method}/"
         if path_param:
             path_value = validated_params.pop(path_param)
@@ -77,7 +89,7 @@ class RheaInterface(BaseAPIInterface):
             params=validated_params
         )
         prepared = self.session.prepare_request(req)
-        print(f"Prepared request: {prepared.url}")
+        log.debug(f"Prepared request: {prepared.url}")
 
         try:
             response = self.session.send(prepared)
@@ -90,7 +102,7 @@ class RheaInterface(BaseAPIInterface):
 
             return response
         except RequestException as e:
-            print(f"Error fetching prediction for {query}: {e}")
+            log.error(f"Error fetching prediction for {query}: {e}")
             return {}
         
     def parse(
@@ -107,7 +119,8 @@ class RheaInterface(BaseAPIInterface):
         elif isinstance(data, (dict, list)):
             data = data
         else:
-            raise ValueError("Response must be a requests.Response object or a dictionary.")
+            log.error("Tried to parse data but the type is not supported. Data should be a list or a dictionary.")
+            return {}
 
         return self._extract_fields(data, fields_to_extract, **kwargs)
     

@@ -1,5 +1,4 @@
-import os
-
+import os, logging
 from typing import Union, List, Dict, Set, Optional
 from requests import Request, Response
 from requests.exceptions import RequestException
@@ -10,6 +9,17 @@ from .base import BaseAPIInterface
 # Add the import for your database in constants
 from ...constants.databases import PRIDE
 from ..utils.base_auxiliary_methods import validate_parameters
+
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.interfaces.pride")
+# -------------------------------------------------
 
 class PrideInterface(BaseAPIInterface):
     METHODS = {
@@ -79,7 +89,8 @@ class PrideInterface(BaseAPIInterface):
             **kwargs
         ):
         if method not in self.METHODS.keys():
-            raise ValueError(f"Method '{method}' is not defined in the interface.")
+            log.error(f"Method '{method}' is not defined in the interface.")
+            return {}
         option = kwargs.pop("option", "default")
         
         http_method, path_param, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, option=option, **kwargs)
@@ -88,7 +99,8 @@ class PrideInterface(BaseAPIInterface):
         try:
             validated_params = validate_parameters(inputs, parameters)
         except ValueError as e:
-            raise ValueError(f"Invalid parameters for method '{method}': {e}")
+            log.error(f"Invalid parameters for method '{method}': {e}")
+            return {}
 
         url = f"{PRIDE.API_URL}{method.replace('-', '/')}"
 
@@ -108,9 +120,7 @@ class PrideInterface(BaseAPIInterface):
         )
 
         prepared = self.session.prepare_request(response)
-        print(f"Prepared request: {prepared.url}")
-
-        print(f"Fetching data with parameters: {validated_params}")
+        log.debug(f"Prepared request: {prepared.url}")
 
         try:
             response = self.session.send(prepared)
@@ -119,7 +129,8 @@ class PrideInterface(BaseAPIInterface):
 
             return response.json()
         except RequestException as e:
-            raise RequestException(f"Error fetching data from {url}: {e}")
+            log.error(f"Error fetching data from {url}: {e}")
+            return {}
         
     def parse(
             self, 
@@ -136,7 +147,8 @@ class PrideInterface(BaseAPIInterface):
         elif isinstance(data, dict):
             data = data
         else:
-            raise ValueError("Response must be a requests.Response object or a dictionary.")
+            log.error("Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object.")
+            return {}
 
         return self._extract_fields(data, fields_to_extract, **kwargs)
 

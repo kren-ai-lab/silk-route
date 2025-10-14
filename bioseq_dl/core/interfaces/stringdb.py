@@ -1,4 +1,4 @@
-import os, requests
+import os, requests, logging
 from typing import Optional, Set, Union, Any, List, Dict
 import pandas as pd
 from requests import Request
@@ -8,6 +8,17 @@ from .base import BaseAPIInterface
 from ..utils.base_auxiliary_methods import get_nested, validate_parameters
 from ...constants.databases import STRING
 from ...constants.stringdb import METHOD_FORMATS, METHODS, METHOD_PARAMS
+
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.interfaces.stringdb")
+# -------------------------------------------------
 
 ## More info about STRING API: https://string-db.org/cgi/help
 
@@ -77,23 +88,26 @@ class StringInterface(BaseAPIInterface):
             dict: Parsed response from the API.
         """
         if method not in self.METHODS.keys():
-            raise ValueError(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+            log.error(f"Method '{method}' is not supported. Available methods: {list(self.METHODS.keys())}")
+            return {}
 
         http_method, path_param, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, **kwargs)
 
         try:
             validated_params = validate_parameters(inputs, parameters)
         except (ValueError, TypeError) as e:
-            raise ValueError(f"Parameter validation failed: {e}")
-        
+            log.error(f"Parameter validation failed: {e}")
+            return {}
+
         if "format" in validated_params:
             outfmt = validated_params.pop("format")
         else:
             outfmt = "json"
 
         if outfmt not in METHOD_FORMATS[method]:
-            raise ValueError(f"Output format {outfmt} is not supported for method {method}. Supported formats are: {', '.join(METHOD_FORMATS[method])}.")
-        
+            log.error(f"Output format {outfmt} is not supported for method {method}. Supported formats are: {', '.join(METHOD_FORMATS[method])}.")
+            return {}
+
         url = f"{STRING.API_URL}{outfmt}/{method}"
 
 
@@ -104,7 +118,7 @@ class StringInterface(BaseAPIInterface):
         )
 
         prepared = self.session.prepare_request(req)
-        print(f"Prepared request URL: {prepared.url}")
+        log.debug(f"Prepared request URL: {prepared.url}")
 
         try:
             response = self.session.send(prepared)
@@ -113,48 +127,10 @@ class StringInterface(BaseAPIInterface):
 
             return response.json()
         except RequestException as e:
-            print(f"Error fetching {query} for method '{method}': {e}")
+            log.error(f"Error fetching {query} for method '{method}': {e}")
             return {}
-
-        # outfmt = kwargs.get("outfmt", "json")
-
-        # if method not in METHODS:
-        #     raise ValueError(f"Method {method} is not supported. Supported methods are: {', '.join(METHODS)}.")
-        
-        # if outfmt not in METHOD_FORMATS[method]:
-        #     raise ValueError(f"Output format {outfmt} is not supported for method {method}. Supported formats are: {', '.join(METHOD_FORMATS[method])}.")
-        
-        # if not isinstance(query, dict):
-        #     raise ValueError("Query must be a dictionary containing parameters for the API request.")
         
         
-        # url = f"{STRING.API_URL}{outfmt}/{method}?"
-
-        # for key, value in query.items():
-        #     if key not in METHOD_PARAMS[method]:
-        #         raise ValueError(f"Parameter {key} is not supported for method {method}. Supported parameters are: {', '.join(METHOD_PARAMS[method])}.")
-        #     if key == "identifiers":
-        #         if isinstance(value, list):
-        #             identifiers = "%0d".join(value)
-        #             url += f"{key}={identifiers}&"
-        #         elif not isinstance(value, str):
-        #             raise ValueError(f"Parameter {key} must be a string or a list of strings.")
-        #     else:
-        #         url += f"{key}={value}&"
-        
-        # if url.endswith("&"):
-        #     url = url[:-1]
-        
-
-        # try:
-        #     response = self.session.get(url)
-        #     self._delay()
-        #     response.raise_for_status()
-        #     return response.json()
-        # except requests.exceptions.RequestException as e:
-        #     print(f"Error fetching prediction for {query}: {e}")
-        #     return {}
-    
     def parse(
             self, 
             data: Any,
@@ -182,10 +158,11 @@ class StringInterface(BaseAPIInterface):
         elif fmt == "tsv":
             return data.text
         elif fmt == "image":
-            print("Image format is not supported for parsing. Please use the method save_image() to save the image.")
+            log.error("Image format is not supported for parsing. Please use the method save_image() to save the image.")
         else:
-            raise ValueError(f"Format {fmt} is not supported. Supported formats are: json, tsv")
-        
+            log.error(f"Format {fmt} is not supported. Supported formats are: json, tsv")
+            return {}
+
     def query_usage(self) -> str:
         return (
             "To query STRING, use the method name and parameters as a dictionary. "
@@ -204,7 +181,7 @@ class StringInterface(BaseAPIInterface):
     #     """
     #     if not filename.endswith(".png"):
     #         filename += ".png"
-        
+    #
     #     with open(filename, "wb") as f:
     #         f.write(response.content)
     #     print(f"Image saved as {filename}")

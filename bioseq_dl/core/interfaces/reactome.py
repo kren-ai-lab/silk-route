@@ -1,10 +1,22 @@
 import os
 import requests
+import logging
 from typing import Optional, Union, Any, Dict, List
 
 from .base import BaseAPIInterface
 from ...constants.databases import REACTOME
 from ...constants.reactome import methods
+
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.interfaces.reactome")
+# -------------------------------------------------
 
 # TODO - Need to review other methods besides data-discover
 
@@ -62,11 +74,14 @@ class ReactomeInterface(BaseAPIInterface):
         for key, check in rules.items():
             if key in query and not check(query[key]):
                 if key == 'id':
-                    raise ValueError(f"Invalid ID: {query['id']}. It should be a non-empty string.")
+                    log.error(f"Invalid ID: {query['id']}. It should be a non-empty string.")
+                    return {}
                 elif key == 'species':
-                    raise ValueError(f"Invalid species: {query['species']}. It should be a non-empty string.")
+                    log.error(f"Invalid species: {query['species']}. It should be a non-empty string.")
+                    return {}
                 elif key == 'onlyDiagrammed':
-                    raise ValueError(f"Invalid onlyDiagrammed: {query['onlyDiagrammed']}. It should be a boolean value.")
+                    log.error(f"Invalid onlyDiagrammed: {query['onlyDiagrammed']}. It should be a boolean value.")
+                    return {}
 
     def fetch(self, query: Union[str, dict, list], *, method: str = "data", **kwargs):
         """
@@ -82,17 +97,21 @@ class ReactomeInterface(BaseAPIInterface):
         option = kwargs.get("option", "")
   
         if not method:
-            raise ValueError("Method must be specified in the query parameters.")
-        
+            log.error("Method must be specified in the query parameters.")
+            return {}
+
         if option and not isinstance(option, str):
-            raise ValueError("Option must be a string if provided.")
-        
+            log.error("Option must be a string if provided.")
+            return {}
+
         primary_method = method.split("-")[0]
         secondary_method = "/".join(method.split("-")[1:])
         if primary_method not in methods.keys():
-            raise ValueError(f"Method '{primary_method}' is not supported. Supported methods are: {list(methods.keys())}")
+            log.error(f"Method '{primary_method}' is not supported. Supported methods are: {list(methods.keys())}")
+            return {}
         if secondary_method not in methods[primary_method]:
-            raise ValueError(f"Method '{secondary_method}' is not supported. Supported methods are: {methods[primary_method]}")
+            log.error(f"Method '{secondary_method}' is not supported. Supported methods are: {methods[primary_method]}")
+            return {}
 
         q = ""
         if isinstance(query, str):
@@ -116,7 +135,7 @@ class ReactomeInterface(BaseAPIInterface):
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
-            print(f"Error fetching prediction for {query}: {e}")
+            log.error(f"Error fetching prediction for {query}: {e}")
             return {}
         
     
@@ -138,7 +157,8 @@ class ReactomeInterface(BaseAPIInterface):
         """
         # Check input data type
         if not isinstance(data, (List, Dict)):
-            raise ValueError("Data must be a list or a dictionary.")
+            log.error("Tried to parse data but the type is not supported. Data should be a list or a dictionary.")
+            return {}
         
         return self._extract_fields(
             data, 

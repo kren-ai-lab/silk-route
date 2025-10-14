@@ -1,5 +1,4 @@
-import os
-
+import os, logging
 from typing import Union, List, Dict, Set, Optional
 from requests import Request, Response
 from requests.exceptions import RequestException
@@ -12,6 +11,17 @@ from ...constants.databases import PUBCHEM
 
 from ..utils.base_auxiliary_methods import validate_parameters
 from ...constants.pubchem import OPTIONS, COMPOUND_TEMPLATE, PROTEIN_TEMPLATE, GENE_TEMPLATE
+
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.interfaces.pubchem")
+# -------------------------------------------------
 
 class PubChemInterface(BaseAPIInterface):
     METHODS = {
@@ -61,14 +71,17 @@ class PubChemInterface(BaseAPIInterface):
         kwargs["option"] = option
 
         if method not in self.METHODS:
-            raise ValueError(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+            log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+            return {}
         if option and option not in OPTIONS.get(method, []):
-            raise ValueError(f"Option '{option}' is not valid for method '{method}'. Allowed options: {OPTIONS.get(method, [])}")
+            log.error(f"Option '{option}' is not valid for method '{method}'. Allowed options: {OPTIONS.get(method, [])}")
+            return {}
         
         http_method, path_param, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, **kwargs)
 
-        if option_given and inputs.get("property"):
-             raise ValueError("Cannot specify both 'option' and 'property' parameter. Please choose one.")
+        if option_given and "property" in inputs:
+            log.error("Cannot specify both 'option' and 'property' parameter. Please choose one.")
+            return {}
 
         option = "default" if option is None else option
 
@@ -76,22 +89,25 @@ class PubChemInterface(BaseAPIInterface):
         try:
             validated_params = validate_parameters(inputs, parameters)
         except ValueError as e:
-            raise ValueError(f"Invalid parameters for method '{method}': {e}")
+            log.error(f"Invalid parameters for method '{method}': {e}")
+            return {}
 
 
         if method == "compound":
             if sum(bool(inputs.get(validated_params)) for validated_params in ["cid", "name", "smiles"]) != 1:
-                raise ValueError("Only one 'cid', 'name', or 'smiles' parameters must be specified.")
+                log.error("Only one 'cid', 'name', or 'smiles' parameters must be specified.")
+                return {}
             # if "property" in validated_params:
             #     for prop in  validated_params["property"].split(","):
             #         if prop not in PROPERTIES[method]:
-            #             raise ValueError(f"Property '{prop}' is not valid for method '{method}'. Allowed properties: {PROPERTIES[method]}")
+            #             log.error(f"Property '{prop}' is not valid for method '{method}'. Allowed properties: {PROPERTIES[method]}")
         elif method == "gene":
             if sum(bool(inputs.get(validated_params)) for validated_params in ["genesymbol", "geneid", "synonym"]) != 1:
-                raise ValueError("Only one 'genesymbol', 'geneid', or 'synonym' parameters must be specified.")
+                log.error("Only one 'genesymbol', 'geneid', or 'synonym' parameters must be specified.")
+                return {}
 
         # if "specification" in validated_params and validated_params["specification"] not in PROPERTIES[method]:
-        #     raise ValueError(f"Specification '{validated_params['specification']}' is not valid for method '{method}'. Allowed specifications: {PROPERTIES[method]}")
+        #     log.error(f"Specification '{validated_params['specification']}' is not valid for method '{method}'. Allowed specifications: {PROPERTIES[method]}")
 
         url = f"{PUBCHEM.API_URL}{method}"
 
@@ -111,7 +127,7 @@ class PubChemInterface(BaseAPIInterface):
         )
 
         prepared = self.session.prepare_request(response)
-        print(f"Prepared request: {prepared.url}")
+        log.debug(f"Prepared request: {prepared.url}")
 
         try:
             response = self.session.send(prepared)
@@ -120,16 +136,16 @@ class PubChemInterface(BaseAPIInterface):
             response = response.json() if response.headers.get('Content-Type') == 'application/json' else response.text
 
             # Me pertuba ver tantos elif
-            if "PropertyTable" in response:
+            if isinstance(response, dict) and "PropertyTable" in response:
                 response = response.get("PropertyTable", {}).get("Properties", [])
-            elif "InformationList" in response:
+            elif isinstance(response, dict) and "InformationList" in response:
                 response = response.get("InformationList", {}).get("Information", [])
                 if method == "gene" and option == "pwaccs":
                     # A little hack to force the response to have a "GeneSymbol" key
                     for r in response:
                         r["GeneSymbol"] = validated_params.get("genesymbol", [])
 
-            elif "Table" in response:
+            elif isinstance(response, dict) and "Table" in response:
                 # Convert Table response to list of dicts with key:value pairs
                 table = response.get("Table", {})
                 columns = table.get("Columns", {}).get("Column", [])
@@ -138,20 +154,20 @@ class PubChemInterface(BaseAPIInterface):
                     dict(zip(columns, row.get("Cell", [])))
                     for row in rows
                 ]
-            elif "PC_Compounds" in response:
+            elif isinstance(response, dict) and "PC_Compounds" in response:
                 response = response.get("PC_Compounds", [])
-            elif "IdentifierList" in response:
+            elif isinstance(response, dict) and "IdentifierList" in response:
                 response = response.get("IdentifierList", [])
-            elif "ProteinSummaries" in response:
+            elif isinstance(response, dict) and "ProteinSummaries" in response:
                 response = response.get("ProteinSummaries", {}).get("ProteinSummary", [])
-            elif "GeneSummaries" in response:
+            elif isinstance(response, dict) and "GeneSummaries" in response:
                 response = response.get("GeneSummaries", {}).get("GeneSummary", [])
             else:
                 response = response
 
             return response
         except RequestException as e:
-            print(f"Error fetching {query} for method '{method}': {e}")
+            log.error(f"Error fetching {query} for method '{method}': {e}")
             return {}
     
     def parse(
@@ -170,14 +186,19 @@ class PubChemInterface(BaseAPIInterface):
             else:
                 fields_to_extract = {}
         else:
-            fields_to_extract = fields_to_extract.get("properties", []) 
+            if isinstance(fields_to_extract, dict):
+                fields_to_extract = fields_to_extract.get("properties", [])
+            else:
+                log.warning("Option not specified and fields_to_extract is not a dict. Defaulting to empty list.")
+                fields_to_extract = []
 
         if isinstance(data, Response):
             data = data.json()
         elif isinstance(data, dict):
             data = data
         else:
-            raise ValueError("Response must be a requests.Response object or a dictionary.")
+            log.error("Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object.")
+            return {}
         
 
         return self._extract_fields(data, fields_to_extract)

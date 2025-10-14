@@ -1,4 +1,4 @@
-import os
+import os, logging
 from typing import Optional, Union, List, Dict, Any
 import requests
 from requests import Request
@@ -9,6 +9,17 @@ import pandas as pd
 from .base import BaseAPIInterface
 from ...constants.databases import GENONTOLOGY
 from ..utils.base_auxiliary_methods import validate_parameters
+
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.interfaces.genontology")
+# -------------------------------------------------
 
 class GenOntologyInterface(BaseAPIInterface):
     METHODS = {
@@ -92,7 +103,9 @@ class GenOntologyInterface(BaseAPIInterface):
             any: response from the API.
         """
         if method not in self.METHODS.keys():
-            raise ValueError(f"Method '{method}' is not defined in the interface.")
+            log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+            return {}
+        
         option = kwargs.pop("option", "default")
 
         http_method, _, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, option=option, **kwargs)
@@ -101,7 +114,8 @@ class GenOntologyInterface(BaseAPIInterface):
         try:
             validated_params = validate_parameters(inputs, parameters)
         except ValueError as e:
-            raise ValueError(f"Invalid parameters for method '{method}': {e}")
+            log.error(f"Invalid parameters for method '{method}': {e}")
+            return {}
         
         
         url = f"{GENONTOLOGY.API_URL}{method.replace('-', '/')}/"
@@ -118,7 +132,7 @@ class GenOntologyInterface(BaseAPIInterface):
         )
 
         prepared = self.session.prepare_request(response)
-        print(f"Prepared request: {prepared.url}")
+        log.debug(f"Prepared request: {prepared.url}")
 
         try:
             response = self.session.send(prepared)
@@ -127,7 +141,8 @@ class GenOntologyInterface(BaseAPIInterface):
 
             return response.json()
         except RequestException as e:
-            raise RequestException(f"Error fetching data from {url}: {e}")
+            log.error(f"Error fetching data from {url}: {e}")
+            return {}
 
     def parse(
             self,
@@ -149,6 +164,7 @@ class GenOntologyInterface(BaseAPIInterface):
         """
         look_for_relationships = kwargs.get("look_for_relationships")
         if not data:
+            log.warning("Tried to parse data but the data is empty or None.")
             return {}
 
         if isinstance(data, requests.models.Response):
@@ -156,7 +172,8 @@ class GenOntologyInterface(BaseAPIInterface):
         elif isinstance(data, dict):
             data = data
         else:
-            raise ValueError("Response must be a requests.Response object or a dictionary.")
+            log.error("Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object.")
+            return {}
         
         parsed = self._extract_fields(data, fields_to_extract)
 
@@ -186,10 +203,9 @@ class GenOntologyInterface(BaseAPIInterface):
             else:
                 parsed["relationships"] = []
         except Exception as e:
-            print(f"Error fetching relationships: {e}")
-        
+            log.error(f"Error fetching relationships for GO term {parsed.get('goid', '')}: {e}")
         return parsed
-    
+
     def get_dummy(self, *, method: Optional[str] = None, **kwargs) -> Dict:
         """
         Get example data returned by the API.

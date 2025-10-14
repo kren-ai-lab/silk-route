@@ -1,5 +1,5 @@
 # bioseq_dl/cli/uniprot_crossref.py
-import os
+import os, logging
 from typing import List
 import pandas as pd
 import typer
@@ -13,6 +13,17 @@ from bioseq_dl.constants.uniprot import XREF_MAPPING
 
 app = typer.Typer(help="Search and download cross-references from UniProt.")
 
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.cli.uniprot_crossref")
+# -------------------------------------------------
+
 CROSS_REF_FIELDS = [xref.lower() for xref in XREF_MAPPING.keys()]
 
 def save_to_file(df, out_dir, filename, db, endpoint, option):
@@ -24,7 +35,7 @@ def save_to_file(df, out_dir, filename, db, endpoint, option):
     else:
         output_file = os.path.join(out_dir, f"{filename}/{db}_{endpoint}_{option}_results.csv")
     df.to_csv(output_file, index=False)
-    print(f"Results for {db} with option {option} saved to {output_file}")
+    log.info(f"Results for {db} with option {option} saved to {output_file}")
 
 @app.command(name="")
 def run(
@@ -97,12 +108,12 @@ def run(
         
         if not endpoint_specs:
             raise ValueError("No valid endpoint specifications found. Please check your database selections and configuration.")
-        print(f"Endpoint specifications: {endpoint_specs}")
+        log.debug(f"Endpoint specifications: {endpoint_specs}")
         enricher = CrossRefEnricher(endpoint_specs)
         result = enricher.enrich(df, concat_results=not no_concat)
 
         if isinstance(result, pd.DataFrame) and not result.empty:
-            print(f"Crossref enrichment resulted in {len(result)} rows")
+            log.info(f"Crossref enrichment resulted in {len(result)} rows")
        
         # Create output directory if it doesn't exist
         if not os.path.exists(out_dir):
@@ -112,16 +123,16 @@ def run(
             if isinstance(result, dict):
                 for name, result_df in result.items():
                     result_df.to_csv(os.path.join(out_dir, f"{name}_results.csv"), index=False)
-                    print(f"Results for {name} saved to {os.path.join(out_dir, f'{name}_results.csv')}")
+                    log.info(f"Results for {name} saved to {os.path.join(out_dir, f'{name}_results.csv')}")
             else:
-                print("No results to save.")
+                log.info("No results to save.")
         else:
             if isinstance(result, pd.DataFrame) and not result.empty:
                 filename = os.path.splitext(os.path.basename(input))[0]
                 result.to_csv(os.path.join(out_dir, f"{filename}_results.csv"), index=False)
-                print(f"Results saved to {os.path.join(out_dir, f'{filename}_results.csv')}")
+                log.info(f"Results saved to {os.path.join(out_dir, f'{filename}_results.csv')}")
             else:
-                print("No results to save.")
+                log.info("No results to save.")
 
 
 

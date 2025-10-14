@@ -2,6 +2,7 @@ import requests, re, zlib, json, time
 from typing import List, Dict, Optional
 import csv
 import pandas as pd
+import logging
 from tqdm import tqdm
 from requests.adapters import HTTPAdapter, Retry
 from xml.etree import ElementTree
@@ -19,12 +20,20 @@ from ..utils.uniprot_auxiliary_methods import (
     extract_keywords,
 )
 
-from ...constants.databases import DATABASES
+from bioseq_dl.constants.databases import DATABASES
+
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.interfaces.uniprot")
 
 API_URL = "https://rest.uniprot.org"
 POLLING_INTERVAL = 3 
-
-# TODO for some reason xref_string is not working
 
 class UniprotBase():
     def __init__(self, total_retries=5):
@@ -36,7 +45,8 @@ class UniprotBase():
         try:
             response.raise_for_status()
         except requests.HTTPError:
-            print(response.json())
+            log.error(f"HTTP error occurred: {response.status_code} - {response.text}")
+            log.error(f"Response JSON: {response.json()}")
             raise
 
     def submit_id_mapping(self, from_db: str, to_db: str, ids: list):
@@ -49,7 +59,7 @@ class UniprotBase():
     
     def print_progress_batches(self, batch_index, size, total):
         n_fetched = min((batch_index + 1) * size, total)
-        print(f"Fetched: {n_fetched} / {total}")
+        log.info(f"Fetched: {n_fetched} / {total}")
 
     def combine_batches(self, all_results, batch_results, file_format):
         if file_format == "json":
@@ -153,9 +163,10 @@ class UniprotBase():
             j = request.json()
             if "jobStatus" in j:
                 if j["jobStatus"] == "RUNNING":
-                    #print(f"Retrying in {POLLING_INTERVAL}s")
+                    log.info(f"Job is still running. Retrying in {POLLING_INTERVAL}s")
                     time.sleep(POLLING_INTERVAL)
                 else:
+                    log.exception(f"Job failed with status: {j['jobStatus']}")
                     raise Exception(j["jobStatus"])
             else:
                 return bool(j["results"] or j["failedIds"])
@@ -273,6 +284,7 @@ class UniprotInterface(UniprotBase):
             # Automatically detect and group IDs
             id_groups = self.group_ids_by_type(ids)
             
+            log.debug(f"Auto db has identified the following ID groups: { {k: len(v) for k, v in id_groups.items()} }")
             for db_type, id_list in id_groups.items():
                 if not id_list or db_type == 'unknown':
                     continue
@@ -349,7 +361,6 @@ class UniprotInterface(UniprotBase):
         else:
             print("No results to show")
 
-    # TODO Add more formats like fasta
     def submit_stream(
             self, 
             query: str, 
@@ -400,10 +411,10 @@ class UniprotInterface(UniprotBase):
                 return response
             except requests.exceptions.RequestException as e:
                 if attempt < self.retries.total - 1:
-                    print(f"Attempt {attempt + 1} failed: {e}. Retrying...")
+                    log.info(f"Attempt {attempt + 1} failed: {e}. Retrying...")
                     time.sleep(POLLING_INTERVAL)
                 else:
-                    print(f"All attempts failed: {e}.")
+                    log.error(f"All attempts failed: {e}.")
                     return response
 
     def parse_stream_response(self, query: str, response: requests.Response, extract_fields: Optional[List[str]]) -> pd.DataFrame:
@@ -456,6 +467,7 @@ class UniprotInterface(UniprotBase):
         else:
             field_map = self.field_map_base
         
+        log.debug(f"Parsing result with field map: {field_map.keys()}")
         for field, (path, extractor) in field_map.items():
             try:
                 # Navigate through the path (e.g. 'to.proteinDescription...')

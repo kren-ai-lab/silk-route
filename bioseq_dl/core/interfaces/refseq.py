@@ -1,4 +1,4 @@
-import os
+import os, logging
 from typing import Optional, Union, Any, List, Dict
 from Bio import Entrez, SeqIO
 from Bio.Entrez.Parser import ListElement, DictionaryElement, StringElement
@@ -8,6 +8,17 @@ from ...constants.databases import REFSEQ
 from ..utils.base_auxiliary_methods import get_nested
 from ...constants.refseq import databases
 from bioseq_dl.core.interfacesconfig import ConfigLoader
+
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.interfaces.refseq")
+# -------------------------------------------------
 
 class RefSeqInterface(BaseAPIInterface):
     METHODS = {
@@ -101,7 +112,8 @@ class RefSeqInterface(BaseAPIInterface):
         retmode = kwargs.get('retmode', 'xml')
 
         if method not in databases:
-            raise ValueError(f"Database '{method}' is not supported. Supported databases: {', '.join(databases)}")
+            log.error(f"Database '{method}' is not supported. Supported databases: {', '.join(databases)}")
+            return {}
 
 
         ids = query.get("id") if isinstance(query, dict) else query
@@ -128,7 +140,8 @@ class RefSeqInterface(BaseAPIInterface):
         """
         # Check input data type
         if not isinstance(data, (List, Dict)):
-            raise ValueError("Data must be a list or a dictionary.")
+            log.error("Tried to parse data but the type is not supported. Data should be a list or a dictionary.")
+            return {}
 
         return self._extract_fields(data, fields_to_extract)
     

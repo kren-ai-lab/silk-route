@@ -1,4 +1,4 @@
-import os, json
+import os, json, logging
 from requests import Request
 from requests.exceptions import RequestException
 from requests.models import Response
@@ -11,6 +11,17 @@ import pandas as pd
 from .base import BaseAPIInterface
 from ...constants.databases import CHEBI
 from ..utils.base_auxiliary_methods import validate_parameters
+
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.interfaces.chebi")
+# -------------------------------------------------
 
 # Definition of methods for ChEBI API
 # Each paramether is a tuple with (type, default_value, primary_key)
@@ -106,14 +117,16 @@ class ChEBIInterface(BaseAPIInterface):
             **kwargs
         ):
         if method not in self.METHODS.keys():
-            raise ValueError(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+            log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+            return {}
 
         http_method, path_param, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, **kwargs)
 
         try:
             validated_params = validate_parameters(inputs, parameters)
         except (ValueError, TypeError) as e:
-            raise ValueError(f"Parameter validation failed: {e}")
+            log.error(f"Parameter validation failed: {e}")
+            return {}
 
         # Get ids if available
         chebi_ids = []
@@ -124,7 +137,8 @@ class ChEBIInterface(BaseAPIInterface):
             if isinstance(chebi_ids, str):
                 chebi_ids = [chebi_ids]
             elif not isinstance(chebi_ids, list):
-                raise ValueError(f"Expected '{id_key}' to be str or list, got {type(chebi_ids)}")
+                log.error(f"Expected '{id_key}' to be str or list, got {type(chebi_ids)}")
+                return {}
 
             validated_params[id_key] = ",".join(id for id in chebi_ids)
         
@@ -140,7 +154,7 @@ class ChEBIInterface(BaseAPIInterface):
         req = Request(http_method, url, params=validated_params)
         prepared = self.session.prepare_request(req)
 
-        print(f"Prepared url: {prepared.url}")
+        log.debug(f"Prepared url: {prepared.url}")
         try:
             response = self.session.send(prepared)
             self._delay()
@@ -148,7 +162,7 @@ class ChEBIInterface(BaseAPIInterface):
             try:
                 response = json.loads(response.text)
             except json.JSONDecodeError:
-                print(f"Failed to decode JSON response for method '{method}' with query '{query}'. Response text: {response.text}")
+                log.error(f"Failed to decode JSON response for method '{method}' with query '{query}'. Response text: {response.text}")
                 return {}
 
             # If the keys are the same of the query, return the response directly
@@ -161,7 +175,7 @@ class ChEBIInterface(BaseAPIInterface):
 
             return response
         except RequestException as e:
-            print(f"Error fetching {query} for method '{method}': {e}")
+            log.error(f"Error fetching {query} for method '{method}': {e}")
             return {}
         
     def parse(
@@ -171,6 +185,7 @@ class ChEBIInterface(BaseAPIInterface):
             **kwargs
         ) -> Union[List, Dict]:
         if not data:
+            log.warning("Tried to parse data but the data is empty or None.")
             return {}
 
         if isinstance(data, Response):
@@ -178,7 +193,8 @@ class ChEBIInterface(BaseAPIInterface):
         elif isinstance(data, dict):
             data = data
         else:
-            raise ValueError("Response must be a requests.Response object or a dictionary.")
+            log.error("Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object.")
+            return {}
         
         return self._extract_fields(data, fields_to_extract)
     

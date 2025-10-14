@@ -1,5 +1,5 @@
 import time, random, os, hashlib, json, re, ast
-import inspect
+import logging
 import requests
 import itertools
 import yaml
@@ -15,6 +15,17 @@ from typing import Union, List, Dict, Optional
 from itertools import permutations
 
 from ..utils.base_auxiliary_methods import get_feature_keys, get_nested, get_primary_keys, validate_parameters
+
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.interfaces.base")
+# -------------------------------------------------
 
 class BaseAPIInterface(ABC):
     METHODS: ClassVar[Dict[str, Any]] = {}
@@ -62,6 +73,10 @@ class BaseAPIInterface(ABC):
         if self.use_config and self.config_dir:
             self._load_all_configs(self.config_dir)
 
+        log.debug(f"Parent class BaseAPIInterface initialized. {self.__class__.__name__}")
+        log.debug(f"Cache directory set to: {self.cache_dir}")
+        log.debug(f"Configuration directory set to: {self.config_dir}")
+
         os.makedirs(self.cache_dir, exist_ok=True)
 
         # Init session
@@ -99,7 +114,7 @@ class BaseAPIInterface(ABC):
                         elif ext in [".yaml", ".yml"]:
                             self.configs[name] = yaml.safe_load(f)
                     except Exception as e:
-                        print(f"Error loading config {fname}: {e}")
+                        log.error(f"Error loading config {fname}: {e}")
 
     def _delay(self):
         """
@@ -174,10 +189,10 @@ class BaseAPIInterface(ABC):
             extra = "_".join(f"{v}" for _, v in relevant_kwargs.items())
         
         if base and extra:
-            print(f"Cache_key: {base}_{extra}")
+            #log.debug(f"Cache_key: {base}_{extra}")
             return f"{base}_{extra}"
         elif base:
-            print(f"Cache_key: {base}")
+            #log.debug(f"Cache_key: {base}")
             return base
         # A rarer case where input_obj is empty or None
         else:
@@ -280,30 +295,40 @@ class BaseAPIInterface(ABC):
         config_key = kwargs.pop("config_key", None)
         fields_to_extract = kwargs.pop("fields_to_extract", None)
 
+        log.debug("_maybe_parse called with parse={}, to_dataframe={}, config_key={}, fields_to_extract={}".format(
+            parse, to_dataframe, config_key, fields_to_extract
+        ))
         if parse:
             if not fields_to_extract and self.use_config:
+                log.debug("No fields_to_extract provided, trying to resolve from kwargs.")
                 # 1. Try to resolve fields from kwargs
                 #fields_to_extract = self._resolve_fields_from_kwargs(include_defaults_from=self.fetch, **kwargs)
                 fields_to_extract = self._resolve_fields_from_kwargs(**kwargs)
 
                 # 2. If not found, try to get from config
                 if not fields_to_extract and config_key:
+                    log.debug(f"No fields_to_extract resolved from kwargs, trying config_key: {config_key}")
                     fields_to_extract = self.get_config(config_key) or None
                 
             if isinstance(data, list):
+                log.debug("Data is a list, parsing each item")
                 result = [self.parse(data=d, fields_to_extract=fields_to_extract, **kwargs) for d in data]
             elif isinstance(data, (dict, str)):
+                log.debug("Data is a dict or str, parsing directly")
                 # str is the case of KEGG API, which returns a string, parse method should handle it
                 result =  self.parse(data=data, fields_to_extract=fields_to_extract, **kwargs)
             elif data is None:
+                log.debug("Data is None, returning empty list")
                 result = []
             else:
+                log.error("Could not parse data. Data must be a list, dictionary, or string.")
                 raise ValueError("Data must be a list, dictionary, or string for parsing. Received: {}".format(type(data)))
         else:
             result = data
         
         # Convert to DataFrame if requested
         if to_dataframe:
+            log.debug("Converting result to DataFrame")
             # TODO: Make sure parse method returns a consistent structure
             if isinstance(result, list):
                 return pd.DataFrame(result)
@@ -312,6 +337,7 @@ class BaseAPIInterface(ABC):
             elif result is None or result == []:
                 return pd.DataFrame()
             else:
+                log.error(f"Cannot convert to DataFrame, unsupported type.")
                 raise ValueError(f"Cannot convert to DataFrame: unsupported type {type(result)}")
 
         return result
@@ -589,68 +615,6 @@ class BaseAPIInterface(ABC):
 
         return mapping
     
-    # def split_results_by_subquery(
-    #     self, full_result: Any, subqueries: List[Tuple[str, dict]]
-    # ) -> Dict[str, List[dict]]:
-    #     """
-    #     Generic implementation: for each result, check if any subquery's values appear in the result
-    #     using regex-based partial matching.
-
-    #     Returns a mapping {id_: [results]}.
-    #     """
-    #     if not isinstance(full_result, list):
-    #         raise ValueError("Could not split the query into subqueries. Expected full_result to be a list of dicts")
-
-    #     mapping = {identifier: [] for identifier, _ in subqueries}
-
-    #     # Auxiliary function to normalize values, special case for KEGG
-    #     def normalize(val):
-    #         """
-    #         Normalize a value by splitting it into tokens and converting to lowercase.
-    #         Handles lists, tuples, and strings.
-    #         """
-    #         if not val:
-    #             return []
-
-    #         # Tries to convert strings like "['a', 'b']" to actual lists
-    #         if isinstance(val, str) and val.startswith("[") and val.endswith("]"):
-    #             try:
-    #                 val = ast.literal_eval(val)
-    #             except Exception:
-    #                 pass  # If it fails, treat as a string
-
-    #         # If it's a list/tuple, flatten each item
-    #         if isinstance(val, (list, tuple)):
-    #             tokens = []
-    #             for elem in val:
-    #                 if isinstance(elem, str):
-    #                     tokens.extend(re.split(r"[\s:\-/|]", elem))
-    #                 else:
-    #                     tokens.append(str(elem))
-    #         else:
-    #             tokens = re.split(r"[\s:\-/|]", str(val))
-
-    #         return [t.lower() for t in tokens if t]
-
-    #     # Preprocess values to search for each subquery
-    #     subquery_values = {
-    #         identifier: sum((normalize(v) for v in self.get_matching_values(query)), [])
-    #         for identifier, query in subqueries
-    #     }
-
-
-    #     for item in full_result:
-    #         item_str = item if isinstance(item, str) else json.dumps(item)
-    #         item_str = item_str.lower()  # Ensure case-insensitive matching
-
-    #         for identifier, values in subquery_values.items():
-    #             if all(
-    #                 re.search(re.escape(str(v).lower()), item_str)
-    #                 for v in values if v
-    #             ):
-    #                 mapping[identifier].append(item)
-    #     return mapping
-    
     def merge_dicts(self, dicts):
         merged = {}
         for d in dicts:
@@ -695,28 +659,36 @@ class BaseAPIInterface(ABC):
         # Get method specification
         spec = self._get_method_spec(**kwargs)
         if spec is None:
+            log.error(f"Method '{method}' is not supported")
             raise ValueError(f"Method '{method}' is not supported. Available: {list(self.METHODS)}")
+        log.debug("Checking if multiple queries are supported")
         group_key = spec.get('group_queries', [None])[0] 
 
         # If group_key is present and value is list: check cache per element
         if isinstance(query, dict) and group_key and isinstance(query.get(group_key), list):
+            log.debug("Multiple queries detected in the input.")
+            log.debug(f"Generated a group of queries based on key '{group_key}' with multiple values.")
             results = {}
             remaining = []
             # values = list(query[group_key])
             subqueries = self.decompose_query(query, method, option)
             # Check cache per individual
-            print(subqueries)
+            log.debug(f"Subqueries generated: {subqueries}")
             for identifier, subq in subqueries:
+                log.debug(f"Checking cache for identifier: {identifier}")
                 cache_key = self._make_cache_key(identifier, **kwargs)
                 if self.has_results(cache_key):
+                    log.debug(f"Cache hit for identifier: {identifier}, loading from cache.")
                     raw = self.load_cache(cache_key)
                     parsed = self._maybe_parse(data=raw, parse=parse, to_dataframe=to_dataframe, **kwargs)
                     results[identifier] = parsed
                 else:
+                    log.debug(f"No cache found for identifier: {identifier}, will fetch.")
                     remaining.append((identifier, subq)) 
 
             # If some remain, fetch them together
             if remaining:
+                log.debug(f"Fetching remaining {len(remaining)} subqueries in a single request.")
                 combined = self.merge_dicts([subq for _, subq in remaining])
                 params = self._prepare_params(combined, spec, **kwargs)
                 full = self.fetch(query=params, *args, **kwargs)
@@ -724,8 +696,9 @@ class BaseAPIInterface(ABC):
                 for identifier, _ in remaining:
                     partial_result = mapping.get(identifier, [])
                     if not partial_result:
-                        print(f"No results found for identifier {identifier}. Skipping.")
+                        log.debug(f"No results found for identifier {identifier}. Skipping.")
                         continue
+                    log.debug(f"Fetched {len(partial_result)} items for identifier {identifier}. Caching result.")
                     cache_key = self._make_cache_key(identifier, **kwargs)
                     self.save_cache(cache_key, partial_result)
                     parsed = self._maybe_parse(data=partial_result, parse=parse, to_dataframe=to_dataframe, **kwargs)
@@ -733,6 +706,7 @@ class BaseAPIInterface(ABC):
 
             if to_dataframe:
                 dfs = []
+                log.debug("Converting results to DataFrames")
                 for data in results.values():
                     df = data if isinstance(data, pd.DataFrame) else pd.DataFrame(data)
                     dfs.append(df)
@@ -744,12 +718,15 @@ class BaseAPIInterface(ABC):
             
             return list(results.values())
         else:
+            log.debug("Single query detected, proceeding with fetch.")
             params     = self._prepare_params(query, spec, **kwargs)
             identifier = self._make_identifier(query, spec)
             cache_key  = self._make_cache_key(identifier, **kwargs)
             if self.has_results(cache_key):
+                log.debug(f"Cache hit for identifier: {identifier}, loading from cache.")
                 raw = self.load_cache(cache_key)
             else:
+                log.debug(f"No cache found for identifier: {identifier}, fetching from API.")
                 raw = self.fetch(query=params, *args, **kwargs)
                 if raw:  # only save non-empty
                     self.save_cache(cache_key, raw)
@@ -781,6 +758,7 @@ class BaseAPIInterface(ABC):
         ###############################
         ## Cache handling
         ###############################
+        log.debug("Checking cache for each query in the batch.")
         for i, query in enumerate(queries):
             if isinstance(query, dict):
                 subqueries = self.decompose_query(query, method, option)
@@ -792,10 +770,12 @@ class BaseAPIInterface(ABC):
                 for identifier, subquery in subqueries:
                     cache_key = self._make_cache_key(identifier, **kwargs)
                     if self.has_results(cache_key):
+                        log.debug(f"Cache hit for subquery identifier: {identifier}, loading from cache.")
                         cached = self.load_cache(cache_key)
                         result = cached.to_dict(orient='records') if isinstance(cached, pd.DataFrame) else cached
                         results.append(self._maybe_parse(data=result, parse=parse, **kwargs))
                     else:
+                        log.debug(f"No cache found for subquery identifier: {identifier}, will fetch.")
                         index_query_map[i] = query
                         queries_to_fetch.append(query)
 
@@ -803,10 +783,12 @@ class BaseAPIInterface(ABC):
                 # No subqueries, use the classic key
                 cache_key = self._make_cache_key(query, **kwargs)
                 if self.has_results(cache_key):
+                    log.debug(f"Cache hit for query at index {i}, loading from cache.")
                     cached = self.load_cache(cache_key)
                     result = cached.to_dict(orient='records') if isinstance(cached, pd.DataFrame) else cached
                     results.append(self._maybe_parse(data=result, parse=parse, **kwargs))
                 else:
+                    log.debug(f"No cache found for query at index {i}, will fetch.")
                     index_query_map[i] = query
                     queries_to_fetch.append(query)
 
@@ -824,13 +806,12 @@ class BaseAPIInterface(ABC):
                 for i, query in index_query_map.items()
             }
             for future in future_to_index:
+                log.debug(f"Waiting for future result for query at index {future_to_index[future]}")
                 i = future_to_index[future]
                 try:
-                    #result = future.result()
-                    #results[i] = result
                     results.append(future.result())
                 except Exception as e:
-                    print(f"Error fetching query at index {i} ({queries[i]}): {e}")
+                    log.error(f"Error fetching query at index {i} ({queries[i]}): {e}")
                 self._delay()
 
         # Patch solution. Make sure that it works as intended
@@ -944,7 +925,7 @@ class BaseAPIInterface(ABC):
             params=validated_params
         )
         prepared = self.session.prepare_request(req)
-        print(f"Prepared request: {prepared.url}")
+        log.debug(f"Prepared request: {prepared.url}")
 
         try:
             response = self.session.send(prepared)
@@ -953,7 +934,7 @@ class BaseAPIInterface(ABC):
 
             return response
         except RequestException as e:
-            print(f"Error fetching {query} for method '{method}': {e}")
+            log.error(f"Error fetching {query} for method '{method}': {e}")
             return {}
     
     @abstractmethod

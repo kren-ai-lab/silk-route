@@ -1,6 +1,6 @@
 import os
 import json
-
+import logging
 from typing import Union, List, Dict, Optional
 from requests import Request, Response
 from requests.exceptions import RequestException
@@ -12,6 +12,17 @@ from .base import BaseAPIInterface
 from ...constants.databases import PATHWAYCOMMONS
 from ..utils.base_auxiliary_methods import validate_parameters
 from ...constants.pathwaycommons import OUTPUT_FORMATS, PATTERNS
+
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.interfaces.pathwaycommons")
+# -------------------------------------------------
 
 
 class PathwayCommonsInterface(BaseAPIInterface):
@@ -82,13 +93,17 @@ class PathwayCommonsInterface(BaseAPIInterface):
             **kwargs
         ):
         if method not in self.METHODS:
-            raise ValueError(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+            log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+            return {}
         if method == "fetch" and "uri" not in query:
-            raise ValueError("The 'uri' parameter is required for the 'fetch' method.")
+            log.error("The 'uri' parameter is required for the 'fetch' method.")
+            return {}
         elif method == "top_pathways" and "q" not in query:
-            raise ValueError("The 'q' parameter is required for the 'top_pathways' method.")
+            log.error("The 'q' parameter is required for the 'top_pathways' method.")
+            return {}
         elif method == "neighborhood" and "source" not in query:
-            raise ValueError("The 'source' parameter is required for the 'neighborhood' method.")
+            log.error("The 'source' parameter is required for the 'neighborhood' method.")
+            return {}
 
         http_method, path_param, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, **kwargs)
 
@@ -96,12 +111,15 @@ class PathwayCommonsInterface(BaseAPIInterface):
         try:
             validated_params = validate_parameters(inputs, parameters)
         except ValueError as e:
-            raise ValueError(f"Invalid parameters for method '{method}': {e}")
-
+            log.error(f"Invalid parameters for method '{method}': {e}")
+            return {}
+        
         if "format" in validated_params and validated_params["format"] not in OUTPUT_FORMATS:
-            raise ValueError(f"Invalid format '{validated_params['format']}'. Allowed formats: {OUTPUT_FORMATS}")
+            log.error(f"Invalid format '{validated_params['format']}'. Allowed formats: {OUTPUT_FORMATS}")
+            return {}
         if "pattern" in validated_params and any(p not in PATTERNS for p in validated_params["pattern"]):
-            raise ValueError(f"Invalid pattern '{validated_params['pattern']}'. Allowed patterns: {PATTERNS}")
+            log.error(f"Invalid pattern '{validated_params['pattern']}'. Allowed patterns: {PATTERNS}")
+            return {}
 
         url = f"{PATHWAYCOMMONS.API_URL}{method}"
 
@@ -118,9 +136,7 @@ class PathwayCommonsInterface(BaseAPIInterface):
         )
 
         prepared = self.session.prepare_request(response)
-        print(f"Prepared request: {prepared.url}")
-
-        print(f"Fetching data with parameters: {validated_params}")
+        log.debug(f"Prepared request: {prepared.url}")
 
         try:
             response = self.session.send(prepared)
@@ -138,7 +154,8 @@ class PathwayCommonsInterface(BaseAPIInterface):
 
             return response
         except RequestException as e:
-            raise RequestException(f"Error fetching data from {url}: {e}")
+            log.error(f"Error fetching data from {url}: {e}")
+            return {}
 
 
 
@@ -156,7 +173,8 @@ class PathwayCommonsInterface(BaseAPIInterface):
         elif isinstance(data, dict):
             data = data
         else:
-            raise ValueError("Response must be a requests.Response object or a dictionary.")
+            log.error("Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object.")
+            return {}
 
         return self._extract_fields(data, fields_to_extract, **kwargs)
 

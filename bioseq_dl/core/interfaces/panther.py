@@ -1,4 +1,4 @@
-import os
+import os, logging
 from typing import Union, List, Dict, Set, Optional
 from requests import Request
 from requests.exceptions import RequestException
@@ -11,6 +11,16 @@ from .base import BaseAPIInterface
 from ...constants.databases import PANTHER
 from ..utils.base_auxiliary_methods import validate_parameters
 
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.interfaces.panther")
+# -------------------------------------------------
 
 class PantherInterface(BaseAPIInterface):
     # Definition of methods for PANTHER API
@@ -74,12 +84,12 @@ class PantherInterface(BaseAPIInterface):
         ):
         http_method, path_param, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, **kwargs)
 
-        print(f"Inputs for method '{method}': {inputs}")
         # Validate and clean parameters
         try:
             validated_params = validate_parameters(inputs, parameters)
         except ValueError as e:
-            raise ValueError(f"Invalid parameters for method '{method}': {e}")
+            log.error(f"Invalid parameters for method '{method}': {e}")
+            return {}
         
         url = f"{PANTHER.API_URL}{method}"
 
@@ -93,7 +103,7 @@ class PantherInterface(BaseAPIInterface):
             params=validated_params
         )
         prepared = self.session.prepare_request(req)
-        print(f"Prepared request: {prepared.url}")
+        log.debug(f"Prepared request: {prepared.url}")
 
         try:
             response = self.session.send(prepared)
@@ -115,7 +125,7 @@ class PantherInterface(BaseAPIInterface):
 
             return response
         except RequestException as e:
-            print(f"Error fetching {query} for method '{method}': {e}")
+            log.error(f"Error fetching {query} for method '{method}': {e}")
             return {}
 
     def parse(
@@ -125,6 +135,7 @@ class PantherInterface(BaseAPIInterface):
             **kwargs
         ) -> Union[List, Dict]:
         if not data:
+            log.warning("Tried to parse data but the data is empty or None.")
             return {}
 
         if isinstance(data, Response):
@@ -132,7 +143,8 @@ class PantherInterface(BaseAPIInterface):
         elif isinstance(data, dict):
             data = data
         else:
-            raise ValueError("Response must be a requests.Response object or a dictionary.")
+            log.error("Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object.")
+            return {}
         
 
         return self._extract_fields(data, fields_to_extract)

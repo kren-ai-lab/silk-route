@@ -1,10 +1,21 @@
-import os, re
+import os, re, logging
 from typing import Optional, Union, Dict, List, Any
 import requests
 
 from .base import BaseAPIInterface
 from ...constants.databases import CHEMBL
 from ..utils.base_auxiliary_methods import validate_parameters
+
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.interfaces.chembl")
+# -------------------------------------------------
 
 # For the moment, only activity is necessary, but more methods can be added later.
 class ChEMBLInterface(BaseAPIInterface):
@@ -74,9 +85,11 @@ class ChEMBLInterface(BaseAPIInterface):
         for key, check in rules.items():
             if key in query and not check(query[key]):
                 if key == 'target_chembl_id':
-                    raise ValueError(f"Invalid target_chembl_id: {query['target_chembl_id']}. It should be a non-empty string.")
+                    log.error(f"Invalid target_chembl_id: {query['target_chembl_id']}. It should be a non-empty string.")
+                    return {}
                 elif key == 'pchembl_value':
-                    raise ValueError(f"Invalid pchembl_value: {query['pchembl_value']}. It should be a number (int or float).")
+                    log.error(f"Invalid pchembl_value: {query['pchembl_value']}. It should be a number (int or float).")
+                    return {}
 
     def fetch_pages(self, next_url: str, method: str, pages_to_fetch: int = 1):
         """
@@ -87,7 +100,7 @@ class ChEMBLInterface(BaseAPIInterface):
         Returns:
             dict: The fetched data from the next page.
         """
-        print(f"Fetching page: {next_url} for method {method} with pages_to_fetch={pages_to_fetch}")
+        log.debug(f"Fetching page: {next_url} for method {method} with pages_to_fetch={pages_to_fetch}")
         responses = []
         try:
             response = self.session.get(next_url, headers={"Content-Type": "application/json"})
@@ -95,7 +108,7 @@ class ChEMBLInterface(BaseAPIInterface):
             response.raise_for_status() 
             
             if response.status_code == 204:
-                print(f"No content returned for URL {next_url}.")
+                log.warning(f"No content returned for URL {next_url}.")
                 return {}
 
             data = response.json()
@@ -119,7 +132,8 @@ class ChEMBLInterface(BaseAPIInterface):
 
             return responses
         except requests.exceptions.RequestException as e:
-            print(f"Error fetching next page for method {method}: {e}")
+            
+            log.error(f"Error fetching next page for method {method}: {e}")
             return {}
     
     def fetch(self, query: Union[str, dict, list], *, method: str = "activity", **kwargs):
@@ -136,10 +150,12 @@ class ChEMBLInterface(BaseAPIInterface):
         
         # Validate method and format
         if method not in self.METHODS.keys():
-            raise ValueError(f"Method {method} is not supported. Supported methods are: {', '.join(self.METHODS.keys())}.")
+            log.error(f"Method {method} is not supported. Supported methods are: {', '.join(self.METHODS.keys())}.")
+            return {}
 
         if not isinstance(query, (str, dict)):
-            raise ValueError("Query must be a string or a dictionary.")
+            log.error("Query must be a string or a dictionary.")
+            return {}
         
         _, _, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, **kwargs)
 
@@ -147,7 +163,8 @@ class ChEMBLInterface(BaseAPIInterface):
         try:
             validated_params = validate_parameters(inputs, parameters)
         except ValueError as e:
-            raise ValueError(f"Invalid parameters for method '{method}': {e}")
+            log.error(f"Invalid parameters for method '{method}': {e}")
+            return {}
 
         # Convert dictionary to a query string
         query = "&".join(f"{key}={value}" for key, value in validated_params.items())
@@ -174,6 +191,7 @@ class ChEMBLInterface(BaseAPIInterface):
             dict: Parsed response.
         """
         if not data:
+            log.warning("Tried to parse data but the data is empty or None.")
             return {}
 
         if isinstance(data, requests.models.Response):
@@ -181,7 +199,8 @@ class ChEMBLInterface(BaseAPIInterface):
         elif isinstance(data, dict):
             data = data
         else:
-            raise ValueError("Response must be a requests.Response object or a dictionary.")
+            log.error("Tried to parse data but the type is not supported. Response should be a dict or a list.")
+            return {}
         
         parsed = self._extract_fields(data, fields_to_extract)
 
@@ -207,8 +226,9 @@ class ChEMBLInterface(BaseAPIInterface):
         if method is None:
             method = "activity"
         if method not in self.METHODS.keys():
-            raise ValueError(f"Method {method} is not supported. Supported methods are: {', '.join(METHODS)}.")
-        
+            log.error(f"Method {method} is not supported. Supported methods are: {', '.join(self.METHODS.keys())}.")
+            return {}
+
         return super().get_dummy(
             query=query,
             method=method,

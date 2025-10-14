@@ -1,4 +1,4 @@
-import os, json
+import os, json, logging
 from typing import Union, List, Dict, Optional, Literal
 from requests import Request
 from requests.exceptions import RequestException
@@ -9,6 +9,17 @@ from .base import BaseAPIInterface
 from ...constants.databases import ALPHAFOLD
 from ..utils.base_auxiliary_methods import validate_parameters
 from bioseq_dl.core.interfacesconfig import ConfigLoader
+
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.interfaces.alphafold")
+# -------------------------------------------------
 
 class AlphafoldInterface(BaseAPIInterface):
     METHODS = {
@@ -61,7 +72,8 @@ class AlphafoldInterface(BaseAPIInterface):
 
     def fetch_single(self, query: Union[str, dict], parse: bool = False, *args, **kwargs) -> Union[List, Dict, pd.DataFrame]:
         if not isinstance(query, str):
-            raise ValueError("Query must be a string representing a UniProt ID.")
+            log.error("Query must be a string representing a AlphaFold ID.")
+            return {}
 
         result = super().fetch_single(query, parse=parse, *args, **kwargs)
 
@@ -81,7 +93,8 @@ class AlphafoldInterface(BaseAPIInterface):
     
     def fetch_batch(self, queries: List[Union[str, dict]], parse: bool = False, *args, **kwargs) -> Union[List, pd.DataFrame]:
         if not isinstance(queries, list) or not isinstance(queries[0], str):
-            raise ValueError("Queries must be a list of strings representing UniProt IDs.")
+            log.error("Queries must be a list of strings representing AlphaFold IDs.")
+            return []
         
         results = super().fetch_batch(queries, parse=parse, *args, **kwargs)
 
@@ -113,7 +126,8 @@ class AlphafoldInterface(BaseAPIInterface):
             Dict: Prediction data.
         """
         if method not in self.METHODS.keys():
-            raise ValueError(f"Method {method} is not supported. Supported methods are: prediction.")
+            log.error(f"Method {method} is not supported. Supported methods are: {', '.join(self.METHODS.keys())}.")
+            return {}
 
         http_method, path_param, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, **kwargs)
 
@@ -121,8 +135,9 @@ class AlphafoldInterface(BaseAPIInterface):
         try:
             validated_params = validate_parameters(inputs, parameters)
         except ValueError as e:
-            raise ValueError(f"Invalid parameters for method '{method}': {e}")
-        
+            log.error(f"Invalid parameters for method '{method}': {e}")
+            return {}
+
         url = f"{ALPHAFOLD.API_URL}{method}/"
         
         if path_param:
@@ -135,7 +150,7 @@ class AlphafoldInterface(BaseAPIInterface):
             params=validated_params
         )
         prepared = self.session.prepare_request(req)
-        print(f"Prepared request: {prepared.url}")
+        log.debug(f"Fetching prediction for {query} using URL: {prepared.url}")
 
         try:
             response = self.session.send(prepared)
@@ -148,7 +163,7 @@ class AlphafoldInterface(BaseAPIInterface):
 
             return response
         except RequestException as e:
-            print(f"Error fetching prediction for {query}: {e}")
+            log.error(f"Error fetching prediction for {query}: {e}")
             return {}
         
 
@@ -167,7 +182,7 @@ class AlphafoldInterface(BaseAPIInterface):
         for ext in self.structures:
             url_key = f"{ext}Url"
             if url_key not in parsed:
-                print(f"Warning: {url_key} not found in parsed data. {parsed}")
+                log.warning(f"{url_key} not found in parsed data. {parsed}")
                 continue
 
             structure_url = parsed[url_key]
@@ -179,17 +194,17 @@ class AlphafoldInterface(BaseAPIInterface):
 
             # Check if the file already exists
             if os.path.exists(file_path):
-                print(f"Structure {file_name} already exists. Skipping download.")
+                log.info(f"Structure {file_name} already exists. Skipping download.")
                 continue
 
             try:
                 response = self.session.get(structure_url)
                 with open(file_path, "wb") as f:
-                    print(f"Downloading structure {file_name}...")
+                    log.info(f"Downloading structure {file_name}...")
                     f.write(response.content)
 
             except Exception as e:
-                print(f"Error downloading structure {file_name}: {e}")
+                log.error(f"Error downloading structure {file_name}: {e}")
 
         return parsed if parsed is not None else {}
 
@@ -212,7 +227,8 @@ class AlphafoldInterface(BaseAPIInterface):
         """
         # Check input data type
         if not isinstance(data, (List, Dict)):
-            raise ValueError("Data must be a list or a dictionary.")
+            log.error("Tried to parse data but the type is not supported. Response should be a dict or a list.")
+            return {}
         
         # Check if structures are requested
         if self.structures:
@@ -278,7 +294,8 @@ class AlphafoldInterface(BaseAPIInterface):
             os.makedirs(self.output_dir)
 
         if extension not in ["csv", "tsv", "json"]:
-            raise ValueError("Unsupported file extension. Use 'csv', 'tsv', or 'json'.")
+            log.error(f"Unsupported file extension: {extension}. Use 'csv', 'tsv', or 'json'.")
+            return
         
         if extension == "csv":
             df = pd.DataFrame(data)

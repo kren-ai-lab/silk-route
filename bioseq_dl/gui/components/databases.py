@@ -1,10 +1,21 @@
-import os, json
+import os, json, logging
 import gradio as gr
 import pandas as pd
 from functools import partial
 
 import yaml
 import importlib
+
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.gui.components.databases")
+# -------------------------------------------------
 
 try:
     from dotenv import load_dotenv, find_dotenv
@@ -187,7 +198,7 @@ def _getconfig_first(keys, api_name: str):
         dbcfg = getattr(const_mod, api_name.upper())  # e.g., BRENDA, BIOGRID, REFSEQ
         config_dir = getattr(dbcfg, "CONFIG_DIR")
     except Exception as e:
-        print(f"Error resolving CONFIG_DIR for '{api_name}': {e}")
+        log.error(f"Error resolving CONFIG_DIR for '{api_name}': {e}")
         return None
 
     config_path = os.path.join(config_dir, "init.yml")
@@ -202,7 +213,7 @@ def _getconfig_first(keys, api_name: str):
                 if val not in (None, ""):
                     return val
     except Exception as e:
-        print(f"Error reading config file {config_path}: {e}")
+        log.error(f"Error reading config file {config_path}: {e}")
     return None
 
 def _resolve_init_kwargs_config_first(api_name: str, init_defs: list, ui_values: list):

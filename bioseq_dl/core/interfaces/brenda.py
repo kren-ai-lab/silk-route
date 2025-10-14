@@ -1,6 +1,7 @@
 import os
 from typing import Optional, List, Any, Union
 import hashlib
+import logging
 from zeep import Client
 from zeep.helpers import serialize_object
 
@@ -9,6 +10,17 @@ from .base import BaseAPIInterface
 from ...constants.databases import BRENDA
 from ..utils.base_auxiliary_methods import validate_parameters
 from bioseq_dl.core.interfacesconfig import ConfigLoader
+
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.interfaces.brenda")
+# -------------------------------------------------
 
 # For aditional implementations see: https://www.brenda-enzymes.org/soap.php
 class BrendaInterface(BaseAPIInterface):
@@ -210,8 +222,9 @@ class BrendaInterface(BaseAPIInterface):
         self.password = password or config.get_parameter("password")
 
         if self.password is None:
-            raise ValueError("Password for BRENDA API must be provided.")
-        self.password = hashlib.sha256(self.password.encode("utf-8")).hexdigest()
+            log.error("Tried to initialize BRENDA interface without a password. Provide it via config file at {config_dir} or directly.")
+        else:
+            self.password = hashlib.sha256(self.password.encode("utf-8")).hexdigest()
         self.client = Client(BRENDA.API_URL)
 
 
@@ -240,13 +253,18 @@ class BrendaInterface(BaseAPIInterface):
             print("Query must be a dictionary with keys matching the method parameters.")
             return []
         
+        if self.password is None:
+            log.error(f"Tried to fetch from BRENDA without a password. Provide it via config file at {self.config_dir} or directly.")
+            return []
+        
         _, _, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, **kwargs)
 
         # Validate and clean parameters
         try:
             validated_params = validate_parameters(inputs, parameters)
         except ValueError as e:
-            raise ValueError(f"Invalid parameters for method '{method}': {e}")
+            log.error(f"Invalid parameters for method '{method}': {e}")
+            return []
 
         results = []
         try:
@@ -354,10 +372,12 @@ class BrendaInterface(BaseAPIInterface):
             any: Parsed data from the response.
         """
         if not data:
+            log.warning("Tried to parse data but the data is empty or None.")
             return {}
 
         if not isinstance(data, (dict, list)):
-            raise ValueError("Response must be a dictionary or a list.")
+            log.error("Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object.")
+            return {}
 
         return self._extract_fields(data, fields_to_extract)
     

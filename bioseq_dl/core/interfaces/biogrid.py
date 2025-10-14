@@ -1,10 +1,22 @@
 import os
+import logging
 from typing import Optional, Set, Union, List, Dict, Any
 import requests
 
 from .base import BaseAPIInterface
 from ...constants.databases import BIOGRID
 from bioseq_dl.core.interfacesconfig import ConfigLoader
+
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.interfaces.biogrid")
+# -------------------------------------------------
 
 # Rest documentation: https://wiki.thebiogrid.org/doku.php/biogridrest
 
@@ -76,7 +88,7 @@ class BioGRIDInterface(BaseAPIInterface):
             self.api_key = api_key
 
         if not self.api_key:
-            raise ValueError("An API key must be provided either directly or via a config file.")
+            log.error("An API key must be provided either directly or via a config file.")
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
 
@@ -101,6 +113,9 @@ class BioGRIDInterface(BaseAPIInterface):
         """
         if isinstance(query, dict) and "accessKey" not in query:
             query["accessKey"] = self.api_key
+            if self.api_key is None or self.api_key == "your_api_key_here":
+                log.error("You must provide a valid API key to fetch data from BioGRID. Via config file at {self.config.config_dir} or directly.")
+                return {}
     
         response = super()._do_request(query, method=method, api_url=BIOGRID.API_URL, **kwargs)
         response = response.json() if isinstance(response, requests.models.Response) else response
@@ -111,6 +126,7 @@ class BioGRIDInterface(BaseAPIInterface):
                     # Convert to list of interactions
                     response = list(response.values())
             case _:
+                log.warning(f"Method {method} not recognized for special parsing. Returning raw response.")
                 pass
 
         return response
@@ -132,6 +148,7 @@ class BioGRIDInterface(BaseAPIInterface):
             any: Parsed data from the response.
         """
         if not data:
+            log.warning("Tried to parse data but the data is empty or None.")
             return {}
 
         if isinstance(data, requests.models.Response):
@@ -139,12 +156,8 @@ class BioGRIDInterface(BaseAPIInterface):
         elif isinstance(data, (dict, list)):
             data = data
         else:
-            raise ValueError("Response must be a requests.Response object, list or a dictionary.")
-
-        # # Check if all keys are numbers (indicating a list of interactions)
-        # if isinstance(data, dict) and all(str(key).isdigit() for key in data.keys()):
-        #     # Convert to list of interactions
-        #     data = list(data.values())
+            log.error("Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object.")
+            return {}
 
         return self._extract_fields(data, fields_to_extract)
 
@@ -161,9 +174,11 @@ class BioGRIDInterface(BaseAPIInterface):
         parse = kwargs.get("parse", False)
 
         if not access_key:
-            raise ValueError("Access key must be provided to get dummy data.")
+            log.error("Access key must be provided to get dummy data.")
+            return {}
         if method != "" and method not in self.METHODS.keys():
-            raise ValueError(f"Method {method} is not supported. Supported methods are: {', '.join(self.METHODS.keys())}.")
+            log.error(f"Method {method} is not supported. Supported methods are: {', '.join(self.METHODS.keys())}.")
+            return {}
         dummy_results = {}
         query = {
             "accessKey": access_key,

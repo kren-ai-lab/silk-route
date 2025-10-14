@@ -1,4 +1,4 @@
-import os
+import os, logging
 import tempfile
 import pandas as pd
 import gradio as gr
@@ -12,6 +12,17 @@ from bioseq_dl.core.utils.blast_search import (
     parse_blast_results
 )
 from bioseq_dl import UniprotInterface
+
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.gui.components.uniprot_blast_search")
+# -------------------------------------------------
 
 
 def load_dataframe(file):
@@ -30,39 +41,40 @@ def load_dataframe(file):
         return None, [f"Error: {e}"]
 
 def run_blast_from_file(file, seq_column, database, evalue, blast_type, min_identity, fields, crossref_fields):
-    logs = []
+    gui_logs = []
     df, _ = load_dataframe(file)
     if df is None or df.empty:
-        logs.append("Could not load DataFrame or it is empty.")
-        return pd.DataFrame(), "\n".join(logs)
+        gui_logs.append("Could not load DataFrame or it is empty.")
+        return pd.DataFrame(), "\n".join(gui_logs)
     if not database:
-        logs.append("No database selected.")
-        return pd.DataFrame(), "\n".join(logs)
+        gui_logs.append("No database selected.")
+        return pd.DataFrame(), "\n".join(gui_logs)
 
     if seq_column not in df.columns:
-        logs.append(f"Column '{seq_column}' not found in DataFrame.")
-        return pd.DataFrame(), "\n".join(logs)
+        gui_logs.append(f"Column '{seq_column}' not found in DataFrame.")
+        return pd.DataFrame(), "\n".join(gui_logs)
 
     sequences = df[seq_column].dropna().tolist()
-    logs.append(f"BLAST with {len(sequences)} sequences")
-    logs.append(f"Database: {database}, E-value: {evalue}, Type: {blast_type}, Min Identity: {min_identity}")
+    log.info(f"BLAST with {len(sequences)} sequences")
+    log.debug(f"Database: {database}, E-value: {evalue}, Type: {blast_type}, Min Identity: {min_identity}")
 
     download_uniprot_database(database, "fasta")
-    logs.append(f"Database {database} downloaded.")
+    log.info(f"Database {database} downloaded.")
 
     blastp_path = check_blast()
-    logs.append(f"Using blastp at: {blastp_path}")
+    log.info(f"Using blastp at: {blastp_path}")
 
     make_blast_database(database, extension="fasta")
-    logs.append(f"BLAST database {database} created.")
+    log.info(f"BLAST database {database} created.")
 
     run_blast(sequences, database, blast_type=blast_type, evalue=evalue)
 
     results = parse_blast_results("tmp/blast_results.txt")
 
     if not results:
-        logs.append("No BLAST results found.")
-        return pd.DataFrame(), "\n".join(logs)
+        log.warning("No BLAST results found.")
+        gui_logs.append("No BLAST results found.")
+        return pd.DataFrame(), "\n".join(gui_logs)
 
 
     df_blast = pd.DataFrame(results)
@@ -72,7 +84,7 @@ def run_blast_from_file(file, seq_column, database, evalue, blast_type, min_iden
     df_blast = df_blast.rename(columns={seq_column: "sequence"})
     df_blast["accession"] = df_blast["subject_id"].apply(lambda x: x.split("|")[1])
     df_blast = df_blast.drop(columns=["subject_id","alignment_length", "evalue", "bit_score"])
-    logs.append("BLAST completed successfully.")
+    log.info("BLAST completed successfully.")
 
     df_blast["identity"] = df_blast["identity"].astype(float)
     df_blast = df_blast[df_blast['identity'] >= min_identity]
@@ -96,7 +108,8 @@ def run_blast_from_file(file, seq_column, database, evalue, blast_type, min_iden
     xref = [VALID_CROSS_REF_FIELDS[x] for x in xref if x in VALID_CROSS_REF_FIELDS]
     export_df = instance.parse_results(results, fields + xref)
 
-    return export_df, "\n".join(logs)
+    gui_logs.append(f"BLAST completed with {len(export_df)} results after filtering by {min_identity}% identity.")
+    return export_df, "\n".join(gui_logs)
 
 def save_results(df):
     if df is None or df.empty:

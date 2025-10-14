@@ -1,9 +1,20 @@
-import requests, os
+import requests, os, logging
 from typing import Optional, Union, List, Any, Dict
 
 from .base import BaseAPIInterface
 from ...constants.databases import INTERPRO
 from ...constants.interpro import db_types, entry_integration_types, filter_types
+
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.interfaces.interpro")
+# -------------------------------------------------
 
 # TODO add modifiers definitions
 # TODO Because this API uses an unique type of query
@@ -88,26 +99,21 @@ class InterproInterface(BaseAPIInterface):
         for key, check in rules.items():
             if key in query and not check(query[key]):
                 if key == 'id':
-                    raise ValueError(f"Invalid ID: {query['id']}. It should be a non-empty string.")
+                    log.error(f"Invalid ID: {query['id']}. It should be a non-empty string.")
+                    return {}
                 elif key == 'filters':
                     valid = [ftype for ftype in filter_types if ftype != method]
-                    raise ValueError(
-                        f"Invalid filter type: {query[key].get('type')}. Valid types are: {valid}"
-                    )
+                    log.error(f"Invalid filter type: {query[key].get('type')}. Valid types are: {valid}")
+                    return {}
                 elif key == 'db':
-                    raise ValueError(
-                        f"Invalid database type: {query['db']} for method {method}. "
-                        f"Valid types are: {db_types[method]}"
-                    )
+                    log.error(f"Invalid database type: {query['db']} for method {method}. Valid types are: {db_types[method]}")
+                    return {}
                 elif key == 'entry_integration':
-                    raise ValueError(
-                        f"Invalid entry integration type: {query['entry_integration']}. "
-                        f"Valid types are: {entry_integration_types}"
-                    )
+                    log.error(f"Invalid entry integration type: {query['entry_integration']}. Valid types are: {entry_integration_types}")
+                    return {}
                 elif key == 'modifiers':
-                    raise ValueError(
-                        f"Invalid modifiers type: {type(query['modifiers'])}. Modifiers should be a dictionary."
-                    )
+                    log.error(f"Invalid modifiers type: {type(query['modifiers'])}. Modifiers should be a dictionary.")
+                    return {}
                 
     def fetch_pages(self, next_url: str, method: str, pages_to_fetch: int = 1):
         """
@@ -125,7 +131,7 @@ class InterproInterface(BaseAPIInterface):
             response.raise_for_status() 
             
             if response.status_code == 204:
-                print(f"No content returned for URL {next_url}.")
+                log.warning(f"No content returned for URL {next_url}.")
                 return {}
 
             data = response.json()
@@ -151,7 +157,7 @@ class InterproInterface(BaseAPIInterface):
 
             return responses
         except requests.exceptions.RequestException as e:
-            print(f"Error fetching next page for method {method}: {e}")
+            log.error(f"Error fetching next page for method {method}: {e}")
             return {}
 
     def fetch(self, query: Union[str, dict, list], *, method: str = "entry", **kwargs):
@@ -166,11 +172,13 @@ class InterproInterface(BaseAPIInterface):
         pages_to_fetch = kwargs.get("pages_to_fetch", 1)
   
         if method not in self.METHODS.keys():
-            raise ValueError("Method must be one of the following: " + ", ".join(self.METHODS.keys()))
+            log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+            return {}
 
         if not isinstance(query, dict):
-            raise ValueError("Query must be a dictionary containing 'db', 'entry_integration', 'modifiers', 'filter_type', 'filter_db', and 'filter_value' keys.")
-
+            log.error("Query must be a dictionary containing 'db', 'entry_integration', 'modifiers', 'filter_type', 'filter_db', and 'filter_value' keys.")
+            return {}
+        
         # Validate the query parameters
         self.validate_query(method, query)
 
@@ -188,7 +196,8 @@ class InterproInterface(BaseAPIInterface):
                 if f['type'] in filter_types and f['db'] in db_types[f['type']] and f['value']:
                     url += f"{f['type']}/{f['db']}/{f['value']}/"
                 else:
-                    raise ValueError(f"Invalid filter: {f}. Valid filters are of type {filter_types} with databases {db_types[f['type']]}.")
+                    log.error(f"Invalid filter: {f}. Valid filters are of type {filter_types} with databases {db_types[f['type']]}.")
+                    return {}
 
         if 'modifiers' in query.keys() and query['modifiers']:
             url += "?"
@@ -198,8 +207,7 @@ class InterproInterface(BaseAPIInterface):
             #remove the last '&'
             url = url[:-1]
         
-        print(f"Fetching data from InterPro API with URL: {url}")
-
+        log.debug(f"Prepared url: {url}")
         return self.fetch_pages(url, method, pages_to_fetch)
 
     def parse(self, data: Any, fields_to_extract: Optional[Union[list, dict]], **kwargs) -> Union[Dict, List]:
@@ -214,7 +222,8 @@ class InterproInterface(BaseAPIInterface):
             dict: The parsed data.
         """
         if not isinstance(data, (List, Dict)):
-            raise ValueError("Data must be a list or a dictionary.")
+            log.error("Tried to parse data but the type is not supported. Response should be a dict or a list.")
+            return {}
         if (isinstance(data, Dict) and not data) or \
               (isinstance(data, List) and not data):
             return {}

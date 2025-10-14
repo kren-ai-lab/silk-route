@@ -1,4 +1,4 @@
-import requests, time, random, re, os
+import requests, time, random, re, os, logging
 from typing import Optional, Union, List, Dict, Any, Set
 import pandas as pd
 
@@ -6,6 +6,17 @@ from .base import BaseAPIInterface
 from ...constants.databases import KEGG
 from ..utils.base_auxiliary_methods import get_nested, validate_parameters
 from ...constants.kegg import DATABASES, METHOD_OPTIONS
+
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.interfaces.kegg")
+# -------------------------------------------------
 
 # More info about KEGG API: https://www.kegg.jp/kegg/rest/keggapi.html
 # TODO Solve known problem with KEGG API:
@@ -79,12 +90,14 @@ class KEGGInterface(BaseAPIInterface):
         for key, check in rules.items():
             if key in query and not check(query[key]):
                 if key == 'entries':
-                    raise ValueError(f"Invalid entries: {query['entries']}. Must be a string or a list of strings.")
+                    log.error(f"Invalid entries: {query['entries']}. Must be a string or a list of strings.")
+                    return {}
                 elif key == 'db':
-                    raise ValueError(f"Invalid database type: {query['db']}. Valid types are: {', '.join(DATABASES)}.")
+                    log.error(f"Invalid database type: {query['db']}. Valid types are: {', '.join(DATABASES)}.")
+                    return {}
                 elif key == 'option':
-                    raise ValueError(f"Invalid option: {query['option']} for method {method}. Supported options are: {', '.join(METHOD_OPTIONS.get(method, []))}.")
-    
+                    log.error(f"Invalid option: {query['option']} for method {method}. Supported options are: {', '.join(METHOD_OPTIONS.get(method, []))}.")
+                    return {}
     def fetch(self, query: Union[str, dict, list], *, method: str = "get", **kwargs):
         """
         Fetch data from the KEGG API.
@@ -106,14 +119,16 @@ class KEGGInterface(BaseAPIInterface):
             any: Response from the API.
         """
         if not method:
-            raise ValueError("Method must be specified. Supported methods are: " + ", ".join(self.METHODS.keys()))
+            log.error("Method must be specified. Supported methods are: " + ", ".join(self.METHODS.keys()))
+            return {}
 
         _, _, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, **kwargs)
 
         try:
             validated_params = validate_parameters(inputs, parameters)
         except ValueError as e:
-            raise ValueError(f"Invalid parameters for method '{method}': {e}")
+            log.error(f"Invalid parameters for method '{method}': {e}")
+            return {}
 
         url = f"{KEGG.API_URL}{method}"
         
@@ -126,7 +141,8 @@ class KEGGInterface(BaseAPIInterface):
 
         if 'option' in validated_params.keys() and validated_params['option']:
             if method not in METHOD_OPTIONS or validated_params['option'] not in METHOD_OPTIONS[method]:
-                raise ValueError(f"Option {validated_params['option']} is not supported for method {method}. Supported options are: {', '.join(METHOD_OPTIONS.get(method, []))}.")
+                log.error(f"Option {validated_params['option']} is not supported for method {method}. Supported options are: {', '.join(METHOD_OPTIONS.get(method, []))}.")
+                return {}
             url += f"/{validated_params['option']}"
 
         try:
@@ -134,9 +150,9 @@ class KEGGInterface(BaseAPIInterface):
             self._delay()
             response.raise_for_status()
             if not response or not hasattr(response, 'text'):
-                print(f"Warning: No response or invalid response for query {query} with method {method}.")
+                log.warning(f"No response or invalid response for query {query} with method {method}.")
                 return {}
-            
+
             r = response.text.strip()
             if r and "///" in r:
                 # Split entries by "///" and remove the last empty entry
@@ -146,7 +162,7 @@ class KEGGInterface(BaseAPIInterface):
                 r = r.split("\n")
             return r # TODO check if for other functions we need to return json or text
         except requests.exceptions.RequestException as e:
-            print(f"Error fetching data for {query} with method {method}: {e}")
+            log.error(f"Error fetching data for {query} with method {method}: {e}")
             return {}
     
     def parse(
@@ -178,12 +194,13 @@ class KEGGInterface(BaseAPIInterface):
         delimiter = kwargs.get("delimiter", "\t")
         header = kwargs.get("header", True)
         if not data:
-            print("Warning: No data to parse.")
+            log.warning("Tried to parse data but the data is empty or None.")
             return {}
 
         if type_response not in ["table", "entry"]:
-            raise ValueError("Type must be either 'table' or 'entry'.")
-        
+            log.error("Type must be either 'table' or 'entry'.")
+            return {}
+
         if type_response == "table":
             #d = data.strip().split("\n")
             if not data:
@@ -200,7 +217,7 @@ class KEGGInterface(BaseAPIInterface):
             for line in data:
                 values = line.split(delimiter)
                 if len(values) != len(headers):
-                    print(f"Warning: Line '{line}' does not match header length. Skipping.")
+                    log.warning(f"Line '{line}' does not match header length. Skipping.")
                     continue
                 entry = {headers[i]: values[i] for i in range(len(headers))}
                 parsed_data.append(entry)
@@ -265,7 +282,7 @@ class KEGGInterface(BaseAPIInterface):
         if method:
             dummy_results = super().get_dummy(query=query, method=method, **kwargs)
         else:
-            for method in METHODS:
+            for method in self.METHODS.keys():
                 dummy_results[method] = super().get_dummy(query=query, method=method, **kwargs)
         
         return dummy_results

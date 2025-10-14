@@ -1,3 +1,4 @@
+import logging
 import gradio as gr
 import pandas as pd
 from bioseq_dl import UniprotInterface
@@ -6,6 +7,18 @@ from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
 from bioseq_dl.core.interfacesconfig import ConfigLoader
 from bioseq_dl.constants.databases import BASE_CONFIG_DIR
 from bioseq_dl.constants.uniprot import VALID_FIELDS, XREF_MAPPING
+
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.gui.components.uniprot_query_search")
+# -------------------------------------------------
+
 ###############################
 # UniProt Search UI
 ###############################
@@ -15,7 +28,7 @@ from bioseq_dl.constants.uniprot import VALID_FIELDS, XREF_MAPPING
 def run_crossref_enrichment(df, crossref_fields):
     if df.empty:
         return df
-    print(f"Running crossref enrichment for fields: {crossref_fields}")
+    log.info(f"Running crossref enrichment for fields: {crossref_fields}")
     config = ConfigLoader(config_dir=str(BASE_CONFIG_DIR) + "/uniprot_crossref")
     config.load_config("config_endpoints")
 
@@ -23,7 +36,7 @@ def run_crossref_enrichment(df, crossref_fields):
     # Generate the endpoint specs based on selected crossref fields
     for key, (uniprot_field, db_name) in XREF_MAPPING.items():
         if db_name and key in crossref_fields:
-            print(f"Processing crossref field: {key} -> db: {db_name}, uniprot_field: {uniprot_field}")
+            log.debug(f"Processing crossref field: {key} -> db: {db_name}, uniprot_field: {uniprot_field}")
             endpoint_config = config.get_parameter(db_name)
             if not isinstance(endpoint_config, dict):
                 continue
@@ -52,29 +65,29 @@ def run_crossref_enrichment(df, crossref_fields):
                             )
                         )
 
-    print(endpoint_specs)
+    log.debug(f"Final endpoint specs: {endpoint_specs}")
     enricher = CrossRefEnricher(endpoint_specs)
     crossref_df = enricher.enrich(df, concat_results=True)
     if isinstance(crossref_df, pd.DataFrame) and not crossref_df.empty:
-        print(f"Crossref enrichment resulted in {len(crossref_df)} rows")
+        log.info(f"Crossref enrichment resulted in {len(crossref_df)} rows")
         return crossref_df
-    print("Crossref enrichment returned empty DataFrame or result is not a DataFrame")
+    log.warning("Crossref enrichment returned empty DataFrame or result is not a DataFrame")
     return df
 
 def run_uniprot_query(query, fields, crossref_fields, sort, fmt, include_isoform, download):
-    logs = []
-    logs.append(f"Starting query: {query}")
+    gui_logs = []
+    log.info(f"Starting query: {query}")
     
     fields = fields or []
     xref_fields = [XREF_MAPPING[c][0] for c in (crossref_fields or []) if c in XREF_MAPPING and XREF_MAPPING[c][0]]
-    logs.append(f"Using fields: {fields}")
-    logs.append(f"Using crossref fields: {xref_fields}")
-    logs.append(f"Sort: {sort}, Format: {fmt}, Include Isoform: {include_isoform}, Download: {download}")
+    log.debug(f"Using fields: {fields}")
+    log.debug(f"Using crossref fields: {xref_fields}")
+    log.debug(f"Sort: {sort}, Format: {fmt}, Include Isoform: {include_isoform}, Download: {download}")
 
     instance = UniprotInterface()
 
     try:
-        logs.append("Submitting stream request to UniProt...")
+        log.info("Submitting stream request to UniProt...")
         response = instance.submit_stream(
             query=query,
             fields=",".join(fields + xref_fields),
@@ -83,19 +96,23 @@ def run_uniprot_query(query, fields, crossref_fields, sort, fmt, include_isoform
             download=download,
             format=fmt
         )
-        logs.append(f"Response received (status code {response.status_code})")
+        log.info(f"Response received (status code {response.status_code})")
 
-        logs.append("Parsing response...")
+        log.info("Parsing response...")
         df = instance.parse_stream_response(query=query, response=response, extract_fields=None)
 
     except Exception as e:
-        logs.append(f"Error: {e}")
+        gui_logs.append(f"Error during UniProt query, see logs for details.")
+        log.error(f"Error: {e}")
         df = pd.DataFrame()  # retorna un df vacío en caso de error
     
     if crossref_fields:
+        gui_logs.append(f"Running cross-reference enrichment for fields: {', '.join(crossref_fields)}")
         df = run_crossref_enrichment(df, crossref_fields)
+    
+    gui_logs.append(f"Query completed with {len(df)} results.")
 
-    return df, "\n".join(logs)
+    return df, "\n".join(gui_logs)
 
 
 def build_ui():

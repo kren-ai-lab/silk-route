@@ -1,4 +1,4 @@
-import os, requests, yaml
+import os, requests, yaml, logging
 from typing import Optional, Union, List, Dict, Any
 from requests import Request
 from requests.exceptions import RequestException
@@ -9,6 +9,17 @@ from .base import BaseAPIInterface
 
 from ...constants.databases import PDB
 from ..utils.base_auxiliary_methods import get_nested, validate_parameters
+
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.interfaces.pdb")
+# -------------------------------------------------
 
 # Check https://data.rcsb.org/rest/v1/core/entry/4HHB for more attributes
 # rcsbapi package usage tutorial at: https://pdb101.rcsb.org/train/training-events/apis-python
@@ -79,18 +90,20 @@ class PDBInterface(BaseAPIInterface):
             dict: Fetched data for the given PDB ID.
         """
         if method not in self.METHODS.keys():
-            raise ValueError(f"Method '{method}' is not defined in the interface.")
-        
+            log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+            return {}
+
         http_method, path_param, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, **kwargs)
 
         # Validate and clean parameters
         try:
             validated_params = validate_parameters(inputs, parameters)
         except ValueError as e:
-            raise ValueError(f"Invalid parameters for method '{method}': {e}")
-        
+            log.error(f"Invalid parameters for method '{method}': {e}")
+            return {}
+
         url = f"{PDB.API_URL}{method}"
-        
+
         if path_param:
             if isinstance(path_param, list):
                 url += "/" + "/".join(str(validated_params.pop(param)) for param in path_param if param in validated_params)
@@ -103,7 +116,7 @@ class PDBInterface(BaseAPIInterface):
         )
         
         prepared = self.session.prepare_request(response)
-        print(f"Prepared request: {prepared.url}")
+        log.debug(f"Prepared request: {prepared.url}")
 
         try:
             response = self.session.send(prepared)
@@ -112,8 +125,9 @@ class PDBInterface(BaseAPIInterface):
 
             return response.json()
         except RequestException as e:
-            raise RequestException(f"Error fetching data from {url}: {e}")
-        
+            log.error(f"Error fetching data from {url}: {e}")
+            return {}
+
     def fetch_structure(self, pdb_id: str, file_format: str = "pdb") -> str:
         """
         Download the structure file for a given PDB ID.
@@ -123,13 +137,12 @@ class PDBInterface(BaseAPIInterface):
         Returns:
             str: Path to the downloaded file.
         """
-        print(self.output_dir + f"/{pdb_id}.{file_format}")
+        log.info(f"Fetching structure for {pdb_id} in {file_format} format...")
         if os.path.exists(self.output_dir + f"/{pdb_id}.{file_format}"):
-            print(f"Info: Structure for {pdb_id} already exists in {file_format} format.")
+            log.info(f"Structure for {pdb_id} already exists in {file_format} format.")
             return self.output_dir + f"/{pdb_id}.{file_format}"
 
-
-        print(f"Info: Downloading {pdb_id} in {file_format} format...")
+        log.info(f"Downloading {pdb_id} in {file_format} format...")
 
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
@@ -145,9 +158,9 @@ class PDBInterface(BaseAPIInterface):
                 f.write(response.content)
             return file_path
         except requests.exceptions.RequestException as e:
-            print(f"Error downloading structure for {pdb_id}: {e}")
+            log.error(f"Error downloading structure for {pdb_id}: {e}")
             return ""
-        
+
     def fetch_single(self, query: Union[str, dict, list[str]], parse: bool = False, *args, **kwargs) -> Union[List, Dict, pd.DataFrame]:
 
         if self.download_structures and query and isinstance(query, str):
@@ -180,7 +193,8 @@ class PDBInterface(BaseAPIInterface):
         """
         # Check input data type
         if not isinstance(data, (list, dict)):
-             raise ValueError("Data must be a list or a dictionary.")
+            log.error("Tried to parse data but the type is not supported. Data should be a list or a dictionary.")
+            return {}
 
         return self._extract_fields(
             data, 

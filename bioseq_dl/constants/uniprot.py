@@ -41,7 +41,7 @@ XREF_MAPPING = {
     "Brenda": ("xref_brenda", "brenda"),
     "ChEMBL": ("xref_chembl", "chembl"),
     "ChEBI": (None, "chebi"),
-    "GO": ("go_id", "genontology"),
+    "GO": ("go_id", "go"),
     "InterPro": ("xref_interpro", "interpro"),
     "KEGG": ("xref_kegg", "kegg"),
     "Panther": ("xref_panther", "panther"),

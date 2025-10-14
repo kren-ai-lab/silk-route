@@ -1,4 +1,4 @@
-import os
+import os, logging
 
 from typing import Union, List, Dict, Set, Optional
 
@@ -12,6 +12,17 @@ from .base import BaseAPIInterface
 from ...constants.databases import BIODBNET
 # Some deprecated imports, you can remove them if not needed
 #from ...constants.biodbnet import inputs, outputs
+
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.interfaces.biodbnet")
+# -------------------------------------------------
 
 
 class BioDBNetInterface(BaseAPIInterface):
@@ -64,7 +75,8 @@ class BioDBNetInterface(BaseAPIInterface):
             **kwargs
         ):
         if method not in self.METHODS.keys():
-            raise ValueError(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+            log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+            return {}
         
         http_method, _, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, **kwargs)
 
@@ -78,7 +90,7 @@ class BioDBNetInterface(BaseAPIInterface):
             params=inputs
         )
         prepared = self.session.prepare_request(req)
-        print(f"Prepared request: {prepared.url}")
+        log.debug(f"Prepared request: {prepared.url}")
 
         try:
             response = self.session.send(prepared)
@@ -95,8 +107,7 @@ class BioDBNetInterface(BaseAPIInterface):
                 case _:
                     return response.json()
         except RequestException as e:
-            print(f"Error fetching {query} for method '{method}': {e}")
-            print("Response:", response.text)
+            log.error(f"Error fetching {query} for method '{method}': {e}")
             return {}
 
 
@@ -108,12 +119,14 @@ class BioDBNetInterface(BaseAPIInterface):
         ) -> Union[List, Dict]:
         
         if not data:
+            log.warning("Tried to parse data but the data is empty or None.")
             return {}
 
         elif isinstance(data, (dict, list)):
             data = data
         else:
-            raise ValueError("Response must be a requests.Response object, list or a dictionary.")
+            log.error("Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object.")
+            return {}
 
         return self._extract_fields(data, fields_to_extract)
     

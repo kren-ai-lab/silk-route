@@ -1,6 +1,7 @@
 import os
 import typer
 import shutil
+import logging
 
 from bioseq_dl.constants.databases import BASE_BLAST_DB_DIR as DB_DIR
 from bioseq_dl.constants.uniprot import DATABASES, VALID_FIELDS, VALID_CROSS_REF_FIELDS, BASE_URL
@@ -15,6 +16,17 @@ from bioseq_dl.core.utils.blast_search import (
 )
 
 import pandas as pd
+
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.cli.blast_alignment")
+# -------------------------------------------------
 
 app = typer.Typer(help="Run BLAST alignment on sequences and [optionaly] download matching sequences from UniProt.")
 
@@ -76,7 +88,7 @@ def run(
     download_uniprot_database(database, extension)
 
     blastp_path = check_blast()
-    print(f"Using blastp at: {blastp_path}")
+    log.info(f"Using blastp at: {blastp_path}")
 
     make_blast_database(database, extension=extension)
 
@@ -104,7 +116,7 @@ def run(
 
     # Save to CSV
     df_blast.to_csv(output, index=False)
-    print(f"BLAST results saved to {output}")
+    log.info(f"BLAST results saved to {output}")
 
     # Clean up temporary files
     os.remove("tmp/blast_results.txt")
@@ -114,7 +126,7 @@ def run(
         # Filter by identity
         df_blast = df_blast[df_blast['identity'].astype(float) >= min_identity]
 
-        print("Downloading additional UniProt data...")
+        log.info("Downloading additional UniProt data...")
         instance = UniprotInterface()
         results = instance.download_batch(df_blast, "accession", True, "UniProtKB_AC-ID", "UniProtKB", 5000)
 

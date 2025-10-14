@@ -1,11 +1,22 @@
 from __future__ import annotations
-import os
+import os, logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any
 import pandas as pd
 
 from bioseq_dl.core.utils.query_builders import QUERY_BUILDERS, INTERFACE_CLASSES
 from bioseq_dl.constants.databases import BASE_CONFIG_DIR
+
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.interfaces.crossref_enricher")
+# -------------------------------------------------
 
 @dataclass
 class EndpointSpec:
@@ -151,7 +162,7 @@ class CrossRefEnricher():
             )
         elif isinstance(query_params, list) and len(query_params) > 1:
             # If is a list of dicts, use batch
-            print(f"Batch querying {spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''} with {len(query_params)} queries and method_params: {method_params}")
+            log.debug(f"Batch querying {spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''} with {len(query_params)} queries and method_params: {method_params}")
             result = instance.fetch_batch(
                 queries=query_params,
                 **method_params
@@ -191,7 +202,14 @@ class CrossRefEnricher():
         if not all_results or all([r.empty for r in all_results]):
             return pd.DataFrame()
         
-        return pd.concat(all_results, ignore_index=True)
+        # Ensure unique column names in each DataFrame before concatenation
+        cleaned_results = []
+        for result in all_results:
+            if not result.empty:
+                result = result.loc[:, ~pd.Index(result.columns).duplicated()]
+            cleaned_results.append(result)
+        
+        return pd.concat(cleaned_results, ignore_index=True)
     
     def enrich(
             self,
@@ -206,7 +224,7 @@ class CrossRefEnricher():
         results = {}
 
         for spec in self.endpoint_specs:
-            print(f"Processing {spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''}...")
+            log.debug(f"Processing {spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''}...")
             self._check_interface_availability(spec.database)
             self._check_required_columns(df, spec)
             
