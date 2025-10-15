@@ -1,4 +1,5 @@
 from typing import List
+import logging
 import os
 import re
 import subprocess
@@ -10,6 +11,17 @@ import shutil
 from bioseq_dl.constants.databases import BASE_BLAST_DB_DIR as DB_DIR
 from bioseq_dl.constants.databases import BASE_BLAST_DB_DIR as DB_DIR
 from bioseq_dl.constants.uniprot import DATABASES, BASE_URL
+
+# ----- Optional logging (fallback to stdlib) -----
+try:
+    from bioseq_dl.logging import get_logger
+except Exception:
+    def get_logger(name: str) -> logging.Logger:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+        return logging.getLogger(name)
+
+log = get_logger("bioseq_dl.core.utils.blast_search")
+# -------------------------------------------------
 
 BLAST_BASE_URL = "https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/"
 BLAST_DIR = Path("blast_bin")
@@ -30,10 +42,10 @@ def download_uniprot_database(db_name: str, extension: str = "xml"):
         os.makedirs(DB_DIR, exist_ok=True)
         url = f"{BASE_URL}/{DATABASES[db_name]}.{extension}.gz"
         os.system(f"wget {url} -O {db_path}.gz")
-        print(f"Unzipping {db_path}...")
+        log.info(f"Unzipping {db_path}...")
         subprocess.run(["gunzip", db_path], check=True)
     else:
-        print(f"Database {db_name} already exists at {db_path}.")
+        log.info(f"Database {db_name} already exists at {db_path}.")
 
 def get_latest_version_url():
     """Retrieve the latest BLAST+ tarball URL from the NCBI FTP site."""
@@ -61,13 +73,13 @@ def download_and_extract_blast(version: str, url: str):
     """Download and extract the BLAST+ tarball."""
     tarball_name = url.split("/")[-1]
     if not Path(tarball_name).exists():
-        print(f"Downloading BLAST+ {version}...")
+        log.info(f"Downloading BLAST+ {version}...")
         subprocess.run(["wget", url], check=True)
 
-    print("Extracting BLAST+...")
+    log.info("Extracting BLAST+...")
     with tarfile.open(tarball_name, "r:gz") as tar:
         tar.extractall(BLAST_DIR)
-    print(f"BLAST extracted to: {BLAST_DIR.resolve()}")
+    log.info(f"BLAST extracted to: {BLAST_DIR.resolve()}")
 
 
 def get_local_blastp_path(version: str):
@@ -78,17 +90,17 @@ def get_local_blastp_path(version: str):
 def check_blast():
     """Ensure BLAST is installed. Return path to `blastp` binary."""
     if is_blast_installed():
-        print("System-wide BLAST is installed.")
+        log.info("System-wide BLAST is installed.")
         return shutil.which("blastp")
     else:
         version, url = get_latest_version_url()
         local_blastp = get_local_blastp_path(version)
         if not local_blastp.exists():
-            print(f"BLAST {version} not found locally. Installing...")
+            log.info(f"BLAST {version} not found locally. Installing...")
             BLAST_DIR.mkdir(exist_ok=True)
             download_and_extract_blast(version, url)
         else:
-            print(f"Using already downloaded BLAST {version}.")
+            log.info(f"Using already downloaded BLAST {version}.")
         return str(local_blastp)
 
 def make_blast_database(db_name: str, db_type: str = "prot", extension: str = "xml"):
@@ -107,7 +119,7 @@ def make_blast_database(db_name: str, db_type: str = "prot", extension: str = "x
             makedb = True
             break
     if makedb:
-        print(f"Creating BLAST database for {db_name}...")
+        log.info(f"Creating BLAST database for {db_name}...")
         blast_db_cmd = [
             "makeblastdb",
             "-in", db_path,
@@ -116,9 +128,9 @@ def make_blast_database(db_name: str, db_type: str = "prot", extension: str = "x
         ]
     
         subprocess.run(blast_db_cmd, check=True)
-        print(f"BLAST database created at: {os.path.join(DB_DIR, DATABASES[db_name])}")
+        log.info(f"BLAST database created at: {os.path.join(DB_DIR, DATABASES[db_name])}")
     else:
-        print(f"BLAST database already exists at {blast_db_path}. No need to create it again.")
+        log.info(f"BLAST database already exists at {blast_db_path}. No need to create it again.")
 
 def run_blast(sequences: List[str], db_name: str, blast_type: str = "blastp", evalue: float = 0.001):
     """Run BLAST search."""
@@ -141,8 +153,8 @@ def run_blast(sequences: List[str], db_name: str, blast_type: str = "blastp", ev
         "-outfmt", "6",
         "-evalue", str(evalue),
     ]
-    
-    print(f"Running BLAST search...")
+
+    log.info(f"Running BLAST search...")
     with open("tmp/blast_results.txt", "w") as f:
         subprocess.run(blast_cmd, stdout=f, check=True)
 
