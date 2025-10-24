@@ -4,6 +4,33 @@
 
 Additionally, it includes functionalities for **sequence analysis** (e.g., BLAST searches, multiple sequence alignments), making it a comprehensive solution for **bioinformatics workflows**.
 
+### Supported Databases
+
+Currently supported databases include:
+
+| Database  | Description |
+| ------------- | ------------- |
+| UniProt  | Universal protein sequence database |
+| AlphaFold  | Protein structure predictions |
+| BioDBNet  | Biological database network |
+| BioGRID  | Protein-protein interaction data |
+| BRENDA  | Enzyme information system |
+| CheBI  | Chemical Entities of Biological Interest |
+| ChEMBL  | Bioactive molecule database |
+| Gene Ontology  | Functional annotation of genes |
+| InterPro  | Protein families and domains |
+| KEGG  | Kyoto Encyclopedia of Genes and Genomes |
+| Panther | Protein family classification |
+| Pathway Commons | Biological pathways |
+| PDB  | Protein Data Bank |
+| Pride  | Proteomics data repository |
+| PubChem | Chemical molecule database |
+| Reactome | Pathway database |
+| RefSeq  | NCBI Reference Sequence Database |
+| Rhea  | Biochemical reactions database |
+| STRING  | Protein-protein interaction networks |
+
+
 ## Table of Contents
 
 - [Features](#features)
@@ -41,7 +68,7 @@ Additionally, it includes functionalities for **sequence analysis** (e.g., BLAST
 
 2. **(Recommended)** Create and activate a virtual environment:
    ```bash
-   conda create -n bioseqdownloader python
+   conda create -n bioseqdownloader python=3.13
    conda activate bioseqdownloader
    ```
 
@@ -84,7 +111,7 @@ Launch the GUI:
 ```bash
 bioseq-dl gui run
 ```
-A local server will be available at [http://localhost:7560](http://localhost:7560), providing an interactive web interface.
+A local server will be available at [http://localhost:7560](http://localhost:7860), providing an interactive web interface.
 
 ---
 
@@ -121,6 +148,8 @@ bioseq-dl blast-alignment run \
 ### Programmatic API
 
 **Example – Using the UniProt interface:**
+
+You can also use the Python API to interact with the tool. Here's an example of how to use the UniProt interface:
 ```python
 from bioseq_dl import UniprotInterface
 import pandas as pd
@@ -144,6 +173,8 @@ print(results_df)
 ```
 
 **Example – Enriching results with other databases:**
+
+An enricher module is also available to enrich your data with cross references. Here's an example:
 ```python
 from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
 
@@ -155,6 +186,7 @@ specs = [
 enricher = CrossRefEnricher(specs)
 concat_df = enricher.enrich(results_df, concat_results=True)
 ```
+This will facilitate the enrichment of your data with information from multiple databases.
 
 ---
 

@@ -14,6 +14,13 @@ except Exception:
         return logging.getLogger(name)
 # -------------------------------------------------
 
+LOG_LEVELS = {
+    "debug": logging.DEBUG,
+    "info": logging.INFO,
+    "warning": logging.WARNING,
+    "error": logging.ERROR,
+    "critical": logging.CRITICAL,
+}
 
 @app.command("run")
 def run(
@@ -26,14 +33,14 @@ def run(
     share: bool = typer.Option(
         False, help="Whether to share the interface publicly."
     ),
-    debug: bool = typer.Option(
-        False, "--debug", "-d", help="Enable debug logging."
-    ),
+    log_level: str = typer.Option(
+        "info", "--log", "-l", help="Logging level (debug, info, warning, error, critical)."
+    )
 ):
     """
     Launch the Gradio GUI.
     """
-    logging_level = logging.DEBUG if debug else logging.INFO
+    logging_level = LOG_LEVELS.get(log_level.lower(), logging.INFO)
     configure_logging(level=logging_level)
 
     logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -42,7 +49,7 @@ def run(
     logging.getLogger("asyncio").setLevel(logging.WARNING)
 
     log = get_logger("bioseq_dl.interfaces.gui")
-    log.info(f"Starting GUI on {host}:{port} with debug={debug}")
+    log.info(f"Starting GUI on {host}:{port} with log_level={log_level}")
 
     demo = build_ui()
     demo.launch(server_name=host, server_port=port, share=share)

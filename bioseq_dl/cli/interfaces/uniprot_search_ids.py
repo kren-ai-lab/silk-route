@@ -59,14 +59,16 @@ def run(
             help="Automatically detect database type"
         ),
         min_identity: float = typer.Option(
-            90.0, "--min_identity", 
+            None, "--min_identity", 
             help="Minimum identity threshold for BLAST search."
         )
     ):
     df = pd.read_csv(input)
 
     # Filter by identity
-    df = df[df['identity'] >= min_identity]
+    
+    if min_identity is not None and 'identity' in df.columns:
+        df = df[df['identity'] >= min_identity]
 
     log.info("Downloading data in batches of %d", batch_size)
     instance = UniprotInterface()

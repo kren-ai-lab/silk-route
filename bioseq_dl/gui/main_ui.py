@@ -1,10 +1,10 @@
 import gradio as gr
 import pandas as pd
 from typing import List, Tuple
-from .components.uniprot_query_search import build_ui as build_uniprot_search_ui
-from .components.uniprot_blast_search import build_ui as build_uniprot_blast_search_ui
-from .components.databases import build_api_ui
-from .interfaces import (
+from bioseq_dl.gui.components.uniprot_query_search import build_ui as build_uniprot_search_ui
+from bioseq_dl.gui.components.uniprot_blast_search import build_ui as build_uniprot_blast_search_ui
+from bioseq_dl.gui.components.databases import build_api_ui
+from bioseq_dl.gui.interfaces import (
     ALPHAFOLD,
     BIODBNET,
     BIOGRID,
@@ -24,6 +24,7 @@ from .interfaces import (
     RHEA,
     STRINGDB
 )
+from bioseq_dl.gui.theme import SylphyTheme
 
 # For each database interface there is a dictionary entry with:
 # - class: the interface class
@@ -131,21 +132,51 @@ def section_updates_buttons_and_sidebar_groups(section: str) -> Tuple[dict, dict
             apis_btns_group_u, uniprot_btns_group_u)
 
 # ----------------- main UI -----------------
+CUSTOM_CSS = """
+/* Visual "card" */
+.card {
+  border: 1px solid rgba(148,163,184,0.35);
+  border-radius: 14px;
+  padding: 14px;
+  background: rgba(30,41,59,0.25);
+  margin-bottom: 14px;
+}
+/* Make headings inside cards breathe */
+.card h3, .card h4 {
+  margin-top: 6px !important;
+  margin-bottom: 10px !important;
+}
+/* Optional divider */
+.divider {
+  height: 1px;
+  background: rgba(148,163,184,0.35);
+  margin: 12px 0;
+}
+"""
+
+def on_select_tool(tool_choice):
+    # toggle visibility of tool containers
+    show_uniprot = tool_choice == "UniProt"
+    return (
+        gr.update(visible=show_uniprot),
+        gr.update(visible=show_uniprot),
+    )
+
 def build_ui():
     api_names = list(REGISTRY.keys())
     default_api = api_names[0] if api_names else None
 
-    with gr.Blocks() as demo:
+    with gr.Blocks(theme=SylphyTheme, css=CUSTOM_CSS) as demo:
         with gr.Row():
             # --- LEFTBAR ---
-            with gr.Column(scale=0, min_width=150, visible=True) as leftbar:
+            with gr.Column(scale=0, min_width=160, visible=True) as leftbar:
                 gr.Markdown("## BioSeq-DL Explorer")
                 # Section buttons
                 btn_section_apis    = gr.Button("APIs",   variant="primary")
                 btn_section_uniprot = gr.Button("UniProt", variant="secondary")
 
                 # Group API buttons
-                with gr.Group(visible=True) as apis_btns_group:
+                with gr.Column(visible=True) as apis_btns_group:
                     #gr.Markdown("**APIs**")
                     gr.Markdown(
                         "<div style='text-align:center'>"
@@ -160,7 +191,7 @@ def build_ui():
                         api_name_states.append(gr.State(name))
 
                 # Group UniProt buttons
-                with gr.Group(visible=False) as uniprot_btns_group:
+                with gr.Column(visible=False) as uniprot_btns_group:
                     gr.Markdown("**UniProt**")
                     btn_uniprot_search = gr.Button("UniProt Search", variant="primary")
                     btn_uniprot_blast  = gr.Button("UniProt BLAST",  variant="secondary")
@@ -169,20 +200,26 @@ def build_ui():
 
             # --- RIGHT CONTENT ---
             with gr.Column():
-                btn_toggle_sidebar = gr.Button("☰", scale=0)
+                with gr.Row():
+                    with gr.Column(scale=0, min_width=160):
+                        btn_toggle_sidebar = gr.Button("☰", scale=0)
 
-                with gr.Group(visible=True) as apis_container:
-                    api_groups = []
-                    for name, info in REGISTRY.items():
-                        with gr.Group(visible=(name == default_api)) as g:
-                            build_api_ui(name, info)
-                        api_groups.append(g)
+                with gr.Row():
+                    with gr.Column(visible=True) as apis_container:
+                        api_groups = []
+                        for name, info in REGISTRY.items():
+                            with gr.Column(visible=(name == default_api)) as g:
+                                build_api_ui(name, info)
+                            api_groups.append(g)
 
-                with gr.Group(visible=False) as uniprot_container:
-                    with gr.Group(visible=True) as uniprot_search_group:
-                        build_uniprot_search_ui()
-                    with gr.Group(visible=False) as uniprot_blast_group:
-                        build_uniprot_blast_search_ui()
+                    # --- UniProt container ---
+                    with gr.Column(visible=False) as uniprot_container:
+                        # UniProt Search subsection
+                        with gr.Column(visible=True) as uniprot_search_group:
+                            build_uniprot_search_ui()
+                        # UniProt BLAST subsection
+                        with gr.Column(visible=False) as uniprot_blast_group:
+                            build_uniprot_blast_search_ui()
 
         # ---- wiring ----
 

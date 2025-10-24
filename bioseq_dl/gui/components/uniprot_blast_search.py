@@ -12,6 +12,7 @@ from bioseq_dl.core.utils.blast_search import (
     parse_blast_results
 )
 from bioseq_dl import UniprotInterface
+from .utils import run_crossref_enrichment, load_dataframe
 
 # ----- Optional logging (fallback to stdlib) -----
 try:
@@ -23,22 +24,6 @@ except Exception:
 
 log = get_logger("bioseq_dl.gui.components.uniprot_blast_search")
 # -------------------------------------------------
-
-
-def load_dataframe(file):
-    """Carga un archivo CSV o Excel en un DataFrame."""
-    if file is None:
-        return None, []
-    try:
-        if file.name.endswith(".csv"):
-            df = pd.read_csv(file.name)
-        elif file.name.endswith(".xlsx"):
-            df = pd.read_excel(file.name)
-        else:
-            return None, []
-        return df, list(df.columns)
-    except Exception as e:
-        return None, [f"Error: {e}"]
 
 def run_blast_from_file(file, seq_column, database, evalue, blast_type, min_identity, fields, crossref_fields):
     gui_logs = []
@@ -108,20 +93,22 @@ def run_blast_from_file(file, seq_column, database, evalue, blast_type, min_iden
     xref = [VALID_CROSS_REF_FIELDS[x] for x in xref if x in VALID_CROSS_REF_FIELDS]
     export_df = instance.parse_results(results, fields + xref)
 
-    gui_logs.append(f"BLAST completed with {len(export_df)} results after filtering by {min_identity}% identity.")
-    return export_df, "\n".join(gui_logs)
+    if crossref_fields:
+        gui_logs.append(f"Running cross-reference enrichment for fields: {', '.join(crossref_fields)}")
+        export_df = run_crossref_enrichment(export_df, crossref_fields)
 
-def save_results(df):
-    if df is None or df.empty:
-        return None
-    tmp_path = os.path.join(tempfile.gettempdir(), "blast_results.csv")
+    gui_logs.append(f"BLAST completed with {len(export_df)} results after filtering by {min_identity}% identity.")
+    return export_df, "\n".join(gui_logs), export_df
+
+def generate_file(df):
+    tmp_path = os.path.join(tempfile.gettempdir(), "search_results.csv")
     df.to_csv(tmp_path, index=False)
     return tmp_path
 
 def build_ui():
-     with gr.Blocks():
+    with gr.Row():
         file_input = gr.File(label="Upload DataFrame (CSV/Excel)", file_types=[".csv", ".xlsx"])
-
+    with gr.Row():
         seq_column_dropdown = gr.Dropdown(label="Sequence Column", choices=[], interactive=True)
 
         def update_columns(file):
@@ -129,13 +116,13 @@ def build_ui():
             if df is None or not cols:
                 return gr.Dropdown(choices=[], value=None)
             return gr.Dropdown(choices=cols, value=cols[0])
-
         file_input.change(update_columns, inputs=file_input, outputs=seq_column_dropdown)
-
+    
         db_dropdown = gr.Dropdown(
             label="Database",
             choices=list(BLAST_DATABASES.keys())
         )
+    with gr.Row():
         evalue_input = gr.Number(label="E-value", value=0.001)
         blast_type_dropdown = gr.Dropdown(
             label="BLAST Type",
@@ -143,41 +130,37 @@ def build_ui():
             value="blastp"
         )
         min_identity_input = gr.Number(label="Minimum Identity (%)", value=90.0)
-
+    with gr.Row():
         fields_select = gr.CheckboxGroup(
             choices=VALID_FIELDS,
-            value=VALID_FIELDS,
+            value=[VALID_FIELDS[0]],
             label="Fields"
         )
+    with gr.Row():
         crossref_select = gr.CheckboxGroup(
             choices=list(XREF_MAPPING.keys()),
-            value=list(XREF_MAPPING.keys()),
+            value=[list(XREF_MAPPING.keys())[0]],
             label="Cross-reference Fields"
         )
-
+    with gr.Row():
         run_btn = gr.Button("Run BLAST")
-        save_btn = gr.Button("Save Results", interactive=False)
-        file_out = gr.File(label="Download Results", visible=False)
-        results_out = gr.Dataframe(label="BLAST Results", interactive=False)
-        logs_out = gr.Textbox(label="Logs", interactive=False)
+    with gr.Row():
+        with gr.Column(scale=2):
+            results_out = gr.Dataframe(label="BLAST Results", interactive=False, visible=False, wrap=False, show_search='filter')
+        with gr.Column(scale=1):
+            file_out = gr.File(label="Download Results", visible=False)
+    with gr.Row():
+        logs_out = gr.Textbox(label="Logs", interactive=False, visible=False)
 
-        run_btn.click(
-            fn=run_blast_from_file,
-            inputs=[file_input, seq_column_dropdown, db_dropdown, evalue_input, blast_type_dropdown, min_identity_input, fields_select, crossref_select],
-            outputs=[results_out, logs_out]
-        ).then(
-            lambda: gr.update(interactive=True),
-            None,
-            save_btn
-        )
-
-        # Guardar resultados en CSV
-        save_btn.click(
-            fn=save_results,
-            inputs=results_out,
-            outputs=file_out
-        ).then(
-            lambda: gr.update(visible=True),
-            None,
-            file_out
-        )
+    run_btn.click(
+        fn=run_blast_from_file,
+        inputs=[file_input, seq_column_dropdown, db_dropdown, evalue_input, blast_type_dropdown, min_identity_input, fields_select, crossref_select],
+        outputs=[results_out, logs_out]
+    ).then(
+        fn=lambda: [gr.update(visible=True), gr.update(visible=True), gr.update(visible=True)],
+        outputs=[results_out, logs_out, file_out]
+    ).then(
+        fn=generate_file,
+        inputs=[results_out],
+        outputs=[file_out]
+    )

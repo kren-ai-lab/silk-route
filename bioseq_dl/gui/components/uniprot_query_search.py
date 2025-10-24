@@ -1,4 +1,5 @@
-import logging
+import logging, os
+import tempfile
 import gradio as gr
 import pandas as pd
 from bioseq_dl import UniprotInterface
@@ -6,7 +7,8 @@ from bioseq_dl import UniprotInterface
 from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
 from bioseq_dl.core.interfacesconfig import ConfigLoader
 from bioseq_dl.constants.databases import BASE_CONFIG_DIR
-from bioseq_dl.constants.uniprot import VALID_FIELDS, XREF_MAPPING
+from bioseq_dl.constants.uniprot import VALID_FIELDS, XREF_MAPPING, VALID_CROSS_REF_FIELDS
+from .utils import run_crossref_enrichment
 
 # ----- Optional logging (fallback to stdlib) -----
 try:
@@ -22,57 +24,6 @@ log = get_logger("bioseq_dl.gui.components.uniprot_query_search")
 ###############################
 # UniProt Search UI
 ###############################
-
-
-
-def run_crossref_enrichment(df, crossref_fields):
-    if df.empty:
-        return df
-    log.info(f"Running crossref enrichment for fields: {crossref_fields}")
-    config = ConfigLoader(config_dir=str(BASE_CONFIG_DIR) + "/uniprot_crossref")
-    config.load_config("config_endpoints")
-
-    endpoint_specs = []
-    # Generate the endpoint specs based on selected crossref fields
-    for key, (uniprot_field, db_name) in XREF_MAPPING.items():
-        if db_name and key in crossref_fields:
-            log.debug(f"Processing crossref field: {key} -> db: {db_name}, uniprot_field: {uniprot_field}")
-            endpoint_config = config.get_parameter(db_name)
-            if not isinstance(endpoint_config, dict):
-                continue
-            #if not endpoint_config.get("enabled", False):
-            #    continue
-
-            for ep_name, ep_info in endpoint_config.get("endpoints", {}).items():
-                if ep_info.get("enabled", False):
-                    if "options" in ep_info:
-                        for ep_option in ep_info.get("options", [None]):
-                            endpoint_specs.append(
-                                EndpointSpec(
-                                    database=db_name,
-                                    endpoint=ep_name,
-                                    option=ep_option,
-                                    params=ep_info.get("params", {}),
-                                )
-                            )
-                    else:
-                        endpoint_specs.append(
-                            EndpointSpec(
-                                database=db_name,
-                                endpoint=ep_name,
-                                option=None,
-                                params=ep_info.get("params", {}),
-                            )
-                        )
-
-    log.debug(f"Final endpoint specs: {endpoint_specs}")
-    enricher = CrossRefEnricher(endpoint_specs)
-    crossref_df = enricher.enrich(df, concat_results=True)
-    if isinstance(crossref_df, pd.DataFrame) and not crossref_df.empty:
-        log.info(f"Crossref enrichment resulted in {len(crossref_df)} rows")
-        return crossref_df
-    log.warning("Crossref enrichment returned empty DataFrame or result is not a DataFrame")
-    return df
 
 def run_uniprot_query(query, fields, crossref_fields, sort, fmt, include_isoform, download):
     gui_logs = []
@@ -112,38 +63,60 @@ def run_uniprot_query(query, fields, crossref_fields, sort, fmt, include_isoform
     
     gui_logs.append(f"Query completed with {len(df)} results.")
 
+    log.info("Cleaning and formatting results...")
+    xref_columns = [XREF_MAPPING[c][1] for c in (crossref_fields or []) if c in XREF_MAPPING and XREF_MAPPING[c][1]]
+    xref_columns = [VALID_CROSS_REF_FIELDS[c] for c in VALID_CROSS_REF_FIELDS.keys() if c not in xref_columns]
+    df = df.drop(columns=xref_columns, errors='ignore')
+
     return df, "\n".join(gui_logs)
 
+def generate_file(df):
+    tmp_path = os.path.join(tempfile.gettempdir(), "search_results.csv")
+    df.to_csv(tmp_path, index=False)
+    return tmp_path
 
 def build_ui():
-
-    with gr.Blocks():
+    with gr.Row():
         query_input = gr.Textbox(label="Query", placeholder="Make a UniProt query")
-
+    with gr.Row():
         fields_select = gr.CheckboxGroup(
             choices=VALID_FIELDS,
-            value=VALID_FIELDS,
+            value=VALID_FIELDS[0],
             label="Fields"
         )
+    with gr.Row():
         crossref_select = gr.CheckboxGroup(
             choices=list(XREF_MAPPING.keys()),
-            value=list(XREF_MAPPING.keys()),
+            value=list(XREF_MAPPING.keys())[0],
             label="Cross-reference Fields"
         )
 
+    with gr.Row():
         sort_input = gr.Textbox(label="Sort", value="accession asc")
         fmt_dropdown = gr.Dropdown(choices=["json"], value="json", label="Format")
+    with gr.Row():
         include_isoform_chk = gr.Checkbox(label="Include Isoforms", value=False)
         download_chk = gr.Checkbox(label="Download Raw", value=False)
-
+    with gr.Row():
         search_btn = gr.Button("Search")
-        results_out = gr.Dataframe(label="Results", interactive=False, wrap=True)
-        logs_out = gr.Textbox(label="Logs", interactive=False)
-        
+    with gr.Row():
+        with gr.Column(scale=2):
+            results_out = gr.Dataframe(label="Results", interactive=False, visible=False, wrap=False, show_search='filter', max_height=320)
+        with gr.Column(scale=1):
+            file_out = gr.File(label="Download Results", interactive=False, visible=False)
+    with gr.Row():
+        logs_out = gr.Textbox(label="Logs", interactive=False, visible=False)
 
-        search_btn.click(
-            fn=run_uniprot_query,
-            inputs=[query_input, fields_select, crossref_select, sort_input, fmt_dropdown, include_isoform_chk, download_chk],
-            outputs=[results_out, logs_out]
-        )
+    search_btn.click(
+        fn=run_uniprot_query,
+        inputs=[query_input, fields_select, crossref_select, sort_input, fmt_dropdown, include_isoform_chk, download_chk],
+        outputs=[results_out, logs_out]
+    ).then(
+        fn=lambda: [gr.update(visible=True), gr.update(visible=True), gr.update(visible=True)],
+        outputs=[results_out, logs_out, file_out]
+    ).then(
+        fn=generate_file,
+        inputs=[results_out],
+        outputs=[file_out]
+    )
 
