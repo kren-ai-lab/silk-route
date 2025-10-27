@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Literal
 import logging
 import os
 import re
@@ -26,7 +26,10 @@ log = get_logger("bioseq_dl.core.utils.blast_search")
 BLAST_BASE_URL = "https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/"
 BLAST_DIR = Path("blast_bin")
 
-def download_uniprot_database(db_name: str, extension: str = "xml"):
+def download_uniprot_database(
+        db_name: Literal["uniprotkb_reviewed", "uniprotkb_unreviewed", "uniref100", "uniref90", "uniref50"], 
+        extension: str = "xml"
+    ):
     """ Download a Uniprot database from the Uniprot FTP server.
     Args:
         db_name (str): Name of the database to download.
