@@ -1,9 +1,15 @@
 # pwaccs: Pathway Accession Codes
 # Falta Pwaccs de gene
 OPTIONS = {
-    "protein": ["summary", "aids", "concise", "pwaccs"],
-    "compound": ["default", "record", "synonyms", "sids", "cids", "aids", "assaysummary", "description"],
-    "gene": ["summary","aids","concise","pwaccs"]
+    "pug/protein": ["summary", "aids", "concise", "pwaccs", ""],
+    "pug/compound": ["default", "record", "synonyms", "sids", "cids", "aids", "assaysummary", "description"],
+    "pug/gene": ["summary","aids","concise","pwaccs"],
+    "autocomplete": ["default"],
+    "pug_view/protein": ["default"],
+    "pug_view/compound": ["default"],
+    "pug_view/gene": ["default"],
+    "pug_view/pathway": ["default"],
+    "pug_view/taxonomy": ["default"]
 }
 
 COMPOUND_TEMPLATE = {

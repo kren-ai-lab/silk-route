@@ -201,8 +201,8 @@ class BaseAPIInterface(ABC):
 
     def _hash_key(self, key: str) -> str:
         # TODO change it to hash
-        #return hashlib.md5(key.encode("utf-8")).hexdigest()
-        return key
+        return hashlib.md5(key.encode("utf-8")).hexdigest()
+        #return key
     
     def _get_cache_path(self, identifier: str) -> str:
         """

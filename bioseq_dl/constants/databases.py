@@ -104,7 +104,7 @@ PRIDE = DBConfig(
 )
 
 PUBCHEM = DBConfig(
-    API_URL="https://pubchem.ncbi.nlm.nih.gov/rest/pug/",
+    API_URL="https://pubchem.ncbi.nlm.nih.gov/rest/",
     CACHE_DIR=os.path.join(BASE_CACHE_DIR, "pubchem"),
     CONFIG_DIR=os.path.join(BASE_CONFIG_DIR, "pubchem")
 )

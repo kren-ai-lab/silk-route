@@ -1,4 +1,4 @@
-import os, logging
+import os, logging, json
 from typing import Union, List, Dict, Set, Optional
 from requests import Request, Response
 from requests.exceptions import RequestException
@@ -23,18 +23,91 @@ except Exception:
 log = get_logger("bioseq_dl.interfaces.pubchem")
 # -------------------------------------------------
 
+# PubChem has 2 main API access points: PUG-REST and PUG-View.
+# PUG-REST is used for short requests with simple inputs and outputs.
+# PUG-View is used for getting full reports, including third-party textual annotation.
+
 class PubChemInterface(BaseAPIInterface):
     METHODS = {
-        "compound": {
-            **{k: COMPOUND_TEMPLATE for k in OPTIONS["compound"]},
+        "pug/compound": {
+            **{k: COMPOUND_TEMPLATE for k in OPTIONS["pug/compound"]},
         },
-        "protein": {
-            **{k: PROTEIN_TEMPLATE for k in OPTIONS["protein"]},
+        "pug/protein": {
+            **{k: PROTEIN_TEMPLATE for k in OPTIONS["pug/protein"]},
         },
-        "gene": {
-            **{k: GENE_TEMPLATE for k in OPTIONS["gene"]},
+        "pug/gene": {
+            **{k: GENE_TEMPLATE for k in OPTIONS["pug/gene"]},
+        },
+        "autocomplete": {
+            "default": {
+                "http_method": "GET",
+                "path_param": None,
+                "parameters": {
+                    "dictionary": (str, None, True),
+                    "search_term": (str, None, True),
+                    "output_format": (str, None, False),
+                },
+                "group_queries": [None],
+                "separator": None
+            }
+        },
+        "pug_view/compound": {
+            "default": {
+                "http_method": "GET",
+                "path_param": None,
+                "parameters": {
+                    "cid": (str, None, True),
+                },
+                "group_queries": [None],
+                "separator": None
+            }
+        },
+        "pug_view/protein": {
+            "default": {
+                "http_method": "GET",
+                "path_param": None,
+                "parameters": {
+                    "accession": (str, None, True),
+                },
+                "group_queries": [None],
+                "separator": None
+            }
+        },
+        "pug_view/gene": {
+            "default": {
+                "http_method": "GET",
+                "path_param": None,
+                "parameters": {
+                    "geneid": (str, None, True),
+                },
+                "group_queries": [None],
+                "separator": None
+            }
+        },
+        "pug_view/pathway": {
+            "default": {
+                "http_method": "GET",
+                "path_param": None,
+                "parameters": {
+                    "source": (str, None, True),
+                    "id": (str, None, True),
+                },
+                "group_queries": [None],
+                "separator": None
+            }
+        },
+        "pug_view/taxonomy": {
+            "default": {
+                "http_method": "GET",
+                "path_param": None,
+                "parameters": {
+                    "taxid": (str, None, True),
+                },
+                "group_queries": [None],
+                "separator": None
+            }
         }
-    }   
+    }
 
     def __init__(
             self,  
@@ -93,7 +166,7 @@ class PubChemInterface(BaseAPIInterface):
             return {}
 
 
-        if method == "compound":
+        if method == "pug/compound":
             if sum(bool(inputs.get(validated_params)) for validated_params in ["cid", "name", "smiles"]) != 1:
                 log.error("Only one 'cid', 'name', or 'smiles' parameters must be specified.")
                 return {}
@@ -101,25 +174,45 @@ class PubChemInterface(BaseAPIInterface):
             #     for prop in  validated_params["property"].split(","):
             #         if prop not in PROPERTIES[method]:
             #             log.error(f"Property '{prop}' is not valid for method '{method}'. Allowed properties: {PROPERTIES[method]}")
-        elif method == "gene":
+        elif method == "pug/gene":
             if sum(bool(inputs.get(validated_params)) for validated_params in ["genesymbol", "geneid", "synonym"]) != 1:
                 log.error("Only one 'genesymbol', 'geneid', or 'synonym' parameters must be specified.")
                 return {}
 
         # if "specification" in validated_params and validated_params["specification"] not in PROPERTIES[method]:
         #     log.error(f"Specification '{validated_params['specification']}' is not valid for method '{method}'. Allowed specifications: {PROPERTIES[method]}")
+        
+        if method == "autocomplete":
+            url = f"{PUBCHEM.API_URL}{method}"
+            for key, value in validated_params.items():
+                if value is not None:
+                    url += f"/{value}"
+        elif method.startswith("pug/"):
+            url = f"{PUBCHEM.API_URL}{method}"
+            for key, value in validated_params.items():
+                url += f"/{key}/{value}" if key != "taxid" else ""
 
-        url = f"{PUBCHEM.API_URL}{method}"
+            if "taxid" in validated_params:
+                url += f"/{validated_params['taxid']}"
 
-        for key, value in validated_params.items():
-            url += f"/{key}/{value}" if key != "taxid" else ""
-
-        if "taxid" in validated_params:
-            url += f"/{validated_params['taxid']}"
-
-        if option and option != "default":
-            url += f"/{option}"
-        url += "/json"  # Assuming JSON output for simplicity
+            if option and option != "default":
+                url += f"/{option}"
+            url += "/json"  # Assuming JSON output for simplicity
+        else:
+            # Method starts with pug_view
+            m = method.replace("pug_view/", "")
+            url = f"{PUBCHEM.API_URL}/pug_view/data/{m}"
+            if m == "compound":
+                url += f"/{validated_params['cid']}"
+            elif m == "protein":
+                url += f"/{validated_params['accession']}"
+            elif m == "gene":
+                url += f"/{validated_params['geneid']}"
+            elif m == "pathway":
+                url += f"/{validated_params['source']}:{validated_params['id']}"
+            elif m == "taxonomy":
+                url += f"/{validated_params['taxid']}"
+            url += "/JSON"  # Assuming JSON output for simplicity
 
         response = Request(
             url=url,
@@ -128,6 +221,7 @@ class PubChemInterface(BaseAPIInterface):
 
         prepared = self.session.prepare_request(response)
         log.debug(f"Prepared request: {prepared.url}")
+        log.info(f"Prepared request: {prepared.url}")
 
         try:
             response = self.session.send(prepared)
@@ -135,33 +229,41 @@ class PubChemInterface(BaseAPIInterface):
             response.raise_for_status()
             response = response.json() if response.headers.get('Content-Type') == 'application/json' else response.text
 
-            # Me pertuba ver tantos elif
-            if isinstance(response, dict) and "PropertyTable" in response:
-                response = response.get("PropertyTable", {}).get("Properties", [])
-            elif isinstance(response, dict) and "InformationList" in response:
-                response = response.get("InformationList", {}).get("Information", [])
-                if method == "gene" and option == "pwaccs":
-                    # A little hack to force the response to have a "GeneSymbol" key
-                    for r in response:
-                        r["GeneSymbol"] = validated_params.get("genesymbol", [])
+            # --------------- Process response based on method and option ---------------
+            if method.startswith("pug/"):
+                # Me pertuba ver tantos elif
+                if isinstance(response, dict) and "PropertyTable" in response:
+                    response = response.get("PropertyTable", {}).get("Properties", [])
+                elif isinstance(response, dict) and "InformationList" in response:
+                    response = response.get("InformationList", {}).get("Information", [])
+                    if method == "gene" and option == "pwaccs":
+                        # A little hack to force the response to have a "GeneSymbol" key
+                        for r in response:
+                            r["GeneSymbol"] = validated_params.get("genesymbol", [])
 
-            elif isinstance(response, dict) and "Table" in response:
-                # Convert Table response to list of dicts with key:value pairs
-                table = response.get("Table", {})
-                columns = table.get("Columns", {}).get("Column", [])
-                rows = table.get("Row", [])
-                response = [
-                    dict(zip(columns, row.get("Cell", [])))
-                    for row in rows
-                ]
-            elif isinstance(response, dict) and "PC_Compounds" in response:
-                response = response.get("PC_Compounds", [])
-            elif isinstance(response, dict) and "IdentifierList" in response:
-                response = response.get("IdentifierList", [])
-            elif isinstance(response, dict) and "ProteinSummaries" in response:
-                response = response.get("ProteinSummaries", {}).get("ProteinSummary", [])
-            elif isinstance(response, dict) and "GeneSummaries" in response:
-                response = response.get("GeneSummaries", {}).get("GeneSummary", [])
+                elif isinstance(response, dict) and "Table" in response:
+                    # Convert Table response to list of dicts with key:value pairs
+                    table = response.get("Table", {})
+                    columns = table.get("Columns", {}).get("Column", [])
+                    rows = table.get("Row", [])
+                    response = [
+                        dict(zip(columns, row.get("Cell", [])))
+                        for row in rows
+                    ]
+                elif isinstance(response, dict) and "PC_Compounds" in response:
+                    response = response.get("PC_Compounds", [])
+                elif isinstance(response, dict) and "IdentifierList" in response:
+                    response = response.get("IdentifierList", [])
+                elif isinstance(response, dict) and "ProteinSummaries" in response:
+                    response = response.get("ProteinSummaries", {}).get("ProteinSummary", [])
+                elif isinstance(response, dict) and "GeneSummaries" in response:
+                    response = response.get("GeneSummaries", {}).get("GeneSummary", [])
+                else:
+                    response = response
+            elif method.startswith("pug_view/") or method == "autocomplete":
+                # Convert from string to dict if needed
+                if isinstance(response, str):
+                    response = json.loads(response)
             else:
                 response = response
 
@@ -200,9 +302,74 @@ class PubChemInterface(BaseAPIInterface):
             log.error("Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object.")
             return {}
         
+        parsed_data = self._extract_fields(data, fields_to_extract)
+        processed_data = []
 
-        return self._extract_fields(data, fields_to_extract)
-    
+        if isinstance(parsed_data, list):
+            processed_data = []
+            for item in parsed_data:
+                processed_data.append(self.process_sections(item))
+
+        if isinstance(parsed_data, dict):
+            processed_data.append(self.process_sections(parsed_data))
+        
+        return processed_data
+
+    def _proccess_information_value(self, info_value: Dict) -> Union[str, List, Dict]:
+        if "StringWithMarkup" in info_value:
+            texts = []
+            for text_entry in info_value["StringWithMarkup"]:
+                texts.append(text_entry.get("String", ""))
+            return texts if len(texts) > 1 else texts[0]
+        elif "Number" in info_value:
+            numbers = info_value["Number"]
+            if isinstance(numbers, list) and len(numbers) == 1:
+                return numbers[0]  
+            return numbers
+        elif "String" in info_value:
+            return info_value["String"]
+        elif "URL" in info_value:
+            return info_value["URL"]
+        elif "Boolean" in info_value:
+            booleans = info_value["Boolean"]
+            if isinstance(booleans, list) and len(booleans) == 1:
+                return booleans[0]  
+            return booleans
+        else:
+            return info_value  # Return as is if no known key is found
+
+    def process_tocheadings(self, sections: List[Dict]) -> Dict:
+        headings = {}
+        for section in sections:
+            if "TOCHeading" in section and "Information" in section:
+                heading = section["TOCHeading"]
+                extracted_values = []
+                for info in section["Information"]:
+                    if "Value" in info:
+                        extracted_values.append(self._proccess_information_value(info["Value"]))
+
+                headings[heading] = extracted_values if len(extracted_values) > 1 else extracted_values[0]
+
+            
+            if "TOCHeading" in section and "Section" in section:
+                sub_headings = self.process_tocheadings(section["Section"])
+                headings.update(sub_headings)
+
+        return headings
+
+    def process_sections(self, data: Dict) -> Dict:
+        export_data = {}
+        if "record_type" in data and "record_number" in data:
+            record_type = data["record_type"]
+            record_number = data["record_number"]
+            export_data[record_type] = record_number
+        
+        if "sections" in data:
+            headings = self.process_tocheadings(data["sections"])
+            export_data.update(headings)
+
+        return export_data
+
     # Patch Solution
     def fetch_single(self, query: Union[str, dict], parse: bool = False, *args, **kwargs) -> Union[List, Dict, pd.DataFrame]:
         option = kwargs.pop("option", "default")

@@ -1,4 +1,4 @@
-compound:
+pug/compound:
   default:
     cid: id.id.cid
     atoms_aids: atoms.aid
@@ -53,7 +53,7 @@ compound:
     description: Description
     description_source_name: DescriptionSourceName
     description_url: DescriptionURL
-protein:
+pug/protein:
   summary:
     protein_accession: ProteinAccession
     name: Name
@@ -80,7 +80,7 @@ protein:
   pwaccs:
     protein_accession: ProteinAccession
     pathway_accession: PathwayAccession
-gene:
+pug/gene:
   pwaccs:
     gene_id: GeneID
     pathway_accession: PathwayAccession
@@ -109,4 +109,39 @@ gene:
     taxonomy: Taxonomy
     description: Description
     synonym: Synonym
-  
+autocomplete:
+  default:
+    compound_terms: dictionary_terms.compound
+    assay_tems: dictionary_terms.assay
+    gene_terms: dictionary_terms.gene
+    taxonomy_terms: dictionary_terms.taxonomy
+pug_view/compound:
+  default:
+    record_type: Record.RecordType
+    record_number: Record.RecordNumber
+    title: Record.RecordTitle
+    sections: Record.Section
+pug_view/protein:
+  default:
+      record_type: Record.RecordType
+      record_number: Record.RecordNumber
+      title: Record.RecordTitle
+      sections: Record.Section
+pug_view/gene:
+  default:
+      record_type: Record.RecordType
+      record_number: Record.RecordNumber
+      title: Record.RecordTitle
+      sections: Record.Section
+pug_view/pathway:
+  default:
+      record_type: Record.RecordType
+      record_number: Record.RecordNumber
+      title: Record.RecordTitle
+      sections: Record.Section
+pug_view/taxonomy:
+  default:
+      record_type: Record.RecordType
+      record_number: Record.RecordNumber
+      title: Record.RecordTitle
+      sections: Record.Section

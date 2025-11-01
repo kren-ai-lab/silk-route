@@ -5,13 +5,13 @@ from bioseq_dl.constants.pubchem import OPTIONS
 
 app = typer.Typer(help="Collect data from PubChem database.")
 
-@app.command("compound")
+@app.command("pug/compound")
 def run_compound(
     cid: str = typer.Option(None, help="Compound ID (CID)"),
     name: str = typer.Option(None, help="Compound name"),
     smiles: str = typer.Option(None, help="SMILES representation of the compound"),
     property: str = typer.Option(None, help="Specific property to fetch, e.g., molecularformula, smiles, hbonddonorcount"),
-    option: str = typer.Option("default", help=f"Fetch option (e.g., {', '.join(OPTIONS['compound'])})"),
+    option: str = typer.Option("default", help=f"Fetch option (e.g., {', '.join(OPTIONS['pug/compound'])})"),
     output_file: str = typer.Option(None, help="Output file to save results")
 ):
     """
@@ -44,10 +44,10 @@ def run_compound(
     else:
         typer.echo(result.head(5))
 
-@app.command("protein")
+@app.command("pug/protein")
 def run_protein(
     accession: str = typer.Argument(..., help="Protein accession number"),
-    option: str = typer.Option("summary", help=f"Fetch option (e.g., {', '.join(OPTIONS['protein'])})"),
+    option: str = typer.Option("summary", help=f"Fetch option (e.g., {', '.join(OPTIONS['pug/protein'])})"),
     output_file: str = typer.Option(None, help="Output file to save results")
 ):
     """
@@ -78,13 +78,13 @@ def run_protein(
     else:
         typer.echo(result.head(5))
 
-@app.command("gene")
+@app.command("pug/gene")
 def run_gene(
     genesymbol: str = typer.Option(None, help="Gene symbol"),
     geneid: str = typer.Option(None, help="Gene ID"),
     synonym: str = typer.Option(None, help="Gene synonym"),
     taxid: str = typer.Option(None, help="Taxonomy ID"),
-    option: str = typer.Option("summary", help=f"Fetch option (e.g., {', '.join(OPTIONS['gene'])})"),
+    option: str = typer.Option("summary", help=f"Fetch option (e.g., {', '.join(OPTIONS['pug/gene'])})"),
     output_file: str = typer.Option(None, help="Output file to save results")
 ):
     """
