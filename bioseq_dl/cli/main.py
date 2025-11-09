@@ -1,12 +1,13 @@
 import typer
 from bioseq_dl.cli.gui import app as launch_gradio_app
-from bioseq_dl.cli.collect_data import app as collect_data_app
+from bioseq_dl.cli.collect_data import api_section as api_app, general_section as general_app
 from bioseq_dl.cli.blast_alignment import app as blast_alignment_app
 from bioseq_dl.init_config import main_init
 
 app = typer.Typer(name="bioseq-dl", help="Download sequences from multiple biological databases")
 app.add_typer(launch_gradio_app, name="gui", help="Launch the Gradio GUI for BioSeqDownloader.")
-app.add_typer(collect_data_app, name="collect-data", help="Collect data from various biological databases.")
+app.add_typer(api_app, name="api-collect", help="Collect data using API nomenclature.")
+app.add_typer(general_app, name="general-collect", help="Collect data using general search interfaces.")
 app.add_typer(blast_alignment_app, name="blast-alignment", help="Perform BLAST alignment to retrieve UniProt IDs")
 
 @app.callback(invoke_without_command=True)

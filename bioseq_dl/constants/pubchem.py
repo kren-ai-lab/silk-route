@@ -19,6 +19,7 @@ COMPOUND_TEMPLATE = {
         "cid": (str, None, True),
         "name": (str, None, True),
         "smiles": (str, None, True),
+        "inchi": (str, None, True),
         "property": (str, None, True),
     },
     "group_queries": ["cid", "property"],

@@ -2,3 +2,39 @@ compound:
   id: chebi_accession
 compounds:
   id: standardized_chebi_id
+  id_type: id_type
+  name: data.name
+  stars: data.stars
+  definition: data.definition
+  ascii_name: data.ascii_name
+  names: data.names
+  formula: data.chemical_data.formula
+  charge: data.chemical_data.charge
+  mass: data.chemical_data.mass
+  monoisotopicmass: data.chemical_data.monoisotopic_mass
+  smiles: data.default_structure.smiles
+  inchi: data.default_structure.standard_inchi
+  inchikey: data.default_structure.standard_inchi_key
+  is_r_group: data.default_structure.is_r_group
+  compound_origins: data.compound_origins
+  ontology_relations: data.ontology_relations
+  roles_classification: data.roles_classification
+es_search:
+  index: _index
+  type: _type
+  id: _id
+  score: _score
+  chebi_accession: _source.chebi_accession
+  name: _source.name
+  ascii_name: _source.ascii_name
+  stars: _source.stars
+  default_structure: _source.default_structure
+  definition: _source.definition
+  formula: _source.formula
+  monoisotopicmass: _source.monoisotopicmass
+  inchikey: _source.inchikey
+  inchi: _source.inchi
+  smiles: _source.smiles
+  charge: _source.charge
+  mass: _source.mass
+  structures: _source.structures

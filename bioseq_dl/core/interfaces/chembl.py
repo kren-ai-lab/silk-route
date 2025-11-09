@@ -18,8 +18,64 @@ log = get_logger("bioseq_dl.interfaces.chembl")
 # -------------------------------------------------
 
 # For the moment, only activity is necessary, but more methods can be added later.
+
+# The main methods that are used in the webUI version of ChEMBL are 'Target', 'Assay', 'Cell Line' and 'Molecule'.
+# These methods allow for searching ChEMBL for targets, assays, cell lines and molecules respectively
+# These methods accept query search or filtering by parameters.
+# Filter rules are described in https://chembl.gitbook.io/chembl-interface-documentation/web-services/chembl-data-web-services
+# Also filter rules are implemented in constants file as FILTER_RULES
+
+# The 'Substructure and 'Similarity' allow for chemical content of ChEMBL to be searched.
+# Similar to the other resources, these search based resources except filtering, 
+# paging and ordering arguments.
+# These methods accept SMILES, InChI Key and molecule ChEMBL_ID as arguments and in the case
+# of similarity searches an additional identity cut-off is needed.
 class ChEMBLInterface(BaseAPIInterface):
     METHODS = {
+        "target": {
+            "http_method": "GET",
+            "path_param": None,
+            "parameters": {
+                "query": (str, None, True),
+                "filters": (list, None, True),
+                "format": (str, "json", False),
+            },
+            "group_queries": [None],
+            "separator": None
+        },
+        "assay": {
+            "http_method": "GET",
+            "path_param": None,
+            "parameters": {
+                "query": (str, None, True),
+                "filters": (list, None, True),
+                "format": (str, "json", False),
+            },
+            "group_queries": [None],
+            "separator": None
+        },
+        "cell_line": {
+            "http_method": "GET",
+            "path_param": None,
+            "parameters": {
+                "query": (str, None, True),
+                "filters": (list, None, True),
+                "format": (str, "json", False),
+            },
+            "group_queries": [None],
+            "separator": None
+        },
+        "molecule": {
+            "http_method": "GET",
+            "path_param": None,
+            "parameters": {
+                "query": (str, None, True),
+                "filters": (list, None, True),
+                "format": (str, "json", False),
+            },
+            "group_queries": [None],
+            "separator": None
+        },
         "activity": {
             "http_method": "GET",
             "path_param": None,
@@ -37,6 +93,25 @@ class ChEMBLInterface(BaseAPIInterface):
             "parameters": {
                 "target_chembl_id": (str, None, True),
                 "format": (str, "json", False),
+            },
+            "group_queries": [None],
+            "separator": None
+        },
+        "substructure": {
+            "http_method": "GET",
+            "path_param": None,
+            "parameters": {
+                "query": (str, None, True),
+            },
+            "group_queries": [None],
+            "separator": None
+        },
+        "similarity": {
+            "http_method": "GET",
+            "path_param": None,
+            "parameters": {
+                "query": (str, None, True),
+                "cutoff": (int, 80, True),
             },
             "group_queries": [None],
             "separator": None
@@ -97,10 +172,13 @@ class ChEMBLInterface(BaseAPIInterface):
         Args:
             next_url (str): The URL for the next page of results.
             method (str): The method used for the initial request.
+            pages_to_fetch (int): Number of pages to fetch. Default is 1. If -1, fetch all pages.
         Returns:
             dict: The fetched data from the next page.
         """
         log.debug(f"Fetching page: {next_url} for method {method} with pages_to_fetch={pages_to_fetch}")
+        log.info(f"Fetching page: {next_url} for method {method} with pages_to_fetch={pages_to_fetch}")
+
         responses = []
         try:
             response = self.session.get(next_url, headers={"Content-Type": "application/json"})
@@ -117,6 +195,12 @@ class ChEMBLInterface(BaseAPIInterface):
                 responses.extend(data['activities'])
             elif 'binding_sites' in data.keys() and isinstance(data['binding_sites'], list):
                 responses.extend(data['binding_sites'])
+            elif 'molecules' in data.keys() and isinstance(data['molecules'], list):
+                responses.extend(data['molecules'])
+            elif 'targets' in data.keys() and isinstance(data['targets'], list):
+                responses.extend(data['targets'])
+            elif 'assays' in data.keys() and isinstance(data['assays'], list):
+                responses.extend(data['assays'])
             else:
                 responses.append(data)
 
@@ -126,7 +210,7 @@ class ChEMBLInterface(BaseAPIInterface):
                     "https://www.ebi.ac.uk" + data['page_meta']['next'],
                     method,
                     pages_to_fetch - 1
-                ) if pages_to_fetch > 1 else None
+                ) if pages_to_fetch > 1 or pages_to_fetch == -1 else None
                 if next:
                     responses.extend(next)
 
@@ -166,13 +250,54 @@ class ChEMBLInterface(BaseAPIInterface):
             log.error(f"Invalid parameters for method '{method}': {e}")
             return {}
 
-        # Convert dictionary to a query string
-        query = "&".join(f"{key}={value}" for key, value in validated_params.items())
+        if method in ["activity", "binding_site"]:
+            # Convert dictionary to a query string
+            query = "&".join(f"{key}={value}" for key, value in validated_params.items())
 
-        # Generate url
-        url = f"{CHEMBL.API_URL}{method}?{query}"
+            # Generate url
+            url = f"{CHEMBL.API_URL}{method}?{query}"
+        elif method in ["substructure", "similarity"]:
+            query = "/".join(f"{value}" for _, value in validated_params.items())
+            url = f"{CHEMBL.API_URL}{method}/{query}?format=json"
+        elif method in ["target", "assay", "cell_line", "molecule"]:
+            if "query" in validated_params:
+                query_str = validated_params.pop("query")
+                url = f"{CHEMBL.API_URL}{method}/search.json?q={query_str}"
+            else:
+                url = f"{CHEMBL.API_URL}{method}?"
+                if self.validate_filter_rules(validated_params['filters']):
+                    query_str = "&".join(f"{item['field']}__{item['filter_type']}={item['value']}" for item in validated_params['filters'])
+                    url += query_str
+                    url += "&format=json"
+        else:
+            log.error(f"Method {method} is not implemented in fetch.")
+            return {}
 
         return self.fetch_pages(url, method, pages_to_fetch)
+
+    def validate_filter_rules(self, filters: Dict) -> bool:
+        """
+        Validate filter rules based on predefined rules.
+        Args:
+            filters (Dict): Filters to validate.
+        Returns:
+            bool: True if all filters are valid, False otherwise.
+        """
+        FILTER_RULES = {
+            "field": (str,),
+            "filter_type": (str, ["iexact", "gte", "lte", "icontains", "istartswith", "iendswith", "iregex", "range", "in", "isnull"]),
+            "value": (str),
+        }
+        for item in filters:
+            for key, value in item.items():
+                if key not in FILTER_RULES:
+                    log.error(f"Filter '{key}' is not recognized.")
+                    return False
+                expected_type = FILTER_RULES[key]
+            if not isinstance(value, expected_type):
+                log.error(f"Filter '{key}' expects type {expected_type.__name__}, but got {type(value).__name__}.")
+                return False
+        return True
 
     def parse(
             self,

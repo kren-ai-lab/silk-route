@@ -1,4 +1,5 @@
 import os, logging, json
+import urllib.parse
 from typing import Union, List, Dict, Set, Optional
 from requests import Request, Response
 from requests.exceptions import RequestException
@@ -167,8 +168,8 @@ class PubChemInterface(BaseAPIInterface):
 
 
         if method == "pug/compound":
-            if sum(bool(inputs.get(validated_params)) for validated_params in ["cid", "name", "smiles"]) != 1:
-                log.error("Only one 'cid', 'name', or 'smiles' parameters must be specified.")
+            if sum(bool(inputs.get(validated_params)) for validated_params in ["cid", "name", "smiles", "inchi"]) != 1:
+                log.error("Only one 'cid', 'name', 'smiles', or 'inchi' parameters must be specified.")
                 return {}
             # if "property" in validated_params:
             #     for prop in  validated_params["property"].split(","):
@@ -189,15 +190,23 @@ class PubChemInterface(BaseAPIInterface):
                     url += f"/{value}"
         elif method.startswith("pug/"):
             url = f"{PUBCHEM.API_URL}{method}"
-            for key, value in validated_params.items():
-                url += f"/{key}/{value}" if key != "taxid" else ""
 
-            if "taxid" in validated_params:
-                url += f"/{validated_params['taxid']}"
+            if "inchi" not in validated_params:
+                for key, value in validated_params.items():
+                    url += f"/{key}/{value}" if key != "taxid" else ""
+
+                if "taxid" in validated_params:
+                    url += f"/{validated_params['taxid']}"
+            else:
+                url += f"/inchi"
 
             if option and option != "default":
                 url += f"/{option}"
             url += "/json"  # Assuming JSON output for simplicity
+
+            if "inchi" in validated_params:
+                inchi_url = urllib.parse.quote_plus(str(validated_params.get("inchi", "")))
+                url += f"?inchi={inchi_url}"
         else:
             # Method starts with pug_view
             m = method.replace("pug_view/", "")
@@ -305,15 +314,21 @@ class PubChemInterface(BaseAPIInterface):
         parsed_data = self._extract_fields(data, fields_to_extract)
         processed_data = []
 
-        if isinstance(parsed_data, list):
+        if isinstance(parsed_data, list) and self.is_pug_view_record(parsed_data[0]):
             processed_data = []
             for item in parsed_data:
                 processed_data.append(self.process_sections(item))
-
-        if isinstance(parsed_data, dict):
+            
+        elif isinstance(parsed_data, dict) and self.is_pug_view_record(parsed_data):
             processed_data.append(self.process_sections(parsed_data))
         
+        else:
+            processed_data = parsed_data
+        
         return processed_data
+
+    def is_pug_view_record(self, data: Dict) -> bool:
+        return all(key in data for key in ["record_type", "record_number", "sections"])
 
     def _proccess_information_value(self, info_value: Dict) -> Union[str, List, Dict]:
         if "StringWithMarkup" in info_value:
