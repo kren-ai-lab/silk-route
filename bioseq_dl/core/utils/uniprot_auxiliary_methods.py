@@ -56,6 +56,97 @@ def extract_features(features: List) -> List[Dict]:
         'location': f.get('location', {})
     } for f in features if isinstance(features, list)]
 
+
+# For fields ft_mutagen and ft_variant
+def extract_variants(features: List) -> List[Dict]:
+    """Extracts variant information"""
+    VARIANTS_NAMES = {'Mutagenesis', 'Natural variant', 'Disease mutation'}
+    extracted = []
+    for feature in features if isinstance(features, list) else []:
+        if feature.get('type') in VARIANTS_NAMES:
+            vtype = feature.get('type')
+            id = feature.get('featureId', '')
+            variant_start_pos = feature.get('location', '').get('start', '').get('value')
+            variant_end_pos = feature.get('location', '').get('end', '').get('value')
+            if variant_start_pos and variant_end_pos:
+                if variant_start_pos == variant_end_pos:
+                    location = variant_start_pos
+                else:
+                    location = f"{variant_start_pos}-{variant_end_pos}"
+            else:
+                location = ''
+            original_seq = feature.get('alternativeSequence', '').get('originalSequence', '')
+            alt_seqs = feature.get('alternativeSequence', []).get('alternativeSequences', [])
+            description = feature.get('description', '')
+            
+            extracted.append({
+                'type': vtype,
+                'id': id,
+                'location': location,
+                'originalSequence': original_seq,
+                'alternativeSequences': alt_seqs,
+                'description': description,
+            })
+
+    return extracted
+
+# Nombres diseases: cc_disease
+def extract_diseases(diseases: List) -> List[Dict]:
+    pass
+
+# for fields ft_act_site, ft_binding and ft_site,
+def extract_active_sites(active_sites: List) -> List[Dict]:
+    """Extracts active sites from features"""
+    ACTIVE_SITE_TYPES = {'Active site', 'Binding site', 'Site'}
+    sites = []
+    for feature in active_sites if isinstance(active_sites, list) else []:
+        if feature.get('type') in ACTIVE_SITE_TYPES:
+            stype = feature.get('type')
+            description = feature.get('description', '')
+            site_start_pos = feature.get('location', '').get('start', '').get('value')
+            site_end_pos = feature.get('location', '').get('end', '').get('value')
+            if site_start_pos and site_end_pos:
+                if site_start_pos == site_end_pos:
+                    location = site_start_pos
+                else:
+                    location = f"{site_start_pos}-{site_end_pos}"
+            else:
+                location = ''
+            sites.append({
+                'type': stype,
+                'description': description,
+                'location': location,
+            })
+      
+    return sites
+
+# for fields ft_domain,ft_motif and ft_region,
+def extract_domains(features: List) -> List[Dict]:
+    """Extracts protein domains from features"""
+    DOMAINS_TYPES = {'Region', 'Motif', 'Domain', 'Repeat', 'Coiled coil', 'Compositional bias'}
+    domains = []
+    for feature in features if isinstance(features, list) else []:
+        if feature.get('type') in DOMAINS_TYPES:
+            dtype = feature.get('type')
+            description = feature.get('description', '')
+            domain_start_pos = feature.get('location', '').get('start', '').get('value')
+            domain_end_pos = feature.get('location', '').get('end', '').get('value')
+            if domain_start_pos and domain_end_pos:
+                if domain_start_pos == domain_end_pos:
+                    location = domain_start_pos
+                else:
+                    location = f"{domain_start_pos}-{domain_end_pos}"
+            else:
+                location = ''
+            domains.append({
+                'type': dtype,
+                'description': description,
+                'location': location,
+            })
+
+            
+    return domains
+
 def extract_keywords(keywords: List) -> List[str]:
     """Extracts keywords"""
     return [kw.get('name', '') for kw in keywords if isinstance(keywords, list)]

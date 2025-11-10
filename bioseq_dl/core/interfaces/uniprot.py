@@ -16,7 +16,9 @@ from ..utils.uniprot_auxiliary_methods import (
     extract_gene_names,
     extract_database_terms,
     extract_references,
-    extract_features,
+    extract_domains,
+    extract_active_sites,
+    extract_variants,
     extract_keywords,
 )
 
@@ -223,7 +225,9 @@ class UniprotInterface(UniprotBase):
             'rhea_ids': ('comments', extract_database_terms),
             'string_ids': ('uniProtKBCrossReferences', extract_database_terms),
             'references': ('references', extract_references),
-            'features': ('features', extract_features),
+            'active_sites': ('features', extract_active_sites),
+            'domains': ('features', extract_domains),
+            'variants': ('features', extract_variants),
             'keyword': ('keywords', extract_keywords),
         }
         self.format = None
