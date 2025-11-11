@@ -90,7 +90,7 @@ def extract_variants(features: List) -> List[Dict]:
 
     return extracted
 
-# Nombres diseases: cc_disease
+# Nombres diseases: cc_disease PENDING
 def extract_diseases(diseases: List) -> List[Dict]:
     pass
 
@@ -98,7 +98,7 @@ def extract_diseases(diseases: List) -> List[Dict]:
 def extract_active_sites(active_sites: List) -> List[Dict]:
     """Extracts active sites from features"""
     ACTIVE_SITE_TYPES = {'Active site', 'Binding site', 'Site'}
-    sites = []
+    extracted = []
     for feature in active_sites if isinstance(active_sites, list) else []:
         if feature.get('type') in ACTIVE_SITE_TYPES:
             stype = feature.get('type')
@@ -112,25 +112,25 @@ def extract_active_sites(active_sites: List) -> List[Dict]:
                     location = f"{site_start_pos}-{site_end_pos}"
             else:
                 location = ''
-            sites.append({
+            extracted.append({
                 'type': stype,
                 'description': description,
                 'location': location,
             })
-      
-    return sites
+
+    return extracted
 
 # for fields ft_domain,ft_motif and ft_region,
-def extract_domains(features: List) -> List[Dict]:
+def extract_domains(domains: List) -> List[Dict]:
     """Extracts protein domains from features"""
     DOMAINS_TYPES = {'Region', 'Motif', 'Domain', 'Repeat', 'Coiled coil', 'Compositional bias'}
-    domains = []
-    for feature in features if isinstance(features, list) else []:
-        if feature.get('type') in DOMAINS_TYPES:
-            dtype = feature.get('type')
-            description = feature.get('description', '')
-            domain_start_pos = feature.get('location', '').get('start', '').get('value')
-            domain_end_pos = feature.get('location', '').get('end', '').get('value')
+    extracted = []
+    for domain in domains if isinstance(domains, list) else []:
+        if domain.get('type') in DOMAINS_TYPES:
+            dtype = domain.get('type')
+            description = domain.get('description', '')
+            domain_start_pos = domain.get('location', '').get('start', '').get('value')
+            domain_end_pos = domain.get('location', '').get('end', '').get('value')
             if domain_start_pos and domain_end_pos:
                 if domain_start_pos == domain_end_pos:
                     location = domain_start_pos
@@ -138,14 +138,14 @@ def extract_domains(features: List) -> List[Dict]:
                     location = f"{domain_start_pos}-{domain_end_pos}"
             else:
                 location = ''
-            domains.append({
+            extracted.append({
                 'type': dtype,
                 'description': description,
                 'location': location,
             })
 
             
-    return domains
+    return extracted
 
 def extract_keywords(keywords: List) -> List[str]:
     """Extracts keywords"""

@@ -160,6 +160,7 @@ class UniprotBase():
 
     def check_id_mapping_results_ready(self, job_id):
         while True:
+            log.debug(f"Checking status for job ID: {job_id}")
             request = self.session.get(f"{API_URL}/idmapping/status/{job_id}")
             self.check_response(request)
             j = request.json()
@@ -225,6 +226,7 @@ class UniprotInterface(UniprotBase):
             'rhea_ids': ('comments', extract_database_terms),
             'string_ids': ('uniProtKBCrossReferences', extract_database_terms),
             'references': ('references', extract_references),
+            #'diseases': ('comments', extract_database_terms),
             'active_sites': ('features', extract_active_sites),
             'domains': ('features', extract_domains),
             'variants': ('features', extract_variants),

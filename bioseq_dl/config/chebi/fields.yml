@@ -2,23 +2,41 @@ compound:
   id: chebi_accession
 compounds:
   id: standardized_chebi_id
-  id_type: id_type
-  name: data.name
-  stars: data.stars
-  definition: data.definition
   ascii_name: data.ascii_name
-  names: data.names
+  chebi_accession: data.chebi_accession
   formula: data.chemical_data.formula
   charge: data.chemical_data.charge
   mass: data.chemical_data.mass
-  monoisotopicmass: data.chemical_data.monoisotopic_mass
+  monoisotopic_mass: data.chemical_data.monoisotopic_mass
+  species: data.compound_origins.species_text
+  species_accession: data.compound_origins.species_accession
+  component: data.compound_origins.component_text
+  component_accession: data.compound_origins.component_accession
+  strain: data.compound_origins.strain_text
+  strain_accession: data.compound_origins.strain_accession
+  source: data.compound_origins.source
+  source_accession: data.compound_origins.source_accession
+  comments: data.compound_origins.comments
+  species_accession_url: data.compound_origins.species_accession_url
+  source_accession_url: data.compound_origins.source_accession_url
+  species_accession_prefix: data.compound_origins.species_accession_prefix
+  created_by: data.created_by
+  database_accessions: data.database_accessions
+  structure_id: data.default_structure.id
   smiles: data.default_structure.smiles
   inchi: data.default_structure.standard_inchi
   inchikey: data.default_structure.standard_inchi_key
+  wurcs: data.default_structure.wurcs
   is_r_group: data.default_structure.is_r_group
-  compound_origins: data.compound_origins
+  definition: data.definition
+  is_released: data.is_released
+  modified_on: data.modified_on
+  name: data.name
+  names: data.names
   ontology_relations: data.ontology_relations
   roles_classification: data.roles_classification
+  secondary_ids: data.secondary_ids
+  stars: data.stars
 es_search:
   index: _index
   type: _type
