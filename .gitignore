@@ -42,7 +42,6 @@ venv.bak/
 
 # Custom directories and files
 input/
-data/
 src/db
 output/
 tmp/
@@ -58,3 +57,5 @@ src/.pdb_cache/
 *.log
 *.backup
 .env
+
+!examples/data/*.csv
