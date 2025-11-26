@@ -77,6 +77,12 @@ Currently supported databases include:
    pip install -e .
    ```
 
+3.5 **Temporal fix for GUI users:** If a you initialize the gui and get an error related to Gradio Themes, please run:
+   ```bash
+   pip install --upgrade "gradio<6"
+   ```
+This will be addressed in future releases.
+
 4. **Optional:** Install BLAST+ from Bioconda:
    ```bash
    conda install -c bioconda blast
