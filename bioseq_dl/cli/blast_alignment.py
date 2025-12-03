@@ -108,6 +108,10 @@ def run(
     df_blast = df_blast.drop(columns=["id"])
     df_blast = df_blast.rename(columns={seq_column: "sequence"})
 
+    # Filter by identity threshold before exporting or enriching
+    df_blast["identity"] = pd.to_numeric(df_blast["identity"], errors="coerce")
+    df_blast = df_blast[df_blast["identity"] >= min_identity]
+
     # Separate subject into source, accession, entry_name
     df_blast["source"] = df_blast["subject_id"].apply(lambda x: x.split("|")[0])
     df_blast["accession"] = df_blast["subject_id"].apply(lambda x: x.split("|")[1])
@@ -123,9 +127,6 @@ def run(
     shutil.rmtree("tmp")
 
     if do_uniprot_search:
-        # Filter by identity
-        df_blast = df_blast[df_blast['identity'].astype(float) >= min_identity]
-
         log.info("Downloading additional UniProt data...")
         instance = UniprotInterface()
         results = instance.download_batch(df_blast, "accession", True, "UniProtKB_AC-ID", "UniProtKB", 5000)
@@ -139,4 +140,3 @@ def run(
 
         export_df = instance.parse_results(results, fields.split(",") + xref)
         export_df.to_csv(output, index=False)
-
