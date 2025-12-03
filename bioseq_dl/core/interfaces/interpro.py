@@ -21,6 +21,7 @@ log = get_logger("bioseq_dl.interfaces.interpro")
 # I did not updated the METHODS with fetch()
 
 class InterproInterface(BaseAPIInterface):
+    API_NAME = "InterPro"
     METHODS = {
         "entry": {
             "http_method": "GET",

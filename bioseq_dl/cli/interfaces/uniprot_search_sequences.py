@@ -2,9 +2,12 @@ import os
 import typer
 import shutil
 import logging
+import json
+
+import pandas as pd
 
 from bioseq_dl.constants.databases import BASE_BLAST_DB_DIR as DB_DIR
-from bioseq_dl.constants.uniprot import DATABASES, VALID_FIELDS, VALID_CROSS_REF_FIELDS, BASE_URL
+from bioseq_dl.constants.uniprot import DATABASES, VALID_FIELDS, VALID_CROSS_REF_FIELDS, XREF_MAPPING
 from bioseq_dl import UniprotInterface
 
 from bioseq_dl.core.utils.blast_search import (
@@ -14,8 +17,8 @@ from bioseq_dl.core.utils.blast_search import (
     run_blast,
     parse_blast_results
 )
-
-import pandas as pd
+from bioseq_dl.logging import configure_logging
+from bioseq_dl.core.utils.crossref_enrichment import run_crossref_enrichment
 
 # ----- Optional logging (fallback to stdlib) -----
 try:
@@ -25,7 +28,7 @@ except Exception:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
         return logging.getLogger(name)
 
-log = get_logger("bioseq_dl.cli.blast_alignment")
+log = get_logger("bioseq_dl.cli.uniprot_search_sequences")
 # -------------------------------------------------
 
 app = typer.Typer(help="Run BLAST alignment on sequences and [optionaly] download matching sequences from UniProt.")
@@ -50,7 +53,7 @@ def run(
     ),
     output: str = typer.Option(
         ..., "-o", "--output", 
-        help="Output file"
+        help="Output directory for results"
     ),
     evalue: float = typer.Option(
         0.001, "--evalue", "-v",
@@ -60,23 +63,35 @@ def run(
         "blastp", "--blast-type", "-b",
         help="Type of BLAST to run. Default is 'blastp'."
     ),
-    do_uniprot_search: bool = typer.Option(
-        False, "--do-uniprot-search", "-u",
-        help="If set, will perform a UniProt search to get additional information for the BLAST hits."
-    ),
+    no_download: bool = typer.Option(
+        False, "--no-download", "-u",
+        help="If set, will not download information from UniProt after BLAST."
+    ),  
     fields: str = typer.Option(
         ",".join(VALID_FIELDS), "-f", "--fields", 
         help="Fields to include in the output"
     ),
     crossref_fields: str = typer.Option(
-        ",".join(VALID_CROSS_REF_FIELDS), "-xr", "--crossref_fields", 
-        help="Cross reference fields to include in the output"
+        "", "-xr", "--crossref_fields", 
+        help="Cross reference fields to include in the output, options: " + ", ".join([xref[1] for xref in XREF_MAPPING.values()])
     ),
     min_identity: float = typer.Option(
         90.0, "--min_identity", 
         help="Minimum identity threshold for BLAST search."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug",
+        help="Enable debug logging"
     )
 ):
+    logger = log
+    try:
+        if debug:
+            configure_logging(level=logging.DEBUG)
+            logger = get_logger("bioseq_dl.cli.uniprot_search_query")  # re-fetch so root handlers pick new level
+            logger.debug("Debug logging enabled")
+    except Exception as e:
+        logger.warning(f"Could not configure logging: {e}")
 
     df = pd.read_csv(input)
 
@@ -118,25 +133,68 @@ def run(
     df_blast["entry_name"] = df_blast["subject_id"].apply(lambda x: x.split("|")[2])
     df_blast = df_blast.drop(columns=["subject_id"])
 
+    # Create folder for output if it does not exist
+    os.makedirs(output, exist_ok=True)
+
     # Save to CSV
-    df_blast.to_csv(output, index=False)
-    log.info(f"BLAST results saved to {output}")
+    df_blast.to_csv(f"{output}/blast_results.csv", index=False)
+    log.info(f"BLAST results saved to {output}/blast_results.csv")
 
     # Clean up temporary files
     os.remove("tmp/blast_results.txt")
     shutil.rmtree("tmp")
 
-    if do_uniprot_search:
+    if not no_download:
+        metadata = {}
         log.info("Downloading additional UniProt data...")
         instance = UniprotInterface()
-        results = instance.download_batch(df_blast, "accession", True, "UniProtKB_AC-ID", "UniProtKB", 5000)
+        logger.debug(f"Downloading data using blast results\nfields {fields}\ncrossref_fields {crossref_fields}\n")
+
+        response, fetch_metadata = instance.download_batch(
+            df_blast, 
+            "accession", 
+            True, 
+            "UniProtKB_AC-ID", 
+            "UniProtKB", 
+            5000
+        )
+        metadata["fetch"] = fetch_metadata
 
         # Save raw results
-        with open(output + ".json", 'w') as f:
-            for result in results:
-                f.write(str(result) + '\n')
-        
-        xref = [VALID_CROSS_REF_FIELDS[c] for c in crossref_fields.split(",") if c in VALID_CROSS_REF_FIELDS]
+        with open(f"{output}/raw_response.json", "w") as f:
+            json.dump(response, f, indent=2, default=str)
 
-        export_df = instance.parse_results(results, fields.split(",") + xref)
-        export_df.to_csv(output, index=False)
+        logger.info("Parsing results...")
+        export_df, parsed_metadata = instance.parse_results(
+            results=response,
+            extract_fields=None,
+            to_dataframe=True
+        )
+        metadata["parsing"] = parsed_metadata
+        
+        if isinstance(export_df, pd.DataFrame) and not export_df.empty:
+            if crossref_fields:
+                logger.info("Running cross-reference enrichment...")
+                enriched_data, enriched_metadata = run_crossref_enrichment(export_df, crossref_fields.split(","), concat_results=False, to_dataframe=True)
+                metadata["enrichement"] = enriched_metadata
+
+                if isinstance(enriched_data, pd.DataFrame) and not enriched_data.empty:
+                    export_df = enriched_data
+                elif isinstance(enriched_data, dict):
+                    for key, value in enriched_data.items():
+                        logger.info(f"Saving {key} results into {output} directory")
+                        value.to_csv(f"{output}/{key}_results.csv", index=False)
+                
+            export_df.to_csv(f"{output}/uniprot_results.csv", index=False)
+            with open(f"{output}/metadata.json", "w") as f:
+                json.dump(metadata, f, indent=2, default=str)
+            logger.info(f"Results saved to {output}/uniprot_results.csv")
+        else:
+            logger.warning("No UniProt data found for the BLAST results.")
+
+
+
+        #xref = [VALID_CROSS_REF_FIELDS[c] for c in crossref_fields.split(",") if c in VALID_CROSS_REF_FIELDS]
+
+        #export_df,  = instance.parse_results(results, fields.split(",") + xref)
+        #export_df.to_csv(f"{output}/uniprot_results.csv", index=False)

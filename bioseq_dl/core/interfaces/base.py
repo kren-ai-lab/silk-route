@@ -28,6 +28,7 @@ log = get_logger("bioseq_dl.interfaces.base")
 # -------------------------------------------------
 
 class BaseAPIInterface(ABC):
+    API_NAME: ClassVar[str] = "BaseAPI"
     METHODS: ClassVar[Dict[str, Any]] = {}
 
     cache_key_ignore_args: Set[str] = {
@@ -493,7 +494,7 @@ class BaseAPIInterface(ABC):
         else:
             return False
 
-    def decompose_query(self, query: dict, method: str, option: str) -> Optional[List[Tuple[str, dict]]]:
+    def decompose_query(self, query: dict, method: str, option: Union[str, None]) -> Optional[List[Tuple[str, dict]]]:
         """
         Decompose a query into multiple subqueries if any of the identity keys contain lists.
         Returns:
@@ -636,21 +637,33 @@ class BaseAPIInterface(ABC):
     # a batch of queries. They handle caching, parsing, and optional DataFrame conversion.
     ###################
     
-    def fetch_single(self, query: Union[str, dict], parse: bool = False, *args, **kwargs) -> Union[List, Dict, pd.DataFrame]:
+    def fetch_single(self, query: Union[str, dict], parse: bool = False, *args, **kwargs) -> Tuple[Union[List, Dict, pd.DataFrame], Dict]:
         """
         General-purpose fetch method with optional parsing and cache handling.
 
         Args:
             query (Union[str, dict]): Query to fetch data for.
             parse (bool): Whether to parse the fetched data.
-        
         kwargs:
             config_key (str): Key to use for configuration settings.
             fields_to_extract (Optional[Union[list, dict]]): Fields to extract from the fetched data.
             to_dataframe (bool): Whether to convert the result to a DataFrame.
         Returns:
-            Any: Fetched data, parsed if requested.
+            Tuple[Union[List, Dict, pd.DataFrame], Dict]: Fetched (and optionally parsed) data and metadata.
         """
+        metadata = {
+            "cached_ids": [],
+            "cached_subqueries": [],
+            "fetched_ids": [],
+            "fetched_subqueries": [],
+            "failed_ids": [],
+            "fetched_length": 0,
+            "data_info": {},
+            "execution_time": 0.0,
+            "api_name": "",
+            "method": "",
+            "option": ""
+        }
         # Extract flags and avoid passing twice to _maybe_parse
         to_dataframe = kwargs.pop("to_dataframe", False)
         method       = kwargs.get("method", "NOT_GIVEN")
@@ -665,6 +678,7 @@ class BaseAPIInterface(ABC):
         group_key = spec.get('group_queries', [None])[0] 
 
         # If group_key is present and value is list: check cache per element
+        t0 = time.time()
         if isinstance(query, dict) and group_key and isinstance(query.get(group_key), list):
             log.debug("Multiple queries detected in the input.")
             log.debug(f"Generated a group of queries based on key '{group_key}' with multiple values.")
@@ -679,6 +693,8 @@ class BaseAPIInterface(ABC):
                 cache_key = self._make_cache_key(identifier, **kwargs)
                 if self.has_results(cache_key):
                     log.debug(f"Cache hit for identifier: {identifier}, loading from cache.")
+                    metadata["cached_ids"] = metadata.get("cached_ids", []) + [identifier]
+                    metadata["cached_subqueries"] = metadata.get("cached_subqueries", []) + [subq]
                     raw = self.load_cache(cache_key)
                     parsed = self._maybe_parse(data=raw, parse=parse, to_dataframe=to_dataframe, **kwargs)
                     results[identifier] = parsed
@@ -689,6 +705,8 @@ class BaseAPIInterface(ABC):
             # If some remain, fetch them together
             if remaining:
                 log.debug(f"Fetching remaining {len(remaining)} subqueries in a single request.")
+                metadata["fetched_ids"] = [identifier for identifier, _ in remaining]
+                metadata["fetched_subqueries"] = [subq for _, subq in remaining]
                 combined = self.merge_dicts([subq for _, subq in remaining])
                 params = self._prepare_params(combined, spec, **kwargs)
                 full = self.fetch(query=params, *args, **kwargs)
@@ -697,6 +715,7 @@ class BaseAPIInterface(ABC):
                     partial_result = mapping.get(identifier, [])
                     if not partial_result:
                         log.debug(f"No results found for identifier {identifier}. Skipping.")
+                        metadata["failed_ids"] = metadata.get("failed_ids", []) + [identifier]
                         continue
                     log.debug(f"Fetched {len(partial_result)} items for identifier {identifier}. Caching result.")
                     cache_key = self._make_cache_key(identifier, **kwargs)
@@ -704,6 +723,8 @@ class BaseAPIInterface(ABC):
                     parsed = self._maybe_parse(data=partial_result, parse=parse, to_dataframe=to_dataframe, **kwargs)
                     results[identifier] = parsed
 
+            # Additional check and convert needed. If many subqueries are brought,
+            # the result should be concatenated into a single DataFrame if to_dataframe=True
             if to_dataframe:
                 dfs = []
                 log.debug("Converting results to DataFrames")
@@ -712,11 +733,27 @@ class BaseAPIInterface(ABC):
                     dfs.append(df)
                 # TODO Check if this line of code works as intended
                 if dfs:
-                    return pd.concat(dfs, ignore_index=True)
+                    export_df = pd.concat(dfs, ignore_index=True)
+                    metadata["data_info"] = {
+                        "total_entries": len(export_df),
+                        "data_type": type(export_df),
+                        "columns": [{
+                            "name": col,
+                            "dtype": str(export_df[col].dtype),
+                            "n_missing": int(export_df[col].isna().sum())
+                        } for col in export_df.columns]
+                    }
+                    metadata["execution_time"] = time.time() - t0
+                    metadata["api_name"] = self.API_NAME
+                    metadata["method"] = method
+                    metadata["option"] = option
+
+                    return export_df, metadata
                 else:
-                    return pd.DataFrame()
+                    return pd.DataFrame(), metadata
             
-            return list(results.values())
+            metadata["fetched_length"] = sum(len(v) for v in results.values() if isinstance(v, list))
+            return list(results.values()), metadata
         else:
             log.debug("Single query detected, proceeding with fetch.")
             params     = self._prepare_params(query, spec, **kwargs)
@@ -724,16 +761,47 @@ class BaseAPIInterface(ABC):
             cache_key  = self._make_cache_key(identifier, **kwargs)
             if self.has_results(cache_key):
                 log.debug(f"Cache hit for identifier: {identifier}, loading from cache.")
+                metadata["cached_ids"] = [identifier]
+                metadata["cached_subqueries"] = [query]
                 raw = self.load_cache(cache_key)
             else:
                 log.debug(f"No cache found for identifier: {identifier}, fetching from API.")
                 raw = self.fetch(query=params, *args, **kwargs)
                 if raw:  # only save non-empty
+                    metadata["fetched_ids"] = [identifier]
+                    metadata["fetched_subqueries"] = [query]
+                    metadata["fetched_length"] = len(raw) if isinstance(raw, list) else 1
                     self.save_cache(cache_key, raw)
-            return self._maybe_parse(data=raw, parse=parse, to_dataframe=to_dataframe, **kwargs)
+                else:
+                    metadata["failed_ids"] = [identifier]
+            
+            parsed = self._maybe_parse(data=raw, parse=parse, to_dataframe=to_dataframe, **kwargs)
+            tmp_df = pd.DataFrame()
 
-    
-    def fetch_batch(self, queries: List[Union[str, dict]], parse: bool = False, *args, **kwargs) -> Union[List, pd.DataFrame]:
+            if isinstance(parsed, list):
+                tmp_df = pd.DataFrame(parsed) if parsed else pd.DataFrame()
+            elif isinstance(parsed, pd.DataFrame):
+                tmp_df = parsed
+            else:
+                tmp_df = pd.DataFrame([parsed]) if parsed else pd.DataFrame()
+
+            metadata["data_info"] = {
+                "total_entries": len(tmp_df),
+                "data_type": type(parsed),
+                "columns": [{
+                    "name": col,
+                    "dtype": str(tmp_df[col].dtype),
+                    "n_missing": int(tmp_df[col].isna().sum())
+                } for col in tmp_df.columns]
+            }
+            metadata["execution_time"] = time.time() - t0
+            metadata["api_name"] = self.API_NAME
+            metadata["method"] = method
+            metadata["option"] = option
+
+            return parsed, metadata
+
+    def fetch_batch(self, queries: List[Union[str, dict]], parse: bool = False, *args, **kwargs) -> Tuple[Union[List, pd.DataFrame], Dict]:
         """
         Fetch data in parallel for a batch of queries.
         Args:
@@ -745,14 +813,26 @@ class BaseAPIInterface(ABC):
             fields_to_extract (Optional[Union[list, dict]]): Fields to extract from the fetched data.
             to_dataframe (bool): Whether to convert the result to a DataFrame.
         Returns:
-            List: List of fetched data, parsed if requested.
+            Tuple[Union[List, pd.DataFrame], Dict]: Fetched data, parsed if requested, and metadata.
         """
+        metadata = {
+            "cached_ids": [],
+            "cached_subqueries": [],
+            "fetched_ids": [],
+            "fetched_subqueries": [],
+            "failed_ids": [],
+            "fetched_length": 0,
+            "data_info": {},
+            "execution_time": 0.0,
+            "api_name": "",
+            "method": "",
+            "option": ""
+        }
         method       = kwargs.get("method", "NOT_GIVEN")
         option       = kwargs.get("option", None)
         results: List[Any] = []
 
         # Separate queries in cache and not in cache
-        queries_to_fetch = []
         index_query_map = {}
 
         ###############################
@@ -771,26 +851,28 @@ class BaseAPIInterface(ABC):
                     cache_key = self._make_cache_key(identifier, **kwargs)
                     if self.has_results(cache_key):
                         log.debug(f"Cache hit for subquery identifier: {identifier}, loading from cache.")
+                        metadata["cached_ids"] = metadata.get("cached_ids", []) + [identifier]
+                        metadata["cached_subqueries"] = metadata.get("cached_subqueries", []) + [subquery]
                         cached = self.load_cache(cache_key)
                         result = cached.to_dict(orient='records') if isinstance(cached, pd.DataFrame) else cached
                         results.append(self._maybe_parse(data=result, parse=parse, **kwargs))
                     else:
                         log.debug(f"No cache found for subquery identifier: {identifier}, will fetch.")
                         index_query_map[i] = query
-                        queries_to_fetch.append(query)
 
             else:
                 # No subqueries, use the classic key
                 cache_key = self._make_cache_key(query, **kwargs)
                 if self.has_results(cache_key):
                     log.debug(f"Cache hit for query at index {i}, loading from cache.")
+                    metadata["cached_ids"] = metadata.get("cached_ids", []) + [cache_key]
+                    metadata["cached_subqueries"] = metadata.get("cached_subqueries", []) + [query]
                     cached = self.load_cache(cache_key)
                     result = cached.to_dict(orient='records') if isinstance(cached, pd.DataFrame) else cached
                     results.append(self._maybe_parse(data=result, parse=parse, **kwargs))
                 else:
                     log.debug(f"No cache found for query at index {i}, will fetch.")
                     index_query_map[i] = query
-                    queries_to_fetch.append(query)
 
         #############################
         # If all queries are cached, return the results
@@ -799,6 +881,7 @@ class BaseAPIInterface(ABC):
         # If there is an incorrect cache key handling then it's better to do a better implementation
         #############################
         # Fetch missing ones in parallel
+        t0 = time.time()
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             future_to_index = {
                 executor.submit(self.fetch_single, query, parse, *args, **kwargs): i
@@ -807,22 +890,56 @@ class BaseAPIInterface(ABC):
             }
             for future in future_to_index:
                 log.debug(f"Waiting for future result for query at index {future_to_index[future]}")
+                metadata["fetched_ids"] = metadata.get("fetched_ids", []) + [future_to_index[future]]
+                metadata["fetched_subqueries"] = metadata.get("fetched_subqueries", []) + [index_query_map[future_to_index[future]]]
                 i = future_to_index[future]
                 try:
-                    results.append(future.result())
+                    result = future.result()
+                    
+                    if isinstance(result, tuple) and len(result) == 2:
+                        data, _ = result
+                        results.append(data)
+                    else:
+                        results.append(result)
+
                 except Exception as e:
                     log.error(f"Error fetching query at index {i} ({queries[i]}): {e}")
                 self._delay()
-
+        metadata["execution_time"] = time.time() - t0
+        metadata["fetched_length"] = sum(
+            len(r) if isinstance(r, list) else 1 for r in results
+        )
+        
         # Patch solution. Make sure that it works as intended
         # If it's a list of dataframes, concatenate them
+        columns_info = []
         if all(isinstance(r, pd.DataFrame) for r in results) and len(results) > 0:
             batch_data = pd.concat(results, ignore_index=True)
+            columns_info = [{
+                "name": col,
+                "dtype": str(batch_data[col].dtype),
+                "n_missing": int(batch_data[col].isnull().sum())
+            } for col in batch_data.columns]
         else:
             batch_data = results
-        
-        return batch_data
-    
+            tmp_df = pd.DataFrame(batch_data)
+            columns_info = [{
+                "name": col,
+                "dtype": str(type(batch_data)),
+                "n_missing": int(tmp_df[col].isnull().sum())
+            } for col in tmp_df.columns]
+
+        metadata["data_info"] = {
+            "total_entries": len(batch_data) if isinstance(batch_data, list) else batch_data.shape[0] if isinstance(batch_data, pd.DataFrame) else 0,
+            "data_type": type(batch_data).__name__,
+            "columns": columns_info
+        }
+        metadata["source_api"] = self.API_NAME
+        metadata["method"] = method
+        metadata["option"] = option
+
+        return batch_data, metadata
+
     ###################
     # Auxiliary methods
     ###################

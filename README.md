@@ -125,28 +125,31 @@ A local server will be available at [http://localhost:7560](http://localhost:786
 
 **Example 1 – Search antimicrobial proteins (length 50–51) in UniProt:**
 ```bash
-bioseq-dl collect-data uniprot search-by-query run \
+bioseq-dl general-collect uniprot search-by-query run \
 --query "(length:[50 TO 51]) AND antimicrobial AND reviewed:true" \
 --fields accession,protein_name,gene_primary,sequence,ec \
 --crossref_fields alphafold,pdb \
---output results.csv
+--output search_query_test
 ```
 
-**Example 2 – Enrich existing data with AlphaFold and PDB cross-references:**
+**Example 2 – Search UniProt entries by accession IDs:**
 ```bash
-bioseq-dl collect-data uniprot search-crossreferences run \
---input results.csv \
---databases alphafold,pdb \
---out_dir enriched_results
+bioseq-dl general-collect uniprot search-by-ids run \
+--input unknown_ids.csv \
+--column accession \
+--output search_ids_test \
+--crossref_fields alphafold
 ```
 
 **Example 3 – Perform a BLAST alignment against UniProt:**
 ```bash
-bioseq-dl blast-alignment run \
+bioseq-dl general-collect uniprot search-by-sequences run \
 --database uniprotkb_reviewed \
 --seq-column sequence \
+--min_identity 100.0 \
 --input unknown_sequences.csv \
---output blast_results.csv
+--output search_sequences_test \
+--crossref_fields alphafold
 ```
 
 ---
@@ -166,7 +169,7 @@ df = pd.DataFrame({
 })
 
 uniprot = UniprotInterface()
-results = uniprot.download_batch(
+results, _ = uniprot.download_batch(
     df,
     id_column="accession",
     auto_db=False,
@@ -174,13 +177,13 @@ results = uniprot.download_batch(
     to_db="UniProtKB",
     batch_size=100
 )
-results_df = uniprot.parse_results(results, None)
+results_df, _ = uniprot.parse_results(results, None)
 print(results_df)
 ```
 
 **Example – Enriching results with other databases:**
 
-An enricher module is also available to enrich your data with cross references. Here's an example:
+An enricher module is also available to enrich your data with cross references. Here's an example for a given results_df from UniProt:
 ```python
 from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
 
@@ -190,7 +193,7 @@ specs = [
 ]
 
 enricher = CrossRefEnricher(specs)
-concat_df = enricher.enrich(results_df, concat_results=True)
+concat_df, _ = enricher.enrich(results_df, concat_results=True)
 ```
 This will facilitate the enrichment of your data with information from multiple databases.
 

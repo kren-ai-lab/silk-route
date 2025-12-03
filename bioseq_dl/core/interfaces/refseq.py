@@ -21,6 +21,7 @@ log = get_logger("bioseq_dl.interfaces.refseq")
 # -------------------------------------------------
 
 class RefSeqInterface(BaseAPIInterface):
+    API_NAME = "RefSeq"
     METHODS = {
         "protein": {
             "http_method": "GET",

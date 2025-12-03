@@ -1,5 +1,5 @@
 import requests, re, zlib, json, time
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 import csv
 import pandas as pd
 import logging
@@ -7,6 +7,7 @@ from tqdm import tqdm
 from requests.adapters import HTTPAdapter, Retry
 from xml.etree import ElementTree
 from io import StringIO
+from datetime import datetime
 
 from urllib.parse import urlparse, parse_qs, urlencode
 
@@ -232,7 +233,6 @@ class UniprotInterface(UniprotBase):
             'variants': ('features', extract_variants),
             'keyword': ('keywords', extract_keywords),
         }
-        self.format = None
     
     def identify_id_type(self, id_str: str) -> str:
         """Identifica el tipo de ID basado en patrones regex"""
@@ -271,7 +271,7 @@ class UniprotInterface(UniprotBase):
             from_db: str = "UniProtKB_AC-ID", 
             to_db: str = "UniProtKB", 
             batch_size: int = 5000
-            ):
+            ) -> Tuple[List[Dict], Dict]:
         """
         Download data from UniProt in batches based on a DataFrame of IDs.
         Args:
@@ -285,6 +285,8 @@ class UniprotInterface(UniprotBase):
         ids = dataset[column_ids].dropna().unique().tolist()
 
         results = []
+        metadata = {}
+        batch_metadata = {}
 
         if auto_db:
             # Automatically detect and group IDs
@@ -296,7 +298,7 @@ class UniprotInterface(UniprotBase):
                     continue
                     
                 config = self.db_config[db_type]
-                results = self.process_id_batch(
+                results, batch_metadata = self.process_id_batch(
                     ids=id_list,
                     from_db=config['from_db'],
                     to_db=config['to_db'],
@@ -305,15 +307,30 @@ class UniprotInterface(UniprotBase):
                 )
         else:
             # Manually use the provided from_db/to_db parameters
-            results = self.process_id_batch(
+            results, batch_metadata = self.process_id_batch(
                 ids=ids,
                 from_db=from_db,
                 to_db=to_db,
                 batch_size=batch_size,
                 db_type='manual'
             )
-        
-        return results
+
+        metadata["search_process"] = batch_metadata
+        metadata["search_params"] = {
+            'query': {
+                "type": type(pd.DataFrame()),
+                "value": dataset[column_ids].tolist(),
+                "total_rows": len(dataset),
+                "columns": dataset.columns.tolist(),
+                "id_column": column_ids
+            },
+            'from_db': from_db,
+            'to_db': to_db,
+            'auto_db': auto_db,
+            'batch_size': batch_size
+        }
+
+        return results, metadata
 
     def process_id_batch(
             self,
@@ -322,9 +339,12 @@ class UniprotInterface(UniprotBase):
             to_db: str, 
             batch_size: int, 
             db_type: str
-        ):
+        ) -> Tuple[List[Dict], Dict]:
         """Procesa un lote de IDs de un tipo específico"""
         downloader = UniprotInterface()
+        metadata = {}
+        time_started = time.time()
+        job_id = None
         results = []
         progress_bar = tqdm(
             range(0, len(ids)), 
@@ -351,7 +371,14 @@ class UniprotInterface(UniprotBase):
                     
             progress_bar.update(len(batch))
         
-        return results
+        metadata['time_taken_seconds'] = time.time() - time_started
+        metadata["started_at"] = datetime.fromtimestamp(time_started).isoformat()
+        metadata["batch_size"] = batch_size
+        metadata["num_batches"] = (len(ids) + batch_size - 1) // batch_size
+        metadata["failed_ids_count"] = sum(len(res.get('failedIds', [])) for res in results)
+        metadata["failed_ids"] = [fid for res in results for fid in res.get('failedIds', [])]
+
+        return results, metadata
 
     def show_results(
             self,
@@ -373,9 +400,8 @@ class UniprotInterface(UniprotBase):
             fields: str, 
             sort: str, 
             include_isoform: Optional[bool] = False, 
-            download: Optional[bool] = False,
-            format: Optional[str] = "json"
-            ):
+            download: Optional[bool] = False
+            ) -> Tuple[Dict, Dict]:
         """
         Submit a query to the Uniprot stream API.
         Args:
@@ -394,62 +420,49 @@ class UniprotInterface(UniprotBase):
             "sort": sort,
             "includeIsoform": include_isoform,
             "download": download,
-            "format": format,
+            "format": "json",
         }
+        metadata = {}
+        response = None
 
-        if format == "json":
-            headers = {"Accept": "application/json"}
-        elif format == "tsv":
-            headers = {"Accept": "text/plain;format=tsv"}
-        else:
-            raise ValueError("Unsupported format. Supported formats are: json, xml, fasta, tsv.")
-        
-        self.format = format
+        headers = {"Accept": "application/json"}
 
         for attempt in range(self.retries.total):
             try:
+                time_started = time.time()
                 response = requests.get(
                     f"{API_URL}/uniprotkb/stream",
                     params=parameters,
                     headers=headers,
                 )
                 response.raise_for_status()
-                return response
+                metadata["search_process"] = {
+                    "time_taken_seconds": time.time() - time_started,
+                    "started_at": datetime.fromtimestamp(time_started).isoformat(),
+                    "total_results": response.json().get("results", []).__len__(),
+                    "attempts": attempt + 1
+                }
+                metadata["search_params"] = {
+                    "api_url": API_URL,
+                    "query": {
+                        "type": type(query),
+                        "value": query,
+                    },
+                    "fields": fields,
+                    "sort": sort,
+                    "include_isoform": include_isoform,
+                    "download": download
+                }
+
+                return response.json(), metadata
             except requests.exceptions.RequestException as e:
                 if attempt < self.retries.total - 1:
                     log.info(f"Attempt {attempt + 1} failed: {e}. Retrying...")
                     time.sleep(POLLING_INTERVAL)
                 else:
                     log.error(f"All attempts failed: {e}.")
-                    return response
-
-    def parse_stream_response(self, query: str, response: requests.Response, extract_fields: Optional[List[str]]) -> pd.DataFrame:
-        """
-        Parse the response from the UniProt stream API depending on the format.
-        Args:
-            query (str): The query string.
-            response (requests.Response): The response from the stream API.
-            file_format (str): The format of the response (json, tsv, fasta).
-            mapping (dict, optional): Mapping for parsing JSON response. Defaults to None.
-        Returns:
-            Parsed data in appropriate Python data structure.
-        """
-        return_df = pd.DataFrame()
-
-        if self.format == "json":
-            return_df = self.parse(response.json(), extract_fields)
-        
-        elif self.format == "tsv":
-            tsv_data = response.text
-            reader = csv.DictReader(StringIO(tsv_data), delimiter="\t")
-            return_df = pd.DataFrame(reader)
-
-        else:
-            raise ValueError(f"Unsupported format: {self.format}")
-        
-        return_df.insert(0, "query", query)
-
-        return return_df
+                    metadata["error"] = str(e)
+                    return {}, metadata
     
     def adapt_field_map(self, field_map: Dict[str, tuple], use_prefix=False):
         """Adapt the field map to include a prefix if needed"""
@@ -462,10 +475,11 @@ class UniprotInterface(UniprotBase):
             adapted_map[key] = (new_path, extractor)
         return adapted_map
 
-    def _parse_result(self, result: Dict, extract_fields: Optional[List[str]]) -> Dict:
+    def _parse_result(self, result: Dict, extract_fields: Optional[List[str]]) -> Tuple[Dict, Dict]:
         """Parse a single UniProt result"""
         parsed = {}
         field_map = {}
+        metadata = {}
 
         # Change field_map if 'from' and 'to' keys are present
         if 'from' in result and 'to' in result:
@@ -495,34 +509,51 @@ class UniprotInterface(UniprotBase):
         if extract_fields is not None:
             parsed = {k: v for k, v in parsed.items() if k in extract_fields}
 
-        return parsed
+        metadata["extract_fields"] = extract_fields if extract_fields is not None else list(field_map.keys())
+        metadata["parsed_fields"] = list(parsed.keys())
+        metadata["failed_fields"] = [k for k in field_map.keys() if k not in parsed.keys()]
 
-    def parse(self, results: Dict, extract_fields: Optional[List[str]]) -> pd.DataFrame:
+        return parsed, metadata
+
+    def parse(self, results: Dict, extract_fields: Optional[List[str]], to_dataframe: bool = True) -> Tuple[pd.DataFrame, Dict] | Tuple[List[Dict], Dict]:
         """Parse UniProt JSON results into a DataFrame"""
         parsed_data = []
-        
+        metadata = {}
+
         # Process successful results
+
         for result in results.get('results', []):
-            parsed = self._parse_result(result, extract_fields)
-            if 'source_db' in result:
-                parsed['source_db'] = results.get('source_db', 'unknown')
+            parsed, metadata = self._parse_result(result, extract_fields)
             parsed_data.append(parsed)
-            
+
         # Process failed IDs
         for failed_id in results.get('failedIds', []):
             parsed_data.append({
                 'uniprot_id': failed_id,
-                #'source_db': results.get('source_db', 'unknown'),
                 'status': 'failed'
             })
-            
-        return pd.DataFrame(parsed_data).dropna(axis=1, how='all')
-    
-    def parse_results(self, results: List[Dict], extract_fields: Optional[List[str]]) -> pd.DataFrame:
-        export_df = pd.DataFrame()
 
-        for result in results:
-            parsed_results = self.parse(result, extract_fields)
+        if to_dataframe:
+            return pd.DataFrame(parsed_data).dropna(axis=1, how='all'), metadata
+        else:
+            return parsed_data, metadata
+
+    def parse_results(self, results: Dict | List[Dict], extract_fields: Optional[List[str]], to_dataframe: bool = True) -> pd.DataFrame | List[Dict]:
+        export_df = pd.DataFrame() if to_dataframe else []
+        metadata = {}
+
+        if isinstance(results, List):
+            for result in results:
+                parsed_results, metadata = self.parse(result, extract_fields, to_dataframe=to_dataframe)
+        elif isinstance(results, Dict):
+            parsed_results, metadata = self.parse(results, extract_fields, to_dataframe=to_dataframe)
+        else:
+            log.error("Invalid results format. Expected Dict or List[Dict].")
+            return export_df, metadata
+
+        if to_dataframe:
             export_df = pd.concat([export_df, parsed_results], ignore_index=True)
+        else:
+            export_df.extend(parsed_results)
 
-        return export_df
+        return export_df, metadata

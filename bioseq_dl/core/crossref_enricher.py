@@ -1,7 +1,7 @@
 from __future__ import annotations
 import os, logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any,Tuple
 import pandas as pd
 
 from bioseq_dl.core.utils.query_builders import QUERY_BUILDERS, INTERFACE_CLASSES
@@ -66,13 +66,6 @@ class CrossRefEnricher():
         """
         return database in INTERFACE_CLASSES
     
-    def _validate_dataframe(self, df: pd.DataFrame) -> None:
-        """
-        Validate that the DataFrame contains required columns for each endpoint.
-        """
-        if not isinstance(df, pd.DataFrame) or df.empty:
-            raise ValueError("Input DataFrame must be a non-empty pandas DataFrame.")
-
     def _check_required_columns(self, df: pd.DataFrame, spec: EndpointSpec) -> None:
         """
         Optional check to warn/raise if declared required columns are missing.
@@ -131,13 +124,15 @@ class CrossRefEnricher():
         row: pd.Series,
         instance: Any,
         spec: EndpointSpec,
-        params: Dict[str, Any]
-    ) -> pd.DataFrame:
+        params: Dict[str, Any],
+        concat_results: bool = True,
+        to_dataframe: bool = True
+    ) -> Tuple[pd.DataFrame|List[Dict[str, Any]], Dict]:
         """
-        English docs:
         Build query from row using the registered query-builder, perform fetch_single or fetch_batch,
         and merge the API result with the original row (row-expanded).
         """
+        metadata = {}
         # Search for an available builder via a search key: {database}_{endpoint}[_option]
         qb = self._resolve_query_builder(spec)
 
@@ -146,7 +141,7 @@ class CrossRefEnricher():
         method_params = {
             "method": spec.endpoint,
             "parse": True,
-            "to_dataframe": True
+            "to_dataframe": to_dataframe
         }
 
         if spec.option:
@@ -156,72 +151,124 @@ class CrossRefEnricher():
             or ( isinstance(query_params, list) and len(query_params) == 1 ):
             # If is a single elemnt dict, use the dict itself
             query_params = query_params[0] if isinstance(query_params, list) else query_params
-            result = instance.fetch_single(
+            result, metadata = instance.fetch_single(
                 query=query_params,
                 **method_params
             )
         elif isinstance(query_params, list) and len(query_params) > 1:
             # If is a list of dicts, use batch
             log.debug(f"Batch querying {spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''} with {len(query_params)} queries and method_params: {method_params}")
-            result = instance.fetch_batch(
+            result, metadata = instance.fetch_batch(
                 queries=query_params,
                 **method_params
             )
         else:
             # Handle unexpected query_params format
-            result = pd.DataFrame()
-    
-        # Merge result with original row
-        if not isinstance(result, pd.DataFrame) or result.empty:
-            return row.to_frame().T  # Return original row as single-row DataFrame
-        # Expand original row to match the number of result rows, then column-wise concat
-        row_expanded = pd.concat(
-            [pd.DataFrame([row] * len(result)).reset_index(drop=True),
-                result.reset_index(drop=True)],
-            axis=1
-        )
+            if to_dataframe:
+                result = pd.DataFrame()
+            else:
+                result = []
 
-        return row_expanded
+        if to_dataframe:
+            # Merge result with original row
+            if not isinstance(result, pd.DataFrame) or result.empty:
+                if concat_results:
+                    return row.to_frame().T, metadata  # Return original row as single-row DataFrame
+                else:
+                    return result, metadata
+            # Expand original row to match the number of result rows, then column-wise concat
+            if concat_results:
+                row_expanded = pd.concat(
+                    [pd.DataFrame([row] * len(result)).reset_index(drop=True),
+                        result.reset_index(drop=True)],
+                    axis=1
+                )
+                return row_expanded, metadata
+            else:
+                return result, metadata
+        else:
+            if concat_results:
+                # Merge each dict in result with original row dict
+                if not isinstance(result, list) or not result:
+                    return [row.to_dict()], metadata  # Return original row as single dict in list
+                merged_results = [
+                    {**row.to_dict(), **res} for res in result
+                ]
+                return merged_results, metadata
+            else:
+                return result, metadata
 
     def _process_dataframe(
             self,
             df: pd.DataFrame,
             instance: Any,
             spec: EndpointSpec,
-            params: Dict[str, Any]
-    ) -> pd.DataFrame:
+            params: Dict[str, Any],
+            concat_results: bool = True,
+            to_dataframe: bool = True
+    ) -> Tuple[pd.DataFrame|List[Dict[str, Any]], Dict]:
         """
         Apply search-then-merge for every row and vertically concatenate all row-expansions.
         """
         # Apply row-wise; collect per-row DataFrames
-        all_results = [
-            self._search_and_merge(row, instance, spec, params)
-            for _, row in df.iterrows()
-        ]
+        all_metadata = []
+        all_results = []
 
-        if not all_results or all([r.empty for r in all_results]):
-            return pd.DataFrame()
-        
-        # Ensure unique column names in each DataFrame before concatenation
-        cleaned_results = []
-        for result in all_results:
-            if not result.empty:
-                result = result.loc[:, ~pd.Index(result.columns).duplicated()]
-            cleaned_results.append(result)
-        
-        return pd.concat(cleaned_results, ignore_index=True)
+        for _, row in df.iterrows():
+            result, metadata = self._search_and_merge(row, instance, spec, params, concat_results, to_dataframe)
+            all_results.append(result)
+            all_metadata.append({row.name: metadata})
+
+        if to_dataframe:
+            # Unpack (df, metadata) tuples; metadata currently unused
+            dfs = [res[0] if isinstance(res, tuple) else res for res in all_results]
+
+            if not dfs or all([r.empty for r in dfs if isinstance(r, pd.DataFrame)]):
+                return pd.DataFrame(), {}
+
+            # Ensure unique column names in each DataFrame before concatenation
+            cleaned_results = []
+            for result in dfs:
+                if isinstance(result, pd.DataFrame):
+                    if result.empty:
+                        continue
+                    result = result.loc[:, ~pd.Index(result.columns).duplicated()]
+                cleaned_results.append(result)
+
+            return pd.concat(cleaned_results, ignore_index=True), all_metadata
+        else:
+            # Flatten list of lists of dicts
+            flattened_results = []
+            for result in all_results:
+                payload = result[0] if isinstance(result, tuple) else result
+                # Normalize to list[dict]; avoid accidentally extending with DataFrame columns
+                if isinstance(payload, pd.DataFrame):
+                    payload = payload.to_dict(orient="records")
+                elif isinstance(payload, dict):
+                    payload = [payload]
+                flattened_results.extend(payload)
+            return flattened_results, all_metadata
     
     def enrich(
             self,
-            df: pd.DataFrame,
+            data: pd.DataFrame|List[Dict[str, Any]]|Dict[str, Any],
             concat_results: bool = True,
+            to_dataframe: bool = True
     ):
         """
         Enrich the input DataFrame with cross-references from specified endpoints.
         """
-        self._validate_dataframe(df)
+        # For an easier handling, convert input data to DataFrame if needed
+        if isinstance(data, list) or isinstance(data, dict):
+            df = pd.DataFrame(data)
+        elif isinstance(data, pd.DataFrame):
+            df = data
+        else:
+            raise ValueError("Input data must be a pandas DataFrame, list of dicts, or dict.")
+            
 
         results = {}
+        metadata = []
 
         for spec in self.endpoint_specs:
             log.debug(f"Processing {spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''}...")
@@ -230,27 +277,41 @@ class CrossRefEnricher():
             
             instance = self._build_interface(spec.database)
             params = self._prepare_params(spec)
+            print(spec.database, spec, spec)
 
-            tmp_df = self._process_dataframe(df, instance, spec, params)
+            processed_data, processed_metadata = self._process_dataframe(df, instance, spec, params, concat_results, to_dataframe)
 
             results.update(
                 {
-                    f"{spec.database}_{spec.endpoint}{'_' + spec.option if spec.option else ''}": tmp_df
-                    if isinstance(tmp_df, pd.DataFrame) and not tmp_df.empty
-                    else pd.DataFrame()
+                    f"{spec.database}_{spec.endpoint}{'_' + spec.option if spec.option else ''}": processed_data
                 }
             )
+            metadata.append(
+                {f"{spec.database}_{spec.endpoint}{'_' + spec.option if spec.option else ''}": processed_metadata}
+            )
 
-        frames = []
-        for df in results.values():
-            # 1) Flatten MultiIndex columns (if any)
-            if isinstance(df.columns, pd.MultiIndex):
-                df = df.copy(); df.columns = ['__'.join(map(str, c)) for c in df.columns]
-            # 2) Drop duplicate column names and reset index to avoid reindex issues on concat
-            frames.append(df.loc[:, ~pd.Index(df.columns).duplicated()].reset_index(drop=True))
+        if to_dataframe:
+            frames = []
+            for df in results.values():
+                # 1) Flatten MultiIndex columns (if any)
+                if isinstance(df.columns, pd.MultiIndex):
+                    df = df.copy(); df.columns = ['__'.join(map(str, c)) for c in df.columns]
+                # 2) Drop duplicate column names and reset index to avoid reindex issues on concat
+                frames.append(df.loc[:, ~pd.Index(df.columns).duplicated()].reset_index(drop=True))
 
-        out = pd.concat(frames, axis=0, ignore_index=True, sort=False)
-
-        if concat_results:
-            return out
-        return results
+            if concat_results:
+                if frames and any([not f.empty for f in frames]):
+                    out = pd.concat(frames, axis=0, ignore_index=True, sort=False)
+                    return out, metadata
+                else:
+                    return pd.DataFrame(), metadata
+            else:
+                return results, metadata
+        else:
+            if concat_results:
+                # Flatten all dict lists into a single list
+                combined_results = []
+                for lst in results.values():
+                    combined_results.extend(lst)
+                return combined_results, metadata
+            return results, metadata

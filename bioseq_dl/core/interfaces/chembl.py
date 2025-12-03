@@ -31,6 +31,7 @@ log = get_logger("bioseq_dl.interfaces.chembl")
 # These methods accept SMILES, InChI Key and molecule ChEMBL_ID as arguments and in the case
 # of similarity searches an additional identity cut-off is needed.
 class ChEMBLInterface(BaseAPIInterface):
+    API_NAME = "ChEMBL"
     METHODS = {
         "target": {
             "http_method": "GET",

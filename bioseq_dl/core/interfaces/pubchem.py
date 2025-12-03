@@ -29,6 +29,7 @@ log = get_logger("bioseq_dl.interfaces.pubchem")
 # PUG-View is used for getting full reports, including third-party textual annotation.
 
 class PubChemInterface(BaseAPIInterface):
+    API_NAME = "PubChem"
     METHODS = {
         "pug/compound": {
             **{k: COMPOUND_TEMPLATE for k in OPTIONS["pug/compound"]},

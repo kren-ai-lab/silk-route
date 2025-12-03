@@ -26,6 +26,7 @@ log = get_logger("bioseq_dl.interfaces.rhea")
 # -------------------------------------------------
 
 class RheaInterface(BaseAPIInterface):
+    API_NAME = "Rhea"
     METHODS = {
         "rhea": {
             "http_method": "GET",

@@ -26,6 +26,7 @@ log = get_logger("bioseq_dl.interfaces.biodbnet")
 
 
 class BioDBNetInterface(BaseAPIInterface):
+    API_NAME = "BioDBNet"
     METHODS = {
         "getpathways": {
             "http_method": "GET",

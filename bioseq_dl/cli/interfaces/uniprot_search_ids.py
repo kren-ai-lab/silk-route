@@ -1,10 +1,14 @@
 import logging
-import pandas as pd 
-import argparse
+import os
+import pandas as pd
 import typer
+import json
 from bioseq_dl import UniprotInterface
 from bioseq_dl.constants.databases import DATABASES
 from bioseq_dl.constants.uniprot import VALID_FIELDS, VALID_CROSS_REF_FIELDS
+
+from bioseq_dl.logging import configure_logging
+from bioseq_dl.core.utils.crossref_enrichment import run_crossref_enrichment
 
 app = typer.Typer(help="Search and download sequences from UniProt using IDs.")
 
@@ -61,27 +65,74 @@ def run(
         min_identity: float = typer.Option(
             None, "--min_identity", 
             help="Minimum identity threshold for BLAST search."
+        ),
+            debug: bool = typer.Option(
+            False, "--debug",
+            help="Enable debug logging"
         )
     ):
+    logger = log
+    try:
+        if debug:
+            configure_logging(level=logging.DEBUG)
+            logger = get_logger("bioseq_dl.cli.uniprot_search_query")  # re-fetch so root handlers pick new level
+            logger.debug("Debug logging enabled")
+    except Exception as e:
+        logger.warning(f"Could not configure logging: {e}")
+
     df = pd.read_csv(input)
 
-    # Filter by identity
-    
+    # Filter by identity if present
     if min_identity is not None and 'identity' in df.columns:
         df = df[df['identity'] >= min_identity]
 
-    log.info("Downloading data in batches of %d", batch_size)
+    metadata = {}
+    log.info("Downloading additional UniProt data...")
     instance = UniprotInterface()
-    results = instance.download_batch(df, column, auto_db, from_db, to_db, batch_size)
+    logger.debug(f"Downloading data using blast results\nfields {fields}\ncrossref_fields {crossref_fields}\n")
+
+    response, fetch_metadata = instance.download_batch(
+        df, 
+        "accession", 
+        True, 
+        "UniProtKB_AC-ID", 
+        "UniProtKB", 
+        5000
+    )
+    metadata["fetch"] = fetch_metadata
+
+    # Create folder for output if it does not exist
+    os.makedirs(output, exist_ok=True)
 
     # Save raw results
-    with open(output + ".json", 'w') as f:
-        for result in results:
-            f.write(str(result) + '\n')
-    log.info(f"Raw results saved to {output + '.json'}")
+    with open(f"{output}/raw_response.json", "w") as f:
+        json.dump(response, f, indent=2, default=str)
 
-    xref = [VALID_CROSS_REF_FIELDS[c] for c in crossref_fields.split(",") if c in VALID_CROSS_REF_FIELDS]
+    logger.info("Parsing results...")
+    export_df, parsed_metadata = instance.parse_results(
+        results=response,
+        extract_fields=None,
+        to_dataframe=True
+    )
+    metadata["parsing"] = parsed_metadata
 
-    export_df = instance.parse_results(results, fields.split(",") + xref)
-    export_df.to_csv(output, index=False)
-    log.info(f"Results saved to {output}")
+    if isinstance(export_df, pd.DataFrame) and not export_df.empty:
+        if crossref_fields:
+            logger.info("Running cross-reference enrichment...")
+            enriched_data, enriched_metadata = run_crossref_enrichment(export_df, crossref_fields.split(","), concat_results=False, to_dataframe=True)
+            metadata["enrichement"] = enriched_metadata
+
+            if isinstance(enriched_data, pd.DataFrame) and not enriched_data.empty:
+                export_df = enriched_data
+            elif isinstance(enriched_data, dict):
+                for key, value in enriched_data.items():
+                    logger.info(f"Saving {key} results into {output} directory")
+                    value.to_csv(f"{output}/{key}_results.csv", index=False)
+            
+        export_df.to_csv(f"{output}/uniprot_results.csv", index=False)
+        with open(f"{output}/metadata.json", "w") as f:
+            json.dump(metadata, f, indent=2, default=str)
+        logger.info(f"Results saved to {output}/uniprot_results.csv")
+    else:
+        logger.warning("No UniProt data found for the BLAST results.")
+        

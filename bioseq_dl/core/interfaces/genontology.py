@@ -22,6 +22,7 @@ log = get_logger("bioseq_dl.interfaces.genontology")
 # -------------------------------------------------
 
 class GenOntologyInterface(BaseAPIInterface):
+    API_NAME = "GenOntology"
     METHODS = {
         "ontology-term": {
             "default": {

@@ -30,6 +30,7 @@ log = get_logger("bioseq_dl.interfaces.kegg")
 # Doing multiple entries at a time is more efficient, but it requires more complex coding.
 
 class KEGGInterface(BaseAPIInterface):
+    API_NAME = "KEGG"
     # TODO add more methods from KEGG API. DDI and Link should be added.
     METHODS = {
         "get": {

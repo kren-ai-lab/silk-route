@@ -26,6 +26,7 @@ log = get_logger("bioseq_dl.interfaces.pathwaycommons")
 
 
 class PathwayCommonsInterface(BaseAPIInterface):
+    API_NAME = "PathwayCommons"
     METHODS = {
         "fetch": {
             "http_method": "POST",

@@ -33,6 +33,7 @@ log = get_logger("bioseq_dl.interfaces.biogrid")
 # Error fetching data for {...}: Extra data: line 1 column 8 (char 7). Tried URL: https://webservice.thebiogrid.org/interactions?accessKey={ACCESS_KEY}&geneList=1148170|1148186|112090&searchBiogridIds=True&format=tab2
 # This error will go to a low priority issue, as it is not as used as the JSON format.
 class BioGRIDInterface(BaseAPIInterface):
+    API_NAME = "BioGRID"
     METHODS = {
         "interactions": {
             "http_method": "GET",

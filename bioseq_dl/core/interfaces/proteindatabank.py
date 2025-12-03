@@ -23,8 +23,11 @@ log = get_logger("bioseq_dl.interfaces.pdb")
 
 # Check https://data.rcsb.org/rest/v1/core/entry/4HHB for more attributes
 # rcsbapi package usage tutorial at: https://pdb101.rcsb.org/train/training-events/apis-python
+# more info: https://data.rcsb.org/rest/v1/schema/entry
+# more info: https://data.rcsb.org/redoc/index.html#tag/Entry-Service/operation/getEntryById
 
 class PDBInterface(BaseAPIInterface):
+    API_NAME = "PDB"
     METHODS = {
         "entry": {
             "http_method": "GET",
@@ -52,8 +55,6 @@ class PDBInterface(BaseAPIInterface):
         Args:.
             batch_size (int): Number of entries to process in each batch.
             download_structures (bool): Whether to download structure files. Default is False.
-            more info: https://data.rcsb.org/rest/v1/schema/entry
-            more info: https://data.rcsb.org/redoc/index.html#tag/Entry-Service/operation/getEntryById
             cache_dir (str): Directory to cache API responses. If None, defaults to the cache directory defined in constants.
             config_dir (str): Directory for configuration files. If None, defaults to the config directory defined in constants.
             output_dir (str): Directory to save downloaded files. If None, defaults to the cache directory.

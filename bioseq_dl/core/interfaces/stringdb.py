@@ -23,6 +23,7 @@ log = get_logger("bioseq_dl.interfaces.stringdb")
 ## More info about STRING API: https://string-db.org/cgi/help
 
 class StringInterface(BaseAPIInterface):
+    API_NAME = "STRING"
     METHODS = {
         "get_string_ids": {
             "http_method": "GET",

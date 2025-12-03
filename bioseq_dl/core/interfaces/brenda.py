@@ -24,6 +24,7 @@ log = get_logger("bioseq_dl.interfaces.brenda")
 
 # For aditional implementations see: https://www.brenda-enzymes.org/soap.php
 class BrendaInterface(BaseAPIInterface):
+    API_NAME = "BRENDA"
     METHODS = {
         "getKmValue": {
             "http_method": "GET",

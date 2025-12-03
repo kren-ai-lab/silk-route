@@ -50,7 +50,7 @@ def run_uniprot_query(query, fields, crossref_fields, sort, fmt, include_isoform
         log.info(f"Response received (status code {response.status_code})")
 
         log.info("Parsing response...")
-        df = instance.parse_stream_response(query=query, response=response, extract_fields=None)
+        df = instance.parse_results(results=response, extract_fields=None)
 
     except Exception as e:
         gui_logs.append(f"Error during UniProt query, see logs for details.")

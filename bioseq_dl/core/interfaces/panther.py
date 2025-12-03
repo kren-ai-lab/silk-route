@@ -23,6 +23,7 @@ log = get_logger("bioseq_dl.interfaces.panther")
 # -------------------------------------------------
 
 class PantherInterface(BaseAPIInterface):
+    API_NAME = "PANTHER"
     # Definition of methods for PANTHER API
     # Each parameter is a tuple with (type, default_value, primary_key)
     METHODS = {

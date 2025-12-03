@@ -22,6 +22,7 @@ log = get_logger("bioseq_dl.interfaces.pride")
 # -------------------------------------------------
 
 class PrideInterface(BaseAPIInterface):
+    API_NAME = "PRIDE"
     METHODS = {
         "search": {
             "projects": {

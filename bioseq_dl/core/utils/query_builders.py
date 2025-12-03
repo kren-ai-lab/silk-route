@@ -195,7 +195,7 @@ def build_query_biogrid_interactions(row, params):
 @register_query_builder("brenda", "getTemperatureStability")
 @register_query_builder("brenda", "getTemperatureRange")
 def build_query_brenda(row, params):
-    ec_numbers = to_str_list(row.get("ec_numbers"))
+    ec_numbers = to_str_list(row.get("ec"))
     if ec_numbers:
         return [{
             "ecNumber": ec,

@@ -1,5 +1,5 @@
 import os, json, logging
-from typing import Union, List, Dict, Optional, Literal
+from typing import Union, List, Dict, Optional, Literal, Tuple
 from requests import Request
 from requests.exceptions import RequestException
 
@@ -22,6 +22,7 @@ log = get_logger("bioseq_dl.interfaces.alphafold")
 # -------------------------------------------------
 
 class AlphafoldInterface(BaseAPIInterface):
+    API_NAME = "Alphafold"
     METHODS = {
         "prediction": {
             "http_method": "GET",
@@ -70,12 +71,12 @@ class AlphafoldInterface(BaseAPIInterface):
 
         self.structures = structures
 
-    def fetch_single(self, query: Union[str, dict], parse: bool = False, *args, **kwargs) -> Union[List, Dict, pd.DataFrame]:
+    def fetch_single(self, query: Union[str, dict], parse: bool = False, *args, **kwargs) -> Tuple[Union[List, Dict, pd.DataFrame], Dict]:
         if not isinstance(query, str):
             log.error("Query must be a string representing a AlphaFold ID.")
             return {}
 
-        result = super().fetch_single(query, parse=parse, *args, **kwargs)
+        result, metadata = super().fetch_single(query, parse=parse, *args, **kwargs)
 
         new_result = {}
         if self.structures:
@@ -88,15 +89,15 @@ class AlphafoldInterface(BaseAPIInterface):
                     self.download_structures(row_dict)
             elif isinstance(result, dict):
                 self.download_structures(result)
-            
-        return result
-    
-    def fetch_batch(self, queries: List[Union[str, dict]], parse: bool = False, *args, **kwargs) -> Union[List, pd.DataFrame]:
+
+        return result, metadata
+
+    def fetch_batch(self, queries: List[Union[str, dict]], parse: bool = False, *args, **kwargs) -> Tuple[Union[List, pd.DataFrame], Dict]:
         if not isinstance(queries, list) or not isinstance(queries[0], str):
             log.error("Queries must be a list of strings representing AlphaFold IDs.")
-            return []
-        
-        results = super().fetch_batch(queries, parse=parse, *args, **kwargs)
+            return [], {}
+
+        results, metadata = super().fetch_batch(queries, parse=parse, *args, **kwargs)
 
         new_results = []
         if self.structures:
@@ -113,7 +114,7 @@ class AlphafoldInterface(BaseAPIInterface):
         
         if new_results:
             return new_results
-        return results
+        return results, metadata
 
 
     def fetch(self, query: Union[str, dict, list], *, method: str = "prediction", **kwargs):
@@ -186,6 +187,9 @@ class AlphafoldInterface(BaseAPIInterface):
                 continue
 
             structure_url = parsed[url_key]
+            if not structure_url:
+                log.warning(f"{url_key} is empty; skipping download. {parsed}")
+                continue
             file_name = structure_url.split("/")[-1]
             file_path = os.path.join(self.output_dir, file_name)
 
@@ -310,4 +314,3 @@ class AlphafoldInterface(BaseAPIInterface):
                 json.dump(data, f, indent=4)
             
         return os.path.join(self.output_dir, f"{filename}.{extension}")
-

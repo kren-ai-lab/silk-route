@@ -210,6 +210,9 @@ def configure_logging(
     """
     Configure bioseq_dl logging once at program start (optional).
     """
+    # Deactivate zeep and urllib3 logging by default
+    logging.getLogger("zeep").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
     _manager.configure(
         enable=enable,
         level=level,

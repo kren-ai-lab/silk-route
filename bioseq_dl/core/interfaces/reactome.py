@@ -21,6 +21,7 @@ log = get_logger("bioseq_dl.interfaces.reactome")
 # TODO - Need to review other methods besides data-discover
 
 class ReactomeInterface(BaseAPIInterface):
+    API_NAME = "Reactome"
     METHODS = {
         "data-discover": {
             "http_method": "GET",

@@ -27,6 +27,7 @@ log = get_logger("bioseq_dl.interfaces.chebi")
 # Each paramether is a tuple with (type, default_value, primary_key)
 
 class ChEBIInterface(BaseAPIInterface):
+    API_NAME = "ChEBI"
     METHODS = {
         "compound": {
             "http_method": "GET",
