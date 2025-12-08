@@ -153,7 +153,7 @@ def run_blast(sequences: List[str], db_name: str, blast_type: str = "blastp", ev
         blast_type,
         "-query", "tmp/sequences.fasta",
         "-db", blast_db_path + "/db",
-        "-outfmt", "6",
+        "-outfmt", "6 qseqid sseqid pident length evalue bitscore qcovs",
         "-evalue", str(evalue),
     ]
 
@@ -181,6 +181,7 @@ def parse_blast_results(file_path: str, identity_threshold: float = 90.0):
                 "alignment_length": fields[3],
                 "evalue": fields[4],
                 "bit_score": fields[5],
+                "coverage": fields[6],
             })
     
     return parsed_results

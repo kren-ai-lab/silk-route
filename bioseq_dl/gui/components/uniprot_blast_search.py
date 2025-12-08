@@ -25,7 +25,7 @@ except Exception:
 log = get_logger("bioseq_dl.gui.components.uniprot_blast_search")
 # -------------------------------------------------
 
-def run_blast_from_file(file, seq_column, database, evalue, blast_type, min_identity, fields, crossref_fields):
+def run_blast_from_file(file, seq_column, database, evalue, blast_type, min_identity, min_coverage, fields, crossref_fields):
     gui_logs = []
     df, _ = load_dataframe(file)
     if df is None or df.empty:
@@ -73,6 +73,9 @@ def run_blast_from_file(file, seq_column, database, evalue, blast_type, min_iden
 
     df_blast["identity"] = df_blast["identity"].astype(float)
     df_blast = df_blast[df_blast['identity'] >= min_identity]
+
+    df_blast["coverage"] = df_blast["coverage"].astype(float)
+    df_blast = df_blast[df_blast['coverage'] >= min_coverage]
     
     instance = UniprotInterface()
     results = instance.download_batch(
@@ -130,6 +133,7 @@ def build_ui():
             value="blastp"
         )
         min_identity_input = gr.Number(label="Minimum Identity (%)", value=90.0)
+        coverage_input = gr.Number(label="Minimum Coverage (%)", value=0.0)
     with gr.Row():
         fields_select = gr.CheckboxGroup(
             choices=VALID_FIELDS,
@@ -154,7 +158,7 @@ def build_ui():
 
     run_btn.click(
         fn=run_blast_from_file,
-        inputs=[file_input, seq_column_dropdown, db_dropdown, evalue_input, blast_type_dropdown, min_identity_input, fields_select, crossref_select],
+        inputs=[file_input, seq_column_dropdown, db_dropdown, evalue_input, blast_type_dropdown, min_identity_input, coverage_input, fields_select, crossref_select],
         outputs=[results_out, logs_out]
     ).then(
         fn=lambda: [gr.update(visible=True), gr.update(visible=True), gr.update(visible=True)],

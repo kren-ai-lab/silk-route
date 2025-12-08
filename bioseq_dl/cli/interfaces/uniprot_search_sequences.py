@@ -79,6 +79,10 @@ def run(
         90.0, "--min_identity", 
         help="Minimum identity threshold for BLAST search."
     ),
+    min_coverage: float = typer.Option(
+        0.0, "--min_coverage", 
+        help="Minimum coverage threshold for BLAST search."
+    ),
     debug: bool = typer.Option(
         False, "--debug",
         help="Enable debug logging"
@@ -124,8 +128,14 @@ def run(
     df_blast = df_blast.rename(columns={seq_column: "sequence"})
 
     # Filter by identity threshold before exporting or enriching
-    df_blast["identity"] = pd.to_numeric(df_blast["identity"], errors="coerce")
-    df_blast = df_blast[df_blast["identity"] >= min_identity]
+    if "identity" in df_blast.columns:
+        df_blast["identity"] = pd.to_numeric(df_blast["identity"], errors="coerce")
+        df_blast = df_blast[df_blast["identity"] >= min_identity]
+
+    # Filter by coverage threshold before exporting or enriching
+    if "coverage" in df_blast.columns:
+        df_blast["coverage"] = pd.to_numeric(df_blast["coverage"], errors="coerce")
+        df_blast = df_blast[df_blast["coverage"] >= min_coverage]
 
     # Separate subject into source, accession, entry_name
     df_blast["source"] = df_blast["subject_id"].apply(lambda x: x.split("|")[0])
