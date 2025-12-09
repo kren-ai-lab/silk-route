@@ -43,7 +43,17 @@ class KEGGInterface(BaseAPIInterface):
             },
             "group_queries": ["entries"],
             "separator": "+",
-        }
+        },
+        "link": {
+            "http_method": "GET",
+            "path_param": DATABASES,
+            "parameters": {
+                "entries": (str, None, True),
+                "db": (str, None, False)
+            },
+            "group_queries": ["entries"],
+            "separator": "+",
+        },
     }
 
     def __init__(
@@ -154,13 +164,20 @@ class KEGGInterface(BaseAPIInterface):
                 log.warning(f"No response or invalid response for query {query} with method {method}.")
                 return {}
 
-            r = response.text.strip()
-            if r and "///" in r:
-                # Split entries by "///" and remove the last empty entry
-                r = r.split("\n///\n\n")
-                r[-1] = r[-1].replace("\n///", "")
-            else:
-                r = r.split("\n")
+            if method == "get":
+                r = response.text.strip()
+                if r and "///" in r:
+                    # Split entries by "///" and remove the last empty entry
+                    r = r.split("\n///\n\n")
+                    r[-1] = r[-1].replace("\n///", "")
+                else:
+                    r = r.split("\n")
+            elif method == "link":
+                r = response.text
+                r = [{
+                    "from": line.split("\t")[0],
+                    validated_params['db']: line.split("\t")[1]
+                } for line in r.split("\n") if line]
             return r # TODO check if for other functions we need to return json or text
         except requests.exceptions.RequestException as e:
             log.error(f"Error fetching data for {query} with method {method}: {e}")
@@ -190,40 +207,13 @@ class KEGGInterface(BaseAPIInterface):
         Returns:
             list: Parsed data as a list of dictionaries.
         """
-        type_response = kwargs.get("type_response", "entry")
-        columns = kwargs.get("columns", None)
-        delimiter = kwargs.get("delimiter", "\t")
-        header = kwargs.get("header", True)
+        method = kwargs.get("method", "get")
         if not data:
             log.warning("Tried to parse data but the data is empty or None.")
             return {}
 
-        if type_response not in ["table", "entry"]:
-            log.error("Type must be either 'table' or 'entry'.")
-            return {}
 
-        if type_response == "table":
-            #d = data.strip().split("\n")
-            if not data:
-                return {}
-            parsed_data = []
-            if columns:
-                headers = columns
-            else:
-                headers = data[0].split(delimiter)
-
-            if header:
-                data = data[1:]
-
-            for line in data:
-                values = line.split(delimiter)
-                if len(values) != len(headers):
-                    log.warning(f"Line '{line}' does not match header length. Skipping.")
-                    continue
-                entry = {headers[i]: values[i] for i in range(len(headers))}
-                parsed_data.append(entry)
-            return parsed_data
-        else:
+        if method == "get":
             #d = data.strip().split("///")[:-1]  # Split entries by "///" and remove the last empty entry
 
             key_val_pattern = re.compile(r"^(\w+)(?:\s{2,}|\t+)(.+)$")
@@ -261,10 +251,17 @@ class KEGGInterface(BaseAPIInterface):
                 parsed_entry["NTLEN"] = parsed_entry["NTSEQ"].split(" ")[0]
                 parsed_entry["NTSEQ"] = "".join(parsed_entry["NTSEQ"].split(" ")[1:])
             
-
             return self._extract_fields(
                 parsed_entry, fields_to_extract
             )
+        
+        elif method == "link":
+            return data
+        else:
+            log.error(f"Parsing method '{method}' is not supported.")
+            return {}
+
+        
         
     def get_dummy(self, *, method: Optional[str] = None, **kwargs) -> dict:
         """

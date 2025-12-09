@@ -1,3 +1,14 @@
 get:
   entry: ENTRY 
   name: NAME
+  description: DESCRIPTION
+  symbol: SYMBOL
+  orthology: ORTHOLOGY
+  organism: ORGANISM
+  pathway: PATHWAY
+  network: NETWORK
+  brite: BRITE
+  motif: MOTIF
+  dblinks: DBLINKS
+  geme: GENE
+  compound: COMPOUND

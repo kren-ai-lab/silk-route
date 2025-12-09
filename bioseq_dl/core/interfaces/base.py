@@ -241,12 +241,15 @@ class BaseAPIInterface(ABC):
 
         return None
 
-    def save_cache(self, identifier: str, data: Union[List, Dict, pd.DataFrame]) -> None:
+    def save_cache(self, identifier: str, data: Union[List, Dict, pd.DataFrame, str]) -> None:
         """Save results to cache."""
         path = self._get_cache_path(identifier)
 
         if isinstance(data, pd.DataFrame):
             data.to_csv(path, index=False)
+        elif isinstance(data, str):
+            with open(path, 'w') as f:
+                f.write(data)
         else:
             with open(path, 'w') as f:
                 json.dump(data, f)
@@ -753,7 +756,13 @@ class BaseAPIInterface(ABC):
                     return pd.DataFrame(), metadata
             
             metadata["fetched_length"] = sum(len(v) for v in results.values() if isinstance(v, list))
-            return list(results.values()), metadata
+            
+            export_data = list(results.values())
+            
+            if len(export_data) == 1:
+                export_data = export_data[0]
+            
+            return export_data, metadata
         else:
             log.debug("Single query detected, proceeding with fetch.")
             params     = self._prepare_params(query, spec, **kwargs)
