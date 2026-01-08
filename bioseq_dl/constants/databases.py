@@ -22,6 +22,7 @@ DATABASES = {
     'refseq_ids': 'RefSeq',
     'rhea_ids': 'Rhea',
     'chebi_ids': 'ChEBI',
+    'sabiork_ids': 'SABIO-RK',
     'string_ids': 'STRING'
 }
 
@@ -125,6 +126,12 @@ INTERPRO = DBConfig(
     API_URL = "https://www.ebi.ac.uk:443/interpro/api/",
     CACHE_DIR = os.path.join(BASE_CACHE_DIR, "interpro"),
     CONFIG_DIR = os.path.join(BASE_CONFIG_DIR, "interpro")
+)
+
+SABIORK = DBConfig(
+    API_URL = "https://sabiork.h-its.org/sabioRestWebServices/",
+    CACHE_DIR=os.path.join(BASE_CACHE_DIR, "sabiork"),
+    CONFIG_DIR=os.path.join(BASE_CONFIG_DIR, "sabiork")
 )
 
 STRING = DBConfig(

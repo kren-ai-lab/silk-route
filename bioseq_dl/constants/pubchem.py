@@ -21,6 +21,7 @@ COMPOUND_TEMPLATE = {
         "smiles": (str, None, True),
         "inchi": (str, None, True),
         "property": (str, None, True),
+        "name_type": (str, "complete", True),
     },
     "group_queries": ["cid", "property"],
     "separator": ","

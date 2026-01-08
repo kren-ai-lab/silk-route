@@ -28,6 +28,7 @@ from bioseq_dl import (
     ReactomeInterface,
     RheaInterface,
     RefSeqInterface,
+    SabiorkInterface,
     StringInterface
 )
 
@@ -49,6 +50,7 @@ INTERFACE_CLASSES = {
     "reactome": ReactomeInterface,
     "rhea": RheaInterface,
     "refseq": RefSeqInterface,
+    "sabio-rk": SabiorkInterface,
     "string": StringInterface
 }
 
@@ -418,6 +420,18 @@ def build_query_refseq(row, params):
     ids_raw = to_str_list(row.get("refseq_ids"))
     if ids_raw:
         return ids_raw
+    else:
+        return []
+
+@register_query_builder("sabio-rk", "kineticlaws")
+def build_query_sabiork_kineticlaws(row, params):
+    sabiork_ids = to_str_list(row.get("sabiork_ids"))
+
+    if sabiork_ids:
+        return [{
+            "UniProtKB_AC": sabiork_id,
+            **params
+        } for sabiork_id in sabiork_ids]
     else:
         return []
 

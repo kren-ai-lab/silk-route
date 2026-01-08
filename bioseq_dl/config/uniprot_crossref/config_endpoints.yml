@@ -134,6 +134,11 @@ refseq:
   endpoints:
     protein:
       enabled: true
+sabio-rk:
+  enabled: true
+  endpoints:
+    kineticlaws:
+      enabled: true
 string:
   enabled: false
   endpoints:

@@ -225,6 +225,7 @@ class UniprotInterface(UniprotBase):
             'reactome_ids': ('uniProtKBCrossReferences', extract_database_terms),
             'refseq_ids': ('uniProtKBCrossReferences', extract_database_terms),
             'rhea_ids': ('comments', extract_database_terms),
+            'sabiork_ids': ('uniProtKBCrossReferences', extract_database_terms),
             'string_ids': ('uniProtKBCrossReferences', extract_database_terms),
             'references': ('references', extract_references),
             #'diseases': ('comments', extract_database_terms),

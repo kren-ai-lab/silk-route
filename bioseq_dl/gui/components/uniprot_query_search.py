@@ -39,18 +39,17 @@ def run_uniprot_query(query, fields, crossref_fields, sort, fmt, include_isoform
 
     try:
         log.info("Submitting stream request to UniProt...")
-        response = instance.submit_stream(
+        response, _ = instance.submit_stream(
             query=query,
             fields=",".join(fields + xref_fields),
             sort=sort,
             include_isoform=include_isoform,
             download=download,
-            format=fmt
         )
         log.info(f"Response received (status code {response.status_code})")
 
         log.info("Parsing response...")
-        df = instance.parse_results(results=response, extract_fields=None)
+        df, _ = instance.parse_results(results=response, extract_fields=None)
 
     except Exception as e:
         gui_logs.append(f"Error during UniProt query, see logs for details.")

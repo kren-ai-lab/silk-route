@@ -16,6 +16,7 @@ from .core.interfaces.pubchem import PubChemInterface
 from .core.interfaces.reactome import ReactomeInterface
 from .core.interfaces.refseq import RefSeqInterface
 from .core.interfaces.rhea import RheaInterface
+from .core.interfaces.sabiork import SabiorkInterface
 from .core.interfaces.stringdb import StringInterface
 from .core.interfaces.uniprot import UniprotInterface
 
@@ -39,6 +40,7 @@ __all__ = [
     "ReactomeInterface",
     "RefSeqInterface",
     "RheaInterface",
+    "SabiorkInterface",
     "StringInterface",
     "UniprotInterface"
 ]

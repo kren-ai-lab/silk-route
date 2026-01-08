@@ -1,6 +1,10 @@
 get:
   entry: ENTRY 
   name: NAME
+  class: CLASS
+  path_map: PATHWAY_MAP
+  ko_pathway: KO_PATHWAY
+  rel_pathway: REL_PATHWAY
   description: DESCRIPTION
   symbol: SYMBOL
   orthology: ORTHOLOGY
@@ -10,5 +14,23 @@ get:
   brite: BRITE
   motif: MOTIF
   dblinks: DBLINKS
-  geme: GENE
+  gene: GENE
   compound: COMPOUND
+  reference: REFERENCE
+pathways:
+  pathway_id: PATHWAY_ID
+  name: NAME
+  description: DESCRIPTION
+  class: CLASS
+  pathway_map: PATHWAY_MAP
+  network: NETWORK
+  organism: ORGANISM
+  gene: GENE
+  compound: COMPOUND
+  reference: REFERENCE
+  rel_pathway: REL_PATHWAY
+  ko_pathway: KO_PATHWAY
+  drug: DRUG
+  dblinkS: DBLINKS
+  disease: DISEASE
+  module: MODULE

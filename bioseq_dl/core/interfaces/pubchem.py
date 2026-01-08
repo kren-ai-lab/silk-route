@@ -1,6 +1,6 @@
 import os, logging, json
 import urllib.parse
-from typing import Union, List, Dict, Set, Optional
+from typing import Union, List, Dict, Set, Optional, Tuple
 from requests import Request, Response
 from requests.exceptions import RequestException
 
@@ -137,6 +137,7 @@ class PubChemInterface(BaseAPIInterface):
             **kwargs
         ):
         option_given = False
+        name_type = None
         option = kwargs.get("option", None)
         if option:
             option_given = True
@@ -166,8 +167,15 @@ class PubChemInterface(BaseAPIInterface):
         except ValueError as e:
             log.error(f"Invalid parameters for method '{method}': {e}")
             return {}
+        
+        if "name_type" in validated_params and method == "pug/compound":
+            if validated_params["name_type"] not in ["complete", "word"]:
+                log.error("Invalid value for 'name_type'. Allowed values are: 'complete', 'word', 'fragment'.")
+                return {}
+            else:
+                name_type = validated_params.pop("name_type")
 
-
+        # Validate if one and only one of the main identifiers is provided
         if method == "pug/compound":
             if sum(bool(inputs.get(validated_params)) for validated_params in ["cid", "name", "smiles", "inchi"]) != 1:
                 log.error("Only one 'cid', 'name', 'smiles', or 'inchi' parameters must be specified.")
@@ -223,6 +231,9 @@ class PubChemInterface(BaseAPIInterface):
             elif m == "taxonomy":
                 url += f"/{validated_params['taxid']}"
             url += "/JSON"  # Assuming JSON output for simplicity
+
+        if name_type:
+            url += f"?name_type={name_type}"
 
         response = Request(
             url=url,
@@ -322,9 +333,10 @@ class PubChemInterface(BaseAPIInterface):
             
         elif isinstance(parsed_data, dict) and self.is_pug_view_record(parsed_data):
             processed_data.append(self.process_sections(parsed_data))
-        
+
         else:
             processed_data = parsed_data
+
         
         return processed_data
 
@@ -387,12 +399,12 @@ class PubChemInterface(BaseAPIInterface):
         return export_data
 
     # Patch Solution
-    def fetch_single(self, query: Union[str, dict], parse: bool = False, *args, **kwargs) -> Union[List, Dict, pd.DataFrame]:
+    def fetch_single(self, query: Union[str, dict], parse: bool = False, *args, **kwargs) -> Tuple[Union[List, Dict, pd.DataFrame], Dict]:
         option = kwargs.pop("option", "default")
         return super().fetch_single(query=query, parse=parse, option=option, *args, **kwargs)
     
     # Patch Solution
-    def fetch_batch(self, queries: List[Union[str, dict]], parse: bool = False, *args, **kwargs) -> Union[List, pd.DataFrame]:
+    def fetch_batch(self, queries: List[Union[str, dict]], parse: bool = False, *args, **kwargs) -> Tuple[Union[List, pd.DataFrame], Dict]:
         option = kwargs.pop("option", "default")
         return super().fetch_batch(queries=queries, parse=parse, option=option, *args, **kwargs)
 

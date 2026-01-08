@@ -28,6 +28,7 @@ VALID_CROSS_REF_FIELDS = {
     "pride": "pride_ids",
     "refseq": "refseq_ids",
     "reactome": "reactome_ids",
+    "sabiork": "sabiork_ids",
     "string": "string_ids",
     "rhea": "rhea_ids",
 }
@@ -52,6 +53,7 @@ XREF_MAPPING = {
     "Rhea": ("rhea", "rhea"),
     #"PFAM": ("xref_pfam", None),
     "RefSeq": ("xref_refseq", "refseq"),
+    "SABIO-RK": ("xref_sabio-rk", "sabio-rk"),
     "StringDB": ("xref_string", "string"),
 }
 
