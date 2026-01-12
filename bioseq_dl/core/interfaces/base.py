@@ -4,7 +4,7 @@ import requests
 import itertools
 import yaml
 from collections import defaultdict
-from typing import Any, Set, Dict, List, Tuple, Union, ClassVar
+from typing import Any, Set, Dict, List, Tuple, Union, ClassVar, Literal, Optional
 from requests.models import Response, Request
 from requests.adapters import HTTPAdapter, Retry
 from requests.exceptions import RequestException
@@ -13,6 +13,7 @@ from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from typing import Union, List, Dict, Optional
 from itertools import permutations
+from dicttoxml import dicttoxml
 
 from ..utils.base_auxiliary_methods import get_feature_keys, get_nested, get_primary_keys, validate_parameters
 
@@ -295,12 +296,17 @@ class BaseAPIInterface(ABC):
         
         return None
 
-    def _maybe_parse(self, data, parse: bool, to_dataframe: bool = False, **kwargs) -> Union[List, Dict, pd.DataFrame]:
+    def _maybe_parse(
+            self, 
+            data, parse: bool, 
+            format: Literal["dataframe", "json", "xml"], 
+            **kwargs
+        ) -> Union[List, Dict, pd.DataFrame, bytes, str]:
         config_key = kwargs.pop("config_key", None)
         fields_to_extract = kwargs.pop("fields_to_extract", None)
 
-        log.debug("_maybe_parse called with parse={}, to_dataframe={}, config_key={}, fields_to_extract={}".format(
-            parse, to_dataframe, config_key, fields_to_extract
+        log.debug("_maybe_parse called with parse={}, format={}, config_key={}, fields_to_extract={}".format(
+            parse, format, config_key, fields_to_extract
         ))
         if parse:
             if not fields_to_extract and self.use_config:
@@ -331,7 +337,7 @@ class BaseAPIInterface(ABC):
             result = data
         
         # Convert to DataFrame if requested
-        if to_dataframe:
+        if format == "dataframe":
             log.debug("Converting result to DataFrame")
             # TODO: Make sure parse method returns a consistent structure
             if isinstance(result, list):
@@ -343,6 +349,20 @@ class BaseAPIInterface(ABC):
             else:
                 log.error(f"Cannot convert to DataFrame, unsupported type.")
                 raise ValueError(f"Cannot convert to DataFrame: unsupported type {type(result)}")
+        elif format == "xml":
+            log.debug(f"Converting result to XML")
+            if isinstance(result, dict):
+                xml_bytes = dicttoxml(result, custom_root='results', item_func=lambda x: 'entry', attr_type=False)
+                return xml_bytes
+            elif isinstance(result, list):
+                xml_bytes = dicttoxml({"item": result}, custom_root='results', item_func=lambda x: 'entry', attr_type=False)
+                return xml_bytes
+            else:
+                log.error(f"Cannot convert to XML, unsupported type.")
+                raise ValueError(f"Cannot convert to XML: unsupported type {type(result)}")
+        elif format == "json":
+            log.debug("Returning result as JSON")
+            return result
 
         return result
     
@@ -640,7 +660,7 @@ class BaseAPIInterface(ABC):
     # a batch of queries. They handle caching, parsing, and optional DataFrame conversion.
     ###################
     
-    def fetch_single(self, query: Union[str, dict], parse: bool = False, *args, **kwargs) -> Tuple[Union[List, Dict, pd.DataFrame], Dict]:
+    def fetch_single(self, query: Union[str, dict], parse: bool = False, *args, **kwargs) -> Tuple[Union[List, Dict, pd.DataFrame, bytes, str], Dict]:
         """
         General-purpose fetch method with optional parsing and cache handling.
 
@@ -650,7 +670,7 @@ class BaseAPIInterface(ABC):
         kwargs:
             config_key (str): Key to use for configuration settings.
             fields_to_extract (Optional[Union[list, dict]]): Fields to extract from the fetched data.
-            to_dataframe (bool): Whether to convert the result to a DataFrame.
+            format (Literal["dataframe", "json", "xml"]): Format of the output data.
         Returns:
             Tuple[Union[List, Dict, pd.DataFrame], Dict]: Fetched (and optionally parsed) data and metadata.
         """
@@ -668,7 +688,7 @@ class BaseAPIInterface(ABC):
             "option": ""
         }
         # Extract flags and avoid passing twice to _maybe_parse
-        to_dataframe = kwargs.pop("to_dataframe", False)
+        format       = kwargs.pop("format", "json")
         method       = kwargs.get("method", "NOT_GIVEN")
         option       = kwargs.get("option", None)
         
@@ -699,7 +719,7 @@ class BaseAPIInterface(ABC):
                     metadata["cached_ids"] = metadata.get("cached_ids", []) + [identifier]
                     metadata["cached_subqueries"] = metadata.get("cached_subqueries", []) + [subq]
                     raw = self.load_cache(cache_key)
-                    parsed = self._maybe_parse(data=raw, parse=parse, to_dataframe=to_dataframe, **kwargs)
+                    parsed = self._maybe_parse(data=raw, parse=parse, format=format, **kwargs)
                     results[identifier] = parsed
                 else:
                     log.debug(f"No cache found for identifier: {identifier}, will fetch.")
@@ -723,12 +743,12 @@ class BaseAPIInterface(ABC):
                     log.debug(f"Fetched {len(partial_result)} items for identifier {identifier}. Caching result.")
                     cache_key = self._make_cache_key(identifier, **kwargs)
                     self.save_cache(cache_key, partial_result)
-                    parsed = self._maybe_parse(data=partial_result, parse=parse, to_dataframe=to_dataframe, **kwargs)
+                    parsed = self._maybe_parse(data=partial_result, parse=parse, format=format, **kwargs)
                     results[identifier] = parsed
 
             # Additional check and convert needed. If many subqueries are brought,
-            # the result should be concatenated into a single DataFrame if to_dataframe=True
-            if to_dataframe:
+            # the result should be concatenated into a single DataFrame if format="dataframe"
+            if format == "dataframe":
                 dfs = []
                 log.debug("Converting results to DataFrames")
                 for data in results.values():
@@ -754,6 +774,22 @@ class BaseAPIInterface(ABC):
                     return export_df, metadata
                 else:
                     return pd.DataFrame(), metadata
+            elif format == "xml":
+                log.debug("Converting results to XML format")
+                combined_results = []
+                for data in results.values():
+                    if isinstance(data, list):
+                        combined_results.extend(data)
+                    else:
+                        combined_results.append(data)
+                xml_bytes = dicttoxml({"item": combined_results}, custom_root='results', item_func=lambda x: 'entry', attr_type=False)
+                metadata["fetched_length"] = len(combined_results)
+                metadata["execution_time"] = time.time() - t0
+                metadata["api_name"] = self.API_NAME
+                metadata["method"] = method
+                metadata["option"] = option
+
+                return xml_bytes, metadata
             
             metadata["fetched_length"] = sum(len(v) for v in results.values() if isinstance(v, list))
             
@@ -784,7 +820,7 @@ class BaseAPIInterface(ABC):
                 else:
                     metadata["failed_ids"] = [identifier]
             
-            parsed = self._maybe_parse(data=raw, parse=parse, to_dataframe=to_dataframe, **kwargs)
+            parsed = self._maybe_parse(data=raw, parse=parse, format=format, **kwargs)
             tmp_df = pd.DataFrame()
 
             if isinstance(parsed, list):
@@ -810,7 +846,12 @@ class BaseAPIInterface(ABC):
 
             return parsed, metadata
 
-    def fetch_batch(self, queries: List[Union[str, dict]], parse: bool = False, *args, **kwargs) -> Tuple[Union[List, pd.DataFrame], Dict]:
+    def fetch_batch(
+            self, 
+            queries: List[Union[str, dict]], 
+            parse: bool = False, 
+            *args, **kwargs
+        ) -> Tuple[Union[List, pd.DataFrame, bytes, str], Dict]:
         """
         Fetch data in parallel for a batch of queries.
         Args:
@@ -820,9 +861,9 @@ class BaseAPIInterface(ABC):
         kwargs:
             config_key (str): Key to use for configuration settings.
             fields_to_extract (Optional[Union[list, dict]]): Fields to extract from the fetched data.
-            to_dataframe (bool): Whether to convert the result to a DataFrame.
+            format (Literal["dataframe", "json", "xml"]): Format of the output data.
         Returns:
-            Tuple[Union[List, pd.DataFrame], Dict]: Fetched data, parsed if requested, and metadata.
+            Tuple[Union[List, pd.DataFrame, bytes, str], Dict]: Fetched (and optionally parsed) data and metadata.
         """
         metadata = {
             "cached_ids": [],
@@ -838,6 +879,7 @@ class BaseAPIInterface(ABC):
             "option": ""
         }
         method       = kwargs.get("method", "NOT_GIVEN")
+        format       = kwargs.pop("format", "json")
         option       = kwargs.get("option", None)
         results: List[Any] = []
 
@@ -864,7 +906,7 @@ class BaseAPIInterface(ABC):
                         metadata["cached_subqueries"] = metadata.get("cached_subqueries", []) + [subquery]
                         cached = self.load_cache(cache_key)
                         result = cached.to_dict(orient='records') if isinstance(cached, pd.DataFrame) else cached
-                        results.append(self._maybe_parse(data=result, parse=parse, **kwargs))
+                        results.append(self._maybe_parse(data=result, parse=parse, format=format, **kwargs))
                     else:
                         log.debug(f"No cache found for subquery identifier: {identifier}, will fetch.")
                         index_query_map[i] = query
@@ -878,7 +920,7 @@ class BaseAPIInterface(ABC):
                     metadata["cached_subqueries"] = metadata.get("cached_subqueries", []) + [query]
                     cached = self.load_cache(cache_key)
                     result = cached.to_dict(orient='records') if isinstance(cached, pd.DataFrame) else cached
-                    results.append(self._maybe_parse(data=result, parse=parse, **kwargs))
+                    results.append(self._maybe_parse(data=result, parse=parse, format=format, **kwargs))
                 else:
                     log.debug(f"No cache found for query at index {i}, will fetch.")
                     index_query_map[i] = query

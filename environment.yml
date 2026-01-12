@@ -4,14 +4,7 @@ channels:
   - defaults
 dependencies:
   - blast
+  - python==3.13.3
+  - pip
   - pip:
-    - pandas
-    - tqdm
-    - requests
-    - rcsb-api
-    - biopython
-    - zeep
-    - dotenv
-    - pyyaml
-    - beautifulsoup4
-    - typer
+    - -e .

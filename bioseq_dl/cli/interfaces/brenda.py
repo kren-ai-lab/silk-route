@@ -31,7 +31,7 @@ def run_km_values(
         query=query,
         method="getKmValue",
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     ))
 
     if output:
@@ -58,7 +58,7 @@ def run_ic50_values(
     if ic50_value_max: query["ic50ValueMaximum"] = ic50_value_max
     if organism: query["organism"] = organism
 
-    df = pd.DataFrame(instance.fetch_single(query=query, method="getIc50Value", parse=True, to_dataframe=True))
+    df = pd.DataFrame(instance.fetch_single(query=query, method="getIc50Value", parse=True, format="dataframe"))
     if output: df.to_csv(output, index=False)
     else: print(df.head(5))
 
@@ -83,7 +83,7 @@ def run_kcat_km_values(
     if kcat_km_value_max: query["kcatKmValueMaximum"] = kcat_km_value_max
     if organism: query["organism"] = organism
 
-    df = pd.DataFrame(instance.fetch_single(query=query, method="getKcatKmValue", parse=True, to_dataframe=True))
+    df = pd.DataFrame(instance.fetch_single(query=query, method="getKcatKmValue", parse=True, format="dataframe"))
     if output: df.to_csv(output, index=False)
     else: print(df.head(5))
 
@@ -108,7 +108,7 @@ def run_ki_values(
     if ki_value_max: query["kiValueMaximum"] = ki_value_max
     if organism: query["organism"] = organism
 
-    df = pd.DataFrame(instance.fetch_single(query=query, method="getKiValue", parse=True, to_dataframe=True))
+    df = pd.DataFrame(instance.fetch_single(query=query, method="getKiValue", parse=True, format="dataframe"))
     if output: df.to_csv(output, index=False)
     else: print(df.head(5))
 
@@ -132,7 +132,7 @@ def run_ph_range(
     if ph_range_max: query["phRangeMaximum"] = ph_range_max
     if organism: query["organism"] = organism
 
-    df = pd.DataFrame(instance.fetch_single(query=query, method="getPhRange", parse=True, to_dataframe=True))
+    df = pd.DataFrame(instance.fetch_single(query=query, method="getPhRange", parse=True, format="dataframe"))
     if output: df.to_csv(output, index=False)
     else: print(df.head(5))
 
@@ -157,7 +157,7 @@ def run_ph_optimum(
     if ph_optimum_max: query["phOptimumMaximum"] = ph_optimum_max
     if organism: query["organism"] = organism
 
-    df = pd.DataFrame(instance.fetch_single(query=query, method="getPhOptimum", parse=True, to_dataframe=True))
+    df = pd.DataFrame(instance.fetch_single(query=query, method="getPhOptimum", parse=True, format="dataframe"))
     if output: df.to_csv(output, index=False)
     else: print(df.head(5))
 
@@ -181,7 +181,7 @@ def run_ph_stability(
     if ph_stability_max: query["phStabilityMaximum"] = ph_stability_max
     if organism: query["organism"] = organism
 
-    df = pd.DataFrame(instance.fetch_single(query=query, method="getPhStability", parse=True, to_dataframe=True))
+    df = pd.DataFrame(instance.fetch_single(query=query, method="getPhStability", parse=True, format="dataframe"))
     if output: df.to_csv(output, index=False)
     else: print(df.head(5))
 
@@ -200,7 +200,7 @@ def run_cofactor(
     if ec_number: query["ecNumber"] = ec_number
     if organism: query["organism"] = organism
 
-    df = pd.DataFrame(instance.fetch_single(query=query, method="getCofactor", parse=True, to_dataframe=True))
+    df = pd.DataFrame(instance.fetch_single(query=query, method="getCofactor", parse=True, format="dataframe"))
     if output: df.to_csv(output, index=False)
     else: print(df.head(5))
 
@@ -223,7 +223,7 @@ def run_temperature_optimum(
     if temperature_optimum_max: query["temperatureOptimumMaximum"] = temperature_optimum_max
     if organism: query["organism"] = organism
 
-    df = pd.DataFrame(instance.fetch_single(query=query, method="getTemperatureOptimum", parse=True, to_dataframe=True))
+    df = pd.DataFrame(instance.fetch_single(query=query, method="getTemperatureOptimum", parse=True, format="dataframe"))
     if output: df.to_csv(output, index=False)
     else: print(df.head(5))
 
@@ -246,7 +246,7 @@ def run_temperature_stability(
     if temperature_stability_max: query["temperatureStabilityMaximum"] = temperature_stability_max
     if organism: query["organism"] = organism
 
-    df = pd.DataFrame(instance.fetch_single(query=query, method="getTemperatureStability", parse=True, to_dataframe=True))
+    df = pd.DataFrame(instance.fetch_single(query=query, method="getTemperatureStability", parse=True, format="dataframe"))
     if output: df.to_csv(output, index=False)
     else: print(df.head(5))
 
@@ -269,6 +269,6 @@ def run_temperature_range(
     if temperature_range_max: query["temperatureRangeMaximum"] = temperature_range_max
     if organism: query["organism"] = organism
 
-    df = pd.DataFrame(instance.fetch_single(query=query, method="getTemperatureRange", parse=True, to_dataframe=True))
+    df = pd.DataFrame(instance.fetch_single(query=query, method="getTemperatureRange", parse=True, format="dataframe"))
     if output: df.to_csv(output, index=False)
     else: print(df.head(5))

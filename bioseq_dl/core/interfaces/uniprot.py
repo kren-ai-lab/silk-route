@@ -1,13 +1,13 @@
 import requests, re, zlib, json, time
-from typing import List, Dict, Optional, Tuple
-import csv
+from typing import List, Dict, Optional, Tuple, Literal
+import xml.etree.ElementTree as ET
 import pandas as pd
 import logging
 from tqdm import tqdm
 from requests.adapters import HTTPAdapter, Retry
 from xml.etree import ElementTree
-from io import StringIO
 from datetime import datetime
+from dicttoxml import dicttoxml
 
 from urllib.parse import urlparse, parse_qs, urlencode
 
@@ -24,6 +24,8 @@ from ..utils.uniprot_auxiliary_methods import (
 )
 
 from bioseq_dl.constants.databases import DATABASES
+from bioseq_dl.core.utils.xmlhandler import dict_to_elementtree
+
 
 # ----- Optional logging (fallback to stdlib) -----
 try:
@@ -516,45 +518,64 @@ class UniprotInterface(UniprotBase):
 
         return parsed, metadata
 
-    def parse(self, results: Dict, extract_fields: Optional[List[str]], to_dataframe: bool = True) -> Tuple[pd.DataFrame, Dict] | Tuple[List[Dict], Dict]:
-        """Parse UniProt JSON results into a DataFrame"""
-        parsed_data = []
-        metadata = {}
+    # TODO eliminar bytes y str cuando ET este asegurado
+    def parse(
+            self, 
+            results: Dict | List[Dict], 
+            extract_fields: Optional[List[str]], 
+            format: Literal["json", "dataframe", "xml"] = "json"
+        ) -> Tuple[(pd.DataFrame | List[Dict] | bytes | str | ET.ElementTree), Dict | List[Dict]]:
+        """
+        Parse UniProt JSON results into a DataFrame
 
+        Args:
+            results (Dict): The JSON results from UniProt.
+            extract_fields (Optional[List[str]]): List of fields to extract.
+            format (Literal["json", "dataframe", "xml"]): The output format.
+        """
+        parsed = []
+        metadata = []
+        
         # Process successful results
+        if isinstance(results, Dict):
+            for result in results.get('results', []):
+                p, m = self._parse_result(result, extract_fields)
+                parsed.append(p)
+                metadata.append(m)
 
-        for result in results.get('results', []):
-            parsed, metadata = self._parse_result(result, extract_fields)
-            parsed_data.append(parsed)
+            # Process failed IDs
+            for failed_id in results.get('failedIds', []):
+                parsed.append({
+                    'uniprot_id': failed_id,
+                    'status': 'failed'
+                })
+                metadata.append({})
+        elif isinstance(results, List):
+            for res in results:
+                if isinstance(res, Dict):
+                    for result in res.get('results', []):
+                        p, m = self._parse_result(result, extract_fields)
+                        parsed.append(p)
+                        metadata.append(m)
 
-        # Process failed IDs
-        for failed_id in results.get('failedIds', []):
-            parsed_data.append({
-                'uniprot_id': failed_id,
-                'status': 'failed'
-            })
+                    # Process failed IDs
+                    for failed_id in res.get('failedIds', []):
+                        parsed.append({
+                            'uniprot_id': failed_id,
+                            'status': 'failed'
+                        })
+                        metadata.append({})
+                else:
+                    log.warning(f"Tried to parse non-dict result: {type(res)}, skipping.")
+                    continue
 
-        if to_dataframe:
-            return pd.DataFrame(parsed_data).dropna(axis=1, how='all'), metadata
+        if format == "dataframe":
+            return pd.DataFrame(parsed).dropna(axis=1, how='all'), metadata[0] if len(metadata) > 0 else metadata
+        elif format == "xml":
+            #xml_bytes = dicttoxml(parsed, custom_root='results', attr_type=False)
+            #return xml_bytes, metadata[0] if len(metadata) > 0 else metadata
+            
+            return dict_to_elementtree(parsed, root_tag="results"), metadata[0] if len(metadata) > 0 else metadata
+
         else:
-            return parsed_data, metadata
-
-    def parse_results(self, results: Dict | List[Dict], extract_fields: Optional[List[str]], to_dataframe: bool = True) -> pd.DataFrame | List[Dict]:
-        export_df = pd.DataFrame() if to_dataframe else []
-        metadata = {}
-
-        if isinstance(results, List):
-            for result in results:
-                parsed_results, metadata = self.parse(result, extract_fields, to_dataframe=to_dataframe)
-        elif isinstance(results, Dict):
-            parsed_results, metadata = self.parse(results, extract_fields, to_dataframe=to_dataframe)
-        else:
-            log.error("Invalid results format. Expected Dict or List[Dict].")
-            return export_df, metadata
-
-        if to_dataframe:
-            export_df = pd.concat([export_df, parsed_results], ignore_index=True)
-        else:
-            export_df.extend(parsed_results)
-
-        return export_df, metadata
+            return parsed, metadata[0] if len(metadata) > 0 else metadata

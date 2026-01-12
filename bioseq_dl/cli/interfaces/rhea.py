@@ -25,7 +25,7 @@ def run_search(
         query=query,
         method="rhea",
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output_file:

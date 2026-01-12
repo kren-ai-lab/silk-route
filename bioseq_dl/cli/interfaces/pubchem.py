@@ -42,7 +42,7 @@ def run_compound(
         method="compound", 
         option=option,
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output_file:
@@ -68,7 +68,7 @@ def run_protein(
             method="protein",
             option=option,
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         )
     else:
         result = interface.fetch_single(
@@ -76,7 +76,7 @@ def run_protein(
             method="protein",
             option=option,
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         )
     
     if output_file:
@@ -115,7 +115,7 @@ def run_gene(
         method="gene",
         option=option,
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output_file:
@@ -139,14 +139,14 @@ def run_compound_view(
             queries=[c.strip() for c in cid.split(",")],
             method="pug_view/compound",
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         )
     else:
         result = interface.fetch_single(
             cid.strip(),
             method="pug_view/compound",
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         )
     
     if output_file:
@@ -170,14 +170,14 @@ def run_protein_view(
             queries=[acc.strip() for acc in accession.split(",")],
             method="pug_view/protein",
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         )
     else:
         result = interface.fetch_single(
             accession,
             method="pug_view/protein",
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         )
     
     if output_file:
@@ -202,14 +202,14 @@ def run_gene_view(
             queries=[gid.strip() for gid in geneid.split(",")],
             method="pug_view/gene",
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         )
     else:
         result = interface.fetch_single(
             geneid.strip(),
             method="pug_view/gene",
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         )
     
     if output_file:
@@ -234,14 +234,14 @@ def run_pathway_view(
             queries=[{"source": source, "id": pid.strip()} for pid in id.split(",")],
             method="pug_view/pathway",
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         )
     else:
         result = interface.fetch_single(
             query={"source": source, "id": id.strip()},
             method="pug_view/pathway",
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         )
 
     if output_file:
@@ -265,14 +265,14 @@ def run_taxonomy_view(
             queries=[tid.strip() for tid in taxid.split(",")],
             method="pug_view/taxonomy",
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         )
     else:
         result = interface.fetch_single(
             taxid.strip(),
             method="pug_view/taxonomy",
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         )
     
     if output_file:

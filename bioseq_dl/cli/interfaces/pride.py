@@ -53,7 +53,7 @@ def run_search_projects(
         option="projects",
         query=query,
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output_file:
@@ -86,7 +86,7 @@ def run_projects(
         option="default",
         query=query,
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output_file:
@@ -128,7 +128,7 @@ def run_similar_projects(
         option="similarProjects",
         query=query,
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output_file:

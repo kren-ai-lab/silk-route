@@ -17,14 +17,14 @@ def run_ontology_term(
             queries=goids,
             method="ontology-term",
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         )
     else:
         df = instance.fetch_single(
             query=goid,
             method="ontology-term",
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         )
 
     if output:
@@ -46,14 +46,14 @@ def run_go(
             queries=goids,
             method="go",
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         )
     else:
         df = instance.fetch_single(
             query=goid,
             method="go",
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         )
 
     if output:
@@ -75,14 +75,14 @@ def run_bioentity_function(
             queries=goids,
             method="bioentity-function",
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         )
     else:
         df = instance.fetch_single(
             query=goid,
             method="bioentity-function",
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         )
 
     if output:

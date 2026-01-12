@@ -60,7 +60,7 @@ def pubchem_search_query(query: str, exact_match: bool = False) -> Tuple[pd.Data
             queries=query_dict,
             method="pug/compound",
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         )
         if not isinstance(cids_df, pd.DataFrame) or cids_df.empty:
             log.warning(f"No CIDs found for the given {query_type.upper()}s.")
@@ -73,7 +73,7 @@ def pubchem_search_query(query: str, exact_match: bool = False) -> Tuple[pd.Data
             queries=query_dict,
             method="pug_view/compound",
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         )
     elif query_type == "gene":
         query_dict = [{"geneid": query.strip()} for query in query.split(",")]
@@ -82,7 +82,7 @@ def pubchem_search_query(query: str, exact_match: bool = False) -> Tuple[pd.Data
             queries=query_dict,
             method="pug_view/gene",
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         )
     else:
         log.error(f"Unsupported query type: {query_type}")
@@ -123,7 +123,7 @@ def chembl_search_query(query: str, exact_match: bool = False) -> Tuple[pd.DataF
             query=query_dict,
             method="molecule",
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         )
     elif query_type == "smiles":
         query_dict = {
@@ -140,7 +140,7 @@ def chembl_search_query(query: str, exact_match: bool = False) -> Tuple[pd.DataF
             query=query_dict,
             method="molecule",
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         )
     elif query_type == "gene":
         query_dict = {
@@ -157,7 +157,7 @@ def chembl_search_query(query: str, exact_match: bool = False) -> Tuple[pd.DataF
             query=query_dict,
             method="target",
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         )
     elif query_type == "inchi":
         log.error("ChEMBL does not support InChI-based searches yet.")
@@ -187,7 +187,7 @@ def chebi_search_query(query: str) -> Tuple[pd.DataFrame, dict]:
         query=query,
         method="es_search",
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
     # Make query for every found chebi_id
     chebi_ids = export_df["chebi_accession"].tolist()
@@ -196,7 +196,7 @@ def chebi_search_query(query: str) -> Tuple[pd.DataFrame, dict]:
         query=query,
         method="compounds",
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if es_search_metadata and isinstance(es_search_metadata, dict):

@@ -25,7 +25,7 @@ def run_get_string_ids(
         query=query,
         method="get_string_ids",
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output_file:
@@ -55,7 +55,7 @@ def run_interaction_partners(
         query=query,
         method="interaction_partners",
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output_file:

@@ -171,7 +171,7 @@ results, _ = uniprot.download_batch(
     to_db="UniProtKB",
     batch_size=100
 )
-results_df, _ = uniprot.parse_results(results, None)
+results_df, _ = uniprot.parse(results, None)
 print(results_df)
 ```
 

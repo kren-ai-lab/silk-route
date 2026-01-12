@@ -1,6 +1,6 @@
 import logging
 import pandas as pd
-from typing import Tuple, Dict, Any
+from typing import Tuple, Dict, Any, Literal, List
 
 from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
 from bioseq_dl.core.interfacesconfig import ConfigLoader
@@ -18,9 +18,23 @@ except Exception:
 log = get_logger("bioseq_dl.core.utils.crossref_enrichment")
 # -------------------------------------------------
 
-def run_crossref_enrichment(df: pd.DataFrame, crossref_fields: list, concat_results: bool, to_dataframe: bool) -> Tuple[Any, Dict]:
-    if df.empty:
-        return df, {}
+def run_crossref_enrichment(data: pd.DataFrame | List[Dict] | bytes | str | Dict , crossref_fields: list, format: Literal["dataframe", "json", "xml"] = "json") -> Tuple[Any, Dict]:
+    if isinstance(data, pd.DataFrame) and data.empty:
+        log.warning("Input DataFrame is empty. Skipping crossref enrichment.")
+        return pd.DataFrame(), {}
+    elif isinstance(data, list) and len(data) == 0:
+        log.warning("Input list is empty. Skipping crossref enrichment.")
+        return pd.DataFrame(), {}
+    elif isinstance(data, dict) and len(data) == 0:
+        log.warning("Input dict is empty. Skipping crossref enrichment.")
+        return pd.DataFrame(), {}
+    elif isinstance(data, bytes) and data == b"":
+        log.warning("Input bytes is empty. Skipping crossref enrichment.")
+        return pd.DataFrame(), {}
+    elif isinstance(data, str) and data.strip() == "":
+        log.warning("Input string is empty. Skipping crossref enrichment.")
+        return pd.DataFrame(), {}
+
     log.info(f"Running crossref enrichment for fields: {crossref_fields}")
     config = ConfigLoader(config_dir=str(BASE_CONFIG_DIR) + "/uniprot_crossref")
     config.load_config("config_endpoints")
@@ -60,7 +74,7 @@ def run_crossref_enrichment(df: pd.DataFrame, crossref_fields: list, concat_resu
 
     log.debug(f"Final endpoint specs: {endpoint_specs}")
     enricher = CrossRefEnricher(endpoint_specs)
-    enriched_data, enriched_metadata = enricher.enrich(df, concat_results=concat_results, to_dataframe=to_dataframe)
+    enriched_data, enriched_metadata = enricher.enrich(data, format=format)
     
     # Normalize metadata to a dict to satisfy the annotated return type
     if enriched_metadata is None:

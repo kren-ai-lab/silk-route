@@ -78,7 +78,7 @@ def run_blast_from_file(file, seq_column, database, evalue, blast_type, min_iden
     df_blast = df_blast[df_blast['coverage'] >= min_coverage]
     
     instance = UniprotInterface()
-    results = instance.download_batch(
+    results, _ = instance.download_batch(
         df_blast,
         "accession", 
         False, 
@@ -94,7 +94,7 @@ def run_blast_from_file(file, seq_column, database, evalue, blast_type, min_iden
     # Probably this can be optimized
     xref = [XREF_MAPPING[c][1] for c in crossref_fields if c in XREF_MAPPING if XREF_MAPPING[c][1]]
     xref = [VALID_CROSS_REF_FIELDS[x] for x in xref if x in VALID_CROSS_REF_FIELDS]
-    export_df = instance.parse_results(results, fields + xref)
+    export_df, _ = instance.parse(results, fields + xref, format="dataframe")
 
     if crossref_fields:
         gui_logs.append(f"Running cross-reference enrichment for fields: {', '.join(crossref_fields)}")

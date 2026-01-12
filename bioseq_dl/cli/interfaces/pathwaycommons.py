@@ -35,7 +35,7 @@ def run_top_pathways(
         query=query_params,
         method="top_pathways",
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output:
@@ -68,7 +68,7 @@ def run_fetch(
         },
         method="fetch",
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output:
@@ -121,7 +121,7 @@ def run_neighborhood(
         query=query_params,
         method="neighborhood",
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output:

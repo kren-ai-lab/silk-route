@@ -39,14 +39,14 @@ def run_prediction(
             queries=ids,
             method="prediction",
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         ))
     else:
         df = pd.DataFrame(instance.fetch_single(
             query=id,
             method="prediction",
             parse=True, 
-            to_dataframe=True
+            format="dataframe"
         ))
 
     if output:

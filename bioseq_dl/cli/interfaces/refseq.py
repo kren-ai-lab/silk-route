@@ -18,7 +18,7 @@ def run_protein(
         query=id.split(","),
         method="protein",
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output_file:
@@ -41,7 +41,7 @@ def run_gene(
         query=id.split(","),
         method="gene",
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output_file:
@@ -64,7 +64,7 @@ def run_popset(
         query=id.split(","),
         method="popset",
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output_file:

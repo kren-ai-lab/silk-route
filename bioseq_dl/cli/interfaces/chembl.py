@@ -22,7 +22,7 @@ def run_activity(
         query=query,
         pages_to_fetch=1,
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output:
@@ -45,7 +45,7 @@ def run_binding_site(
         query=query,
         pages_to_fetch=1,
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output:

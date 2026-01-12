@@ -23,7 +23,7 @@ def run_compound(
         method="compound",
         query=query,
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output:
@@ -49,7 +49,7 @@ def run_compounds(
         queries=ids_list,
         query=query,
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output:
@@ -76,7 +76,7 @@ def run_es_search(
         method="es_search",
         query=query,
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output:
@@ -100,7 +100,7 @@ def run_ontology_children(
         method="ontology-children",
         query=query,
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output:
@@ -123,7 +123,7 @@ def run_ontology_parents(
         method="ontology-parents",
         query=query,
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output:

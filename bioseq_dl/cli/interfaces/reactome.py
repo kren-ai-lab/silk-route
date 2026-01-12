@@ -19,7 +19,7 @@ def run_discover(
         query,
         method="data-discover",
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output_file:

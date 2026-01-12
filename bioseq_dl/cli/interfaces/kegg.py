@@ -38,7 +38,7 @@ def run_get(
         query=query,
         method="get",
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output:

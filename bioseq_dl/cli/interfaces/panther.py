@@ -31,7 +31,7 @@ def run_geneinfo(
         query=query,
         method="geneinfo",
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output:
@@ -66,7 +66,7 @@ def run_familyortholog(
         query=query,
         method="familyortholog",
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output:
@@ -100,7 +100,7 @@ def run_familymsa(
         query=query,
         method="familymsa",
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output:

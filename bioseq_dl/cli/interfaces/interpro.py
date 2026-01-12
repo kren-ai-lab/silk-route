@@ -57,7 +57,7 @@ def run_entry(
         query=query,
         method="entry",
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )
 
     if output:

@@ -32,14 +32,14 @@ def run_fetch_entry(
             queries=pdb_id.split(","),
             method="entry",
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         )
     else:
         results = interface.fetch_single(
             query=pdb_id,
             method="entry",
             parse=True,
-            to_dataframe=True
+            format="dataframe"
         )
 
     if output_file:

@@ -44,7 +44,7 @@ def run_db2db(
         },
         method="db2db",
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )).dropna(axis=1, how='all')
 
     if output:
@@ -82,7 +82,7 @@ def run_pathways(
         },
         method="getpathways",
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     )).dropna(axis=1, how='all')
 
     if output:

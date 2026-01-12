@@ -45,7 +45,7 @@ def run_interactions(
         query=query,
         method="interactions",
         parse=True,
-        to_dataframe=True
+        format="dataframe"
     ))
 
     if output:

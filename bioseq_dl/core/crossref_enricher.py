@@ -1,11 +1,14 @@
 from __future__ import annotations
-import os, logging
+import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Any,Tuple
+from typing import Dict, List, Optional, Any, Tuple, Literal
+from xml.etree.ElementTree import ElementTree, Element
 import pandas as pd
 
 from bioseq_dl.core.utils.query_builders import QUERY_BUILDERS, INTERFACE_CLASSES
 from bioseq_dl.constants.databases import BASE_CONFIG_DIR
+
+from bioseq_dl.core.utils.xmlhandler import elementtree_to_dataframe
 
 # ----- Optional logging (fallback to stdlib) -----
 try:
@@ -125,8 +128,8 @@ class CrossRefEnricher():
         instance: Any,
         spec: EndpointSpec,
         params: Dict[str, Any],
-        concat_results: bool = True,
-        to_dataframe: bool = True
+        #concat_results: bool = True,
+        format: Literal["dataframe", "json", "xml"] = "dataframe"
     ) -> Tuple[pd.DataFrame|List[Dict[str, Any]], Dict]:
         """
         Build query from row using the registered query-builder, perform fetch_single or fetch_batch,
@@ -141,7 +144,7 @@ class CrossRefEnricher():
         method_params = {
             "method": spec.endpoint,
             "parse": True,
-            "to_dataframe": to_dataframe
+            "format": format
         }
 
         if spec.option:
@@ -164,39 +167,40 @@ class CrossRefEnricher():
             )
         else:
             # Handle unexpected query_params format
-            if to_dataframe:
+            if format == "dataframe":
                 result = pd.DataFrame()
             else:
                 result = []
 
-        if to_dataframe:
+        if format == "dataframe":
             # Merge result with original row
             if not isinstance(result, pd.DataFrame) or result.empty:
-                if concat_results:
-                    return row.to_frame().T, metadata  # Return original row as single-row DataFrame
-                else:
-                    return result, metadata
+                # if concat_results:
+                #     return row.to_frame().T, metadata  # Return original row as single-row DataFrame
+                # else:
+                return result, metadata
             # Expand original row to match the number of result rows, then column-wise concat
-            if concat_results:
-                row_expanded = pd.concat(
-                    [pd.DataFrame([row] * len(result)).reset_index(drop=True),
-                        result.reset_index(drop=True)],
-                    axis=1
-                )
-                return row_expanded, metadata
-            else:
-                return result, metadata
+            # if concat_results:
+            #     row_expanded = pd.concat(
+            #         [pd.DataFrame([row] * len(result)).reset_index(drop=True),
+            #             result.reset_index(drop=True)],
+            #         axis=1
+            #     )
+            #     return row_expanded, metadata
+            # else:
+            return result, metadata
         else:
-            if concat_results:
-                # Merge each dict in result with original row dict
-                if not isinstance(result, list) or not result:
-                    return [row.to_dict()], metadata  # Return original row as single dict in list
-                merged_results = [
-                    {**row.to_dict(), **res} for res in result
-                ]
-                return merged_results, metadata
-            else:
-                return result, metadata
+            # if concat_results:
+            #     # Merge each dict in result with original row dict
+            #     if not isinstance(result, list) or not result:
+            #         return [row.to_dict()], metadata  # Return original row as single dict in list
+            #     merged_results = [
+            #         {**row.to_dict(), **res} for res in result
+            #     ]
+            #     return merged_results, metadata
+            # else:
+            return result, metadata
+
 
     def _process_dataframe(
             self,
@@ -204,9 +208,9 @@ class CrossRefEnricher():
             instance: Any,
             spec: EndpointSpec,
             params: Dict[str, Any],
-            concat_results: bool = True,
-            to_dataframe: bool = True
-    ) -> Tuple[pd.DataFrame|List[Dict[str, Any]], Dict]:
+            #concat_results: bool = True,
+            format: Literal["dataframe", "json", "xml"] = "dataframe"
+    ) -> Tuple[pd.DataFrame|List[Dict[str, Any]]|ElementTree[Element[str] | None], List[Dict]]:
         """
         Apply search-then-merge for every row and vertically concatenate all row-expansions.
         """
@@ -215,11 +219,11 @@ class CrossRefEnricher():
         all_results = []
 
         for _, row in df.iterrows():
-            result, metadata = self._search_and_merge(row, instance, spec, params, concat_results, to_dataframe)
+            result, metadata = self._search_and_merge(row, instance, spec, params, format)
             all_results.append(result)
             all_metadata.append({row.name: metadata})
 
-        if to_dataframe:
+        if format == "dataframe":
             # Unpack (df, metadata) tuples; metadata currently unused
             dfs = [res[0] if isinstance(res, tuple) else res for res in all_results]
 
@@ -236,24 +240,36 @@ class CrossRefEnricher():
                 cleaned_results.append(result)
 
             return pd.concat(cleaned_results, ignore_index=True), all_metadata
-        else:
-            # Flatten list of lists of dicts
-            flattened_results = []
+        elif format == "json":
+            cleaned_results = []
             for result in all_results:
-                payload = result[0] if isinstance(result, tuple) else result
-                # Normalize to list[dict]; avoid accidentally extending with DataFrame columns
-                if isinstance(payload, pd.DataFrame):
-                    payload = payload.to_dict(orient="records")
-                elif isinstance(payload, dict):
-                    payload = [payload]
-                flattened_results.extend(payload)
-            return flattened_results, all_metadata
-    
+                if isinstance(result, tuple):
+                    result = result[0]
+                if isinstance(result, list):
+                    cleaned_results.extend(result)
+            return cleaned_results, all_metadata
+        elif format == "xml":
+            # TODO check if this code is correct, i did a lot of changes recently regarding XML exporting
+            import xml.etree.ElementTree as ET
+            # Make final root
+            merged_root = ET.Element("results")
+
+            for xml_bytes in all_results:
+                # Parse each XML
+                root = ET.fromstring(xml_bytes)
+
+                # Copy all <item> to final root
+                for item in root.findall("item"):
+                    merged_root.append(item)
+
+            return ET.ElementTree(merged_root), all_metadata
+        else:
+            raise ValueError(f"Unsupported format: {format}")
+
     def enrich(
             self,
-            data: pd.DataFrame|List[Dict[str, Any]]|Dict[str, Any],
-            concat_results: bool = True,
-            to_dataframe: bool = True
+            data: pd.DataFrame|List[Dict[str, Any]]|Dict[str, Any] | ElementTree | str  ,
+            format: Literal["dataframe", "json", "xml"] = "dataframe"
     ):
         """
         Enrich the input DataFrame with cross-references from specified endpoints.
@@ -263,24 +279,29 @@ class CrossRefEnricher():
             df = pd.DataFrame(data)
         elif isinstance(data, pd.DataFrame):
             df = data
+        elif isinstance(data, ElementTree):
+            df = elementtree_to_dataframe(tree=data)
+        elif isinstance(data, str):
+            df = pd.read_json(data)
         else:
             raise ValueError("Input data must be a pandas DataFrame, list of dicts, or dict.")
-            
+        
 
         results = {}
         metadata = []
-
         for spec in self.endpoint_specs:
             log.debug(f"Processing {spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''}...")
+            log.info(f"Checking availability for interface: {spec.database}")
             self._check_interface_availability(spec.database)
+            log.info(f"Checking required columns for {spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''}...")
             self._check_required_columns(df, spec)
-            
+
+            log.info(f"Building interface for {spec.database}...")
             instance = self._build_interface(spec.database)
             params = self._prepare_params(spec)
-            print(spec.database, spec, spec)
+            log.info(f"Prepared params for {spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''}: {params}")
 
-            processed_data, processed_metadata = self._process_dataframe(df, instance, spec, params, concat_results, to_dataframe)
-
+            processed_data, processed_metadata = self._process_dataframe(df, instance, spec, params, format)
             results.update(
                 {
                     f"{spec.database}_{spec.endpoint}{'_' + spec.option if spec.option else ''}": processed_data
@@ -290,7 +311,7 @@ class CrossRefEnricher():
                 {f"{spec.database}_{spec.endpoint}{'_' + spec.option if spec.option else ''}": processed_metadata}
             )
 
-        if to_dataframe:
+        if format == "dataframe":
             frames = []
             for df in results.values():
                 # 1) Flatten MultiIndex columns (if any)
@@ -299,19 +320,21 @@ class CrossRefEnricher():
                 # 2) Drop duplicate column names and reset index to avoid reindex issues on concat
                 frames.append(df.loc[:, ~pd.Index(df.columns).duplicated()].reset_index(drop=True))
 
-            if concat_results:
-                if frames and any([not f.empty for f in frames]):
-                    out = pd.concat(frames, axis=0, ignore_index=True, sort=False)
-                    return out, metadata
-                else:
-                    return pd.DataFrame(), metadata
-            else:
-                return results, metadata
-        else:
-            if concat_results:
-                # Flatten all dict lists into a single list
-                combined_results = []
-                for lst in results.values():
-                    combined_results.extend(lst)
-                return combined_results, metadata
+            # if concat_results:
+            #     if frames and any([not f.empty for f in frames]):
+            #         out = pd.concat(frames, axis=0, ignore_index=True, sort=False)
+            #         return out, metadata
+            #     else:
+            #         return pd.DataFrame(), metadata
+            # else:
             return results, metadata
+        elif format in ["json", "xml"]:
+            # if concat_results:
+            #     # Flatten all dict lists into a single list
+            #     combined_results = []
+            #     for lst in results.values():
+            #         combined_results.extend(lst)
+            #     return combined_results, metadata
+            return results, metadata
+        else:
+            raise ValueError(f"Unsupported format: {format}")
