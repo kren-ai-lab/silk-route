@@ -403,7 +403,8 @@ class UniprotInterface(UniprotBase):
             fields: str, 
             sort: str, 
             include_isoform: Optional[bool] = False, 
-            download: Optional[bool] = False
+            download: Optional[bool] = False,
+            method: str = "uniprotkb"
             ) -> Tuple[Dict, Dict]:
         """
         Submit a query to the Uniprot stream API.
@@ -434,7 +435,7 @@ class UniprotInterface(UniprotBase):
             try:
                 time_started = time.time()
                 response = requests.get(
-                    f"{API_URL}/uniprotkb/stream",
+                    f"{API_URL}/{method}/stream",
                     params=parameters,
                     headers=headers,
                 )
