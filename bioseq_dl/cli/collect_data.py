@@ -21,9 +21,12 @@ from .interfaces.refseq import app as refseq_app
 from .interfaces.stringdb import app as stringdb_app
 from .interfaces.chemical_search_query import app as chemical_search_query_app
 
+from .task.protein import app as protein_app
+
 general_section = typer.Typer(help="Collect data from various biological databases using general search interfaces.")
 general_section.add_typer(chemical_search_query_app, name="chemical-search", help="General chemical search interface to query compounds by name, CID, SMILES, InChI, or gene ID.")
 general_section.add_typer(uniprot_app, name="uniprot")
+general_section.add_typer(protein_app, name="protein-search", help="Search and download proteins from UniProt using queries.")
 
 api_section = typer.Typer(help="Collect data from various biological databases using API nomenclature.")
 api_section.add_typer(alphafold_app, name="alphafold")
