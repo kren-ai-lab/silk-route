@@ -1,0 +1,164 @@
+METHODS = {
+    "getKmValue": {
+        "http_method": "GET",
+        "path_param": None,
+        "parameters": {
+            "ecNumber": (str, None, True),
+            "kmValue": (str, None, True),
+            "kmValueMaximum": (str, None, True),
+            "substrate": (str, None, True),
+            "commentary": (str, None, True),
+            "organism": (str, None, True),
+            "ligandStructureId": (str, None, True),
+            "literature": (str, None, True),
+        },
+        "group_queries": [None],
+        "separator": None
+    },
+    "getIc50Value": {
+        "http_method": "GET",
+        "path_param": None,
+        "parameters": {
+            "ecNumber": (str, None, True),
+            "ic50Value": (str, None, True),
+            "ic50ValueMaximum": (str, None, True),
+            "inhibitor": (str, None, True),
+            "commentary": (str, None, True),
+            "organism": (str, None, True),
+            "ligandStructureId": (str, None, True),
+            "literature": (str, None, True),
+        },
+        "group_queries": [None],
+        "separator": None
+    },
+    "getKcatKmValue": {
+        "http_method": "GET",
+        "path_param": None,
+        "parameters": {
+            "ecNumber": (str, None, True),
+            "kcatKmValue": (str, None, True),
+            "kcatKmValueMaximum": (str, None, True),
+            "substrate": (str, None, True),
+            "commentary": (str, None, True),
+            "organism": (str, None, True),
+            "ligandStructureId": (str, None, True),
+            "literature": (str, None, True),
+        },
+        "group_queries": [None],
+        "separator": None
+    },
+    "getKiValue": {
+        "http_method": "GET",
+        "path_param": None,
+        "parameters": {
+            "ecNumber": (str, None, True),
+            "kiValue": (str, None, True),
+            "kiValueMaximum": (str, None, True),
+            "inhibitor": (str, None, True),
+            "commentary": (str, None, True),
+            "organism": (str, None, True),
+            "ligandStructureId": (str, None, True),
+            "literature": (str, None, True),
+        },
+        "group_queries": [None],
+        "separator": None
+    },
+    "getPhRange": {
+        "http_method": "GET",
+        "path_param": None,
+        "parameters": {
+            "ecNumber": (str, None, True),
+            "phRange": (str, None, True),
+            "phRangeMaximum": (str, None, True),
+            "commentary": (str, None, True),
+            "organism": (str, None, True),
+            "literature": (str, None, True),
+        },
+        "group_queries": [None],
+        "separator": None
+    },
+    "getPhOptimum": {
+        "http_method": "GET",
+        "path_param": None,
+        "parameters": {
+            "ecNumber": (str, None, True),
+            "phOptimum": (str, None, True),
+            "phOptimumMaximum": (str, None, True),
+            "commentary": (str, None, True),
+            "organism": (str, None, True),
+            "literature": (str, None, True),
+        },
+        "group_queries": [None],
+        "separator": None
+    },
+    "getPhStability": {
+        "http_method": "GET",
+        "path_param": None,
+        "parameters": {
+            "ecNumber": (str, None, True),
+            "phStability": (str, None, True),
+            "phStabilityMaximum": (str, None, True),
+            "commentary": (str, None, True),
+            "organism": (str, None, True),
+            "literature": (str, None, True),
+        },
+        "group_queries": [None],
+        "separator": None
+    },
+    "getCofactor": {
+        "http_method": "GET",
+        "path_param": None,
+        "parameters": {
+            "ecNumber": (str, None, True),
+            "cofactor": (str, None, True),
+            "commentary": (str, None, True),
+            "organism": (str, None, True),
+            "ligandStructureId": (str, None, True),
+            "literature": (str, None, True),
+        },
+        "group_queries": [None],
+        "separator": None
+    },
+    "getTemperatureOptimum": {
+        "http_method": "GET",
+        "path_param": None,
+        "parameters": {
+            "ecNumber": (str, None, True),
+            "temperatureOptimum": (str, None, True),
+            "temperatureOptimumMaximum": (str, None, True),
+            "commentary": (str, None, True),
+            "organism": (str, None, True),
+            "literature": (str, None, True),
+        },
+        "group_queries": [None],
+        "separator": None
+    },
+    "getTemperatureStability": {
+        "http_method": "GET",
+        "path_param": None,
+        "parameters": {
+            "ecNumber": (str, None, True),
+            "temperatureStability": (str, None, True),
+            "temperatureStabilityMaximum": (str, None, True),
+            "commentary": (str, None, True),
+            "organism": (str, None, True),
+            "literature": (str, None, True),
+        },
+        "group_queries": [None],
+        "separator": None
+    },
+    "getTemperatureRange": {
+        "http_method": "GET",
+        "path_param": None,
+        "parameters": {
+            "ecNumber": (str, None, True),
+            "temperatureRange": (str, None, True),
+            "temperatureRangeMaximum": (str, None, True),
+            "commentary": (str, None, True),
+            "organism": (str, None, True),
+            "literature": (str, None, True),
+        },
+        "group_queries": [None],
+        "separator": None
+    }
+}
