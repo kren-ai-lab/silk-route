@@ -116,7 +116,16 @@ class ChEMBLInterface(BaseAPIInterface):
             },
             "group_queries": [None],
             "separator": None
-        }
+        },
+        "activity-search": {
+            "http_method": "GET",
+            "path_param": None,
+            "parameters": {
+                "query": (str, None, True),
+            },
+            "group_queries": [None],
+            "separator": None
+        },
     }
 
     def __init__(
@@ -189,9 +198,9 @@ class ChEMBLInterface(BaseAPIInterface):
             if response.status_code == 204:
                 log.warning(f"No content returned for URL {next_url}.")
                 return {}
-
+            
             data = response.json()
-
+            
             if 'activities' in data.keys() and isinstance(data['activities'], list):
                 responses.extend(data['activities'])
             elif 'binding_sites' in data.keys() and isinstance(data['binding_sites'], list):
@@ -217,7 +226,6 @@ class ChEMBLInterface(BaseAPIInterface):
 
             return responses
         except requests.exceptions.RequestException as e:
-            
             log.error(f"Error fetching next page for method {method}: {e}")
             return {}
     
@@ -270,6 +278,9 @@ class ChEMBLInterface(BaseAPIInterface):
                     query_str = "&".join(f"{item['field']}__{item['filter_type']}={item['value']}" for item in validated_params['filters'])
                     url += query_str
                     url += "&format=json"
+        elif method in ["activity-search"]:
+            query_str = validated_params.get("query", "")
+            url = f"{CHEMBL.API_URL}{method.replace('-', '/')}.json?q={query_str}"
         else:
             log.error(f"Method {method} is not implemented in fetch.")
             return {}

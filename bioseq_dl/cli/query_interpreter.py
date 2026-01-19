@@ -37,11 +37,13 @@ class UniProtInterpreterConfig:
         go_name_to_id: Mapping from GO term names (lowercased) to GO IDs (7 digits).
         field_aliases: Simple prefix aliases, e.g. 'taxon:' -> 'taxonomy_id:'.
         temperature_uniprot_field: UniProt field used for temperature dependence.
+        ignored_fields: Field prefixes to strip from interpretation (e.g., 'ic50').
     """
     fields: Dict[str, MultiModeFieldConfig]
     go_name_to_id: Dict[str, str]
     field_aliases: Dict[str, str]
     temperature_uniprot_field: str
+    ignored_fields: List[str]
 
 
 class UniProtQueryInterpreter:
@@ -81,6 +83,7 @@ class UniProtQueryInterpreter:
             UniProt-compatible query string.
         """
         text = query.strip()
+        text = self._remove_ignored_fields(text)
         text = self._expand_all_multimode_fields(text)
         text = self._expand_temperature_multimode(text)
         text = self._expand_field_aliases(text)
@@ -234,6 +237,29 @@ class UniProtQueryInterpreter:
             out = pattern.sub(f"{native}:", out)
         return out
 
+    def _remove_ignored_fields(self, text: str) -> str:
+        """
+        Remove ignored field macros from the query so they can be handled elsewhere.
+        """
+        out = text
+        for field_name in self.config.ignored_fields:
+            pattern = re.compile(
+                rf"(\s*(?:AND|OR|NOT)\s+)?"                 # optional leading boolean
+                rf"\b{re.escape(field_name)}(?:_?(any|all|not))?:"
+                r"("                                       # start items capture
+                r"\"[^\"]+\"(?:\s*,\s*\"[^\"]+\")*"        # quoted csv
+                r"|"
+                r"[^\s()]+(?:\s*,\s*[^\s()]+)*"            # unquoted csv (no spaces)
+                r")",
+                flags=re.IGNORECASE,
+            )
+            out = pattern.sub(" ", out)
+
+        out = re.sub(r"\b(AND|OR|NOT)\s*(?=\b(AND|OR|NOT)\b)", " ", out, flags=re.IGNORECASE)
+        out = re.sub(r"^\s*(AND|OR|NOT)\b\s*", "", out, flags=re.IGNORECASE)
+        out = re.sub(r"\b(AND|OR|NOT)\s*$", "", out, flags=re.IGNORECASE)
+        return out
+
     def _parse_csv_items(self, raw_items: str) -> List[str]:
         """
         Parse comma-separated items, supporting quoted phrases.
@@ -372,6 +398,94 @@ class UniProtQueryInterpreter:
             tokens = filtered
 
         return ",".join(tokens)
+    
+    def extract_additional_searches(self, query: str) -> List[dict]:
+        """
+        Sometimes, a query may imply additional searches beyond UniProt.
+        For example, searching IC50 values requires doing a ChEMBL search first
+        and then linking back to UniProt by searching Chembl IDs obtained.
+
+        This method extracts such implied searches from the query, returning
+        them as a dict with keys indicating the following:
+            - 'query': The additional query dict to perform. It's body depends on the search type.
+            - 'database': The database to search (e.g., 'chembl').
+            - 'method': The method to use for searching (e.g., 'activity_search').
+            - 'option': Any additional options needed for the search.
+        
+        For example, for IC50 searches, you may define the following query pattern:
+            ic50:10-50 -> implies searching ChEMBL for activities with IC50 < 50 and > 10.
+            ic50:5000 -> implies searching ChEMBL for activities with IC50 = 5000.
+            ic50:>1000 -> implies searching ChEMBL for activities with IC50 > 1000.
+        Returns:
+            {
+                'database': 'chembl',
+                'method': 'activity_search',
+                'query': "ic50>10 AND ic50<50",
+                'option': None
+            }
+        """
+        ic50_pattern = re.compile(
+            r"\bic50(?:_?(any|all|not))?:"
+            r"("                                          # start items capture
+            r"\"[^\"]+\"(?:\s*,\s*\"[^\"]+\")*"            # quoted csv
+            r"|"
+            r"[^\s()]+(?:\s*,\s*[^\s()]+)*"                # unquoted csv (no spaces)
+            r")"
+        )
+
+        additional_searches: List[dict] = []
+        # IC50 handling: ranges, exact values, greater-than and less-than prefixes.
+        for match in ic50_pattern.finditer(query):
+            raw_items = match.group(2).strip()
+            items = self._parse_csv_items(raw_items)
+            for item in items:
+                base, method = self._split_db_token(item)
+                token = base.strip()
+
+                # 1) Range: "low-high"
+                low, high = self._parse_numeric_range(token)
+                if low is not None and high is not None:
+                    ic50_query = f"ic50>{low} AND ic50<{high}"
+                    additional_searches.append({
+                    'database': 'chembl',
+                    'method': 'activity-search',
+                    'query': ic50_query,
+                    'option': None,
+                    'params': {}
+                    })
+                    continue
+
+                # 2) Comparison: >1000, <500, >=100, <=200
+                m_comp = re.fullmatch(r"(>=|<=|>|<)\s*(\d+(?:\.\d+)?)", token)
+                if m_comp:
+                    op = m_comp.group(1)
+                    num = m_comp.group(2)
+                    ic50_query = f"ic50{op}{num}"
+                    additional_searches.append({
+                    'database': 'chembl',
+                    'method': 'activity-search',
+                    'query': ic50_query,
+                    'option': None,
+                    'params': {}
+                    })
+                    continue
+
+                # 3) Exact numeric value: "5000" -> equality
+                if self._is_number(token):
+                    # Use '=' for exact match
+                    ic50_query = f"ic50={token}"
+                    additional_searches.append({
+                    'database': 'chembl',
+                    'method': 'activity-search',
+                    'query': ic50_query,
+                    'option': None,
+                    'params': {}
+                    })
+                    continue
+
+                # Otherwise ignore non-numeric / unrecognized tokens for IC50
+        return additional_searches
+
 
     def _split_db_token(self, token: str) -> Tuple[str, str]:
         """
@@ -483,5 +597,6 @@ def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
         go_name_to_id=go_name_to_id,
         field_aliases=field_aliases,
         temperature_uniprot_field="cc_bpcp_temp_dependence",
+        ignored_fields=["ic50"],
     )
     return UniProtQueryInterpreter(config=config)
