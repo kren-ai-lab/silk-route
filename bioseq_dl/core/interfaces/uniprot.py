@@ -21,6 +21,8 @@ from ..utils.uniprot_auxiliary_methods import (
     extract_active_sites,
     extract_variants,
     extract_keywords,
+    extract_temperature,
+    extract_ph,
 )
 
 from bioseq_dl.constants.databases import DATABASES
@@ -232,6 +234,8 @@ class UniprotInterface(UniprotBase):
             'references': ('references', extract_references),
             #'diseases': ('comments', extract_database_terms),
             'active_sites': ('features', extract_active_sites),
+            'temperature': ('comments', extract_temperature),
+            'ph': ('comments', extract_ph),
             'domains': ('features', extract_domains),
             'variants': ('features', extract_variants),
             'keyword': ('keywords', extract_keywords),

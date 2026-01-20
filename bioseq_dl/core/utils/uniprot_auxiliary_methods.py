@@ -48,6 +48,7 @@ def extract_references(refs: List) -> List[Dict]:
         })
     return extracted
 
+# TODO: currently not used, delete if not needed
 def extract_features(features: List) -> List[Dict]:
     """Extracts protein features"""
     return [{
@@ -118,6 +119,38 @@ def extract_active_sites(active_sites: List) -> List[Dict]:
                 'location': location,
             })
 
+    return extracted
+
+# for fields temp_dependence, ph_dependence
+def extract_temperature(comments: List) -> List[str]:
+    """Extracts temperature dependence information from comments"""
+    extracted = []
+    for c in comments if isinstance(comments, list) else []:
+        comment_type = c.get('commentType', '')
+        if not comment_type == 'BIOPHYSICOCHEMICAL PROPERTIES':
+            continue
+
+        if "temperatureDependence" in c:
+            temp_dep = c.get("temperatureDependence", {}).get("texts", [])
+            for temp in temp_dep:
+                temp_value = temp.get('value', '')
+                extracted.append(temp_value)
+    return extracted
+
+# for fields temp_dependence, ph_dependence
+def extract_ph(comments: List) -> List[str]:
+    """Extracts pH dependence information from comments"""
+    extracted = []
+    for c in comments if isinstance(comments, list) else []:
+        comment_type = c.get('commentType', '')
+        if not comment_type == 'BIOPHYSICOCHEMICAL PROPERTIES':
+            continue
+
+        if "phDependence" in c:
+            ph_dep = c.get("phDependence", {}).get("texts", [])
+            for ph in ph_dep:
+                ph_value = ph.get('value', '')
+                extracted.append(ph_value)
     return extracted
 
 # for fields ft_domain,ft_motif and ft_region,

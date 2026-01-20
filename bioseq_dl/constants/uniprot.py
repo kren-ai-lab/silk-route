@@ -10,7 +10,16 @@ VALID_FIELDS = [
     "organism_id",
     "sequence",
     "length",
-    "keyword"
+    "keyword",
+    "temp_dependence",
+    "ph_dependence",
+    "ft_variant",
+    #"ft_active_site", # Dont work properly in the uniprot api
+    #"ft_binding_site", # Dont work properly in the uniprot api
+    "ft_site",
+    "ft_domain",
+    "ft_motif",
+    "ft_region",
 ]
 
 VALID_CROSS_REF_FIELDS = {
