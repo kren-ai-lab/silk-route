@@ -84,12 +84,19 @@ class UniProtQueryInterpreter:
             UniProt-compatible query string.
         """
         text = query.strip()
+        print("Initial\t", text)
         text = self._remove_ignored_fields(text)
+        print("ignored fields:\t", text)
         text = self._expand_all_multimode_fields(text)
+        print("exp. fields:\t", text)
         text = self._expand_temperature_multimode(text)
+        print("temp. fields:\t", text)
         text = self._expand_ph_multimode(text)
+        print("pH fields:\t", text)
         text = self._expand_field_aliases(text)
+        print("field aliases:\t", text)
         text = self._cleanup_whitespace(text)
+        print("cleaning ws:\t", text)
         return text
 
     def _expand_all_multimode_fields(self, text: str) -> str:
@@ -104,30 +111,69 @@ class UniProtQueryInterpreter:
     def _expand_one_multimode_field(self, text: str, field_name: str, cfg: MultiModeFieldConfig) -> str:
         """
         Expand a single registered field for any/all/not modes. A bare field behaves like _any.
-        """
-        pattern = re.compile(
-            rf"\b{re.escape(field_name)}(?:_?(any|all|not))?:"  # field + optional mode
-            r"("                                          # start items capture
-            r'"[^\"]+"(?:\s*,\s*"[^\"]+")*'            # quoted csv
-            r"|"
-            r"[^,()]+(?:\s*,\s*[^,()]+)*"                  # unquoted csv (allow spaces)
-            r")"
-        )
 
-        matches = list(pattern.finditer(text))
-        if not matches:
-            return text
+        This implementation scans character by character after the field: prefix to avoid 
+        consuming following boolean operators or parenthesized clauses. It respects quoted 
+        phrases and nested parentheses.
+        """
+        pattern = re.compile(rf"\b{re.escape(field_name)}(?:_?(any|all|not))?:", flags=re.IGNORECASE)
 
         out = text
-        for m in reversed(matches):
-            mode = (m.group(1) or "").strip().lower()
-            raw_items = m.group(2).strip()
-            items = self._parse_csv_items(raw_items)
+        # Loop until no more occurrences
+        while True:
+            m = pattern.search(out)
+            if not m:
+                break
 
+            # Extract mode from capture group if present
+            mode = ""
+            if m.lastindex and m.lastindex >= 1:
+                mode = (m.group(1) or "").strip().lower()
+            
+            start = m.end()
+
+            # Scan forward to find end of the items list:
+            # stop at next top-level boolean operator (AND/OR/NOT), a top-level ')', or end of string.
+            i = start
+            in_quotes = False
+            paren_depth = 0
+            while i < len(out):
+                ch = out[i]
+                if ch == '"':
+                    in_quotes = not in_quotes
+                    i += 1
+                    continue
+                if in_quotes:
+                    i += 1
+                    continue
+                if ch == "(":
+                    paren_depth += 1
+                    i += 1
+                    continue
+                if ch == ")":
+                    if paren_depth == 0:
+                        break
+                    paren_depth -= 1
+                    i += 1
+                    continue
+
+                # If at top level and we see " AND|OR|NOT " ahead, stop before it.
+                if paren_depth == 0:
+                    op_match = re.match(r"\s+(AND|OR|NOT)\b", out[i:], flags=re.IGNORECASE)
+                    if op_match:
+                        break
+
+                i += 1
+
+            raw_items = out[start:i].strip()
+            # Clean up accidental trailing boolean words captured inside raw_items
+            raw_items = re.sub(r"\b(AND|OR|NOT)\s*$", "", raw_items, flags=re.IGNORECASE).strip()
+
+            items = self._parse_csv_items(raw_items)
             clauses = self._build_field_clauses(items, cfg)
             replacement = self._combine_clauses_by_mode(clauses, mode)
 
-            out = out[:m.start()] + replacement + out[m.end():]
+            out = out[: m.start()] + replacement + out[i:]
 
         return out
 
@@ -196,6 +242,10 @@ class UniProtQueryInterpreter:
         """
         if not clauses:
             return ""
+
+        # If only one clause, return it without extra parentheses
+        if len(clauses) == 1:
+            return clauses[0]
 
         if mode == "any":
             return "(" + " OR ".join(clauses) + ")"
