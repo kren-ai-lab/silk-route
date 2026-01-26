@@ -221,8 +221,8 @@ def run(
                 metadata_key = f"{db}_search"
                 metadata["fetch"][metadata_key] = result.get("metadata", {})
     
-    print("Final interpreted query:", interpreted_query)
-    exit(0)
+    #print("Final interpreted query:", interpreted_query)
+    #exit(0)
 
     ################################
     # UniProt Data Retrieval Step #
