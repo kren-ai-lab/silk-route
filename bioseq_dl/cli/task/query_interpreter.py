@@ -108,9 +108,9 @@ class UniProtQueryInterpreter:
         pattern = re.compile(
             rf"\b{re.escape(field_name)}(?:_?(any|all|not))?:"  # field + optional mode
             r"("                                          # start items capture
-            r"\"[^\"]+\"(?:\s*,\s*\"[^\"]+\")*"            # quoted csv
+            r'"[^\"]+"(?:\s*,\s*"[^\"]+")*'            # quoted csv
             r"|"
-            r"[^\s()]+(?:\s*,\s*[^\s()]+)*"                # unquoted csv (no spaces)
+            r"[^,()]+(?:\s*,\s*[^,()]+)*"                  # unquoted csv (allow spaces)
             r")"
         )
 
@@ -268,9 +268,9 @@ class UniProtQueryInterpreter:
                 rf"(\s*(?:AND|OR|NOT)\s+)?"                 # optional leading boolean
                 rf"\b{re.escape(field_name)}(?:_?(any|all|not))?:"
                 r"("                                       # start items capture
-                r"\"[^\"]+\"(?:\s*,\s*\"[^\"]+\")*"        # quoted csv
+                r'"[^\"]+"(?:\s*,\s*"[^\"]+")*'        # quoted csv
                 r"|"
-                r"[^\s()]+(?:\s*,\s*[^\s()]+)*"            # unquoted csv (no spaces)
+                r"[^,()]+(?:\s*,\s*[^,()]+)*"            # unquoted csv (allow spaces)
                 r")",
                 flags=re.IGNORECASE,
             )
@@ -371,9 +371,9 @@ class UniProtQueryInterpreter:
         db_pattern = re.compile(
             r"\bdatabases(?:_?(any|all|not))?:"
             r"("                                          # start items capture
-            r"\"[^\"]+\"(?:\s*,\s*\"[^\"]+\")*"            # quoted csv
+            r'"[^\"]+"(?:\s*,\s*"[^\"]+")*'            # quoted csv
             r"|"
-            r"[^\s()]+(?:\s*,\s*[^\s()]+)*"                # unquoted csv (no spaces)
+            r"[^,()]+(?:\s*,\s*[^,()]+)*"                  # unquoted csv (allow spaces)
             r")"
         )
         temperature_pattern = re.compile(r"\btemperature(?:_?(any|all|not))?:")
@@ -448,9 +448,9 @@ class UniProtQueryInterpreter:
         ic50_pattern = re.compile(
             r"\bic50(?:_?(any|all|not))?:"
             r"("                                          # start items capture
-            r"\"[^\"]+\"(?:\s*,\s*\"[^\"]+\")*"            # quoted csv
+            r'"[^\"]+"(?:\s*,\s*"[^\"]+")*'            # quoted csv
             r"|"
-            r"[^\s()]+(?:\s*,\s*[^\s()]+)*"                # unquoted csv (no spaces)
+            r"[^,()]+(?:\s*,\s*[^,()]+)*"                  # unquoted csv (allow spaces)
             r")"
         )
         
@@ -534,16 +534,17 @@ def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
         "response to heat": "0009408",
         "translation": "0006412",
         "proteolysis": "0006508",
+        "antioxidant activity": "0016209",
+        "hydrocarbon catabolic process": "0120252",
+        "peptidase activity": "0008233",
+        "response to stimulus": "0050896",
     }
 
     keyword_map = {
-        "membrane": "Membrane",
-        "secreted": "Secreted",
-        "transmembrane": "Transmembrane",
-        "signal peptide": "Signal peptide",
-        "chaperone": "Chaperone",
-        "enzyme": "Enzyme",
-        "stress response": "Stress response",
+        "atp binding": "KW-0067",
+        "metal-binding": "KW-0479",
+        "antiviral defense": "KW-0051",
+        "antiviral protein": "KW-0930"
     }
 
     function_map = {

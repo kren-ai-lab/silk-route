@@ -49,16 +49,16 @@ def chembl_search(query: str, method: str, format: str) -> Tuple[str, pd.DataFra
 
     if format == "dataframe" and isinstance(result, pd.DataFrame):
         target_ids = result['target_chembl_id'].unique().tolist()
-        output_query = f"(xref:chembl-{" OR " .join(target_ids)})" if target_ids else ""
+        output_query = f"(xref:chembl-{' OR ' .join(target_ids)})" if target_ids else ""
     elif format == "json" and isinstance(result, list) and result:
         target_ids = [item.get('target_chembl_id') for item in result if 'target_chembl_id' in item]
-        output_query = f"(xref:chembl-{" OR ".join(target_ids)})" if target_ids else ""
+        output_query = f"(xref:chembl-{' OR '.join(target_ids)})" if target_ids else ""
     elif format == "json" and isinstance(result, dict) and 'target_chembl_id' in result:
         target_id = result['target_chembl_id']
-        output_query = f"(xref:chembl-{" OR ".join([target_id])})" if target_id else ""
+        output_query = f"(xref:chembl-{' OR '.join([target_id])})" if target_id else ""
     elif format == "xml" and isinstance(result, str):
         target_ids = re.findall(r'<target_chembl_id>(CHEMBL\d+)</target_chembl_id>', result)
-        output_query = f"(xref:chembl-{" OR ".join(target_ids)})" if target_ids else ""
+        output_query = f"(xref:chembl-{' OR '.join(target_ids)})" if target_ids else ""
     else:
         output_query = ""
     
@@ -125,7 +125,7 @@ def save_enriched_data(data: pd.DataFrame | list | dict | bytes | str, enriched_
         if hasattr(data, "getroot"):
             logger.info(f"Saving UniProt results into {output}/uniprot_results.xml")
             data.write(f"{output}/uniprot_results.xml", encoding="utf-8", xml_declaration=True)
-            
+
         # Save each XML separately
         for key, val in enriched_data[0].items():
             logger.info(f"Saving {key} results into {output} directory")
@@ -220,6 +220,9 @@ def run(
                 logger.debug(f"Updated interpreted_query to: {interpreted_query}")
                 metadata_key = f"{db}_search"
                 metadata["fetch"][metadata_key] = result.get("metadata", {})
+    
+    print("Final interpreted query:", interpreted_query)
+    exit(0)
 
     ################################
     # UniProt Data Retrieval Step #
