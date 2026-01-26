@@ -198,10 +198,14 @@ def build_query_biogrid_interactions(row, params):
 @register_query_builder("brenda", "getTemperatureRange")
 def build_query_brenda(row, params):
     ec_numbers = to_str_list(row.get("ec"))
+    ec_numbers = [
+        ec for ec in ec_numbers if len(ec.split('.')) == 4 and \
+            all(part.isdigit() for part in ec.replace('-', '').split('.'))
+    ]
+
     if ec_numbers:
         return [{
             "ecNumber": ec,
-            "organism": row["organism_name"],
             **params
         } for ec in ec_numbers]
     else:

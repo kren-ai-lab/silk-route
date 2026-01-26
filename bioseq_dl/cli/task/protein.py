@@ -11,7 +11,8 @@ from bioseq_dl import UniprotInterface
 from bioseq_dl.constants.uniprot import VALID_FIELDS, XREF_MAPPING
 from bioseq_dl.core.utils.crossref_enrichment import run_crossref_enrichment
 from bioseq_dl.logging import configure_logging
-from bioseq_dl.cli.query_interpreter import build_default_uniprot_interpreter
+
+from .query_interpreter import build_default_uniprot_interpreter
 
 from bioseq_dl import ChEMBLInterface
 
@@ -86,6 +87,60 @@ def resolve_search(searches: dict, format: str) -> dict:
                 pass
 
     return search_results
+
+
+def _check_enriched_data(enriched_data: tuple, desired_format: str) -> bool:
+    if isinstance(enriched_data[0], dict):
+        if desired_format == "dataframe":
+            return all([isinstance(df, pd.DataFrame) for df in enriched_data[0].values()])
+        elif desired_format == "json":
+            return all([isinstance(val, (dict, list)) for val in enriched_data[0].values()])
+        elif desired_format == "xml":
+            return all([hasattr(val, "getroot") for val in enriched_data[0].values()])
+    
+    return False
+
+def save_enriched_data(data: pd.DataFrame | list | dict | bytes | str, enriched_data: tuple, metadata: dict, output: str, export_format: str, logger) -> None:
+    if export_format == "dataframe" and _check_enriched_data(enriched_data, "dataframe"):
+        # Save main results
+        if isinstance(data, pd.DataFrame) and not data.empty:
+            data.to_csv(f"{output}/uniprot_results.csv", index=False)
+        # Save each DataFrame separately
+        for key, df in enriched_data[0].items():
+            logger.info(f"Saving {key} results into {output} directory")
+            df.to_csv(f"{output}/{key}_results.csv", index=False)
+
+    elif export_format == "json" and _check_enriched_data(enriched_data, "json"):
+        # Save main results
+        if isinstance(data, (dict, list)) and data:
+            logger.info(f"Saving UniProt results into {output}/uniprot_results.json")
+            json.dump(data, open(f"{output}/uniprot_results.json", "w"), indent=2, default=str)
+        # Save each JSON separately
+        for key, val in enriched_data[0].items():
+            logger.info(f"Saving {key} results into {output} directory")
+            json.dump(val, open(f"{output}/{key}_results.json", "w"), indent=2, default=str)
+
+    elif export_format == "xml" and _check_enriched_data(enriched_data, "xml"):
+        # Save main results
+        if hasattr(data, "getroot"):
+            logger.info(f"Saving UniProt results into {output}/uniprot_results.xml")
+            data.write(f"{output}/uniprot_results.xml", encoding="utf-8", xml_declaration=True)
+            
+        # Save each XML separately
+        for key, val in enriched_data[0].items():
+            logger.info(f"Saving {key} results into {output} directory")
+            val.write(f"{output}/{key}_results.xml", encoding="utf-8", xml_declaration=True)
+    else:
+        logger.error("Enriched data format does not match the expected export format or is invalid.")
+        return
+    
+    # Concatenate metadata and save
+    if not metadata:
+        metadata = {}
+    metadata["enrichment"] = enriched_data[1]["metadata"] if "metadata" in enriched_data[1] else {}
+    with open(f"{output}/metadata.json", "w") as f:
+        json.dump(metadata, f, indent=2, default=str)
+        logger.info(f"Enriched results metadata saved to {output}/metadata.json")
 
     
 @app.command()
@@ -205,7 +260,7 @@ def run(
     ###################################
     # Cross-reference Enrichment Step #
     ###################################
-    enriched_data = {}
+    enriched_data = tuple()
     if crossref_fields and isinstance(export_data, (pd.DataFrame, dict, list)):
         logger.info("Running cross-reference enrichment...")
         enriched_data = run_crossref_enrichment(
@@ -214,72 +269,9 @@ def run(
             format=cast(Literal["json", "dataframe", "xml"], export_format)
         )
 
+
+
     #######################
     # Export Results Step #
     #######################
-    if export_format == "dataframe":
-        if isinstance(export_data, pd.DataFrame) and not export_data.empty:
-            print(export_data.head())
-            # Save main results
-            export_data.to_csv(f"{output}/uniprot_results.csv", index=False)
-            # Save additional search results
-            if search_results:
-                for db, result in search_results:
-                    logger.info(f"Saving {db} search results into {output} directory")
-                    result["result"].to_csv(f"{output}/{db}_search_results.csv", index=False)
-            # Save enriched results
-            if isinstance(enriched_data, dict):
-                for key, value in enriched_data.items():
-                    logger.info(f"Saving {key} results into {output} directory")
-                    value.to_csv(f"{output}/{key}_results.csv", index=False)
-    
-            with open(f"{output}/metadata.json", "w") as f:
-                json.dump(metadata, f, indent=2, default=str)
-            logger.info(f"Results saved to {output}/uniprot_results.csv")
-        else:
-            logger.warning("No results to save in DataFrame format.")
-    elif export_format == "json":
-        if isinstance(export_data, dict) or isinstance(export_data, list):
-            # Save main results
-            with open(f"{output}/uniprot_results.json", "w") as f:
-                json.dump(export_data, f, indent=2, default=str)
-            # Save additional search results
-            if search_results:
-                for db, result in search_results:
-                    logger.info(f"Saving {db} search results into {output} directory")
-                    json.dump(result["result"], open(f"{output}/{db}_search_results.json", "w"), indent=2, default=str)
-            # Save enriched results
-            if isinstance(enriched_data, dict):
-                for key, value in enriched_data.items():
-                    logger.info(f"Saving {key} results into {output} directory")
-                    json.dump(value, open(f"{output}/{key}_results.json", "w"), indent=2, default=str)
-
-            with open(f"{output}/metadata.json", "w") as f:
-                json.dump(metadata, f, indent=2, default=str)
-            logger.info(f"Results saved to {output}/uniprot_results.json")
-        else:
-            logger.warning("No results to save in JSON format.")
-    elif export_format == "xml":
-        if hasattr(export_data, "getroot"):
-            # Save main results
-            export_data.write(f"{output}/uniprot_results.xml", encoding="utf-8", xml_declaration=True)
-            # Save additional search results
-            if search_results:
-                for db, result in search_results:
-                    logger.info(f"Saving {db} search results into {output} directory")
-                    if hasattr(result["result"], "getroot"):
-                        result["result"].write(f"{output}/{db}_search_results.xml", encoding="utf-8", xml_declaration=True)
-            # Save enriched results
-            if isinstance(enriched_data, dict):
-                for key, value in enriched_data.items():
-                    logger.info(f"Saving {key} results into {output} directory")
-                    value.write(f"{output}/{key}_results.xml", encoding="utf-8", xml_declaration=True)
-
-            with open(f"{output}/metadata.json", "w") as f:
-                json.dump(metadata, f, indent=2, default=str)
-            logger.info(f"Results saved to {output}/uniprot_results.xml")
-        else:
-            logger.warning("No results to save in XML format.")
-    else:
-        logger.warning(export_format)
-        logger.warning("No UniProt data found for the BLAST results.")
+    save_enriched_data(export_data, enriched_data, metadata, output, export_format, logger)

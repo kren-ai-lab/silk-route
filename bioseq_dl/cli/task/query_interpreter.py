@@ -43,6 +43,7 @@ class UniProtInterpreterConfig:
     go_name_to_id: Dict[str, str]
     field_aliases: Dict[str, str]
     temperature_uniprot_field: str
+    ph_uniprot_field: str
     ignored_fields: List[str]
 
 
@@ -86,6 +87,7 @@ class UniProtQueryInterpreter:
         text = self._remove_ignored_fields(text)
         text = self._expand_all_multimode_fields(text)
         text = self._expand_temperature_multimode(text)
+        text = self._expand_ph_multimode(text)
         text = self._expand_field_aliases(text)
         text = self._cleanup_whitespace(text)
         return text
@@ -220,6 +222,25 @@ class UniProtQueryInterpreter:
         field_name = "temperature"
         cfg = MultiModeFieldConfig(
             uniprot_field=self.config.temperature_uniprot_field,
+            value_map={},
+            supports_range=True,
+            quote_phrases=False,
+            resolver_kind=None,
+        )
+        return self._expand_one_multimode_field(text, field_name, cfg)
+    
+    def _expand_ph_multimode(self, text: str) -> str:
+        """
+        Expand pH_<mode>:... into the configured UniProt pH field.
+
+        Supported:
+            pH_any:7.0
+            pH_any:6.5-8.0
+            pH_not:6.5-8.0
+        """
+        field_name = "pH"
+        cfg = MultiModeFieldConfig(
+            uniprot_field="cc_bpcp_ph_dependence",
             value_map={},
             supports_range=True,
             quote_phrases=False,
@@ -432,7 +453,7 @@ class UniProtQueryInterpreter:
             r"[^\s()]+(?:\s*,\s*[^\s()]+)*"                # unquoted csv (no spaces)
             r")"
         )
-
+        
         additional_searches: List[dict] = []
         # IC50 handling: ranges, exact values, greater-than and less-than prefixes.
         for match in ic50_pattern.finditer(query):
@@ -597,6 +618,8 @@ def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
         go_name_to_id=go_name_to_id,
         field_aliases=field_aliases,
         temperature_uniprot_field="cc_bpcp_temp_dependence",
+        ph_uniprot_field="cc_bpcp_ph_dependence",
         ignored_fields=["ic50"],
     )
+
     return UniProtQueryInterpreter(config=config)
