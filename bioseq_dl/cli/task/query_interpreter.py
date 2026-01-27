@@ -439,8 +439,13 @@ class UniProtQueryInterpreter:
             for item in items:
                 base, method = self._split_db_token(item)
                 resolved = self._resolve_item_value(base, cfg)
-                if resolved:
-                    tokens.append(f"{resolved}_{method}")
+                # Special-case: prefer the original 'alphafold' token instead of the mapped 'alphafolddb'
+                if base.strip().lower() == "alphafold":
+                    token_base = "alphafold"
+                else:
+                    token_base = resolved
+                if token_base:
+                    tokens.append(f"{token_base}_{method}")
 
         # If a temperature filter is present, restrict/augment BRENDA calls to temperature-only methods.
         if temperature_pattern.search(query):
@@ -580,6 +585,7 @@ def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
     """
 
     db_map = {db_name: db_name for _, (_, db_name) in XREF_MAPPING.items()}
+    db_map["alphafold"] = "alphafolddb" # Special case
 
     # Small starter dictionary; extend over time from your users' queries.
     go_name_to_id = {

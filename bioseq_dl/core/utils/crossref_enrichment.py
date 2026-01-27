@@ -25,19 +25,19 @@ def run_crossref_enrichment(
     ) -> Tuple[Any, Dict]:
     if isinstance(data, pd.DataFrame) and data.empty:
         log.warning("Input DataFrame is empty. Skipping crossref enrichment.")
-        return pd.DataFrame(), {}
+        return {"none": pd.DataFrame()}, {}
     elif isinstance(data, list) and len(data) == 0:
         log.warning("Input list is empty. Skipping crossref enrichment.")
-        return pd.DataFrame(), {}
+        return {"none": pd.DataFrame()}, {}
     elif isinstance(data, dict) and len(data) == 0:
         log.warning("Input dict is empty. Skipping crossref enrichment.")
-        return pd.DataFrame(), {}
+        return {"none": pd.DataFrame()}, {}
     elif isinstance(data, bytes) and data == b"":
         log.warning("Input bytes is empty. Skipping crossref enrichment.")
-        return pd.DataFrame(), {}
+        return {"none": pd.DataFrame()}, {}
     elif isinstance(data, str) and data.strip() == "":
         log.warning("Input string is empty. Skipping crossref enrichment.")
-        return pd.DataFrame(), {}
+        return {"none": pd.DataFrame()}, {}
 
     # Process crossref fields
     # Some definitions in crossref_fields may contain the database name and the method separated by underscore
@@ -159,4 +159,4 @@ def run_crossref_enrichment(
     elif isinstance(enriched_data, dict) and len(enriched_data) > 0:
         return enriched_data, enriched_metadata
     log.warning("Crossref enrichment returned empty DataFrame or result is not a DataFrame")
-    return pd.DataFrame(), {}
+    return {"none": pd.DataFrame()}, {}

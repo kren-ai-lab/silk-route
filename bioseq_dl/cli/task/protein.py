@@ -228,13 +228,15 @@ def run(
     ################################
     # UniProt Data Retrieval Step #
     ################################
-    logger.info(f"Starting UniProt search with query: {query} with parameters fields={fields}, sort={sort}, include_isoform={include_isoform}")
     instance = UniprotInterface()
 
-    logger.debug(f"Downloading data using\nquery {query}\nfields {fields}\ncrossref_fields {crossref_fields}\nformat {format}\nsort {sort}\ninclude_isoform {include_isoform}")
     xref_mapping = {v[1]: v[0] for k, v in XREF_MAPPING.items() if v[0] is not None}
-    xref = ",".join([xref_mapping[c] for c in crossref_fields.split(",") if c in xref_mapping])
+    # Remove "_all", "_{method}" and other sufixes after "_" and only keep and group by database name
+    crossref_no_sufixes = set([c.split("_")[0] for c in crossref_fields.split(",")])
+    xref = ",".join([xref_mapping[c] for c in crossref_no_sufixes if c in xref_mapping])
+    logger.debug(f"Downloading data using\nquery {interpreted_query}\nfields {fields}\ncrossref_fields {xref}\nformat {format}\nsort {sort}\ninclude_isoform {include_isoform}")
 
+    print(fields + "," + xref)
     response, fetch_metadata = instance.submit_stream(
         query=interpreted_query,
         fields=fields + "," + xref,
