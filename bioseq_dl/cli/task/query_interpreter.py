@@ -84,19 +84,12 @@ class UniProtQueryInterpreter:
             UniProt-compatible query string.
         """
         text = query.strip()
-        print("Initial\t", text)
         text = self._remove_ignored_fields(text)
-        print("ignored fields:\t", text)
         text = self._expand_all_multimode_fields(text)
-        print("exp. fields:\t", text)
         text = self._expand_temperature_multimode(text)
-        print("temp. fields:\t", text)
         text = self._expand_ph_multimode(text)
-        print("pH fields:\t", text)
         text = self._expand_field_aliases(text)
-        print("field aliases:\t", text)
         text = self._cleanup_whitespace(text)
-        print("cleaning ws:\t", text)
         return text
 
     def _expand_all_multimode_fields(self, text: str) -> str:
@@ -111,75 +104,44 @@ class UniProtQueryInterpreter:
     def _expand_one_multimode_field(self, text: str, field_name: str, cfg: MultiModeFieldConfig) -> str:
         """
         Expand a single registered field for any/all/not modes. A bare field behaves like _any.
-
-        This implementation scans character by character after the field: prefix to avoid 
-        consuming following boolean operators or parenthesized clauses. It respects quoted 
-        phrases and nested parentheses.
         """
-        pattern = re.compile(rf"\b{re.escape(field_name)}(?:_?(any|all|not))?:", flags=re.IGNORECASE)
+        pattern = re.compile(
+            rf"\b{re.escape(field_name)}(?:_?(any|all|not))?:"  # field + optional mode
+            r"("                                          # start items capture
+            r"(?:\"[^\"]+\"|'[^']+')(?:\s*,\s*(?:\"[^\"]+\"|'[^']'))*"            # quoted csv (single or double)
+            r"|"
+            r"[^\s()]+(?:\s*,\s*[^\s()]+)*"                # unquoted csv (no spaces)
+            r")"
+        )
+
+        matches = list(pattern.finditer(text))
+        if not matches:
+            return text
 
         out = text
-        # Loop until no more occurrences
-        while True:
-            m = pattern.search(out)
-            if not m:
-                break
+        for m in reversed(matches):
+            mode = (m.group(1) or "").strip().lower()
+            # If the user omitted the mode for `keywords` assume _all (AND behavior)
+            if mode == "" and field_name == "keywords":
+                mode = "all"
 
-            # Extract mode from capture group if present
-            mode = ""
-            if m.lastindex and m.lastindex >= 1:
-                mode = (m.group(1) or "").strip().lower()
-            
-            start = m.end()
-
-            # Scan forward to find end of the items list:
-            # stop at next top-level boolean operator (AND/OR/NOT), a top-level ')', or end of string.
-            i = start
-            in_quotes = False
-            paren_depth = 0
-            while i < len(out):
-                ch = out[i]
-                if ch == '"':
-                    in_quotes = not in_quotes
-                    i += 1
-                    continue
-                if in_quotes:
-                    i += 1
-                    continue
-                if ch == "(":
-                    paren_depth += 1
-                    i += 1
-                    continue
-                if ch == ")":
-                    if paren_depth == 0:
-                        break
-                    paren_depth -= 1
-                    i += 1
-                    continue
-
-                # If at top level and we see " AND|OR|NOT " ahead, stop before it.
-                if paren_depth == 0:
-                    op_match = re.match(r"\s+(AND|OR|NOT)\b", out[i:], flags=re.IGNORECASE)
-                    if op_match:
-                        break
-
-                i += 1
-
-            raw_items = out[start:i].strip()
-            # Clean up accidental trailing boolean words captured inside raw_items
-            raw_items = re.sub(r"\b(AND|OR|NOT)\s*$", "", raw_items, flags=re.IGNORECASE).strip()
-
+            raw_items = m.group(2).strip()
             items = self._parse_csv_items(raw_items)
+
             clauses = self._build_field_clauses(items, cfg)
             replacement = self._combine_clauses_by_mode(clauses, mode)
 
-            out = out[: m.start()] + replacement + out[i:]
+            out = out[:m.start()] + replacement + out[m.end():]
 
         return out
 
     def _build_field_clauses(self, items: List[str], cfg: MultiModeFieldConfig) -> List[str]:
         """
         Build UniProt field clauses for each item.
+
+        Special cases:
+        - For 'go' fields: if the token is not a numeric GO ID, try mapping via config.go_name_to_id.
+        - For 'keyword' fields: try mapping via keyword_map in the build_default_uniprot_interpreter config.
         """
         clauses: List[str] = []
         for item in items:
@@ -187,8 +149,24 @@ class UniProtQueryInterpreter:
             if resolved_value is None or resolved_value == "":
                 continue
 
+            # Additional mapping for 'go' if resolver not used or token is a name
+            if cfg.uniprot_field == "go":
+                # if looks like numeric go id (7 digits), keep; else try mapping
+                if not self._looks_like_go_id(resolved_value):
+                    mapped = self.config.go_name_to_id.get(resolved_value.lower())
+                    if mapped:
+                        resolved_value = mapped
+
+            if cfg.uniprot_field == "keyword":
+                # try to map keyword names (case-insensitive) via the keyword_map in fields
+                # note: cfg.value_map may contain the keyword_map; prefer that
+                key = resolved_value.lower()
+                mapped_kw = cfg.value_map.get(key)
+                if mapped_kw:
+                    resolved_value = mapped_kw
+
             formatted_value = self._format_value_for_field(resolved_value, cfg)
-            clauses.append(f"({cfg.uniprot_field}:{formatted_value})")
+            clauses.append(f"{cfg.uniprot_field}:{formatted_value}")
 
         return clauses
 
@@ -211,7 +189,7 @@ class UniProtQueryInterpreter:
             if self._looks_like_go_id(mapped):
                 return mapped
             go_id = self.config.go_name_to_id.get(mapped.lower())
-            if go_id:
+            if (go_id):
                 return go_id
             return mapped
         # Add other resolver kinds here as needed.
@@ -228,7 +206,8 @@ class UniProtQueryInterpreter:
         if cfg.supports_range:
             low, high = self._parse_numeric_range(value)
             if low is not None and high is not None:
-                return f"[{low} TO {high}]"
+                return f"{low}-{high}"
+                #return f"[{low} TO {high}]"
 
         if cfg.quote_phrases and self._needs_quotes(value):
             return f"\"{value}\""
@@ -242,10 +221,6 @@ class UniProtQueryInterpreter:
         """
         if not clauses:
             return ""
-
-        # If only one clause, return it without extra parentheses
-        if len(clauses) == 1:
-            return clauses[0]
 
         if mode == "any":
             return "(" + " OR ".join(clauses) + ")"
@@ -318,9 +293,9 @@ class UniProtQueryInterpreter:
                 rf"(\s*(?:AND|OR|NOT)\s+)?"                 # optional leading boolean
                 rf"\b{re.escape(field_name)}(?:_?(any|all|not))?:"
                 r"("                                       # start items capture
-                r'"[^\"]+"(?:\s*,\s*"[^\"]+")*'        # quoted csv
+                r"(?:\"[^\"]+\"|'[^']+')(?:\s*,\s*(?:\"[^\"]+\"|'[^']'))*"        # quoted csv (single or double)
                 r"|"
-                r"[^,()]+(?:\s*,\s*[^,()]+)*"            # unquoted csv (allow spaces)
+                r"[^\s()]+(?:\s*,\s*[^\s()]+)*"            # unquoted csv (no spaces)
                 r")",
                 flags=re.IGNORECASE,
             )
@@ -333,26 +308,52 @@ class UniProtQueryInterpreter:
 
     def _parse_csv_items(self, raw_items: str) -> List[str]:
         """
-        Parse comma-separated items, supporting quoted phrases.
+        Parse comma-separated items, supporting quoted phrases with either single or double quotes.
+
+        Accept also the case where the entire CSV is wrapped in a single pair of quotes
+        (e.g. 'a,b,c' or "a,b,c") - in that case split the inner string on commas.
 
         Examples:
             a,b,c
             "DNA repair","protein folding"
-            membrane,"signal peptide"
+            'response to stimulus',"signal peptide"
+            'atp binding,antiviral protein'  -> ['atp binding','antiviral protein']
         """
+        raw = raw_items.strip()
+        # Special-case: entire CSV wrapped in a single pair of quotes -> split inner on commas
+        if len(raw) >= 2 and ((raw[0] == '"' and raw[-1] == '"') or (raw[0] == "'" and raw[-1] == "'")):
+            inner = raw[1:-1]
+            # split on commas and strip whitespace
+            parts = [p.strip() for p in inner.split(",") if p.strip() != ""]
+            return parts
+
         items: List[str] = []
         token = ""
         in_quotes = False
+        quote_char: Optional[str] = None
 
         i = 0
         while i < len(raw_items):
             ch = raw_items[i]
-            if ch == '"':
-                in_quotes = not in_quotes
+            if ch in ('"', "'"):
+                if not in_quotes:
+                    in_quotes = True
+                    quote_char = ch
+                elif quote_char == ch:
+                    # closing quote
+                    in_quotes = False
+                    quote_char = None
+                else:
+                    # different quote char inside quoted string -> treat literally
+                    token += ch
                 i += 1
                 continue
             if ch == "," and not in_quotes:
-                items.append(token.strip())
+                item = token.strip()
+                # strip surrounding quotes if any (defensive)
+                if len(item) >= 2 and ((item[0] == '"' and item[-1] == '"') or (item[0] == '\'' and item[-1] == '\'')):
+                    item = item[1:-1]
+                items.append(item)
                 token = ""
                 i += 1
                 continue
@@ -360,7 +361,10 @@ class UniProtQueryInterpreter:
             i += 1
 
         if token.strip() != "":
-            items.append(token.strip())
+            item = token.strip()
+            if len(item) >= 2 and ((item[0] == '"' and item[-1] == '"' or (item[0] == '\'' and item[-1] == '\''))):
+                item = item[1:-1]
+            items.append(item)
 
         return items
 
@@ -421,9 +425,9 @@ class UniProtQueryInterpreter:
         db_pattern = re.compile(
             r"\bdatabases(?:_?(any|all|not))?:"
             r"("                                          # start items capture
-            r'"[^\"]+"(?:\s*,\s*"[^\"]+")*'            # quoted csv
+            r"\"[^\"]+\"(?:\s*,\s*\"[^\"]+\")*"            # quoted csv
             r"|"
-            r"[^,()]+(?:\s*,\s*[^,()]+)*"                  # unquoted csv (allow spaces)
+            r"[^\s()]+(?:\s*,\s*[^\s()]+)*"                # unquoted csv (no spaces)
             r")"
         )
         temperature_pattern = re.compile(r"\btemperature(?:_?(any|all|not))?:")
@@ -498,9 +502,9 @@ class UniProtQueryInterpreter:
         ic50_pattern = re.compile(
             r"\bic50(?:_?(any|all|not))?:"
             r"("                                          # start items capture
-            r'"[^\"]+"(?:\s*,\s*"[^\"]+")*'            # quoted csv
+            r"\"[^\"]+\"(?:\s*,\s*\"[^\"]+\")*"            # quoted csv
             r"|"
-            r"[^,()]+(?:\s*,\s*[^,()]+)*"                  # unquoted csv (allow spaces)
+            r"[^\s()]+(?:\s*,\s*[^\s()]+)*"                # unquoted csv (no spaces)
             r")"
         )
         

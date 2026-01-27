@@ -209,6 +209,10 @@ def run(
     additional_searches = interpreter.extract_additional_searches(query)
     search_results = []
 
+    logger.debug("Final interpreted query: %s", interpreted_query)
+    logger.debug("Crossref fields: %s", crossref_fields)
+    logger.debug("Additional searches: %s", additional_searches)
+
     if additional_searches:
         logger.info("Resolving additional searches...")
         search_results = [
@@ -220,9 +224,6 @@ def run(
                 logger.debug(f"Updated interpreted_query to: {interpreted_query}")
                 metadata_key = f"{db}_search"
                 metadata["fetch"][metadata_key] = result.get("metadata", {})
-    
-    #print("Final interpreted query:", interpreted_query)
-    #exit(0)
 
     ################################
     # UniProt Data Retrieval Step #
