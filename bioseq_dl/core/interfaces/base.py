@@ -1115,6 +1115,4 @@ class BaseAPIInterface(ABC):
     
     @abstractmethod
     def parse(self, data: Any, fields_to_extract: Optional[Union[list, dict]], **kwargs):
-        raise NotImplementedError
-      
-        
+        raise NotImplementedError     
