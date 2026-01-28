@@ -166,6 +166,9 @@ class UniProtQueryInterpreter:
                     resolved_value = mapped_kw
 
             formatted_value = self._format_value_for_field(resolved_value, cfg)
+            # If formatter returned None or empty, skip this item (e.g., length requires range)
+            if not formatted_value:
+                continue
             clauses.append(f"{cfg.uniprot_field}:{formatted_value}")
 
         return clauses
@@ -199,15 +202,22 @@ class UniProtQueryInterpreter:
 
         return mapped
 
-    def _format_value_for_field(self, value: str, cfg: MultiModeFieldConfig) -> str:
+    def _format_value_for_field(self, value: str, cfg: MultiModeFieldConfig) -> Optional[str]:
         """
         Format value for UniProt query field, applying range and quoting if needed.
+
+        Special-case: for the `length` field only accept numeric ranges and format as
+        `[low TO high]`. Other fields keep previous behavior.
         """
         if cfg.supports_range:
             low, high = self._parse_numeric_range(value)
             if low is not None and high is not None:
+                if cfg.uniprot_field == "length":
+                    return f"[{low} TO {high}]"
                 return f"{low}-{high}"
-                #return f"[{low} TO {high}]"
+            # If this field requires ranges only (length), skip non-range values
+            if cfg.uniprot_field == "length":
+                return None
 
         if cfg.quote_phrases and self._needs_quotes(value):
             return f"\"{value}\""
@@ -617,6 +627,15 @@ def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
         "translocase": "7"
     }
 
+    taxonomy_id_map = {
+        "human": "9606",
+        "mammalia": "40674",
+        "mouse": "10090",
+        "escherichia coli": "562",
+        "ecoli": "562",
+        "yeast": "4932"
+    }
+
     fields = {
         # Multi-mode databases
         "databases": MultiModeFieldConfig(
@@ -642,25 +661,48 @@ def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
             quote_phrases=False,
             resolver_kind="go_name_to_id",
         ),
-        # Example: taxa / organisms (you can keep growing these)
+        # Example: taxa / organisms
         "taxa": MultiModeFieldConfig(
             uniprot_field="taxonomy_id",
-            value_map={},
+            value_map=taxonomy_id_map,
+            supports_range=False,
+            quote_phrases=True,
+            resolver_kind=None,
+        ),
+        # Singular aliases that should also resolve via taxonomy_id_map
+        "taxon": MultiModeFieldConfig(
+            uniprot_field="taxonomy_id",
+            value_map=taxonomy_id_map,
+            supports_range=False,
+            quote_phrases=True,
+            resolver_kind=None,
+        ),
+        "taxid": MultiModeFieldConfig(
+            uniprot_field="taxonomy_id",
+            value_map=taxonomy_id_map,
             supports_range=False,
             quote_phrases=False,
             resolver_kind=None,
         ),
-        "organisms": MultiModeFieldConfig(
-            uniprot_field="organism",
-            value_map={},
+        # Allow 'organism' (singular) to resolve to organism_id using the taxonomy map
+        "organism": MultiModeFieldConfig(
+            uniprot_field="organism_id",
+            value_map=taxonomy_id_map,
             supports_range=False,
-            quote_phrases=True,
+            quote_phrases=False,
             resolver_kind=None,
         ),
         "ec": MultiModeFieldConfig(
             uniprot_field="ec",
             value_map=function_map,
             supports_range=False,
+            quote_phrases=False,
+            resolver_kind=None,
+        ),
+        "length": MultiModeFieldConfig(
+            uniprot_field="length",
+            value_map={},
+            supports_range=True,
             quote_phrases=False,
             resolver_kind=None,
         ),
