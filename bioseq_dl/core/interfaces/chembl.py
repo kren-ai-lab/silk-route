@@ -126,6 +126,15 @@ class ChEMBLInterface(BaseAPIInterface):
             "group_queries": [None],
             "separator": None
         },
+        "target-search": {
+            "http_method": "GET",
+            "path_param": None,
+            "parameters": {
+                "query": (str, None, True),
+            },
+            "group_queries": [None],
+            "separator": None
+        },
     }
 
     def __init__(
@@ -216,13 +225,18 @@ class ChEMBLInterface(BaseAPIInterface):
 
             next = None
             if 'page_meta' in data and data['page_meta'].get('next'):
-                next = self.fetch_pages(
-                    "https://www.ebi.ac.uk" + data['page_meta']['next'],
-                    method,
-                    pages_to_fetch - 1
-                ) if pages_to_fetch > 1 or pages_to_fetch == -1 else None
-                if next:
-                    responses.extend(next)
+                # Determine whether to recurse: if pages_to_fetch == -1 we want to fetch ALL pages,
+                # so keep -1 for the recursive call. Otherwise only recurse when pages_to_fetch > 1
+                # and pass pages_to_fetch - 1 to the next call.
+                if pages_to_fetch == -1 or pages_to_fetch > 1:
+                    next_pages_to_fetch = pages_to_fetch if pages_to_fetch == -1 else pages_to_fetch - 1
+                    next_res = self.fetch_pages(
+                        "https://www.ebi.ac.uk" + data['page_meta']['next'],
+                        method,
+                        next_pages_to_fetch
+                    )
+                    if next_res:
+                        responses.extend(next_res)
 
             return responses
         except requests.exceptions.RequestException as e:
@@ -236,10 +250,13 @@ class ChEMBLInterface(BaseAPIInterface):
             query (str): Query string to search for.
             **kwargs: Additional parameters for the request.
             - `method`: Method to use for the request. Default is "compound".
+            - `pages_to_fetch`: Number of pages to fetch. Default is 1.
+            - `limit`: Maximum number of results to return. Default is None (no limit).
         Returns:
             any: response from the API.
         """
         pages_to_fetch = kwargs.get("pages_to_fetch", 1)
+        limit = kwargs.get("limit", None)
         
         # Validate method and format
         if method not in self.METHODS.keys():
@@ -262,6 +279,8 @@ class ChEMBLInterface(BaseAPIInterface):
         if method in ["activity", "binding_site"]:
             # Convert dictionary to a query string
             query = "&".join(f"{key}={value}" for key, value in validated_params.items())
+            if limit is not None:
+                query += f"&limit={limit}"
 
             # Generate url
             url = f"{CHEMBL.API_URL}{method}?{query}"
@@ -271,16 +290,16 @@ class ChEMBLInterface(BaseAPIInterface):
         elif method in ["target", "assay", "cell_line", "molecule"]:
             if "query" in validated_params:
                 query_str = validated_params.pop("query")
-                url = f"{CHEMBL.API_URL}{method}/search.json?q={query_str}"
+                url = f"{CHEMBL.API_URL}{method}/search.json?limit={limit if limit is not None else 20}&q={query_str}"
             else:
                 url = f"{CHEMBL.API_URL}{method}?"
                 if self.validate_filter_rules(validated_params['filters']):
                     query_str = "&".join(f"{item['field']}__{item['filter_type']}={item['value']}" for item in validated_params['filters'])
                     url += query_str
-                    url += "&format=json"
-        elif method in ["activity-search"]:
+                    url += f"limit={limit if limit is not None else 20}&format=json"
+        elif method in ["activity-search", "target-search"]:
             query_str = validated_params.get("query", "")
-            url = f"{CHEMBL.API_URL}{method.replace('-', '/')}.json?q={query_str}"
+            url = f"{CHEMBL.API_URL}{method.replace('-', '/')}.json?limit={limit if limit is not None else 20}&q={query_str}"
         else:
             log.error(f"Method {method} is not implemented in fetch.")
             return {}
@@ -295,20 +314,37 @@ class ChEMBLInterface(BaseAPIInterface):
         Returns:
             bool: True if all filters are valid, False otherwise.
         """
-        FILTER_RULES = {
-            "field": (str,),
-            "filter_type": (str, ["iexact", "gte", "lte", "icontains", "istartswith", "iendswith", "iregex", "range", "in", "isnull"]),
-            "value": (str),
-        }
+        allowed_filter_types = {"iexact", "gte", "lte", "icontains", "istartswith", "iendswith", "iregex", "range", "in", "isnull"}
+
+        # Expect a list of filter dicts
+        if not isinstance(filters, (list, tuple)):
+            log.error("Filters must be provided as a list of dict items.")
+            return False
+
         for item in filters:
-            for key, value in item.items():
-                if key not in FILTER_RULES:
-                    log.error(f"Filter '{key}' is not recognized.")
-                    return False
-                expected_type = FILTER_RULES[key]
-            if not isinstance(value, expected_type):
-                log.error(f"Filter '{key}' expects type {expected_type.__name__}, but got {type(value).__name__}.")
+            if not isinstance(item, dict):
+                log.error("Each filter must be a dict with keys 'field', 'filter_type' and 'value'.")
                 return False
+
+            # Check presence of required keys
+            for key in ("field", "filter_type", "value"):
+                if key not in item:
+                    log.error(f"Filter is missing required key '{key}'.")
+                    return False
+
+            # Validate types
+            if not isinstance(item["field"], str):
+                log.error(f"Filter 'field' must be a string, got {type(item['field']).__name__}.")
+                return False
+
+            if not isinstance(item["value"], (str, int, float)):
+                log.error(f"Filter 'value' must be a string or number, got {type(item['value']).__name__}.")
+                return False
+
+            if not isinstance(item["filter_type"], str) or item["filter_type"] not in allowed_filter_types:
+                log.error(f"Filter 'filter_type' is not valid: {item['filter_type']}. Allowed: {sorted(allowed_filter_types)}")
+                return False
+
         return True
 
     def parse(
@@ -334,6 +370,8 @@ class ChEMBLInterface(BaseAPIInterface):
         if isinstance(data, requests.models.Response):
             data = data.json()
         elif isinstance(data, dict):
+            data = data
+        elif isinstance(data, list):
             data = data
         else:
             log.error("Tried to parse data but the type is not supported. Response should be a dict or a list.")

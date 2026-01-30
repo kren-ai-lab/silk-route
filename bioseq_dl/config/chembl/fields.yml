@@ -149,3 +149,23 @@ target:
   target_components: target_components
   target_type: target_type
   tax_id: tax_id
+activity-search:
+  cross_references: cross_references
+  organism: organism
+  pref_name: pref_name
+  score: score
+  species_group_flag: species_group_flag
+  target_chembl_id: target_chembl_id
+  target_components: target_components
+  target_type: target_type
+  tax_id: tax_id
+target-search:
+  cross_references: cross_references
+  organism: organism
+  pref_name: pref_name
+  score: score
+  species_group_flag: species_group_flag
+  target_chembl_id: target_chembl_id
+  target_components: target_components
+  target_type: target_type
+  tax_id: tax_id
