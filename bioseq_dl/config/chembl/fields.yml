@@ -150,15 +150,52 @@ target:
   target_type: target_type
   tax_id: tax_id
 activity-search:
-  cross_references: cross_references
-  organism: organism
-  pref_name: pref_name
-  score: score
-  species_group_flag: species_group_flag
-  target_chembl_id: target_chembl_id
-  target_components: target_components
-  target_type: target_type
-  tax_id: tax_id
+  action_type: action_type
+  activity_comment: activity_comment
+  activity_id: activity_id
+  activity_properties: activity_properties
+  assay_chembl_id: assay_chembl_id
+  assay_description: assay_description
+  assay_type: assay_type
+  assay_variant_accession: assay_variant_accession
+  assay_variant_mutation: assay_variant_mutation
+  bao_endpoint: bao_endpoint
+  bao_format: bao_format
+  bao_label: bao_label
+  canonical_smiles: canonical_smiles
+  data_validity_comment: data_validity_comment
+  data_validity_description: data_validity_description
+  document_chembl_id: document_chembl_id
+  document_journal: document_journal
+  document_year: document_year
+  ligand_efficiency: ligand_efficiency
+  molecule_chembl_id: molecule_chembl_id
+  molecule_pref_name: molecule_pref_name
+  parent_molecule_chembl_id: parent_molecule_chembl_id
+  pchembl_value: pchembl_value
+  potential_duplicate: potential_duplicate
+  qudt_units: qudt_units
+  record_id: record_id
+  relation: relation
+  src_id: src_id
+  standard_flag: standard_flag
+  standard_relation: standard_relation
+  standard_text_value: standard_text_value
+  standard_type: standard_type
+  standard_units: standard_units
+  standard_upper_value: standard_upper_value
+  standard_value: standard_value
+  target_chembl_id: target_chembl_id 
+  target_organism: target_organism
+  target_pref_name: target_pref_name
+  target_tax_id: target_tax_id
+  text_value: text_value
+  toid: toid
+  type: type
+  units: units
+  uo_units: uo_units
+  upper_value: upper_value
+  value: value
 target-search:
   cross_references: cross_references
   organism: organism
