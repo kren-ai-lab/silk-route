@@ -13,6 +13,7 @@ VALID_FIELDS = [
     "keyword",
     "temp_dependence",
     "ph_dependence",
+    "cc_interaction",
     "ft_variant",
     #"ft_active_site", # Dont work properly in the uniprot api
     #"ft_binding_site", # Dont work properly in the uniprot api

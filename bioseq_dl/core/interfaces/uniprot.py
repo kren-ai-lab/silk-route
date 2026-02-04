@@ -21,6 +21,7 @@ from ..utils.uniprot_auxiliary_methods import (
     extract_active_sites,
     extract_variants,
     extract_keywords,
+    extract_interactions,
     extract_temperature,
     extract_ph,
 )
@@ -238,6 +239,7 @@ class UniprotInterface(UniprotBase):
             'ph': ('comments', extract_ph),
             'domains': ('features', extract_domains),
             'variants': ('features', extract_variants),
+            'interactions': ("comments", extract_interactions),
             'keyword': ('keywords', extract_keywords),
         }
     

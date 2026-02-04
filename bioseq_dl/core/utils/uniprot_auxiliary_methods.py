@@ -121,6 +121,32 @@ def extract_active_sites(active_sites: List) -> List[Dict]:
 
     return extracted
 
+# for fields cc_interaction
+def extract_interactions(comments: List) -> List[Dict]:
+    """Extracts interaction information from comments"""
+    extracted = []
+    for c in comments if isinstance(comments, list) else []:
+        comment_type = c.get('commentType', '')
+        if not comment_type == 'INTERACTION':
+            continue
+
+        interactors = c.get("interactions", [])
+        for interactor in interactors:
+            interactor_one = interactor.get("interactantOne", {})
+            interactor_two = interactor.get("interactantTwo", {})
+            extracted.append({
+                'accesion_a': interactor_one.get('uniProtKBAccession', ''),
+                'geneName_a': interactor_one.get('geneName', ''),
+                # You can also retrieve intact id, but will be left out for now
+                #'intActId_a': interactor_one.get('intActId', '')
+                'accesion_b': interactor_two.get('uniProtKBAccession', ''),
+                'geneName_b': interactor_two.get('geneName', ''),
+                #'intActId_b': interactor_two.get('intActId', '')
+                'numberOfExperiments': interactor.get('numberOfExperiments', 0),
+                'organismDiffer': interactor.get('organismDiffer', False)
+            })
+    return extracted
+
 # for fields temp_dependence, ph_dependence
 def extract_temperature(comments: List) -> List[str]:
     """Extracts temperature dependence information from comments"""
