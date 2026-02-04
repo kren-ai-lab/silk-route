@@ -223,23 +223,70 @@ class CrossRefEnricher():
             all_results.append(result)
             all_metadata.append({row.name: metadata})
 
+        # TODO comprobar si este cambio no es problematico
         if format == "dataframe":
             # Unpack (df, metadata) tuples; metadata currently unused
             dfs = [res[0] if isinstance(res, tuple) else res for res in all_results]
 
-            if not dfs or all([r.empty for r in dfs if isinstance(r, pd.DataFrame)]):
-                return pd.DataFrame(), {}
-
-            # Ensure unique column names in each DataFrame before concatenation
+            # Normalize and filter results: keep only non-empty DataFrames.
             cleaned_results = []
             for result in dfs:
+                # If already a DataFrame, ensure it's non-empty and drop duplicate columns.
                 if isinstance(result, pd.DataFrame):
                     if result.empty:
                         continue
                     result = result.loc[:, ~pd.Index(result.columns).duplicated()]
-                cleaned_results.append(result)
 
-            return pd.concat(cleaned_results, ignore_index=True), all_metadata
+                    # Drop accidental numeric-only column names like '1','2','3',...
+                    cols_to_keep = [c for c in result.columns if not str(c).isdigit()]
+                    if not cols_to_keep:
+                        continue
+                    cleaned_results.append(result.loc[:, cols_to_keep].reset_index(drop=True))
+                    continue
+
+                # If result is a list (likely list of dicts), try to coerce to DataFrame.
+                if isinstance(result, list):
+                    if not result:
+                        continue
+                    try:
+                        df_result = pd.DataFrame(result)
+                    except Exception:
+                        continue
+                    if df_result.empty:
+                        continue
+                    df_result = df_result.loc[:, ~pd.Index(df_result.columns).duplicated()]
+
+                    # Drop accidental numeric-only column names like '1','2','3',...
+                    cols_to_keep = [c for c in df_result.columns if not str(c).isdigit()]
+                    if not cols_to_keep:
+                        continue
+                    cleaned_results.append(df_result.loc[:, cols_to_keep].reset_index(drop=True))
+                    continue
+
+                # If result is a single dict, wrap into a DataFrame.
+                if isinstance(result, dict):
+                    try:
+                        df_result = pd.DataFrame([result])
+                    except Exception:
+                        continue
+                    if df_result.empty:
+                        continue
+                    df_result = df_result.loc[:, ~pd.Index(df_result.columns).duplicated()]
+
+                    # Drop accidental numeric-only column names like '1','2','3',...
+                    cols_to_keep = [c for c in df_result.columns if not str(c).isdigit()]
+                    if not cols_to_keep:
+                        continue
+                    cleaned_results.append(df_result.loc[:, cols_to_keep].reset_index(drop=True))
+                    continue
+
+                # Unknown/unsupported type: skip
+                continue
+
+            if not cleaned_results:
+                return pd.DataFrame(), all_metadata
+
+            return pd.concat(cleaned_results, ignore_index=True, sort=False), all_metadata
         elif format == "json":
             cleaned_results = []
             for result in all_results:
