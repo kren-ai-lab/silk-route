@@ -250,14 +250,6 @@ download_folder: /path/to/download/folder
 - [ ] Automatic caching and offline mode
 - [ ] Integration with external ML workflows
 
-## Contributing
-
-Contributions are welcome! To contribute:
-1. Fork the repository
-2. Create a new branch (`feature/my-feature`)
-3. Commit and push your changes
-4. Open a Pull Request
-
 ## License
 
 This project is licensed under the **MIT License**.
