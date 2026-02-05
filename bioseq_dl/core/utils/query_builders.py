@@ -445,10 +445,9 @@ def build_query_stringdb(row, params):
     string_ids = to_str_list(row.get("string_ids"))
     organism = to_str_list(row.get("organism_id"))[0]
     gene_primary = to_str_list(row.get("gene_primary"))
-    if string_ids and organism:
+    if string_ids:
         return [{
             "identifiers": string_id,
-            "species": organism,
             **params
         } for string_id in string_ids]
     elif gene_primary and organism:

@@ -299,7 +299,7 @@ class ChEMBLInterface(BaseAPIInterface):
                     url += f"limit={limit if limit is not None else 20}&format=json"
         elif method in ["activity-search", "target-search"]:
             query_str = validated_params.get("query", "")
-            url = f"{CHEMBL.API_URL}{method.replace('-', '/')}.json?limit={limit if limit is not None else 20}&q={query_str}"
+            url = f"{CHEMBL.API_URL}{method.replace('-', '/')}.json?limit={limit if limit is not None else 20}&q={query_str.replace(' ', '%20')}"
         else:
             log.error(f"Method {method} is not implemented in fetch.")
             return {}

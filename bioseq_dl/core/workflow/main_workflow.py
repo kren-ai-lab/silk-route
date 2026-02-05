@@ -146,23 +146,6 @@ class MainWorkflow:
         self.log.debug("Interpreted query: %s", interpreted)
         self.log.debug("Additional crossref fields: %s", crossref_fields)
 
-    # TODO este probablemente esta demas. Resolver en compound
-    def _additional_searches_from_interpreter(self, context: dict) -> None:
-        args = context.get("args", {})
-        query = args.get("query")
-        try:
-            additional = self.interpreter.extract_additional_searches(query)
-            context.setdefault("metadata", {})["additional_searches"] = additional
-            if additional:
-                for add in additional:
-                    if add.get("database") == "chembl":
-                        out_q = self._resolve_chembl_search(add)
-                        if out_q:
-                            prev = context.get("interpreted_query") or args["query"]
-                            context["interpreted_query"] = f"{prev} AND {out_q}" if prev else out_q
-        except Exception as e:
-            self.log.debug("Failed to extract/resolve additional searches: %s", e)
-
     def _step_fetch_uniprot(self, context: dict) -> None:
         args = context.get("args", {})
         interpreted = context.get("searches", {}).get("uniprot", {}).get("interpreted_query") or args.get("query")
@@ -252,7 +235,7 @@ class MainWorkflow:
         context["metadata"].setdefault("chembl", meta)
         self.log.debug("Pipeline ChEMBL fetch metadata: %s", meta)
 
-    def _step_chembl_to_uniprot_query(self, context: dict) -> None:
+    def _step_chembl_to_uniprot_query(self, context: dict, keep_original_query: bool = True) -> None:
         # Build UniProt subquery from ChEMBL results (reuse logic similar to _resolve_chembl_search)
         result = context.get("data", {}).get("chembl")
         ids = []
@@ -281,55 +264,12 @@ class MainWorkflow:
         out = "(" + " OR ".join([f"xref:chembl-{i}" for i in ids]) + ")"
         # attach or extend existing interpreted_query
         prev = context.get("searches", {}).get("uniprot", {}).get("query") 
-        if prev:
+        if prev and keep_original_query:
             new_query = f"{prev} AND {out}"
         else:
             new_query = out
         context["searches"]["uniprot"]["query"] = new_query
         self.log.debug("Pipeline built UniProt subquery from ChEMBL IDs: %s", out)
-
-    def _step_fetch_interaction_candidates(self, context: dict) -> None:
-        """Fetch candidate items for interaction pipelines. Uses modality_type to select Biogrid (protein-protein)
-        or ChEMBL (protein-ligand) by default. Results stored in context['response'] to be parsed by later steps.
-
-        Accepts modality_type values such as: 'protein-protein', 'protein_ligand', 'protein-ligand', etc.
-        """
-        args = context.get("args", {})
-        modality_type = args.get("modality_type")
-        # Normalize common variants (None -> '')
-        modality_norm = (str(modality_type) if modality_type is not None else "").lower().replace("_", "-")
-        self.log.debug("Pipeline: fetching interaction candidates for modality_type=%s (normalized=%s)", modality_type, modality_norm)
-
-        if modality_norm == "protein-protein":
-            # Use BioGRID to fetch interactions
-            try:
-                if not args.get("query"):
-                    self.log.debug("Pipeline: empty query for BioGRID fetch; skipping")
-                    context["response"] = pd.DataFrame()
-                    context.setdefault("metadata", {}).setdefault("biogrid", {"skipped_empty_query": True})
-                    return
-                instance = BioGRIDInterface()
-                result, meta = instance.fetch_single(query=args.get("query"), method=args.get("method", "search"), parse=True, format=cast(Any, "dataframe"))
-                context["response"] = result
-                context.setdefault("metadata", {}).setdefault("biogrid", meta)
-                self.log.debug("Pipeline BioGRID metadata: %s", meta)
-            except Exception as e:
-                self.log.warning("BioGRID fetch failed: %s", e)
-                context["response"] = []
-            return
-
-        if modality_norm == "protein-ligand":
-            # Use ChEMBL to fetch ligands/activities
-            self._step_fetch_chembl(context)
-            # move chembl_result into response for downstream parsing
-            context["response"] = context.get("chembl_result")
-            return
-
-        # Fallback behaviour: try Biogrid first, then ChEMBL as secondary
-        self.log.debug("Unknown modality_type '%s', falling back to ChEMBL fetch", modality_type)
-        self._step_fetch_chembl(context)
-        context["response"] = context.get("chembl_result")
-        return
 
     def _step_build_interactions(self, context: dict) -> None:
         """Transform fetched candidates into an interactions dataset. Minimal default behaviour:
@@ -488,19 +428,17 @@ class MainWorkflow:
 
     def run_interaction(
         self,
-        query: Optional[str] = None,
-        dataset: Optional[Union[pd.DataFrame, str]] = None,
-        modality_type: Optional[str] = None,
+        query: str,
+        interaction_type: Optional[Literal["protein-protein", "protein-ligand"]] = None,
         export_format: Optional[str] = None,
-        enrich: bool = False,
-        crossref_endpoint_specs: Optional[List[EndpointSpec]] = None,
+        **kwargs,
     ) -> Tuple[dict, dict]:
         """
         Run the interaction modality. If query provided, fetch interaction candidates (BioGRID/ChEMBL) 
         and build interactions dataset.
         This will do more than 1 search if needed (e.g., ChEMBL + UniProt).
         For example:
-        - "pli:'Proteases' AND databases:alphafold" 
+        - "pli:'Proteases' AND {uniprot_filter_query}" 
         Will search in ChEMBL using the query "target:'Proteases' AND {uniprot_filter_query}", 
           extract the ChEMBL IDs, then search UniProt for those IDs.
           A new request will be made to UniProt, merging the uniprot_filter_query and the IDs from ChEMBL.
@@ -512,31 +450,79 @@ class MainWorkflow:
 
         Returns (data, metadata).
         """
-        if query and dataset is not None:
-            raise ValueError("Provide either `query` or `dataset`, not both")
+
+        # ====== Short PPI search explanation ======
+        # After searching UniProt with a desired query (e.g., "disease:cancer AND reviewed:true"),
+        # We get a list of columns that we can use to retrieve data from different databases.
+        # For example,
+        # string_ids: '9606.ENSP00000269305' (from STRING database) can be used to get interactions giving us gene_a vs gene_b and score
+        # biogrid_ids: '108356' (from BioGRID database) can be used to get interactions giving us gene_a vs gene_b and experimental details
+        # ====== Short PLI search explanation ======
+        # We do a similar approach for PLI, but we use ChEMBL to get the interactions with a target.
+        # After that we search UniProt for the target details.
+        if not interaction_type:
+            raise ValueError("interaction_type is required for run_interaction")
 
         export_format = export_format or self.default_export_format
 
-        if query:
-            args = {"query": query, "modality_type": modality_type, "export_format": export_format, "enrich": enrich, "crossref_endpoint_specs": crossref_endpoint_specs}
-            context = {"args": args, "data": None, "response": None, "metadata": {"mode": "interaction", "origin": "query"}}
+        uniprot_interpreter = build_default_uniprot_interpreter()
+        chembl_interpreter = build_default_chembl_interpreter()
+        
+        args = {
+            "query": query,
+            "export_format": export_format,
+            "interaction_type": interaction_type,
+            "mode": "interaction"
+        }
+        context = {
+            "searches": {
+                "uniprot": args,
+            },
+            "data": {},
+            "metadata": {"mode": "interaction", "origin": "query"}
+        }
 
-            self._step_interpret(context)
-            self._step_fetch_interaction_candidates(context)
-            self._step_build_interactions(context)
-            self._step_crossref_enrich(context)
 
-            _d = context.get("data")
-            if _d is None:
-                data = pd.DataFrame()
-            else:
-                data = cast(Union[pd.DataFrame, list, dict, ET], _d)
-            return data, context.get("metadata") or {}
+        # Fetch interaction candidates
+        if interaction_type == "protein-protein":
+            # Interpret original interaction query
+            context["searches"]["uniprot"]["interpreted_query"] = uniprot_interpreter.interpret(query=args.get("query", ""))
+            # For PPI, we first search UniProt to get accessions matching the query,
+            # then use those accessions to fetch interactions from BioGRID and StringDB.
+            self._step_fetch_uniprot(context)
+            self._step_parse_uniprot(context)
+            # Instead of doing a enrichment we use another method to fetch specific endpoint from Biogrid and StringDB.
+            self._step_fetch_additional_ppi_interaction_sources(context)
 
-        if dataset is not None:
-            raise NotImplementedError("Dataset/import handling removed. Use query mode or import_first (not implemented).")
+            return context.get("data") or {}, context.get("metadata") or {}
+        elif interaction_type == "protein-ligand":
+            context["searches"]["chembl"] = {
+                "query": query,
+                "export_format": export_format,
+                "search_type": "target",
+            }
+            # Interpret original interaction query
+            context["searches"]["chembl"]["interpreted_query"] = chembl_interpreter.interpret(query=args.get("query", ""))
+            # For PLI, we first search ChEMBL to get compounds/targets matching the query,
+            self._step_fetch_chembl(context, search_type="target")
+            # then use those targets to fetch UniProt details.
+            self._step_chembl_to_uniprot_query(context, keep_original_query=False)
+            uniprot_query = context.get("searches", {}).get("uniprot", {}).get("query")
+            if not uniprot_query:
+                self.log.debug("Pipeline: no UniProt query generated from ChEMBL IDs for PLI")
+                return context["data"], context.get("metadata", {})
+            # Interpret UniProt query and append to ChEMBL IDs search
+            chembl_ids_query = context["searches"]["uniprot"]["query"]
+            # Combine both queries
+            context["searches"]["uniprot"] = {
+                "query": query,
+                "interpreted_query": chembl_ids_query,
+                "export_format": export_format,
+            }
+            return self.run_protein(context=context)
 
-        raise ValueError("Either `query` or `dataset` must be provided to run_interaction")
+        return {}, {}
+
 
     def query_first(
         self,
@@ -549,6 +535,7 @@ class MainWorkflow:
         enrich: bool = False,
         crossref_endpoint_specs: Optional[List[EndpointSpec]] = None,
         search_type: Optional[str] = "activity",
+        interaction_type: Optional[str] = None,
     ) -> Tuple[dict, dict]:
         """Interpret `query` and dispatch to modality-specific handler. Returns (data, metadata)."""
         modality = (modality or "").lower()
@@ -557,7 +544,7 @@ class MainWorkflow:
         if modality == "compound":
             return self.run_compound(query=query, fields=fields, export_format=export_format, enrich=enrich, crossref_endpoint_specs=crossref_endpoint_specs, search_type=search_type)
         if modality == "interaction":
-            return self.run_interaction(query=query, modality_type=None, export_format=export_format, enrich=enrich, crossref_endpoint_specs=crossref_endpoint_specs)
+            return self.run_interaction(query=query, modality_type=None, export_format=export_format, enrich=enrich, crossref_endpoint_specs=crossref_endpoint_specs, interaction_type=interaction_type)
         raise ValueError(f"Unknown modality: {modality}")
 
     def import_first(
@@ -764,49 +751,43 @@ class MainWorkflow:
         return final_main, metadata
 
     # ---- Helpers ----
-    def _resolve_chembl_search(self, spec: dict) -> str:
-        """
-        Minimal resolver for ChEMBL activity searches used by the interpreter additional searches.
-        Returns a UniProt sub-query (e.g., "(xref:chembl-CHEMBL123 OR xref:chembl-CHEMBL456)") or empty string.
-        """
-        query = spec.get("query")
-        method = spec.get("method")
-        fmt = "dataframe"
-        self.log.debug("Resolving ChEMBL search: query=%s method=%s format=%s", query, method, fmt)
-        if not query:
-            self.log.debug("_resolve_chembl_search: empty query, skipping ChEMBL fetch")
-            return ""
-        instance = ChEMBLInterface()
-        result, metadata = instance.fetch_single(query=query, method=method, parse=True, format=cast(Any, fmt))
-        self.log.debug("ChEMBL fetch returned metadata: %s", metadata)
+    def _step_fetch_additional_ppi_interaction_sources(self, context: dict) -> None:
+        args = context.get("searches", {}).get("uniprot", {})
+        input_data = context.get("data", {}).get("uniprot")
+        export_format = args.get("export_format") or self.default_export_format
 
-        ids = []
-        if isinstance(result, pd.DataFrame) and not result.empty:
-            # try common columns
-            for col in ("target_chembl_id", "chembl_id", "molecule_chembl_id"):
-                if col in result.columns:
-                    ids = result[col].dropna().unique().tolist()
-                    break
-            self.log.debug("Extracted ChEMBL IDs from DataFrame: %s (count=%s)", ids, len(ids))
-        elif isinstance(result, list):
-            # list of dicts
-            for item in result:
-                if isinstance(item, dict):
-                    for k, v in item.items():
-                        if isinstance(v, str) and v.startswith("CHEMBL"):
-                            ids.append(v)
-            self.log.debug("Extracted ChEMBL IDs from list: %s (count=%s)", ids, len(ids))
-        elif isinstance(result, dict):
-            for v in result.values():
-                if isinstance(v, str) and v.startswith("CHEMBL"):
-                    ids.append(v)
-            self.log.debug("Extracted ChEMBL IDs from dict: %s (count=%s)", ids, len(ids))
 
-        ids = [str(i) for i in ids if i]
-        if not ids:
-            self.log.debug("No ChEMBL IDs found for spec: %s", spec)
-            return ""
+        self.log.info("Pipeline: fetching additional interaction sources for protein-protein interactions")
 
-        out = "(" + " OR ".join([f"xref:chembl-{i}" for i in ids]) + ")"
-        self.log.debug("Built UniProt subquery from ChEMBL IDs: %s", out)
-        return out
+        specs = []
+        # Fetch BioGRID interactions
+        # Check if Biogrid IDs are present in the input data
+        if "biogrid_ids" in input_data.columns:
+            specs.append(
+                EndpointSpec(
+                    database="biogrid",
+                    endpoint="interactions"
+                )
+            )
+        else:
+            self.log.debug("No biogrid_ids column found in input data; skipping BioGRID interaction fetch")
+        # Fetch StringDB interactions
+        if "string_ids" in input_data.columns:
+            specs.append(
+                EndpointSpec(
+                    database="string",
+                endpoint="interaction_partners"
+            )
+        )
+        else:
+            self.log.debug("No string_ids column found in input data; skipping StringDB interaction fetch")
+        
+        crossref_enricher = CrossRefEnricher(specs)
+        enriched, enriched_meta = crossref_enricher.enrich(
+            data=input_data if input_data is not None else pd.DataFrame(),
+            format=cast(Literal["json", "dataframe", "xml"], export_format)
+        )
+
+        context["data"].setdefault("uniprot_enrichment", enriched)
+        context.setdefault("metadata", {}).setdefault("uniprot_enrichment", enriched_meta)
+        self.log.debug("Pipeline additional interaction sources enrichment metadata: %s", enriched_meta)

@@ -13,3 +13,4 @@
         typer.echo(results)
     ```
 - [x] To maintain consistency, make a second revision of the code in interfaces.
+- [ ] Try to use workflows with json and xml functionality
