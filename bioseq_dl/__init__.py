@@ -20,6 +20,8 @@ from .core.interfaces.sabiork import SabiorkInterface
 from .core.interfaces.stringdb import StringInterface
 from .core.interfaces.uniprot import UniprotInterface
 
+from .core.workflow.main_workflow import MainWorkflow as Workflow
+
 
 __all__ = [
     "BaseAPIInterface",
@@ -42,5 +44,6 @@ __all__ = [
     "RheaInterface",
     "SabiorkInterface",
     "StringInterface",
-    "UniprotInterface"
+    "UniprotInterface",
+    "Workflow"
 ]

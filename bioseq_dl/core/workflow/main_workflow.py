@@ -84,7 +84,12 @@ class MainWorkflow:
         # integration decisions are final.
 
     # Public run entry that routes by mode
-    def run(self, modality: str, mode: str = "query_first", **kwargs) -> Tuple[Any, dict]:
+    def run(
+            self, 
+            modality: str, 
+            mode: str = "query_first", 
+            **kwargs
+        ) -> Tuple[Any, dict]:
         """
         Primary public entry. modality is mandatory and selects the declarative
         pipeline to use (e.g. 'protein', 'compound', 'interaction'). `mode` keeps
@@ -93,6 +98,11 @@ class MainWorkflow:
         Examples:
           run('protein', mode='query_first', query='...')
           run('interaction', mode='query_composition', queries_with_labels=[...])
+        
+        Args:
+            modality: The modality to run ('protein', 'compound', 'interaction').
+            mode: The mode to run ('query_first', 'import_first', 'query_composition').
+            **kwargs: Additional arguments passed to the selected mode handler.
         """
         if not modality:
             raise ValueError("`modality` is required for MainWorkflow.run")
@@ -158,8 +168,21 @@ class MainWorkflow:
         fields = args.get("fields", "")
         sort = args.get("sort", "accession asc")
         include_isoform = args.get("include_isoform", False)
-        self.log.info("Pipeline: fetching UniProt for query=%s fields=%s", interpreted, fields)
-        response, fetch_meta = self.uniprot.submit_stream(query=interpreted, fields=(fields or ""), sort=sort, include_isoform=include_isoform)
+        
+        if isinstance(interpreted, list):
+            # Multiple queries: fetch each and combine results
+            combined_response = {}
+            combined_fetch_meta = {}
+            for q in interpreted:
+                self.log.info("Pipeline: fetching UniProt for query=%s fields=%s", q, fields)
+                resp, fetch_meta = self.uniprot.submit_stream(query=q, fields=(fields or ""), sort=sort, include_isoform=include_isoform)
+                combined_response["results"] = combined_response.get("results", []) + (resp.get("results", []) if isinstance(resp, dict) else [])
+                combined_fetch_meta[q] = fetch_meta if isinstance(fetch_meta, dict) else {}
+            response = combined_response
+            fetch_meta = combined_fetch_meta
+        else:
+            self.log.info("Pipeline: fetching UniProt for query=%s fields=%s", interpreted, fields)
+            response, fetch_meta = self.uniprot.submit_stream(query=interpreted, fields=(fields or ""), sort=sort, include_isoform=include_isoform)
         # Always store the latest response under context['data']['uniprot'] (setdefault would not overwrite existing value)
         context.setdefault("data", {})["uniprot"] = response
         context.setdefault("metadata", {}).setdefault("uniprot", {}).update({"fetch": fetch_meta if isinstance(fetch_meta, dict) else {}})
@@ -259,17 +282,32 @@ class MainWorkflow:
         if not ids:
             self.log.debug("Pipeline: no ChEMBL IDs found; leaving interpreted_query untouched")
             return
-        if len(ids) > 1000:
+        if len(ids) > 100:
             self.log.warning("Pipeline: large number of ChEMBL IDs (%s); UniProt query may be too long", len(ids))
-        out = "(" + " OR ".join([f"xref:chembl-{i}" for i in ids]) + ")"
-        # attach or extend existing interpreted_query
-        prev = context.get("searches", {}).get("uniprot", {}).get("query") 
-        if prev and keep_original_query:
-            new_query = f"{prev} AND {out}"
+            self.log.info("Searches will be divided into chunks of 100 IDs")
+            output_list = []
+            for i in range(0, len(ids), 100):
+                chunk_ids = ids[i:i+100]
+                chunk_query = "(" + " OR ".join([f"xref:chembl-{i}" for i in chunk_ids]) + ")"
+                # attatch or extend existing interpreted_query for each chunk
+                prev = context.get("searches", {}).get("uniprot", {}).get("query") if keep_original_query else None
+                if prev:
+                    new_query = f"{prev} AND {chunk_query}"
+                else:
+                    new_query = chunk_query
+                output_list.append(new_query)
+            context["searches"]["uniprot"]["query"] = output_list
+            self.log.debug("Pipeline built UniProt subqueries from ChEMBL IDs in %s chunks", len(output_list))
         else:
-            new_query = out
-        context["searches"]["uniprot"]["query"] = new_query
-        self.log.debug("Pipeline built UniProt subquery from ChEMBL IDs: %s", out)
+            out = "(" + " OR ".join([f"xref:chembl-{i}" for i in ids]) + ")"
+            # attach or extend existing interpreted_query
+            prev = context.get("searches", {}).get("uniprot", {}).get("query") 
+            if prev and keep_original_query:
+                new_query = f"{prev} AND {out}"
+            else:
+                new_query = out
+            context["searches"]["uniprot"]["query"] = new_query
+            self.log.debug("Pipeline built UniProt subquery from ChEMBL IDs: %s", out)
 
     def _step_build_interactions(self, context: dict) -> None:
         """Transform fetched candidates into an interactions dataset. Minimal default behaviour:
@@ -412,10 +450,21 @@ class MainWorkflow:
         # We extract the UniProt part of the original query
         interpreted_uniprot_query = uniprot_interpreter.interpret(query=query)
 
+        combined_queries: str | List[str] = []
+        if chembl_ids_query and isinstance(chembl_ids_query, list):
+            for chembl_query in chembl_ids_query:
+                if interpreted_uniprot_query:
+                    combined_query = f"({interpreted_uniprot_query}) AND {chembl_query}"
+                else:
+                    combined_query = chembl_query
+                combined_queries.append(combined_query)
+        else:
+            combined_queries = f"({interpreted_uniprot_query}) AND {chembl_ids_query}" if interpreted_uniprot_query else chembl_ids_query
+            
         # Combine both queries
         context["searches"]["uniprot"] = {
             "query": query,
-            "interpreted_query": f"({interpreted_uniprot_query}) AND {chembl_ids_query}" if interpreted_uniprot_query else chembl_ids_query,
+            "interpreted_query": combined_queries,
             "export_format": export_format,
         }
 
@@ -522,7 +571,6 @@ class MainWorkflow:
             return self.run_protein(context=context)
 
         return {}, {}
-
 
     def query_first(
         self,
