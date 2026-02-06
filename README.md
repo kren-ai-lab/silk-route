@@ -37,7 +37,6 @@ Currently supported databases include:
 - [Installation](#installation)
   - [Optional Steps for Specific Functionalities](#optional-steps-for-specific-functionalities)
 - [Usage](#usage)
-  - [Graphical User Interface (GUI)](#graphical-user-interface-gui)
   - [Command-Line Interface (CLI)](#command-line-interface-cli)
   - [Programmatic API](#programmatic-api)
 - [Configuration](#configuration)
@@ -104,16 +103,6 @@ To explore all available commands:
 ```bash
 bioseq-dl --help
 ```
-
-### Graphical User Interface (GUI)
-
-Launch the GUI:
-```bash
-bioseq-dl gui run
-```
-A local server will be available at [http://localhost:7560](http://localhost:7860), providing an interactive web interface.
-
----
 
 ### Command-Line Interface (CLI)
 
@@ -246,7 +235,6 @@ download_folder: /path/to/download/folder
 
 ## Future Features
 
-- [ ] GUI for configuration management
 - [ ] Automatic caching and offline mode
 - [ ] Integration with external ML workflows
 

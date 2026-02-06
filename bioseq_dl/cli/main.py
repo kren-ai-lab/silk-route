@@ -1,12 +1,10 @@
 import typer
-from bioseq_dl.cli.gui import app as launch_gradio_app
 from bioseq_dl.cli.collect_data import api_section as api_app, general_section as general_app
 from bioseq_dl.init_config import main_init
 from bioseq_dl.cli.helper_commands import app as clear_cache_app
 from bioseq_dl.cli.workflows import app as workflow_app
 
 app = typer.Typer(name="bioseq-dl", help="Download sequences from multiple biological databases")
-app.add_typer(launch_gradio_app, name="gui", help="Launch the Gradio GUI for BioSeqDownloader.")
 app.add_typer(api_app, name="api-collect", help="Collect data using API nomenclature.")
 app.add_typer(general_app, name="general-collect", help="Collect data using general search interfaces.")
 app.add_typer(workflow_app, name="workflow", help="Run predefined data collection workflows.")
