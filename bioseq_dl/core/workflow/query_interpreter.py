@@ -135,8 +135,12 @@ class BaseQueryInterpreter:
 
         # Quote if needed
         if cfg.quote_phrases and self._needs_quotes(value):
+            # Deprecated: Not compatible with some python versions
+            # if not (value.startswith("'") and value.endswith("'")):
+            #     value = f"'{value.strip('\"')}'"
             if not (value.startswith("'") and value.endswith("'")):
-                value = f"'{value.strip('\"')}'"
+                clean_value = value.strip('"')
+                value = f"'{clean_value}'"
 
     def _cleanup_whitespace(self, text: str) -> str:
         """Normalize whitespace to a single space and trim edges."""
