@@ -64,6 +64,14 @@ def run_workflow(
         True, "--enrich/--no-enrich",
         help="Whether to perform data enrichment. Default is True."
     ),
+    max_workers: int = typer.Option(
+        5, "--max-workers", "-w",
+        help="Maximum number of worker threads to use for API calls. Default is 5."
+    ),
+    total_retries: int = typer.Option(
+        3, "--total-retries", "-r",
+        help="Total number of retries for failed API calls. Default is 3."
+    ),
     debug: bool = typer.Option(
         False, "--debug",
         help="Enable debug logging"
@@ -101,7 +109,9 @@ def run_workflow(
             modality=modality,
             export_format=export_format,
             query=query,
-            enrich=enrich
+            enrich=enrich,
+            max_workers=max_workers,
+            total_retries=total_retries
         )
     elif mode == "query_composition":
         if ',' in query:

@@ -208,12 +208,14 @@ class MainWorkflow:
             context.setdefault("metadata", {}).setdefault("uniprot", {}).setdefault("parsing", {"error": str(e)})
             return
 
-    def _step_crossref_enrich(self, context: dict) -> None:
+    def _step_crossref_enrich(self, context: dict, **kwargs) -> None:
         args = context.get("searches", {}).get("uniprot", {})
         input_data = context.get("data", {}).get("uniprot")
         cross_ref_fields = args.get("additional_crossref_fields") or []
         enrich_flag = args.get("enrich", False)
         export_format = args.get("export_format") or self.default_export_format
+        max_workers = kwargs.get("max_workers", 4)
+        total_retries = kwargs.get("total_retries", 3)
 
         if not enrich_flag:
             self.log.debug("Pipeline: enrichment skipped (enrich=False)")
@@ -223,7 +225,9 @@ class MainWorkflow:
         enriched, enriched_meta = run_crossref_enrichment(
             data=input_data if input_data is not None else pd.DataFrame(),
             crossref_fields=cross_ref_fields.split(",") if isinstance(cross_ref_fields, str) else cross_ref_fields,
-            format=cast(Literal["json", "dataframe", "xml"], export_format)
+            format=cast(Literal["json", "dataframe", "xml"], export_format),
+            max_workers=max_workers,
+            total_retries=total_retries
         )
         context["data"].setdefault("uniprot_enrichment", enriched)
         context.setdefault("metadata", {}).setdefault("uniprot_enrichment", enriched_meta)
@@ -336,6 +340,7 @@ class MainWorkflow:
         enrich: bool = False,
         crossref_endpoint_specs: Optional[List[EndpointSpec]] = None,
         context: Optional[dict] = None,
+        **kwargs,
     ) -> Tuple[dict, dict]:
         """Run the protein modality.
         The most basic form of query is a UniProt query string, e.g. "organism:9606 AND reviewed:true".
@@ -373,7 +378,7 @@ class MainWorkflow:
 
         self._step_fetch_uniprot(context)
         self._step_parse_uniprot(context)
-        self._step_crossref_enrich(context)
+        self._step_crossref_enrich(context, **kwargs)
 
         return context["data"], context.get("metadata") or {}
 
@@ -541,7 +546,7 @@ class MainWorkflow:
             self._step_fetch_uniprot(context)
             self._step_parse_uniprot(context)
             # Instead of doing a enrichment we use another method to fetch specific endpoint from Biogrid and StringDB.
-            self._step_fetch_additional_ppi_interaction_sources(context)
+            self._step_fetch_additional_ppi_interaction_sources(context, **kwargs)
 
             return context.get("data") or {}, context.get("metadata") or {}
         elif interaction_type == "protein-ligand":
@@ -584,15 +589,16 @@ class MainWorkflow:
         crossref_endpoint_specs: Optional[List[EndpointSpec]] = None,
         search_type: Optional[str] = "activity",
         interaction_type: Optional[str] = None,
+        **kwargs,
     ) -> Tuple[dict, dict]:
         """Interpret `query` and dispatch to modality-specific handler. Returns (data, metadata)."""
         modality = (modality or "").lower()
         if modality == "protein":
-            return self.run_protein(query=query, fields=fields, sort=sort, include_isoform=include_isoform, export_format=export_format, enrich=enrich, crossref_endpoint_specs=crossref_endpoint_specs)
+            return self.run_protein(query=query, fields=fields, sort=sort, include_isoform=include_isoform, export_format=export_format, enrich=enrich, crossref_endpoint_specs=crossref_endpoint_specs, **kwargs)
         if modality == "compound":
-            return self.run_compound(query=query, fields=fields, export_format=export_format, enrich=enrich, crossref_endpoint_specs=crossref_endpoint_specs, search_type=search_type)
+            return self.run_compound(query=query, fields=fields, export_format=export_format, enrich=enrich, crossref_endpoint_specs=crossref_endpoint_specs, search_type=search_type, **kwargs)
         if modality == "interaction":
-            return self.run_interaction(query=query, modality_type=None, export_format=export_format, enrich=enrich, crossref_endpoint_specs=crossref_endpoint_specs, interaction_type=interaction_type)
+            return self.run_interaction(query=query, modality_type=None, export_format=export_format, enrich=enrich, crossref_endpoint_specs=crossref_endpoint_specs, interaction_type=interaction_type, **kwargs)
         raise ValueError(f"Unknown modality: {modality}")
 
     def import_first(
@@ -602,6 +608,7 @@ class MainWorkflow:
         dataset_format: Optional[str] = None,
         enrich: bool = False,
         crossref_endpoint_specs: Optional[List[EndpointSpec]] = None,
+        **kwargs,
     ) -> Tuple[dict, dict]:
         """Load a dataset and dispatch to modality-specific handler. Returns (data, metadata)."""
         raise NotImplementedError("Import first not implemented yet.")
@@ -615,6 +622,7 @@ class MainWorkflow:
         enrich: bool = False,
         crossref_endpoint_specs: Optional[List[EndpointSpec]] = None,
         search_type: Optional[str] = "activity",
+        **kwargs,
     ) -> Tuple[dict, dict]:
         """
         Run several queries and tag every row with the provided label. 
@@ -633,11 +641,11 @@ class MainWorkflow:
 
         for query, label in queries_with_labels:
             if modality == "protein":
-                part_data, part_meta = self.run_protein(query=query, fields=fields, export_format=export_format, enrich=enrich, crossref_endpoint_specs=crossref_endpoint_specs)
+                part_data, part_meta = self.run_protein(query=query, fields=fields, export_format=export_format, enrich=enrich, crossref_endpoint_specs=crossref_endpoint_specs, **kwargs)
             elif modality == "compound":
-                part_data, part_meta = self.run_compound(query=query, fields=fields, export_format=export_format, enrich=enrich, crossref_endpoint_specs=crossref_endpoint_specs, search_type=search_type)
+                part_data, part_meta = self.run_compound(query=query, fields=fields, export_format=export_format, enrich=enrich, crossref_endpoint_specs=crossref_endpoint_specs, search_type=search_type, **kwargs)
             elif modality == "interaction":
-                part_data, part_meta = self.run_interaction(query=query, export_format=export_format, enrich=enrich, crossref_endpoint_specs=crossref_endpoint_specs)
+                part_data, part_meta = self.run_interaction(query=query, export_format=export_format, enrich=enrich, crossref_endpoint_specs=crossref_endpoint_specs, **kwargs)
             else:
                 raise ValueError(f"Unknown modality: {modality}")
 
@@ -799,11 +807,14 @@ class MainWorkflow:
         return final_main, metadata
 
     # ---- Helpers ----
-    def _step_fetch_additional_ppi_interaction_sources(self, context: dict) -> None:
+    def _step_fetch_additional_ppi_interaction_sources(self, context: dict, **kwargs) -> None:
         args = context.get("searches", {}).get("uniprot", {})
         input_data = context.get("data", {}).get("uniprot")
         export_format = args.get("export_format") or self.default_export_format
 
+        # Extract max_workers and total_retries from kwargs
+        max_workers = kwargs.get("max_workers", 4)
+        total_retries = kwargs.get("total_retries", 3)
 
         self.log.info("Pipeline: fetching additional interaction sources for protein-protein interactions")
 
@@ -824,13 +835,17 @@ class MainWorkflow:
             specs.append(
                 EndpointSpec(
                     database="string",
-                endpoint="interaction_partners"
+                    endpoint="interaction_partners"
+                )
             )
-        )
         else:
             self.log.debug("No string_ids column found in input data; skipping StringDB interaction fetch")
         
-        crossref_enricher = CrossRefEnricher(specs)
+        crossref_enricher = CrossRefEnricher(
+            endpoint_specs=specs,
+            max_workers=max_workers,
+            total_retries=total_retries
+        )
         enriched, enriched_meta = crossref_enricher.enrich(
             data=input_data if input_data is not None else pd.DataFrame(),
             format=cast(Literal["json", "dataframe", "xml"], export_format)

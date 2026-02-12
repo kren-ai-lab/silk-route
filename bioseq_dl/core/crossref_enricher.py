@@ -53,16 +53,18 @@ class CrossRefEnricher():
     def __init__(
             self, 
             endpoint_specs: List[EndpointSpec] = [],
-            config_path: Optional[str] = None
+            config_path: Optional[str] = None,
+            max_workers: int = 4,
+            total_retries: int = 3
         ) -> None:
         """
         Initialize with a single endpoint specification.
         """
         self.endpoint_specs = endpoint_specs
         self.config_path = config_path
+        self.max_workers = max_workers
+        self.total_retries = total_retries
 
-
-            
     def _check_interface_availability(self, database: str) -> bool:
         """
         Check if the interface class for the given database is available.
@@ -94,13 +96,15 @@ class CrossRefEnricher():
     
     def _build_interface(self, database_name: str):
         """
-        Create the correct interface instance.
+        Create the correct interface instance with configured max_workers and total_retries.
         """
         if database_name not in INTERFACE_CLASSES:
             raise ValueError(f"Unsupported database: {database_name}")
 
-        # Most interfaces have parameterless constructors
-        return INTERFACE_CLASSES[database_name]()
+        return INTERFACE_CLASSES[database_name](
+            max_workers=self.max_workers,
+            total_retries=self.total_retries
+        )
     
     def _query_builder_key(self, spec: EndpointSpec) -> str:
         """

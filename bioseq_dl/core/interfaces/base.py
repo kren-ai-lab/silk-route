@@ -810,15 +810,23 @@ class BaseAPIInterface(ABC):
                 metadata["cached_subqueries"] = [query]
                 raw = self.load_cache(cache_key)
             else:
+                # TODO Probably is necesary to give the user the option to not save empty results, check if it is a problem in some APIs
                 log.debug(f"No cache found for identifier: {identifier}, fetching from API.")
                 raw = self.fetch(query=params, *args, **kwargs)
-                if raw:  # only save non-empty
-                    metadata["fetched_ids"] = [identifier]
-                    metadata["fetched_subqueries"] = [query]
-                    metadata["fetched_length"] = len(raw) if isinstance(raw, list) else 1
-                    self.save_cache(cache_key, raw)
-                else:
+                # Save to cache even if empty, to avoid refetching known empty results
+                metadata["fetched_ids"] = [identifier]
+                metadata["fetched_subqueries"] = [query]
+                metadata["fetched_length"] = len(raw) if isinstance(raw, list) else 1
+                self.save_cache(cache_key, raw)
+                if not raw:
                     metadata["failed_ids"] = [identifier]
+                # if raw:  # only save non-empty
+                #     metadata["fetched_ids"] = [identifier]
+                #     metadata["fetched_subqueries"] = [query]
+                #     metadata["fetched_length"] = len(raw) if isinstance(raw, list) else 1
+                #     self.save_cache(cache_key, raw)
+                # else:
+                #     metadata["failed_ids"] = [identifier]
             
             parsed = self._maybe_parse(data=raw, parse=parse, format=format, **kwargs)
             tmp_df = pd.DataFrame()

@@ -21,7 +21,9 @@ log = get_logger("bioseq_dl.core.utils.crossref_enrichment")
 def run_crossref_enrichment(
         data: pd.DataFrame | List[Dict] | bytes | str | Dict , 
         crossref_fields: list, 
-        format: Literal["dataframe", "json", "xml"] = "json"
+        format: Literal["dataframe", "json", "xml"] = "json",
+        max_workers: int = 4,
+        total_retries: int = 3
     ) -> Tuple[Any, Dict]:
     if isinstance(data, pd.DataFrame) and data.empty:
         log.warning("Input DataFrame is empty. Skipping crossref enrichment.")
@@ -142,7 +144,7 @@ def run_crossref_enrichment(
                         log.warning(f"Method {method_name} for database {db_name} is not enabled or does not exist in config.")
     
     log.debug(f"Final endpoint specs: {endpoint_specs}")
-    enricher = CrossRefEnricher(endpoint_specs)
+    enricher = CrossRefEnricher(endpoint_specs=endpoint_specs, max_workers=max_workers, total_retries=total_retries)
     enriched_data, enriched_metadata = enricher.enrich(data, format=format)
     
     # Normalize metadata to a dict to satisfy the annotated return type
