@@ -6,6 +6,7 @@ import json
 import logging
 
 from bioseq_dl.core.workflow.main_workflow import MainWorkflow
+from bioseq_dl.logging import configure_logging
 
 app = typer.Typer(name="workflow", help="Run predefined data collection workflows.")
 
@@ -75,7 +76,7 @@ def run_workflow(
     try:
         if debug:
             configure_logging(level=logging.DEBUG)
-            logger = get_logger("bioseq_dl.cli.uniprot_search_query")  # re-fetch so root handlers pick new level
+            logger = get_logger("bioseq_dl.cli.workflows")  # re-fetch so root handlers pick new level
             logger.debug("Debug logging enabled")
     except Exception as e:
         logger.warning(f"Could not configure logging: {e}")
