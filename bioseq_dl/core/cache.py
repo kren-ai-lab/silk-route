@@ -129,12 +129,45 @@ def _is_within_allowed_bases(path: Path, allowed_bases: List[Path]) -> bool:
     return False
 
 
+def _is_empty_file(file_path: Path) -> bool:
+    """
+    Check if a file is considered empty.
+    Empty means:
+    - File size is 0
+    - File contains only whitespace
+    - File contains only [] or {}
+    """
+    try:
+        # Check file size
+        if file_path.stat().st_size == 0:
+            return True
+        
+        # Read file content
+        try:
+            content = file_path.read_text(encoding='utf-8').strip()
+        except (UnicodeDecodeError, Exception):
+            # If can't read as text, check by bytes
+            content = file_path.read_bytes().strip()
+            if not content:
+                return True
+            return False
+        
+        # Check if content is empty, [], or {}
+        if not content or content == '[]' or content == '{}':
+            return True
+        
+        return False
+    except Exception:
+        _logger.exception("Error checking if file is empty: %s", file_path)
+        return False
+
 def clear_cache(
     selected_names: Optional[List[str]] = None,
     *,
     dry_run: bool = False,
     force: bool = False,
     older_than_days: Optional[int] = None,
+    empty: bool = False,
     pattern: Optional[str] = None,
     allowed_bases: Optional[List[Union[str, Path]]] = None,
 ) -> Dict[str, List[str]]:
@@ -149,6 +182,7 @@ def clear_cache(
         force: currently reserved for interactive confirmation skipping.
         older_than_days: if set, only delete files/directories older than this
             many days.
+        empty: if True, only delete entries that are empty files.
         pattern: glob pattern relative to each provider path. If set, the glob
             is applied under the provider path (supports recursive globs).
         allowed_bases: optional list of base directories that are considered
@@ -230,6 +264,29 @@ def clear_cache(
                     if mtime > age_cutoff:
                         _logger.debug("Skipping recent path %s", path)
                         continue
+                # empty filter
+                if empty:
+                    if path.is_dir():
+                        # collect only empty files within directory
+                        empty_files = []
+                        for file_path in path.rglob('*'):
+                            if file_path.is_file() and _is_empty_file(file_path):
+                                empty_files.append(file_path)
+                        # if no empty files found, skip this directory
+                        if not empty_files:
+                            _logger.debug("Skipping directory with no empty files: %s", path)
+                            continue
+                        # add only the empty files
+                        removed_paths.extend([str(f) for f in empty_files])
+                        if not dry_run:
+                            for f in empty_files:
+                                f.unlink()
+                        continue
+                    else:
+                        # check if file is empty
+                        if not _is_empty_file(path):
+                            _logger.debug("Skipping non-empty file %s", path)
+                            continue
 
                 removed_paths.append(str(path))
                 if not dry_run:

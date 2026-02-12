@@ -57,6 +57,7 @@ def clear(
     pattern: Optional[str] = typer.Option(None, "--pattern", help="Glob pattern relative to each cache path."),
     force: bool = typer.Option(False, "--force", help="Skip any confirmation prompts (non-interactive)."),
     list_registered: bool = typer.Option(False, "--list", help="List registered caches and exit."),
+    empty: bool = typer.Option(False, "--empty", help="Clear empty caches only."),
     log_level: str = typer.Option(
         "info", "--log", "-l", help="Logging level (debug, info, warning, error, critical)."
     ),
@@ -101,6 +102,7 @@ def clear(
         force=force,
         older_than_days=older_than,
         pattern=pattern,
+        empty=empty
     )
 
     # Summarize results
