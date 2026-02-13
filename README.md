@@ -38,6 +38,7 @@ Currently supported databases include:
   - [Optional Steps for Specific Functionalities](#optional-steps-for-specific-functionalities)
 - [Usage](#usage)
   - [Command-Line Interface (CLI)](#command-line-interface-cli)
+  - [Workflow Interface (Automated Data Collection Workflows)](#workflow-interface-automated-data-collection-workflows)
   - [Programmatic API](#programmatic-api)
 - [Configuration](#configuration)
 - [To-do List](#to-do-list)
@@ -134,6 +135,180 @@ bioseq-dl general-collect uniprot search-by-sequences run \
 --output search_sequences_test \
 --crossref_fields alphafold
 ```
+
+### Workflow Interface (Automated Data Collection Workflows)
+
+The **Workflow** interface allows you to run **pre-configured, automated data collection workflows** that handle complex, multi-step queries across different data modalities (proteins, compounds, interactions). Workflows automatically handle enrichment and cross-database linking.
+
+#### Overview
+
+Workflows simplify the process of collecting and enriching biological data by:
+- Supporting multiple **modalities**: proteins, compounds, interactions
+- Offering two **modes** of operation: single-query or multi-query composition
+- Automatically enriching results with cross-references
+- Handling retries and multi-threaded API calls
+- Exporting results in multiple formats (CSV, JSON, XML)
+
+#### Modalities
+
+| Modality | Description | Primary Data |
+|----------|-------------|--------------|
+| **protein** | Protein sequences and properties | Temperature, activity data, sequences |
+| **compound** | Chemical compounds and bioactivity | IC50, binding affinity, activity |
+| **interaction** | Protein-protein interactions | Network data, interaction strength |
+
+#### Modes
+
+| Mode | Use Case | Query Format |
+|------|----------|--------------|
+| **query_first** | Single, simple query across all available sources | Simple query string (e.g., `temperature:*`) |
+| **query_composition** | Multiple labeled queries, combining different sources | Comma-separated labeled queries (e.g., `query1=label1,query2=label2`) |
+
+#### Command Structure
+
+```bash
+bioseq-dl workflow run [OPTIONS]
+```
+
+##### Required Options
+
+- `-o, --output TEXT`: Output directory for results
+- `-m, --modality TEXT`: Data modality (`protein`, `compound`, `interaction`)
+- `-d, --mode TEXT`: Execution mode (`query_first`, `query_composition`)
+- `-q, --query TEXT`: Query or list of queries
+
+##### Optional Options
+
+- `-e, --export-format TEXT`: Export format (`dataframe`, `json`, `xml`) — Default: `dataframe`
+- `--enrich/--no-enrich`: Enable/disable data enrichment — Default: `True`
+- `-w, --max-workers INTEGER`: Number of worker threads for API calls — Default: `5`
+- `-r, --total-retries INTEGER`: Retry attempts for failed API calls — Default: `3`
+- `--debug`: Enable debug logging
+
+#### Example 1: Query First Mode – Protein Temperature Data
+
+Search for proteins with temperature information and retrieve all available data:
+
+```bash
+bioseq-dl workflow run \
+  -o result \
+  -q "temperature:*" \
+  -m "protein" \
+  -d "query_first" \
+  -w 5 \
+  -r 1 \
+  --debug
+```
+
+**What happens:**
+1. Searches all available protein databases for entries with temperature data
+2. Collects results from BRENDA, UniProt, and other temperature-related sources
+3. Automatically enriches results with AlphaFold predictions, PDB structures, and UniProt annotations
+4. Exports results as CSV files in the `result/` directory
+5. Creates a `metadata.json` file with execution details
+
+**Output files:**
+```
+result/
+├── {database}_{endpoint}.csv   # Cross-referenced data (e.g., BRENDA)
+├── uniprot_results.csv         # UniProt enrichment data
+├── metadata.json               # Execution metadata
+```
+
+#### Example 2: Query Composition Mode – Comparative Analysis
+
+Compare proteins at different temperature optima using labeled queries:
+
+```bash
+bioseq-dl workflow run \
+  -o workflow_test \
+  -q "temp_99=temperature:99,temp_98=temperature:98" \
+  -m "protein" \
+  -d "query_composition" \
+  --debug
+```
+
+**What happens:**
+1. Executes two parallel queries: one for temperature=99, one for temperature=98
+2. Each query is labeled (`temp_99`, `temp_98`) for easy tracking
+3. Automatically enriches each dataset with protein information from UniProt
+4. Compares and combines results in the output directory
+5. Tag the results with their respective labels in the uniprot results for easy differentiation
+
+**Query syntax:**
+- Use `=` or `|` as delimiter: `query=label` or `query|label`
+- Separate multiple labeled queries with commas: `query1=label1,query2=label2,query3=label3`
+
+**Output structure:**
+```
+result/
+├── {database}_{endpoint}.csv   # Cross-referenced data (e.g., BRENDA)
+├── uniprot_results.csv         # UniProt enrichment data
+├── metadata.json               # Execution metadata
+```
+
+**Use case:** Compare protein properties, identify temperature-dependent characteristics, or study differential protein behavior under different conditions.
+
+#### Example 3: Query Composition Mode – Compound Bioactivity
+
+Classify compounds by bioactivity levels (IC50 ranges):
+
+```bash
+bioseq-dl workflow run \
+  -o workflow_compound \
+  -q "ic50:10-50=active,ic50:50-100=inactive" \
+  -m "compound" \
+  -d "query_composition" \
+  --debug
+```
+
+**What happens:**
+1. Searches compound databases (ChEMBL, PubChem, etc.) for compounds with IC50 values in different ranges
+2. Creates two labeled datasets: `active` (IC50: 10-50 nM) and `inactive` (IC50: 50-100 nM)
+3. Enriches each compound with protein target information from UniProt
+4. Enables bioactivity-based classification and drug discovery workflows
+5. Compares structure-activity relationships (SAR) across datasets
+
+**Output files:**
+```
+workflow_compound/
+├── chembl_results.csv          # Compound data from ChEMBL
+├── uniprot_results.csv         # UniProt data
+└── metadata.json               # Execution metadata
+```
+
+**Use case:** Drug discovery, compound screening and classification of bioactive molecules.
+
+#### Output Files and Enrichment
+
+Workflows generate two main types of output:
+
+1. **Main Results** (`uniprot_results.csv|json|xml`): Raw query results
+2. **Enrichment Data** (`{database}_{endpoint}.csv|json|xml`): Cross-referenced data from other databases
+
+#### Advanced Options
+
+**Multi-threading and Performance:**
+```bash
+bioseq-dl workflow run \
+  -o result \
+  -q "temperature:*" \
+  -m "protein" \
+  -d "query_first" \
+  -w 10 \
+  -r 3
+```
+- `-w 10`: Use 10 worker threads (faster, higher API load)
+- `-r 3`: Retry failed requests up to 3 times (more resilient)
+
+#### Typical Workflow Scenarios
+
+| Scenario | Modality | Mode | Example Query |
+|----------|----------|------|---------------|
+| Find all thermophilic proteins | protein | query_first | `temperature:*` |
+| Compare two temperature optima | protein | query_composition | `temp_low=temperature:20,temp_high=temperature:80` |
+| Classify compounds by activity | compound | query_composition | `active=ic50:10-50,inactive=ic50:50-100` |
+| Screen drug candidates | compound | query_first | `chembl_id:*` |
 
 ---
 
