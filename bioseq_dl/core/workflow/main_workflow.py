@@ -380,6 +380,15 @@ class MainWorkflow:
         self._step_parse_uniprot(context)
         self._step_crossref_enrich(context, **kwargs)
 
+        context["metadata"].update({
+            "time_taken_seconds": sum([
+                context.get("metadata", {}).get("uniprot", {}).get("fetch", {}).get("search_process", {}).get("time_taken_seconds", 0),
+                # Iterate over uniprot_enrichment metadata for all endpoints and sum execution_time if present
+                sum([v.get("execution_time", 0) for k, v in context.get("metadata", {}).get("uniprot_enrichment", {}).items()])
+            ])
+            
+        })
+        
         return context.get("data", {}), context.get("metadata", {})
 
     def run_compound(
