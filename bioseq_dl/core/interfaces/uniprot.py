@@ -208,7 +208,7 @@ class UniprotInterface(UniprotBase):
             'accession': ('primaryAccession', extract_simple),
             'protein_name': ('proteinDescription.recommendedName.fullName.value', extract_simple),
             'ec': ('proteinDescription.recommendedName.ecNumbers', extract_ec_numbers),
-            'organism_name': ('organism.scientificName', extract_simple),
+            'organism': ('organism.scientificName', extract_simple),
             'gene_primary': ('genes', extract_gene_names),
             'organism_id': ('organism.taxonId', extract_simple),
             'lineage': ('organism.lineage', extract_simple),
