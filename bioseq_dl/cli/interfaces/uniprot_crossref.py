@@ -53,10 +53,6 @@ def run(
         "all", "--databases", "-d",
         help="List of databases to query separated by commas, or 'all' to query all databases. Options: " + ", ".join(CROSS_REF_FIELDS),
         case_sensitive=False,
-    ),
-    no_concat: bool = typer.Option(
-        False, "--no-concat",
-        help="Do not concatenate results into a single DataFrame."
     )
 ):    
     try:
@@ -110,29 +106,27 @@ def run(
             raise ValueError("No valid endpoint specifications found. Please check your database selections and configuration.")
         log.debug(f"Endpoint specifications: {endpoint_specs}")
         enricher = CrossRefEnricher(endpoint_specs)
-        result = enricher.enrich(df, concat_results=not no_concat)
+        enriched_data, enriched_metadata = enricher.enrich(df)
 
-        if isinstance(result, pd.DataFrame) and not result.empty:
-            log.info(f"Crossref enrichment resulted in {len(result)} rows")
-       
+        if isinstance(enriched_data, pd.DataFrame) and not enriched_data.empty:
+            log.info(f"Crossref enrichment resulted in {len(enriched_data)} rows")
+
         # Create output directory if it doesn't exist
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
 
-        if no_concat:
-            if isinstance(result, dict):
-                for name, result_df in result.items():
-                    result_df.to_csv(os.path.join(out_dir, f"{name}_results.csv"), index=False)
-                    log.info(f"Results for {name} saved to {os.path.join(out_dir, f'{name}_results.csv')}")
-            else:
-                log.info("No results to save.")
+
+        if isinstance(enriched_data, pd.DataFrame) and not enriched_data.empty:
+            filename = os.path.splitext(os.path.basename(input))[0]
+            enriched_data.to_csv(os.path.join(out_dir, f"{filename}_results.csv"), index=False)
+            log.info(f"Results saved to {os.path.join(out_dir, f'{filename}_results.csv')}")
         else:
-            if isinstance(result, pd.DataFrame) and not result.empty:
-                filename = os.path.splitext(os.path.basename(input))[0]
-                result.to_csv(os.path.join(out_dir, f"{filename}_results.csv"), index=False)
-                log.info(f"Results saved to {os.path.join(out_dir, f'{filename}_results.csv')}")
-            else:
-                log.info("No results to save.")
+            log.info("No results to save.")
+
+        with open(os.path.join(out_dir, "metadata.json"), "w") as f:
+            import json
+            json.dump(enriched_metadata, f, indent=2)
+            log.info(f"Metadata saved to {os.path.join(out_dir, 'metadata.json')}")
 
 
 
