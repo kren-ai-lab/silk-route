@@ -230,7 +230,7 @@ class MainWorkflow:
             total_retries=total_retries
         )
         context["data"].setdefault("uniprot_enrichment", enriched)
-        context.setdefault("metadata", {}).setdefault("uniprot_enrichment", enriched_meta)
+        context["metadata"].setdefault("uniprot_enrichment", enriched_meta)
         self.log.debug("Pipeline enrichment metadata: %s", enriched_meta)
 
     def _step_fetch_chembl(self, context: dict, search_type: Optional[str] = "activity") -> None:
@@ -380,7 +380,7 @@ class MainWorkflow:
         self._step_parse_uniprot(context)
         self._step_crossref_enrich(context, **kwargs)
 
-        return context["data"], context.get("metadata") or {}
+        return context.get("data", {}), context.get("metadata", {})
 
     def run_compound(
         self,
@@ -448,7 +448,7 @@ class MainWorkflow:
         uniprot_query = context.get("searches", {}).get("uniprot", {}).get("query")
         if not uniprot_query:
             self.log.debug("Pipeline: no UniProt query generated from ChEMBL IDs")
-            return context["data"], context.get("metadata", {})
+            return context.get("data", {}), context.get("metadata", {})
         
         # Interpret UniProt query and append to ChEMBL IDs search
         chembl_ids_query = context["searches"]["uniprot"]["query"]
@@ -548,7 +548,7 @@ class MainWorkflow:
             # Instead of doing a enrichment we use another method to fetch specific endpoint from Biogrid and StringDB.
             self._step_fetch_additional_ppi_interaction_sources(context, **kwargs)
 
-            return context.get("data") or {}, context.get("metadata") or {}
+            return context.get("data", {}), context.get("metadata", {})
         elif interaction_type == "protein-ligand":
             context["searches"]["chembl"] = {
                 "query": query,
@@ -564,7 +564,7 @@ class MainWorkflow:
             uniprot_query = context.get("searches", {}).get("uniprot", {}).get("query")
             if not uniprot_query:
                 self.log.debug("Pipeline: no UniProt query generated from ChEMBL IDs for PLI")
-                return context["data"], context.get("metadata", {})
+                return context.get("data", {}), context.get("metadata", {})
             # Interpret UniProt query and append to ChEMBL IDs search
             chembl_ids_query = context["searches"]["uniprot"]["query"]
             # Combine both queries
@@ -852,5 +852,5 @@ class MainWorkflow:
         )
 
         context["data"].setdefault("uniprot_enrichment", enriched)
-        context.setdefault("metadata", {}).setdefault("uniprot_enrichment", enriched_meta)
+        context["metadata"].setdefault("uniprot_enrichment", enriched_meta)
         self.log.debug("Pipeline additional interaction sources enrichment metadata: %s", enriched_meta)

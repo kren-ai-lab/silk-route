@@ -204,7 +204,40 @@ class CrossRefEnricher():
             #     return merged_results, metadata
             # else:
             return result, metadata
+    
+    def _merge_metadata(self, meta1: Dict, meta2: Dict) -> Dict:
+        """
+        Merge two metadata dicts, concatenating lists and summing counts where appropriate.
+        """
+        merged = dict(meta1)  # Start with a copy of the first metadata
 
+        if not isinstance(meta2, dict):
+            return merged  # If meta2 is not a dict, just return meta1
+        if not isinstance(meta1, dict):
+            return meta2  # If meta1 is not a dict, just return meta2
+
+        for key, value in meta2.items():
+            if key in merged:
+                if isinstance(merged[key], list) and isinstance(value, list):
+                    merged[key] = merged[key] + value  # Concatenate lists
+                elif isinstance(merged[key], (int, float)) and isinstance(value, (int, float)):
+                    merged[key] = merged[key] + value  # Sum counts
+                # Special case: data_info, in this case we just need to sum n_missing, because all metadata values have the same
+                # structure across endpoints, so they will be overridden by the same value.
+                elif key == "data_info":
+                    if "total_entries" in merged[key] and "total_entries" in value:
+                        merged[key]["total_entries"] = merged[key]["total_entries"] + value["total_entries"]
+                    for column1, column2 in zip(merged[key].get("columns", []), value.get("columns", [])):
+                        if column1["name"] == column2["name"]:
+                            column1["n_missing"] = column1.get("n_missing", 0) + column2.get("n_missing", 0)
+                else:
+                    # In this case, Override strings will not cause major issues, because all metadata values
+                    # Have the same structure across endpoints, so they will be overridden by the same value.
+                    merged[key] = value
+            else:
+                merged[key] = value  # Add new key-value pair
+
+        return merged
 
     def _process_dataframe(
             self,
@@ -214,18 +247,18 @@ class CrossRefEnricher():
             params: Dict[str, Any],
             #concat_results: bool = True,
             format: Literal["dataframe", "json", "xml"] = "dataframe"
-    ) -> Tuple[pd.DataFrame|List[Dict[str, Any]]|ElementTree[Element[str] | None], List[Dict]]:
+    ) -> Tuple[pd.DataFrame|List[Dict[str, Any]]|ElementTree[Element[str] | None], Dict]:
         """
         Apply search-then-merge for every row and vertically concatenate all row-expansions.
         """
         # Apply row-wise; collect per-row DataFrames
-        all_metadata = []
+        all_metadata = {}
         all_results = []
 
         for _, row in df.iterrows():
             result, metadata = self._search_and_merge(row, instance, spec, params, format)
             all_results.append(result)
-            all_metadata.append({row.name: metadata})
+            all_metadata = self._merge_metadata(all_metadata, metadata)
 
         # TODO comprobar si este cambio no es problematico
         if format == "dataframe":
@@ -339,7 +372,7 @@ class CrossRefEnricher():
         
 
         results = {}
-        metadata = []
+        metadata = {}
         for spec in self.endpoint_specs:
             log.debug(f"Processing {spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''}...")
             log.info(f"Checking availability for interface: {spec.database}")
@@ -358,8 +391,10 @@ class CrossRefEnricher():
                     f"{spec.database}_{spec.endpoint}{'_' + spec.option if spec.option else ''}": processed_data
                 }
             )
-            metadata.append(
-                {f"{spec.database}_{spec.endpoint}{'_' + spec.option if spec.option else ''}": processed_metadata}
+            metadata.update(
+                {
+                    f"{spec.database}_{spec.endpoint}{'_' + spec.option if spec.option else ''}": processed_metadata
+                }
             )
 
         if format == "dataframe":

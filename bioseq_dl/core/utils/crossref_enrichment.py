@@ -1,6 +1,6 @@
 import logging
 import pandas as pd
-from typing import Tuple, Dict, Any, Literal, List
+from typing import Tuple, Dict, Any, Literal, List, Union
 
 from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
 from bioseq_dl.core.interfacesconfig import ConfigLoader
@@ -24,7 +24,7 @@ def run_crossref_enrichment(
         format: Literal["dataframe", "json", "xml"] = "json",
         max_workers: int = 4,
         total_retries: int = 3
-    ) -> Tuple[Any, Dict]:
+    ) -> Tuple[Any, Union[Dict, List[Dict]]]:
     if isinstance(data, pd.DataFrame) and data.empty:
         log.warning("Input DataFrame is empty. Skipping crossref enrichment.")
         return {"none": pd.DataFrame()}, {}
@@ -150,8 +150,6 @@ def run_crossref_enrichment(
     # Normalize metadata to a dict to satisfy the annotated return type
     if enriched_metadata is None:
         enriched_metadata = {}
-    elif not isinstance(enriched_metadata, dict):
-        enriched_metadata = {"metadata": enriched_metadata}
     
     # TODO: Patch solution probably I should only return the enriched data
     if isinstance(enriched_data, pd.DataFrame) and not enriched_data.empty:
