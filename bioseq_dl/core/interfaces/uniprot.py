@@ -30,13 +30,7 @@ from bioseq_dl.constants.databases import DATABASES
 from bioseq_dl.core.utils.xmlhandler import dict_to_elementtree
 
 
-# ----- Optional logging (fallback to stdlib) -----
-try:
-    from bioseq_dl.logging import get_logger
-except Exception:
-    def get_logger(name: str) -> logging.Logger:
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
-        return logging.getLogger(name)
+from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.interfaces.uniprot")
 

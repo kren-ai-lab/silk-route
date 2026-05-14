@@ -13,16 +13,9 @@ from ...constants.databases import BIODBNET
 # Some deprecated imports, you can remove them if not needed
 #from ...constants.biodbnet import inputs, outputs
 
-# ----- Optional logging (fallback to stdlib) -----
-try:
-    from bioseq_dl.logging import get_logger
-except Exception:
-    def get_logger(name: str) -> logging.Logger:
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
-        return logging.getLogger(name)
+from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.interfaces.biodbnet")
-# -------------------------------------------------
 
 
 class BioDBNetInterface(BaseAPIInterface):

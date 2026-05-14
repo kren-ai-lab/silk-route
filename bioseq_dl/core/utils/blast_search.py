@@ -1,5 +1,4 @@
 from typing import List, Literal
-import logging
 import os
 import re
 import subprocess
@@ -12,16 +11,9 @@ from bioseq_dl.constants.databases import BASE_BLAST_DB_DIR as DB_DIR
 from bioseq_dl.constants.databases import BASE_BLAST_DB_DIR as DB_DIR
 from bioseq_dl.constants.uniprot import DATABASES, BASE_URL
 
-# ----- Optional logging (fallback to stdlib) -----
-try:
-    from bioseq_dl.logging import get_logger
-except Exception:
-    def get_logger(name: str) -> logging.Logger:
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
-        return logging.getLogger(name)
+from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.core.utils.blast_search")
-# -------------------------------------------------
 
 BLAST_BASE_URL = "https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/"
 BLAST_DIR = Path("blast_bin")

@@ -10,16 +10,9 @@ from bioseq_dl.constants.pubchem import OPTIONS
 from bioseq_dl.logging import configure_logging
 # Pending: Uniprot ID
 
-# ----- Optional logging (fallback to stdlib) -----
-try:
-    from bioseq_dl.logging import get_logger
-except Exception:
-    def get_logger(name: str) -> logging.Logger:
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
-        return logging.getLogger(name)
+from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.cli.chemical_search_query")
-# -------------------------------------------------
 
 app = typer.Typer(help="Collect data from chemical databases. A general search interface is provided to query compounds by name, CID, SMILES, InChI, or gene ID.")
 

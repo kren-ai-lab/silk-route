@@ -1,5 +1,4 @@
 import time, random, os, hashlib, json, re, ast
-import logging
 import requests
 import itertools
 import yaml
@@ -17,16 +16,9 @@ from dicttoxml import dicttoxml
 
 from ..utils.base_auxiliary_methods import get_feature_keys, get_nested, get_primary_keys, validate_parameters
 
-# ----- Optional logging (fallback to stdlib) -----
-try:
-    from bioseq_dl.logging import get_logger
-except Exception:
-    def get_logger(name: str) -> logging.Logger:
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
-        return logging.getLogger(name)
+from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.interfaces.base")
-# -------------------------------------------------
 
 class BaseAPIInterface(ABC):
     API_NAME: ClassVar[str] = "BaseAPI"

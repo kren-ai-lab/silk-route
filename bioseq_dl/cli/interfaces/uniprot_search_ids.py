@@ -15,16 +15,9 @@ from bioseq_dl.core.utils.crossref_enrichment import run_crossref_enrichment
 
 app = typer.Typer(help="Search and download sequences from UniProt using IDs.")
 
-# ----- Optional logging (fallback to stdlib) -----
-try:
-    from bioseq_dl.logging import get_logger
-except Exception:
-    def get_logger(name: str) -> logging.Logger:
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
-        return logging.getLogger(name)
+from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.cli.uniprot_search_ids")
-# -------------------------------------------------
 
 @app.command()
 

@@ -10,19 +10,9 @@ from bioseq_dl.logging import configure_logging
 
 app = typer.Typer(name="workflow", help="Run predefined data collection workflows.")
 
-# ----- Optional logging (fallback to stdlib) -----
-try:
-    from bioseq_dl.logging import get_logger
-except Exception:
-    def get_logger(name: str) -> logging.Logger:
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
-        return logging.getLogger(name)
-
-    def configure_logging(level: int = logging.INFO, **kwargs: object) -> None:
-        logging.basicConfig(level=level, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.cli.workflows")
-# -------------------------------------------------
 
 
 MODALITIES = ['protein', 'compound', 'interaction']

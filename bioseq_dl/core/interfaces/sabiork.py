@@ -1,5 +1,4 @@
 import os
-import logging
 import requests
 
 from typing import Union, List, Dict, Set, Optional
@@ -11,16 +10,9 @@ from bioseq_dl.core.interfaces.base import BaseAPIInterface
 from bioseq_dl.constants.databases import SABIORK
 from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
 
-# ----- Optional logging (fallback to stdlib) -----
-try:
-    from bioseq_dl.logging import get_logger
-except Exception:
-    def get_logger(name: str) -> logging.Logger:
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
-        return logging.getLogger(name)
+from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.interfaces.sabiork")
-# -------------------------------------------------
 
 class SabiorkInterface(BaseAPIInterface):
     API_NAME = "Sabio-RK"

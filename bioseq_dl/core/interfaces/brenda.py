@@ -1,7 +1,6 @@
 import os
 from typing import Optional, List, Any, Union
 import hashlib
-import logging
 from zeep import Client
 from zeep.helpers import serialize_object
 
@@ -12,16 +11,9 @@ from ...constants.brenda import METHODS as BRENDA_METHODS
 from ..utils.base_auxiliary_methods import validate_parameters
 from bioseq_dl.core.interfacesconfig import ConfigLoader
 
-# ----- Optional logging (fallback to stdlib) -----
-try:
-    from bioseq_dl.logging import get_logger
-except Exception:
-    def get_logger(name: str) -> logging.Logger:
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
-        return logging.getLogger(name)
+from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.interfaces.brenda")
-# -------------------------------------------------
 
 # For aditional implementations see: https://www.brenda-enzymes.org/soap.php
 class BrendaInterface(BaseAPIInterface):

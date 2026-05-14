@@ -13,16 +13,9 @@ from bioseq_dl.constants.uniprot import XREF_MAPPING
 
 app = typer.Typer(help="Search and download cross-references from UniProt.")
 
-# ----- Optional logging (fallback to stdlib) -----
-try:
-    from bioseq_dl.logging import get_logger
-except Exception:
-    def get_logger(name: str) -> logging.Logger:
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
-        return logging.getLogger(name)
+from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.cli.uniprot_crossref")
-# -------------------------------------------------
 
 CROSS_REF_FIELDS = [xref.lower() for xref in XREF_MAPPING.keys()]
 

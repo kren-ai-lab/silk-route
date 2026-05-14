@@ -7,14 +7,7 @@ from bioseq_dl.core.cache import clear_cache, list_caches
 
 app = typer.Typer(name="cache", help="Cache utility commands for BioSeqDownloader.")
 
-# ----- Optional logging (fallback to stdlib) -----
-try:
-    from bioseq_dl.logging import get_logger
-except Exception:
-    def get_logger(name: str) -> logging.Logger:
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
-        return logging.getLogger(name)
-# -------------------------------------------------
+from bioseq_dl.logging import get_logger
 
 
 @app.command("list")

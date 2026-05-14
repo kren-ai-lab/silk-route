@@ -11,19 +11,9 @@ from bioseq_dl.constants.uniprot import VALID_FIELDS, XREF_MAPPING
 from bioseq_dl.core.utils.crossref_enrichment import run_crossref_enrichment
 from bioseq_dl.logging import configure_logging
 
-# ----- Optional logging (fallback to stdlib) -----
-try:
-    from bioseq_dl.logging import get_logger
-except Exception:
-    def get_logger(name: str) -> logging.Logger:
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
-        return logging.getLogger(name)
-
-    def configure_logging(level: int = logging.INFO, **kwargs: object) -> None:
-        logging.basicConfig(level=level, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.cli.uniprot_search_query")
-# -------------------------------------------------
 
 app = typer.Typer(name="uniprot-search-query", help="Search and download sequences from UniProt using queries.")    
 

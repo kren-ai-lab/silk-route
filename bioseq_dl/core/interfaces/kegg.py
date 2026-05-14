@@ -7,16 +7,9 @@ from ...constants.databases import KEGG
 from ..utils.base_auxiliary_methods import get_nested, validate_parameters
 from ...constants.kegg import DATABASES, METHOD_OPTIONS
 
-# ----- Optional logging (fallback to stdlib) -----
-try:
-    from bioseq_dl.logging import get_logger
-except Exception:
-    def get_logger(name: str) -> logging.Logger:
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
-        return logging.getLogger(name)
+from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.interfaces.kegg")
-# -------------------------------------------------
 
 # More info about KEGG API: https://www.kegg.jp/kegg/rest/keggapi.html
 # TODO Solve known problem with KEGG API:

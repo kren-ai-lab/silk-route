@@ -13,16 +13,9 @@ from ...constants.databases import PUBCHEM
 from ..utils.base_auxiliary_methods import validate_parameters
 from ...constants.pubchem import OPTIONS, COMPOUND_TEMPLATE, PROTEIN_TEMPLATE, GENE_TEMPLATE
 
-# ----- Optional logging (fallback to stdlib) -----
-try:
-    from bioseq_dl.logging import get_logger
-except Exception:
-    def get_logger(name: str) -> logging.Logger:
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
-        return logging.getLogger(name)
+from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.interfaces.pubchem")
-# -------------------------------------------------
 
 # PubChem has 2 main API access points: PUG-REST and PUG-View.
 # PUG-REST is used for short requests with simple inputs and outputs.

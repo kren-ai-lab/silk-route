@@ -1,5 +1,4 @@
 from __future__ import annotations
-import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any, Tuple, Literal
 from xml.etree.ElementTree import ElementTree, Element
@@ -10,16 +9,9 @@ from bioseq_dl.constants.databases import BASE_CONFIG_DIR
 
 from bioseq_dl.core.utils.xmlhandler import elementtree_to_dataframe
 
-# ----- Optional logging (fallback to stdlib) -----
-try:
-    from bioseq_dl.logging import get_logger
-except Exception:
-    def get_logger(name: str) -> logging.Logger:
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
-        return logging.getLogger(name)
+from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.interfaces.crossref_enricher")
-# -------------------------------------------------
 
 @dataclass
 class EndpointSpec:

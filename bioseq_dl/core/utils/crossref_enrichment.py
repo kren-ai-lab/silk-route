@@ -1,4 +1,3 @@
-import logging
 import pandas as pd
 from typing import Tuple, Dict, Any, Literal, List, Union
 
@@ -7,16 +6,9 @@ from bioseq_dl.core.interfacesconfig import ConfigLoader
 from bioseq_dl.constants.databases import BASE_CONFIG_DIR
 from bioseq_dl.constants.uniprot import XREF_MAPPING
 
-# ----- Optional logging (fallback to stdlib) -----
-try:
-    from bioseq_dl.logging import get_logger
-except Exception:
-    def get_logger(name: str) -> logging.Logger:
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
-        return logging.getLogger(name)
+from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.core.utils.crossref_enrichment")
-# -------------------------------------------------
 
 def run_crossref_enrichment(
         data: pd.DataFrame | List[Dict] | bytes | str | Dict , 

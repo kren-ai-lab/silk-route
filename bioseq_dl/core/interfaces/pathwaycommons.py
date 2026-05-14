@@ -1,6 +1,5 @@
 import os
 import json
-import logging
 from typing import Union, List, Dict, Optional
 from requests import Request, Response
 from requests.exceptions import RequestException
@@ -13,16 +12,9 @@ from ...constants.databases import PATHWAYCOMMONS
 from ..utils.base_auxiliary_methods import validate_parameters
 from ...constants.pathwaycommons import OUTPUT_FORMATS, PATTERNS
 
-# ----- Optional logging (fallback to stdlib) -----
-try:
-    from bioseq_dl.logging import get_logger
-except Exception:
-    def get_logger(name: str) -> logging.Logger:
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
-        return logging.getLogger(name)
+from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.interfaces.pathwaycommons")
-# -------------------------------------------------
 
 
 class PathwayCommonsInterface(BaseAPIInterface):

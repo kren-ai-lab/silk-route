@@ -1,5 +1,4 @@
 import os
-import logging
 from typing import Optional, Set, Union, List, Dict, Any
 import requests
 
@@ -7,16 +6,9 @@ from .base import BaseAPIInterface
 from ...constants.databases import BIOGRID
 from bioseq_dl.core.interfacesconfig import ConfigLoader
 
-# ----- Optional logging (fallback to stdlib) -----
-try:
-    from bioseq_dl.logging import get_logger
-except Exception:
-    def get_logger(name: str) -> logging.Logger:
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
-        return logging.getLogger(name)
+from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.interfaces.biogrid")
-# -------------------------------------------------
 
 # Rest documentation: https://wiki.thebiogrid.org/doku.php/biogridrest
 
