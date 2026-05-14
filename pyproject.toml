@@ -8,10 +8,9 @@ version = "0.1.0"
 description = "Tool to download and integrate biological data from multiple APIs (UniProt, AlphaFold, BioGRID, KEGG, etc.)"
 readme = "README.md"
 authors = [{ name = "Kren AI Lab", email = "krenai@umag.cl" }]
-requires-python = ">=3.10,<4.0"
+requires-python = ">=3.11,<4.0"
 
 classifiers = [
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
