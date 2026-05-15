@@ -1,5 +1,4 @@
 import typer
-import os
 import pandas as pd
 
 from bioseq_dl import BioGRIDInterface
@@ -27,12 +26,7 @@ def run_interactions(
     )
 ):
     """Fetch interaction data from BioGRID database."""
-    if access_key is None:
-        access_key = os.getenv("biogrid_api_key", None)
-        if access_key is None:
-            raise ValueError("An access key is required. Provide it via --access_key or set the biogrid_api_key environment variable.")
-
-    instance = BioGRIDInterface()
+    instance = BioGRIDInterface(api_key=access_key)
 
     query = {}
 

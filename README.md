@@ -41,6 +41,7 @@ Currently supported databases include:
   - [Workflow Interface (Automated Data Collection Workflows)](#workflow-interface-automated-data-collection-workflows)
   - [Programmatic API](#programmatic-api)
 - [Configuration](#configuration)
+  - [Credentials and environment variables](#credentials-and-environment-variables)
 - [To-do List](#to-do-list)
 - [Future Features](#future-features)
 - [Contributing](#contributing)
@@ -92,10 +93,10 @@ Currently supported databases include:
 
 ### Optional Steps for Specific Functionalities
 
-| Database | Requirement | Configuration File |
-|-----------|--------------|--------------------|
-| **BioGRID** | Access Key ([request here](https://webservice.thebiogrid.org/)) | `~/.config/bioseq_dl/biogrid/init.yml` |
-| **BRENDA** | Email and password ([register here](https://www.brenda-enzymes.org/login.php)) | `~/.config/bioseq_dl/brenda/init.yml` |
+| Database | Requirement | Credential Source |
+|-----------|--------------|-------------------|
+| **BioGRID** | Access Key ([request here](https://webservice.thebiogrid.org/)) | `BIOSEQ_DL_BIOGRID_API_KEY` (or `.env`) |
+| **BRENDA** | Email and password ([register here](https://www.brenda-enzymes.org/login.php)) | `BIOSEQ_DL_BRENDA_EMAIL` and `BIOSEQ_DL_BRENDA_PASSWORD` (or `.env`) |
 
 ---
 
@@ -360,13 +361,38 @@ This will facilitate the enrichment of your data with information from multiple 
 
 # Configuration
 
+## Credentials and environment variables
+
+Credentials must be provided through explicit arguments or environment variables.
+
+Credentials can be provided in this order of precedence:
+1. Explicit CLI arguments or constructor parameters
+2. Environment variables (including values loaded from a .env file)
+
+Create a `.env` file in one of these locations:
+- Path specified by `BIOSEQ_DL_ENV_FILE`
+- Project working directory (`.env`)
+- `~/.config/bioseq_dl/.env` or a per-interface config directory (e.g., `~/.config/bioseq_dl/biogrid/.env`)
+
+Supported environment variables:
+- `BIOSEQ_DL_BIOGRID_API_KEY` (legacy: `BIOGRID_API_KEY`, `biogrid_api_key`)
+- `BIOSEQ_DL_BRENDA_EMAIL` (legacy: `BRENDA_EMAIL`)
+- `BIOSEQ_DL_BRENDA_PASSWORD` (legacy: `BRENDA_PASSWORD`)
+- `BIOSEQ_DL_REFSEQ_EMAIL` (legacy: `NCBI_EMAIL`, `ENTREZ_EMAIL`)
+
+Notes:
+- Credentials are never read from `init.yml`.
+- `init.yml` is only for non-sensitive configuration.
+- Do not commit `.env` files to version control.
+- A safe template is available at `bioseq_dl/config/.env.example` and copied by `bioseq-dl-init`.
+
 Configuration files are stored in:
 ```
 ~/.config/bioseq_dl/
 ```
 
 Each API module includes:
-- `init.yml` — connection and authentication settings
+- `init.yml` — non-sensitive settings
 - `fields.yml` — field mappings for result parsing
 
 **Example directory tree:**

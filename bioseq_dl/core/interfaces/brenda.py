@@ -9,11 +9,20 @@ from .base import BaseAPIInterface
 from ...constants.databases import BRENDA
 from ...constants.brenda import METHODS as BRENDA_METHODS
 from ..utils.base_auxiliary_methods import validate_parameters
-from bioseq_dl.core.interfacesconfig import ConfigLoader
+from bioseq_dl.core.credentials import load_environment_files, resolve_secret, is_valid_secret
 
 from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.interfaces.brenda")
+
+BRENDA_EMAIL_ENV_VARS = (
+    "BIOSEQ_DL_BRENDA_EMAIL",
+    "BRENDA_EMAIL",
+)
+BRENDA_PASSWORD_ENV_VARS = (
+    "BIOSEQ_DL_BRENDA_PASSWORD",
+    "BRENDA_PASSWORD",
+)
 
 # For aditional implementations see: https://www.brenda-enzymes.org/soap.php
 class BrendaInterface(BaseAPIInterface):
@@ -47,15 +56,15 @@ class BrendaInterface(BaseAPIInterface):
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs, min_wait=2.0, max_wait=5.0)
 
-        config = ConfigLoader(config_dir=config_dir)
-        config.load_config("init")
-        self.email = email or config.get_parameter("email")
-        self.password = password or config.get_parameter("password")
+        load_environment_files(config_dir=config_dir)
 
-        if self.password is None:
-            log.error("Tried to initialize BRENDA interface without a password. Provide it via config file at {config_dir} or directly.")
-        else:
-            self.password = hashlib.sha256(self.password.encode("utf-8")).hexdigest()
+        self.email = resolve_secret(email, BRENDA_EMAIL_ENV_VARS)
+        raw_password = resolve_secret(password, BRENDA_PASSWORD_ENV_VARS)
+        self.password = (
+            hashlib.sha256(raw_password.encode("utf-8")).hexdigest()
+            if raw_password
+            else None
+        )
         self.client = Client(BRENDA.API_URL)
 
 
@@ -84,9 +93,11 @@ class BrendaInterface(BaseAPIInterface):
             print("Query must be a dictionary with keys matching the method parameters.")
             return []
         
-        if self.password is None:
-            log.error(f"Tried to fetch from BRENDA without a password. Provide it via config file at {self.config_dir} or directly.")
-            return []
+        if not is_valid_secret(self.email) or self.password is None:
+            raise ValueError(
+                "Missing BRENDA credentials. Set BIOSEQ_DL_BRENDA_EMAIL and "
+                "BIOSEQ_DL_BRENDA_PASSWORD or pass them explicitly."
+            )
         
         _, _, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, **kwargs)
 

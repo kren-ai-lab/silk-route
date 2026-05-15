@@ -4,11 +4,17 @@ import requests
 
 from .base import BaseAPIInterface
 from ...constants.databases import BIOGRID
-from bioseq_dl.core.interfacesconfig import ConfigLoader
+from bioseq_dl.core.credentials import load_environment_files, resolve_secret, is_valid_secret
 
 from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.interfaces.biogrid")
+
+BIOGRID_ENV_VARS = (
+    "BIOSEQ_DL_BIOGRID_API_KEY",
+    "BIOGRID_API_KEY",
+    "biogrid_api_key",
+)
 
 # Rest documentation: https://wiki.thebiogrid.org/doku.php/biogridrest
 
@@ -72,16 +78,9 @@ class BioGRIDInterface(BaseAPIInterface):
         if config_dir is None:
             config_dir = BIOGRID.CONFIG_DIR if BIOGRID.CONFIG_DIR is not None else ""
 
-        if api_key is None:
-            self.config = ConfigLoader(config_dir=config_dir)
+        load_environment_files(config_dir=config_dir)
 
-        if self.config.load_config("init"):
-            self.api_key = api_key or self.config.get_parameter("api_key")
-        else:
-            self.api_key = api_key
-
-        if not self.api_key:
-            log.error("An API key must be provided either directly or via a config file.")
+        self.api_key = resolve_secret(api_key, BIOGRID_ENV_VARS)
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
 
@@ -104,11 +103,19 @@ class BioGRIDInterface(BaseAPIInterface):
         Returns:
             any: response from the API.
         """
-        if isinstance(query, dict) and "accessKey" not in query:
-            query["accessKey"] = self.api_key
-            if self.api_key is None or self.api_key == "your_api_key_here":
-                log.error("You must provide a valid API key to fetch data from BioGRID. Via config file at {self.config.config_dir} or directly.")
-                return {}
+        if isinstance(query, dict):
+            access_key = query.get("accessKey")
+            if not is_valid_secret(access_key) and is_valid_secret(self.api_key):
+                query["accessKey"] = self.api_key
+            if not is_valid_secret(query.get("accessKey")):
+                raise ValueError(
+                    "Missing BioGRID API key. Set BIOSEQ_DL_BIOGRID_API_KEY or pass api_key explicitly."
+                )
+        else:
+            if not is_valid_secret(self.api_key):
+                raise ValueError(
+                    "Missing BioGRID API key. Set BIOSEQ_DL_BIOGRID_API_KEY or pass api_key explicitly."
+                )
     
         response = super()._do_request(query, method=method, api_url=BIOGRID.API_URL, **kwargs)
         response = response.json() if isinstance(response, requests.models.Response) else response

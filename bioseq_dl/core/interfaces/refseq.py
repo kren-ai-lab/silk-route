@@ -7,11 +7,17 @@ from .base import BaseAPIInterface
 from ...constants.databases import REFSEQ
 from ..utils.base_auxiliary_methods import get_nested
 from ...constants.refseq import databases
-from bioseq_dl.core.interfacesconfig import ConfigLoader
+from bioseq_dl.core.credentials import load_environment_files, resolve_secret, is_valid_secret
 
 from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.interfaces.refseq")
+
+REFSEQ_EMAIL_ENV_VARS = (
+    "BIOSEQ_DL_REFSEQ_EMAIL",
+    "NCBI_EMAIL",
+    "ENTREZ_EMAIL",
+)
 
 class RefSeqInterface(BaseAPIInterface):
     API_NAME = "RefSeq"
@@ -70,11 +76,11 @@ class RefSeqInterface(BaseAPIInterface):
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
 
-        config = ConfigLoader(config_dir=self.config_dir)
-        config.load_config("init")
+        load_environment_files(config_dir=config_dir)
 
-        # Set Entrez email
-        Entrez.email = email or config.get_parameter("email")
+        self.email = resolve_secret(email, REFSEQ_EMAIL_ENV_VARS)
+        if is_valid_secret(self.email):
+            Entrez.email = self.email
 
     def to_native(self, obj):
         """
@@ -104,6 +110,13 @@ class RefSeqInterface(BaseAPIInterface):
             list: Fetched data.
         """
         retmode = kwargs.get('retmode', 'xml')
+
+        if not is_valid_secret(self.email):
+            raise ValueError(
+                "Missing RefSeq email. Set BIOSEQ_DL_REFSEQ_EMAIL or pass email explicitly."
+            )
+
+        Entrez.email = self.email
 
         if method not in databases:
             log.error(f"Database '{method}' is not supported. Supported databases: {', '.join(databases)}")
