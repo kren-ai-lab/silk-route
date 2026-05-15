@@ -10,6 +10,7 @@ import pandas as pd
 from bioseq_dl.constants.databases import BASE_BLAST_DB_DIR as DB_DIR
 from bioseq_dl.constants.uniprot import DATABASES, VALID_FIELDS, VALID_CROSS_REF_FIELDS, XREF_MAPPING
 from bioseq_dl import UniprotInterface
+from bioseq_dl.core.export import export_dataframe, normalize_export_format, normalize_parse_format
 
 from bioseq_dl.core.utils.blast_search import (
     download_uniprot_database,
@@ -83,7 +84,7 @@ def run(
     ),
     export_format: str = typer.Option(
         "dataframe", "-ef", "--export_format",
-        help="Export format: dataframe, xml, json",
+        help="Export format: dataframe, xml, json, parquet",
     )
 ):
     logger = log
@@ -145,8 +146,8 @@ def run(
     os.makedirs(output, exist_ok=True)
 
     # Save to CSV
-    df_blast.to_csv(f"{output}/blast_results.csv", index=False)
-    log.info(f"BLAST results saved to {output}/blast_results.csv")
+    blast_path = export_dataframe(df_blast, os.path.join(output, "blast_results.csv"))
+    log.info(f"BLAST results saved to {blast_path}")
 
     # Clean up temporary files
     os.remove("tmp/blast_results.txt")
@@ -173,10 +174,11 @@ def run(
             json.dump(response, f, indent=2, default=str)
 
         logger.info("Parsing results...")
+        parse_format = normalize_parse_format(export_format) or "dataframe"
         export_data, parsed_metadata = instance.parse(
             results=response,
             extract_fields=None,
-            format=cast(Literal["json", "dataframe", "xml"], export_format)
+            format=cast(Literal["json", "dataframe", "xml"], parse_format)
         )
         metadata["parsing"] = parsed_metadata
 
@@ -186,22 +188,28 @@ def run(
             enriched_data, enriched_metadata = run_crossref_enrichment(
                 export_data, 
                 crossref_fields.split(","), 
-                format=cast(Literal["json", "dataframe", "xml"], export_format)
+                format=cast(Literal["json", "dataframe", "xml"], parse_format)
             )
             metadata["enrichment"] = enriched_metadata
 
 
-        if export_format == "dataframe":
+        if export_format in {"dataframe", "parquet"}:
             if isinstance(export_data, pd.DataFrame) and not export_data.empty:
-                export_data.to_csv(f"{output}/uniprot_results.csv", index=False)
+                tabular_format = normalize_export_format(export_format)
+                export_path = os.path.join(output, f"uniprot_results.{tabular_format}")
+                export_dataframe(export_data, export_path, output_format=tabular_format)
                 if isinstance(enriched_data, dict):
                     for key, value in enriched_data.items():
                         logger.info(f"Saving {key} results into {output} directory")
-                        value.to_csv(f"{output}/{key}_results.csv", index=False)
+                        export_dataframe(
+                            value,
+                            os.path.join(output, f"{key}_results.{tabular_format}"),
+                            output_format=tabular_format,
+                        )
         
                 with open(f"{output}/metadata.json", "w") as f:
                     json.dump(metadata, f, indent=2, default=str)
-                logger.info(f"Results saved to {output}/uniprot_results.csv")
+                logger.info(f"Results saved to {export_path}")
             else:
                 logger.warning("No results to save in DataFrame format.")
         elif export_format == "json":

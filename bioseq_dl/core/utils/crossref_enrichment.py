@@ -10,6 +10,59 @@ from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.core.utils.crossref_enrichment")
 
+
+def normalize_crossref_fields(crossref_fields: Any) -> List[str]:
+    """Return cleaned cross-reference field names."""
+    if crossref_fields is None:
+        return []
+    if isinstance(crossref_fields, str):
+        raw_fields = crossref_fields.split(",")
+    elif isinstance(crossref_fields, (list, tuple, set)):
+        raw_fields = crossref_fields
+    else:
+        return []
+
+    fields = []
+    for field in raw_fields:
+        if not isinstance(field, str):
+            log.warning(f"Ignoring non-string crossref field: {field}")
+            continue
+        cleaned_field = field.strip()
+        if cleaned_field:
+            fields.append(cleaned_field)
+    return fields
+
+
+def is_empty_enrichment_input(data: Any) -> bool:
+    """Return whether enrichment input has no records to process."""
+    if data is None:
+        return True
+    if isinstance(data, pd.DataFrame):
+        return data.empty
+    if isinstance(data, (list, dict)):
+        return len(data) == 0
+    if isinstance(data, bytes):
+        return data == b""
+    if isinstance(data, str):
+        return data.strip() == ""
+    return False
+
+
+def has_enrichment_result_value(value: Any) -> bool:
+    """Return whether an enrichment result value contains exportable data."""
+    if value is None:
+        return False
+    if isinstance(value, pd.DataFrame):
+        return not value.empty
+    if isinstance(value, str):
+        return value.strip() != ""
+    if isinstance(value, bytes):
+        return value != b""
+    if isinstance(value, (list, tuple, set, dict)):
+        return len(value) > 0
+    return True
+
+
 def run_crossref_enrichment(
         data: pd.DataFrame | List[Dict] | bytes | str | Dict , 
         crossref_fields: list, 
@@ -17,21 +70,14 @@ def run_crossref_enrichment(
         max_workers: int = 4,
         total_retries: int = 3
     ) -> Tuple[Any, Union[Dict, List[Dict]]]:
-    if isinstance(data, pd.DataFrame) and data.empty:
-        log.warning("Input DataFrame is empty. Skipping crossref enrichment.")
-        return {"none": pd.DataFrame()}, {}
-    elif isinstance(data, list) and len(data) == 0:
-        log.warning("Input list is empty. Skipping crossref enrichment.")
-        return {"none": pd.DataFrame()}, {}
-    elif isinstance(data, dict) and len(data) == 0:
-        log.warning("Input dict is empty. Skipping crossref enrichment.")
-        return {"none": pd.DataFrame()}, {}
-    elif isinstance(data, bytes) and data == b"":
-        log.warning("Input bytes is empty. Skipping crossref enrichment.")
-        return {"none": pd.DataFrame()}, {}
-    elif isinstance(data, str) and data.strip() == "":
-        log.warning("Input string is empty. Skipping crossref enrichment.")
-        return {"none": pd.DataFrame()}, {}
+    crossref_fields = normalize_crossref_fields(crossref_fields)
+    if not crossref_fields:
+        log.info("Skipping CrossRef enrichment because no cross-reference fields were requested.")
+        return {}, {"skipped": True, "reason": "no_crossref_fields"}
+
+    if is_empty_enrichment_input(data):
+        log.warning("Input data is empty. Skipping crossref enrichment.")
+        return {}, {"skipped": True, "reason": "empty_input"}
 
     # Process crossref fields
     # Some definitions in crossref_fields may contain the database name and the method separated by underscore
@@ -46,11 +92,6 @@ def run_crossref_enrichment(
 
     processed_crossref_fields = {}
     for field in crossref_fields:
-        # Ensure we only try to parse string entries
-        if not isinstance(field, str):
-            log.warning(f"Ignoring non-string crossref field: {field}")
-            continue
-
         # Special-cased form: "db_all" -> use all methods for that database
         if field.endswith("_all") and "_" in field:
             db_name = field.rsplit("_", 1)[0]
@@ -72,9 +113,6 @@ def run_crossref_enrichment(
     log.info(f"Running crossref enrichment for fields: {crossref_fields}")
     config = ConfigLoader(config_dir=str(BASE_CONFIG_DIR) + "/uniprot_crossref")
     config.load_config("config_endpoints")
-
-    print("Processed crossref fields:", processed_crossref_fields)
-    print("Crossref fields:", crossref_fields)
 
     endpoint_specs = []
     # Generate the endpoint specs based on selected crossref fields
@@ -136,19 +174,30 @@ def run_crossref_enrichment(
                         log.warning(f"Method {method_name} for database {db_name} is not enabled or does not exist in config.")
     
     log.debug(f"Final endpoint specs: {endpoint_specs}")
+    if not endpoint_specs:
+        log.info("Skipping CrossRef enrichment because no endpoint specs were resolved.")
+        return {}, {"skipped": True, "reason": "no_endpoint_specs"}
+
     enricher = CrossRefEnricher(endpoint_specs=endpoint_specs, max_workers=max_workers, total_retries=total_retries)
     enriched_data, enriched_metadata = enricher.enrich(data, format=format)
     
     # Normalize metadata to a dict to satisfy the annotated return type
     if enriched_metadata is None:
         enriched_metadata = {}
+    elif not isinstance(enriched_metadata, dict):
+        enriched_metadata = {"details": enriched_metadata}
     
-    # TODO: Patch solution probably I should only return the enriched data
     if isinstance(enriched_data, pd.DataFrame) and not enriched_data.empty:
         return enriched_data, enriched_metadata
     elif isinstance(enriched_data, list) and len(enriched_data) > 0:
         return enriched_data, enriched_metadata
-    elif isinstance(enriched_data, dict) and len(enriched_data) > 0:
-        return enriched_data, enriched_metadata
-    log.warning("Crossref enrichment returned empty DataFrame or result is not a DataFrame")
-    return {"none": pd.DataFrame()}, {}
+    elif isinstance(enriched_data, dict):
+        enriched_data = {
+            label: value
+            for label, value in enriched_data.items()
+            if has_enrichment_result_value(value)
+        }
+        if enriched_data:
+            return enriched_data, enriched_metadata
+    log.warning("Crossref enrichment returned no exportable results.")
+    return {}, {**enriched_metadata, "skipped": True, "reason": "empty_enrichment_results"}

@@ -4,6 +4,7 @@ import os
 import json
 import inspect
 import logging
+import time
 from typing import Any, Callable, Iterable, List, Optional, Tuple, Union, cast, Literal
 
 from xml.etree.ElementTree import ElementTree as ET
@@ -11,7 +12,8 @@ from xml.etree.ElementTree import ElementTree as ET
 import pandas as pd
 
 from bioseq_dl import UniprotInterface, ChEMBLInterface, BioGRIDInterface
-from bioseq_dl.core.utils.crossref_enrichment import run_crossref_enrichment
+from bioseq_dl.core.export import normalize_parse_format
+from bioseq_dl.core.utils.crossref_enrichment import normalize_crossref_fields, run_crossref_enrichment
 from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
 from bioseq_dl.constants.uniprot import XREF_MAPPING
 
@@ -24,6 +26,21 @@ from .query_interpreter import (
 from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.core.workflow.main")
+
+
+def calculate_enrichment_execution_time(enrichment_metadata: Any) -> float:
+    """Return the total execution time reported by enrichment metadata."""
+    if not isinstance(enrichment_metadata, dict):
+        return 0.0
+
+    total = 0.0
+    for metadata in enrichment_metadata.values():
+        if not isinstance(metadata, dict):
+            continue
+        execution_time = metadata.get("execution_time", 0)
+        if isinstance(execution_time, (int, float)):
+            total += execution_time
+    return total
 
 
 class MainWorkflow:
@@ -151,7 +168,7 @@ class MainWorkflow:
         self.log.debug("Additional crossref fields: %s", crossref_fields)
 
     def _step_fetch_uniprot(self, context: dict) -> None:
-        args = context.get("args", {})
+        args = context.get("searches", {}).get("uniprot", {}) or context.get("args", {})
         interpreted = context.get("searches", {}).get("uniprot", {}).get("interpreted_query") or args.get("query")
         # Defensive: do not call Uniprot with None/empty query
         if not interpreted:
@@ -159,45 +176,110 @@ class MainWorkflow:
             context["response"] = []
             context.setdefault("metadata", {}).setdefault("fetch", {}).update({"uniprot": {"skipped_empty_query": True}})
             return
-        fields = args.get("fields", "")
+        fields = args.get("fields", "") or ""
         sort = args.get("sort", "accession asc")
         include_isoform = args.get("include_isoform", False)
+        uniprot_timeout = args.get("uniprot_timeout")
         
         if isinstance(interpreted, list):
             # Multiple queries: fetch each and combine results
             combined_response = {}
             combined_fetch_meta = {}
             for q in interpreted:
-                self.log.info("Pipeline: fetching UniProt for query=%s fields=%s", q, fields)
-                resp, fetch_meta = self.uniprot.submit_stream(query=q, fields=(fields or ""), sort=sort, include_isoform=include_isoform)
+                self.log.info(
+                    "Pipeline: fetching UniProt for query=%s fields=%s sort=%s include_isoform=%s",
+                    q,
+                    fields,
+                    sort,
+                    include_isoform,
+                )
+                resp, fetch_meta = self.uniprot.submit_stream(
+                    query=q,
+                    fields=(fields or ""),
+                    sort=sort,
+                    include_isoform=include_isoform,
+                    timeout=uniprot_timeout,
+                )
+                if isinstance(fetch_meta, dict):
+                    search_process = fetch_meta.get("search_process", {})
+                    self.log.info(
+                        "Pipeline: UniProt fetch completed (status=%s elapsed=%s size_bytes=%s results=%s)",
+                        search_process.get("status_code"),
+                        search_process.get("time_taken_seconds"),
+                        search_process.get("response_size_bytes"),
+                        search_process.get("total_results"),
+                    )
                 combined_response["results"] = combined_response.get("results", []) + (resp.get("results", []) if isinstance(resp, dict) else [])
                 combined_fetch_meta[q] = fetch_meta if isinstance(fetch_meta, dict) else {}
             response = combined_response
             fetch_meta = combined_fetch_meta
         else:
-            self.log.info("Pipeline: fetching UniProt for query=%s fields=%s", interpreted, fields)
-            response, fetch_meta = self.uniprot.submit_stream(query=interpreted, fields=(fields or ""), sort=sort, include_isoform=include_isoform)
+            self.log.info(
+                "Pipeline: fetching UniProt for query=%s fields=%s sort=%s include_isoform=%s",
+                interpreted,
+                fields,
+                sort,
+                include_isoform,
+            )
+            response, fetch_meta = self.uniprot.submit_stream(
+                query=interpreted,
+                fields=(fields or ""),
+                sort=sort,
+                include_isoform=include_isoform,
+                timeout=uniprot_timeout,
+            )
+            if isinstance(fetch_meta, dict):
+                search_process = fetch_meta.get("search_process", {})
+                self.log.info(
+                    "Pipeline: UniProt fetch completed (status=%s elapsed=%s size_bytes=%s results=%s)",
+                    search_process.get("status_code"),
+                    search_process.get("time_taken_seconds"),
+                    search_process.get("response_size_bytes"),
+                    search_process.get("total_results"),
+                )
         # Always store the latest response under context['data']['uniprot'] (setdefault would not overwrite existing value)
         context.setdefault("data", {})["uniprot"] = response
         context.setdefault("metadata", {}).setdefault("uniprot", {}).update({"fetch": fetch_meta if isinstance(fetch_meta, dict) else {}})
         self.log.debug("Pipeline UniProt fetch metadata: %s", fetch_meta)
 
     def _step_parse_uniprot(self, context: dict) -> None:
-        format = context.get("args", {}).get("export_format") or self.default_export_format
+        args = context.get("searches", {}).get("uniprot", {}) or context.get("args", {})
+        export_format = args.get("export_format") or self.default_export_format
+        parse_format = normalize_parse_format(export_format) or "dataframe"
         resp_val = context.get("data", {}).get("uniprot")
         response = resp_val if resp_val is not None else {}
         # cast fmt to Any to avoid strict Literal typing issues when passing runtime variables
+        parse_started = time.time()
         try:
-            data, parse_meta = self.uniprot.parse(results=response, extract_fields=None, format=cast(Any, format))
+            self.log.info("Pipeline: parsing UniProt results format=%s", parse_format)
+            data, parse_meta = self.uniprot.parse(results=response, extract_fields=None, format=cast(Any, parse_format))
+            parse_elapsed = time.time() - parse_started
+            parsed_count = None
+            if isinstance(data, pd.DataFrame):
+                parsed_count = len(data)
+            elif isinstance(data, list):
+                parsed_count = len(data)
+            elif isinstance(data, dict):
+                parsed_count = len(data.get("results", []))
             context["data"]["uniprot"] = data
+            if isinstance(parse_meta, dict):
+                parse_meta["elapsed_seconds"] = parse_elapsed
+                parse_meta["parsed_count"] = parsed_count
             context.setdefault("metadata", {}).setdefault("uniprot", {}).setdefault("parsing", parse_meta if isinstance(parse_meta, dict) else {})
             self.log.debug("Pipeline UniProt parse metadata: %s", parse_meta)
+            self.log.info(
+                "Pipeline: UniProt parse completed (elapsed=%.2fs parsed=%s output_type=%s)",
+                parse_elapsed,
+                parsed_count if parsed_count is not None else "unknown",
+                type(data).__name__,
+            )
         except Exception as e:
+            parse_elapsed = time.time() - parse_started
             # Defensive: some upstream parsers may evaluate DataFrames in boolean context
             # (e.g., `if results:`) which raises ValueError("The truth value of a DataFrame is ambiguous").
             # Catch any parse error, record it and continue with an empty DataFrame so the
             # workflow can proceed without crashing.
-            self.log.warning("_step_parse: parser failed: %s; setting empty DataFrame", e)
+            self.log.warning("_step_parse: parser failed after %.2fs: %s; setting empty DataFrame", parse_elapsed, e)
             context["data"]["uniprot"] = pd.DataFrame()
             context.setdefault("metadata", {}).setdefault("uniprot", {}).setdefault("parsing", {"error": str(e)})
             return
@@ -205,27 +287,39 @@ class MainWorkflow:
     def _step_crossref_enrich(self, context: dict, **kwargs) -> None:
         args = context.get("searches", {}).get("uniprot", {})
         input_data = context.get("data", {}).get("uniprot")
-        cross_ref_fields = args.get("additional_crossref_fields") or []
+        cross_ref_fields = normalize_crossref_fields(args.get("additional_crossref_fields"))
         enrich_flag = args.get("enrich", False)
         export_format = args.get("export_format") or self.default_export_format
+        parse_format = normalize_parse_format(export_format) or "dataframe"
         max_workers = kwargs.get("max_workers", 4)
         total_retries = kwargs.get("total_retries", 3)
 
         if not enrich_flag:
-            self.log.debug("Pipeline: enrichment skipped (enrich=False)")
+            self.log.info("Pipeline: enrichment skipped (enrich=False)")
             return
 
-        self.log.info("Pipeline: performing CrossRef enrichment with fields=%s", cross_ref_fields)
+        if not cross_ref_fields:
+            self.log.info("Pipeline: Skipping CrossRef enrichment because no cross-reference fields were requested.")
+            context.setdefault("metadata", {})["uniprot_enrichment"] = {
+                "skipped": True,
+                "reason": "no_crossref_fields",
+            }
+            return
+
+        self.log.info("Pipeline: starting CrossRef enrichment with fields=%s", cross_ref_fields)
+        enrich_started = time.time()
         enriched, enriched_meta = run_crossref_enrichment(
             data=input_data if input_data is not None else pd.DataFrame(),
-            crossref_fields=cross_ref_fields.split(",") if isinstance(cross_ref_fields, str) else cross_ref_fields,
-            format=cast(Literal["json", "dataframe", "xml"], export_format),
+            crossref_fields=cross_ref_fields,
+            format=cast(Literal["json", "dataframe", "xml"], parse_format),
             max_workers=max_workers,
             total_retries=total_retries
         )
+        enrich_elapsed = time.time() - enrich_started
         context["data"].setdefault("uniprot_enrichment", enriched)
         context["metadata"].setdefault("uniprot_enrichment", enriched_meta)
         self.log.debug("Pipeline enrichment metadata: %s", enriched_meta)
+        self.log.info("Pipeline: CrossRef enrichment completed (elapsed=%.2fs)", enrich_elapsed)
 
     def _step_fetch_chembl(self, context: dict, search_type: Optional[str] = "activity") -> None:
         '''
@@ -234,6 +328,7 @@ class MainWorkflow:
         chembl_search = context.get("searches", {}).get("chembl", {})
         query = chembl_search.get("interpreted_query") or chembl_search.get("query")
         export_format = chembl_search.get("export_format") or self.default_export_format
+        parse_format = normalize_parse_format(export_format) or "dataframe"
         # Because there is two types of queries assosiated with 2 diferent methods,
         #   we need to check which one to use.
         if not query:
@@ -248,7 +343,7 @@ class MainWorkflow:
             query=query,
             method=f"{search_type}-search" or "activity-search",
             parse=True,
-            format=cast(Any, export_format),
+            format=cast(Any, parse_format),
             pages_to_fetch=-1,
             limit=100
         )
@@ -332,6 +427,7 @@ class MainWorkflow:
         include_isoform: bool = False,
         export_format: Optional[str] = None,
         enrich: bool = False,
+        uniprot_timeout: Optional[float] = None,
         crossref_endpoint_specs: Optional[List[EndpointSpec]] = None,
         context: Optional[dict] = None,
         **kwargs,
@@ -355,6 +451,7 @@ class MainWorkflow:
             "include_isoform": include_isoform,
             "export_format": export_format,
             "enrich": enrich,
+            "uniprot_timeout": uniprot_timeout,
             "crossref_endpoint_specs": crossref_endpoint_specs,
         }
         if context is not None:
@@ -377,8 +474,7 @@ class MainWorkflow:
         context["metadata"].update({
             "time_taken_seconds": sum([
                 context.get("metadata", {}).get("uniprot", {}).get("fetch", {}).get("search_process", {}).get("time_taken_seconds", 0),
-                # Iterate over uniprot_enrichment metadata for all endpoints and sum execution_time if present
-                sum([v.get("execution_time", 0) for k, v in context.get("metadata", {}).get("uniprot_enrichment", {}).items()])
+                calculate_enrichment_execution_time(context.get("metadata", {}).get("uniprot_enrichment", {}))
             ])
             
         })
@@ -531,6 +627,8 @@ class MainWorkflow:
             "interaction_type": interaction_type,
             "mode": "interaction"
         }
+        if "uniprot_timeout" in kwargs:
+            args["uniprot_timeout"] = kwargs.get("uniprot_timeout")
         context = {
             "searches": {
                 "uniprot": args,

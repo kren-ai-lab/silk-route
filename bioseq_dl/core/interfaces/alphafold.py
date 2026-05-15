@@ -9,6 +9,7 @@ from .base import BaseAPIInterface
 from ...constants.databases import ALPHAFOLD
 from ..utils.base_auxiliary_methods import validate_parameters
 from bioseq_dl.core.interfacesconfig import ConfigLoader
+from bioseq_dl.core.export import export_dataframe
 
 from bioseq_dl.logging import get_logger
 
@@ -290,20 +291,16 @@ class AlphafoldInterface(BaseAPIInterface):
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
 
-        if extension not in ["csv", "tsv", "json"]:
-            log.error(f"Unsupported file extension: {extension}. Use 'csv', 'tsv', or 'json'.")
+        if extension not in ["csv", "tsv", "json", "parquet"]:
+            log.error(f"Unsupported file extension: {extension}. Use 'csv', 'tsv', 'json', or 'parquet'.")
             return
         
-        if extension == "csv":
-            df = pd.DataFrame(data)
-            df.to_csv(os.path.join(self.output_dir, f"{filename}.{extension}"), index=False)
-        
-        elif extension == "tsv":
-            df = pd.DataFrame(data)
-            df.to_csv(os.path.join(self.output_dir, f"{filename}.{extension}"), sep="\t", index=False)
-           
-        elif extension == "json":
+        if extension == "json":
             with open(os.path.join(self.output_dir, f"{filename}.{extension}"), 'w') as f:
                 json.dump(data, f, indent=4)
-            
-        return os.path.join(self.output_dir, f"{filename}.{extension}")
+            return os.path.join(self.output_dir, f"{filename}.{extension}")
+
+        df = pd.DataFrame(data)
+        output_path = os.path.join(self.output_dir, f"{filename}.{extension}")
+        export_dataframe(df, output_path, output_format=extension)
+        return output_path

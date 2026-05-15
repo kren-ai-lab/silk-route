@@ -38,10 +38,11 @@ API_URL = "https://rest.uniprot.org"
 POLLING_INTERVAL = 3 
 
 class UniprotBase():
-    def __init__(self, total_retries=5):
-        self.retries = Retry(total=total_retries, backoff_factor=0.25, status_forcelist=[ 500, 502, 503, 504 ])
+    def __init__(self, total_retries=5, timeout: float = 60):
+        self.retries = Retry(total=total_retries, backoff_factor=0.25, status_forcelist=[500, 502, 503, 504])
         self.session = requests.Session()
         self.session.mount('https://', HTTPAdapter(max_retries=self.retries))
+        self.timeout = timeout
 
     def check_response(self, response):
         try:
@@ -55,6 +56,7 @@ class UniprotBase():
         request = requests.post(
             f"{API_URL}/idmapping/run",
         data={"from": from_db, "to": to_db, "ids": ",".join(ids)},
+        timeout=self.timeout,
         )
         self.check_response(request)
         return request.json()["jobId"]
@@ -125,7 +127,7 @@ class UniprotBase():
         )
         parsed = parsed._replace(query=urlencode(query, doseq=True))
         url = parsed.geturl()
-        request = self.session.get(url)
+        request = self.session.get(url, timeout=self.timeout)
         self.check_response(request)
         results = self.decode_results(request, file_format, compressed)
         total = int(request.headers["x-total-results"])
@@ -139,7 +141,7 @@ class UniprotBase():
 
     def get_id_mapping_results_link(self, job_id):
         url = f"{API_URL}/idmapping/details/{job_id}"
-        request = self.session.get(url)
+        request = self.session.get(url, timeout=self.timeout)
         self.check_response(request)
         return request.json()["redirectURL"]
 
@@ -153,7 +155,7 @@ class UniprotBase():
     def get_batch(self, batch_response, file_format, compressed):
         batch_url = self.get_next_link(batch_response.headers)
         while batch_url:
-            batch_response = self.session.get(batch_url)
+            batch_response = self.session.get(batch_url, timeout=self.timeout)
             batch_response.raise_for_status()
             yield self.decode_results(batch_response, file_format, compressed)
             batch_url = self.get_next_link(batch_response.headers)
@@ -161,7 +163,7 @@ class UniprotBase():
     def check_id_mapping_results_ready(self, job_id):
         while True:
             log.debug(f"Checking status for job ID: {job_id}")
-            request = self.session.get(f"{API_URL}/idmapping/status/{job_id}")
+            request = self.session.get(f"{API_URL}/idmapping/status/{job_id}", timeout=self.timeout)
             self.check_response(request)
             j = request.json()
             if "jobStatus" in j:
@@ -176,8 +178,8 @@ class UniprotBase():
 
 
 class UniprotInterface(UniprotBase):
-    def __init__(self, total_retries=5):
-        super().__init__(total_retries)
+    def __init__(self, total_retries=5, timeout: float = 60):
+        super().__init__(total_retries=total_retries, timeout=timeout)
         self.db_config = {
             'uniprot': {
                 'patterns': [r'^[A-N,R-Z][0-9][A-Z][A-Z, 0-9][A-Z, 0-9][0-9]$',
@@ -404,7 +406,8 @@ class UniprotInterface(UniprotBase):
             sort: str, 
             include_isoform: Optional[bool] = False, 
             download: Optional[bool] = False,
-            method: str = "uniprotkb"
+            method: str = "uniprotkb",
+            timeout: Optional[float] = None,
             ) -> Tuple[Dict, Dict]:
         """
         Submit a query to the Uniprot stream API.
@@ -414,6 +417,7 @@ class UniprotInterface(UniprotBase):
             sort (str): The sorting order.
             include_isoform (bool, optional): Whether to include isoforms. Defaults to False.
             download (bool, optional): Whether to download the results. Defaults to False.
+            timeout (float, optional): Request timeout in seconds. Defaults to the interface timeout.
             format (str, optional): The format of the response. Defaults to "json".
         Returns:
             requests.Response: The response object.
@@ -431,20 +435,60 @@ class UniprotInterface(UniprotBase):
 
         headers = {"Accept": "application/json"}
 
+        effective_timeout = self.timeout if timeout is None else timeout
+        endpoint_path = f"/{method}/stream"
+
         for attempt in range(self.retries.total):
             try:
                 time_started = time.time()
+                started_at = datetime.fromtimestamp(time_started).isoformat()
+                log.info("UniProt stream request started (path=%s)", endpoint_path)
+                log.debug(
+                    "UniProt stream request details: query=%s fields=%s sort=%s include_isoform=%s timeout=%s started_at=%s",
+                    query,
+                    fields,
+                    sort,
+                    include_isoform,
+                    effective_timeout,
+                    started_at,
+                )
                 response = requests.get(
                     f"{API_URL}/{method}/stream",
                     params=parameters,
                     headers=headers,
+                    timeout=effective_timeout,
                 )
                 response.raise_for_status()
+                time_finished = time.time()
+                finished_at = datetime.fromtimestamp(time_finished).isoformat()
+                elapsed_seconds = time_finished - time_started
+                size_header = response.headers.get("Content-Length")
+                response_size_bytes = int(size_header) if size_header and size_header.isdigit() else len(response.content)
+                payload = response.json()
+                results_count = 0
+                if isinstance(payload, dict):
+                    results_count = len(payload.get("results", []))
+                elif isinstance(payload, list):
+                    results_count = len(payload)
+                log.info(
+                    "UniProt stream response received (status=%s elapsed=%.2fs)",
+                    response.status_code,
+                    elapsed_seconds,
+                )
+                log.debug(
+                    "UniProt stream response details: finished_at=%s size_bytes=%s results=%s",
+                    finished_at,
+                    response_size_bytes,
+                    results_count,
+                )
                 metadata["search_process"] = {
-                    "time_taken_seconds": time.time() - time_started,
-                    "started_at": datetime.fromtimestamp(time_started).isoformat(),
-                    "total_results": response.json().get("results", []).__len__(),
-                    "attempts": attempt + 1
+                    "time_taken_seconds": elapsed_seconds,
+                    "started_at": started_at,
+                    "finished_at": finished_at,
+                    "status_code": response.status_code,
+                    "response_size_bytes": response_size_bytes,
+                    "total_results": results_count,
+                    "attempts": attempt + 1,
                 }
                 metadata["search_params"] = {
                     "api_url": API_URL,
@@ -455,10 +499,28 @@ class UniprotInterface(UniprotBase):
                     "fields": fields,
                     "sort": sort,
                     "include_isoform": include_isoform,
-                    "download": download
+                    "download": download,
+                    "timeout_seconds": effective_timeout,
                 }
 
-                return response.json(), metadata
+                return payload, metadata
+            except requests.exceptions.Timeout as e:
+                if attempt < self.retries.total - 1:
+                    log.warning(
+                        "UniProt stream request timed out after %ss on attempt %s/%s. Retrying...",
+                        effective_timeout,
+                        attempt + 1,
+                        self.retries.total,
+                    )
+                    time.sleep(POLLING_INTERVAL)
+                else:
+                    message = (
+                        f"UniProt request timed out after {effective_timeout}s. "
+                        "The query may be too broad or the UniProt API may be slow. "
+                        "Try narrowing the query, using --no-enrich, or increasing --uniprot-timeout."
+                    )
+                    log.error(message)
+                    raise TimeoutError(message) from e
             except requests.exceptions.RequestException as e:
                 if attempt < self.retries.total - 1:
                     log.info(f"Attempt {attempt + 1} failed: {e}. Retrying...")

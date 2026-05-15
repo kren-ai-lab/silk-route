@@ -21,6 +21,8 @@ classifiers = [
 
 dependencies = [
     "pandas",
+    "pyarrow",
+    "fastparquet",
     "tqdm",
     "requests",
     "rcsb-api",

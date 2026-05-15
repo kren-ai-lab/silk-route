@@ -137,6 +137,10 @@ bioseq-dl general-collect uniprot search-by-sequences run \
 --crossref_fields alphafold
 ```
 
+### Parquet outputs
+
+Commands that export parsed tabular results can write Parquet files when `parquet` is selected as the output format. Parquet export requires the optional Parquet engine installed with the package dependencies.
+
 ### Workflow Interface (Automated Data Collection Workflows)
 
 The **Workflow** interface allows you to run **pre-configured, automated data collection workflows** that handle complex, multi-step queries across different data modalities (proteins, compounds, interactions). Workflows automatically handle enrichment and cross-database linking.
@@ -148,7 +152,7 @@ Workflows simplify the process of collecting and enriching biological data by:
 - Offering two **modes** of operation: single-query or multi-query composition
 - Automatically enriching results with cross-references
 - Handling retries and multi-threaded API calls
-- Exporting results in multiple formats (CSV, JSON, XML)
+- Exporting results in multiple formats (CSV, JSON, XML, Parquet)
 
 #### Modalities
 
@@ -180,7 +184,7 @@ bioseq-dl workflow run [OPTIONS]
 
 ##### Optional Options
 
-- `-e, --export-format TEXT`: Export format (`dataframe`, `json`, `xml`) — Default: `dataframe`
+- `-e, --export-format TEXT`: Export format (`dataframe`, `json`, `xml`, `parquet`) — Default: `dataframe`
 - `--enrich/--no-enrich`: Enable/disable data enrichment — Default: `True`
 - `-w, --max-workers INTEGER`: Number of worker threads for API calls — Default: `5`
 - `-r, --total-retries INTEGER`: Retry attempts for failed API calls — Default: `3`
