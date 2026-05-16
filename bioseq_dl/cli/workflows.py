@@ -12,6 +12,7 @@ import typer
 import yaml
 
 from bioseq_dl.core.export import export_dataframe, normalize_export_format
+from bioseq_dl.core.interfaces.uniprot import UniprotInterface
 from bioseq_dl.core.workflow.main_workflow import MainWorkflow
 from bioseq_dl.logging import configure_logging, get_logger
 
@@ -25,11 +26,35 @@ MODES = ["query_first", "query_composition"]
 FORMATS = ["dataframe", "csv", "json", "xml", "parquet"]
 
 REQUIRED_DESCRIPTOR_SECTIONS = {"dataset", "query", "execution", "export"}
-KNOWN_DESCRIPTOR_SECTIONS = REQUIRED_DESCRIPTOR_SECTIONS | {
+CORE_DESCRIPTOR_SECTIONS = REQUIRED_DESCRIPTOR_SECTIONS | {
     "resources",
     "harmonization",
     "reporting",
 }
+DESCRIPTIVE_DESCRIPTOR_SECTIONS = {
+    "interaction_retrieval",
+    "activity_retrieval",
+    "chemical_metadata_integration",
+    "protein_target_integration",
+    "temperature_enrichment",
+    "cross_source_integration",
+}
+ALLOWED_DESCRIPTOR_SECTION_NAMES = [
+    "dataset",
+    "query",
+    "resources",
+    "execution",
+    "harmonization",
+    "export",
+    "reporting",
+    "interaction_retrieval",
+    "activity_retrieval",
+    "chemical_metadata_integration",
+    "protein_target_integration",
+    "temperature_enrichment",
+    "cross_source_integration",
+]
+KNOWN_DESCRIPTOR_SECTIONS = CORE_DESCRIPTOR_SECTIONS | DESCRIPTIVE_DESCRIPTOR_SECTIONS
 
 DATASET_KEYS = {
     "name",
@@ -73,15 +98,16 @@ EXPORT_KEYS = {
     "result_files",
 }
 
-OLD_DISPATCH_MODE_KEY = "dispatch" + "_mode"
-
 OLD_ROOT_KEY_ERRORS = {
     "version": "Unknown workflow YAML key 'version'. Use the structured dataset/query/execution/export schema.",
     "kind": "Unknown workflow YAML key 'kind'. Use the structured dataset/query/execution/export schema.",
     "workflow": "Unknown workflow YAML key 'workflow'. Use the structured dataset/query/execution/export schema.",
-    OLD_DISPATCH_MODE_KEY: f"Unknown workflow YAML key '{OLD_DISPATCH_MODE_KEY}'. Use dataset.mode instead.",
-    "method": "Unknown workflow YAML key 'method'. Use dataset.mode instead.",
 }
+OLD_MODE_KEY_ERROR_MESSAGES = [
+    "Unknown workflow YAML key 'dispatch_mode'. Use dataset.mode instead.",
+    "Unknown workflow YAML key 'dispatch'. Use dataset.mode instead.",
+    "Unknown workflow YAML key 'method'. Use dataset.mode instead.",
+]
 QUERY_KEY_ERRORS = {
     "type": "Unknown query YAML key 'type'. Query type is not supported yet; use query.value.",
     "filters": "Unknown query YAML key 'filters'. Use query.filtering_strategy for descriptive filtering notes.",
@@ -167,6 +193,27 @@ def validate_allowed_section_keys(
             raise ValueError(special_errors[key])
         if key not in allowed_keys:
             raise ValueError(f"Unknown {section_name} YAML key '{key}'.")
+
+
+def get_rejected_mode_key_message(key: str) -> Optional[str]:
+    """Return the validation message for removed workflow mode keys."""
+    for message in OLD_MODE_KEY_ERROR_MESSAGES:
+        if key == message.split("'")[1]:
+            return message
+    return None
+
+
+def validate_descriptor_section_names(workflow_descriptor: dict) -> None:
+    """Validate top-level workflow descriptor section names."""
+    allowed_sections = ", ".join(ALLOWED_DESCRIPTOR_SECTION_NAMES)
+    for key in workflow_descriptor:
+        rejected_mode_message = get_rejected_mode_key_message(key)
+        if rejected_mode_message:
+            raise ValueError(rejected_mode_message)
+        if key in OLD_ROOT_KEY_ERRORS:
+            raise ValueError(OLD_ROOT_KEY_ERRORS[key])
+        if key not in KNOWN_DESCRIPTOR_SECTIONS:
+            raise ValueError(f"Unknown workflow YAML section '{key}'. Allowed sections are: {allowed_sections}.")
 
 
 def validate_required_section_keys(section_name: str, section: dict, required_keys: set[str]) -> None:
@@ -428,10 +475,7 @@ def validate_workflow_recipe(recipe: dict) -> dict:
 
     check_forbidden_workflow_recipe_keys(recipe)
     workflow_descriptor = {str(key): value for key, value in recipe.items()}
-
-    for key, message in OLD_ROOT_KEY_ERRORS.items():
-        if key in workflow_descriptor:
-            raise ValueError(message)
+    validate_descriptor_section_names(workflow_descriptor)
 
     missing_sections = sorted(REQUIRED_DESCRIPTOR_SECTIONS - set(workflow_descriptor))
     if missing_sections:
@@ -463,7 +507,7 @@ def validate_workflow_recipe(recipe: dict) -> dict:
     extra_descriptor_sections = {
         key: value
         for key, value in workflow_descriptor.items()
-        if key not in KNOWN_DESCRIPTOR_SECTIONS
+        if key in DESCRIPTIVE_DESCRIPTOR_SECTIONS
     }
 
     output_dir = export_section.get("output_dir")
@@ -793,6 +837,58 @@ def calculate_reporting_metrics(
     return reporting
 
 
+def collect_metadata_errors(value: object, path: tuple[str, ...] = ()) -> list[dict]:
+    """Return error messages found in workflow metadata."""
+    errors: list[dict] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            key_text = str(key)
+            current_path = path + (key_text,)
+            if key_text.lower() == "error" and item:
+                errors.append({"path": ".".join(path), "message": str(item)})
+            else:
+                errors.extend(collect_metadata_errors(item, current_path))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            errors.extend(collect_metadata_errors(item, path + (str(index),)))
+    return errors
+
+
+def is_enrichment_error(error_info: dict) -> bool:
+    """Return whether an error belongs to enrichment metadata."""
+    path = str(error_info.get("path", "")).lower()
+    return "enrichment" in path
+
+
+def find_primary_fetch_error(workflow_metadata: object) -> Optional[str]:
+    """Return the first primary fetch error message, if metadata contains one."""
+    for error_info in collect_metadata_errors(workflow_metadata):
+        path = str(error_info.get("path", "")).lower()
+        if "fetch" in path and not is_enrichment_error(error_info):
+            return str(error_info.get("message"))
+    return None
+
+
+def has_primary_output(output_infos: list[dict]) -> bool:
+    """Return whether exported files include at least one primary result output."""
+    return any(info.get("category") == "result" for info in output_infos)
+
+
+def determine_execution_status(workflow_metadata: object, output_infos: list[dict]) -> tuple[str, Optional[str]]:
+    """Determine the execution status from exported outputs and metadata errors."""
+    primary_fetch_error = find_primary_fetch_error(workflow_metadata)
+    primary_output_exists = has_primary_output(output_infos)
+    if primary_fetch_error and not primary_output_exists:
+        return "failed", primary_fetch_error
+
+    errors = collect_metadata_errors(workflow_metadata)
+    if errors and not primary_output_exists:
+        return "failed", str(errors[0].get("message"))
+    if errors:
+        return "completed_with_errors", str(errors[0].get("message"))
+    return "success", None
+
+
 def build_normalized_workflow_metadata(values: dict) -> dict:
     """Return the executable workflow values for metadata output."""
     metadata_keys = [
@@ -828,19 +924,25 @@ def build_metadata_document(
     started_at: str,
     finished_at: str,
     duration_seconds: float,
+    status: str = "success",
+    error: Optional[str] = None,
 ) -> dict:
     """Build the detailed workflow metadata document."""
+    execution = {
+        "status": status,
+        "started_at": started_at,
+        "finished_at": finished_at,
+        "duration_seconds": round(duration_seconds, 3),
+    }
+    if error:
+        execution["error"] = error
+
     return {
         "workflow_metadata": workflow_metadata,
         "original_descriptor": workflow_values.get("original_descriptor") or collect_descriptor_sections(workflow_values),
         "normalized_descriptor": collect_descriptor_sections(workflow_values),
         "normalized_workflow_values": build_normalized_workflow_metadata(workflow_values),
-        "execution": {
-            "status": "success",
-            "started_at": started_at,
-            "finished_at": finished_at,
-            "duration_seconds": round(duration_seconds, 3),
-        },
+        "execution": execution,
         "output_files": output_infos,
         "reporting": reporting,
     }
@@ -872,6 +974,8 @@ def build_summary_document(
     duration_seconds: float,
     metadata_path: Optional[Path],
     summary_path: Path,
+    status: str = "success",
+    error: Optional[str] = None,
 ) -> dict:
     """Build the compact YAML run summary."""
     query_descriptor = dict(workflow_values.get("query_descriptor") or {})
@@ -881,7 +985,7 @@ def build_summary_document(
             query_summary[key] = query_descriptor[key]
 
     execution_summary = {
-        "status": "success",
+        "status": status,
         "started_at": started_at,
         "finished_at": finished_at,
         "duration_seconds": round(duration_seconds, 3),
@@ -889,6 +993,8 @@ def build_summary_document(
         "max_workers": workflow_values.get("workers"),
         "total_retries": workflow_values.get("retries"),
     }
+    if error:
+        execution_summary["error"] = error
     if workflow_values.get("merge_results") is not None:
         execution_summary["merge_results"] = workflow_values.get("merge_results")
     if workflow_values.get("uniprot_timeout") is not None:
@@ -919,6 +1025,57 @@ def build_summary_document(
         summary["harmonization"] = workflow_values["harmonization"]
     summary.update(workflow_values.get("extra_descriptor_sections", {}))
     return summary
+
+
+def write_failure_reports(
+    workflow_values: dict,
+    error_message: str,
+    started_at: str,
+    start_time: float,
+) -> None:
+    """Write failure metadata and summary reports when an output directory is available."""
+    output = workflow_values.get("output")
+    if not output:
+        return
+
+    output_dir = Path(output)
+    output_infos: list[dict] = []
+    finished_at = dt.datetime.now().replace(microsecond=0).isoformat()
+    duration_seconds = time.perf_counter() - start_time
+    reporting = calculate_reporting_metrics(workflow_values, {}, output_infos, duration_seconds)
+    workflow_metadata = {"error": error_message}
+
+    metadata_path = None
+    if workflow_values.get("include_metadata"):
+        metadata_path = output_dir / (workflow_values.get("manifest_file") or "metadata.json")
+        metadata_document = build_metadata_document(
+            workflow_metadata=workflow_metadata,
+            workflow_values=workflow_values,
+            output_infos=output_infos,
+            reporting=reporting,
+            started_at=started_at,
+            finished_at=finished_at,
+            duration_seconds=duration_seconds,
+            status="failed",
+            error=error_message,
+        )
+        write_json_file(metadata_path, metadata_document)
+
+    if workflow_values.get("include_summary"):
+        summary_path = output_dir / (workflow_values.get("summary_file") or "run_summary.yml")
+        summary_document = build_summary_document(
+            workflow_values=workflow_values,
+            output_infos=output_infos,
+            reporting=reporting,
+            started_at=started_at,
+            finished_at=finished_at,
+            duration_seconds=duration_seconds,
+            metadata_path=metadata_path,
+            summary_path=summary_path,
+            status="failed",
+            error=error_message,
+        )
+        write_yaml_file(summary_path, summary_document)
 
 
 def split_pair(s: str) -> Tuple[str, str]:
@@ -1050,7 +1207,7 @@ def run_workflow(
     except Exception as e:
         logger.warning("Could not configure logging: %s", e)
 
-    wf = MainWorkflow()
+    wf = MainWorkflow(uniprot_interface=UniprotInterface(total_retries=workflow_values["retries"]))
     started_at = dt.datetime.now().replace(microsecond=0).isoformat()
     start_time = time.perf_counter()
 
@@ -1093,11 +1250,17 @@ def run_workflow(
             )
         else:
             raise ValueError(f"Unsupported workflow mode '{workflow_values['mode']}'.")
-    except TimeoutError as e:
-        logger.error(str(e))
+    except (TimeoutError, RuntimeError, ValueError) as e:
+        error_message = str(e)
+        logger.error(error_message)
+        write_failure_reports(workflow_values, error_message, started_at, start_time)
+        typer.echo(f"Error: {error_message}", err=True)
         raise typer.Exit(code=1)
-    except ValueError as e:
-        typer.echo(f"Error: {e}", err=True)
+    except Exception as e:
+        error_message = str(e)
+        logger.exception("Workflow execution failed")
+        write_failure_reports(workflow_values, error_message, started_at, start_time)
+        typer.echo(f"Error: {error_message}", err=True)
         raise typer.Exit(code=1)
 
     output_dir = Path(workflow_values["output"])
@@ -1112,18 +1275,22 @@ def run_workflow(
     finished_at = dt.datetime.now().replace(microsecond=0).isoformat()
     duration_seconds = time.perf_counter() - start_time
     reporting = calculate_reporting_metrics(workflow_values, data, output_infos, duration_seconds)
+    workflow_metadata = meta if isinstance(meta, dict) else {"metadata": meta}
+    execution_status, execution_error = determine_execution_status(workflow_metadata, output_infos)
 
     metadata_path = None
     if workflow_values["include_metadata"]:
         metadata_path = output_dir / workflow_values["manifest_file"]
         metadata_document = build_metadata_document(
-            workflow_metadata=meta if isinstance(meta, dict) else {"metadata": meta},
+            workflow_metadata=workflow_metadata,
             workflow_values=workflow_values,
             output_infos=output_infos,
             reporting=reporting,
             started_at=started_at,
             finished_at=finished_at,
             duration_seconds=duration_seconds,
+            status=execution_status,
+            error=execution_error,
         )
         write_json_file(metadata_path, metadata_document)
 
@@ -1138,8 +1305,19 @@ def run_workflow(
             duration_seconds=duration_seconds,
             metadata_path=metadata_path,
             summary_path=summary_path,
+            status=execution_status,
+            error=execution_error,
         )
         write_yaml_file(summary_path, summary_document)
 
+    if execution_status == "failed":
+        message = execution_error or "Workflow failed."
+        logger.error(message)
+        typer.echo(f"Error: {message}", err=True)
+        raise typer.Exit(code=1)
+
     logger.info("Workflow export completed")
-    typer.echo(f"Workflow completed. Results saved to '{output_dir}'")
+    if execution_status == "completed_with_errors":
+        typer.echo(f"Workflow completed with errors. Results saved to '{output_dir}'")
+    else:
+        typer.echo(f"Workflow completed. Results saved to '{output_dir}'")

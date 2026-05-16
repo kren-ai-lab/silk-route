@@ -156,9 +156,11 @@ bioseq-dl workflow run --config workflow.yml -o result_override
 bioseq-dl workflow run --config workflow.yml -e csv
 ```
 
-YAML descriptors use top-level `dataset`, `query`, `resources`, `execution`, `harmonization`, `export`, and `reporting` sections. Only part of the descriptor is executable: `dataset.modality`, `dataset.mode`, `query.value`, selected `query` options, supported `execution` options, and `export` options are mapped to the current workflow. `query.value` is the actual API query. `query.description` and `query.filtering_strategy` are descriptive metadata only.
+YAML descriptors use top-level `dataset`, `query`, `resources`, `execution`, `harmonization`, `export`, and `reporting` sections, plus a small allowlist of descriptive integration sections. `dataset.mode` is the workflow execution mode, and the only valid values are `query_first` and `query_composition`. Only part of the descriptor is executable: `dataset.modality`, `dataset.mode`, `query.value`, selected `query` options, supported `execution` options, and `export` options are mapped to the current workflow. `query.value` is the actual API query. `query.description` and `query.filtering_strategy` are descriptive metadata only.
 
-`resources`, domain-specific integration sections, and most harmonization/reporting fields are preserved in `metadata.json` and `run_summary.yml` unless the current workflow already supports that behavior. Credentials must be provided through `.env` or environment variables, not YAML.
+`resources`, allowed domain-specific integration sections, and most harmonization/reporting fields are preserved in `metadata.json` and `run_summary.yml` unless the current workflow already supports that behavior. `execution.merge_results` is descriptor metadata only; it does not currently trigger automatic result merging. Credentials must be provided through `.env` or environment variables, not YAML.
+
+Allowed top-level descriptor sections are: `dataset`, `query`, `resources`, `execution`, `harmonization`, `export`, `reporting`, `interaction_retrieval`, `activity_retrieval`, `chemical_metadata_integration`, `protein_target_integration`, `temperature_enrichment`, and `cross_source_integration`.
 
 ```yaml
 dataset:
@@ -235,6 +237,8 @@ Workflows support:
 | **interaction** | Protein interactions | Network data, interaction strength |
 
 #### Modes
+
+In YAML, set the execution mode with `dataset.mode`.
 
 | Mode | Use Case | Query Format |
 |------|----------|--------------|
@@ -368,7 +372,7 @@ Workflows generate two main types of output:
 
 If `harmonization.id_column` is set, exported tabular files receive a deterministic ID column when that column is not already present. The original in-memory DataFrames and raw API outputs are not modified.
 
-`metadata.json` contains existing workflow metadata, the original descriptor sections, normalized executable values, generated output files, and calculated reporting metrics. `run_summary.yml` contains dataset and query information, execution status, start and finish times, duration, export settings, output file names, row and column counts for tabular outputs, and common reporting metrics when they can be calculated.
+`metadata.json` contains existing workflow metadata, the original descriptor sections, normalized executable values, generated output files, and calculated reporting metrics. `run_summary.yml` contains dataset and query information, execution status, start and finish times, duration, export settings, output file names, row and column counts for tabular outputs, and common reporting metrics when they can be calculated. The summary status reflects actual execution: `success` for clean runs, `completed_with_errors` when outputs exist but metadata records errors, and `failed` when execution fails or a primary fetch error leaves no real result output.
 
 #### Advanced Options
 

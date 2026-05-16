@@ -109,7 +109,7 @@ def merge_enrichment_data(existing: List[Any], new: Any) -> List[Any]:
 
 class MainWorkflow:
     """
-    High-level workflow orchestrator for biological modalities and workflow methods:
+    High-level workflow orchestrator for biological modalities and workflow modes:
       - query_first(query, ...): interpret user-friendly queries, fetch from UniProt, optional enrichment
       - query_composition(queries_with_labels, ...): run multiple queries and tag results with labels
 
@@ -152,40 +152,39 @@ class MainWorkflow:
         # TODO: Consider normalizing the metadata structure returned by all public methods.
         # Currently metadata is a flexible dict that mixes counters, nested parts, and
         # enrichment outputs (sometimes lists/dicts). Plan: decide on a stable schema
-        # (e.g. {'method':..., 'modality':..., 'results':..., 'enrichment':..., 'parts':...}) and migrate
+        # (e.g. {'mode':..., 'modality':..., 'results':..., 'enrichment':..., 'parts':...}) and migrate
         # query_first/import_first/query_composition to always return (data, metadata)
         # with a consistent metadata shape. Leaving this as a TODO until the CLI/PRISM
         # integration decisions are final.
 
-    # Public run entry that routes by workflow method.
+    # Public run entry that routes by workflow mode.
     def run(
-            self, 
-            modality: str, 
-            mode: Optional[str] = None,
-            method: Optional[str] = None,
-            **kwargs
+            self,
+            modality: str,
+            mode: str = "query_first",
+            **kwargs,
         ) -> Tuple[Any, dict]:
         """
         Primary public entry. modality is mandatory and selects the declarative
         pipeline to use (e.g. 'protein', 'compound', 'interaction'). mode selects
-        the workflow execution strategy. The method keyword is still accepted for
-        compatibility with existing Python callers.
+        the workflow execution strategy.
 
         Examples:
-          run('protein', mode='query_first', query='...')
-          run('interaction', mode='query_composition', queries_with_labels=[...])
+          run(modality='protein', mode='query_first', query='...')
+          run(modality='interaction', mode='query_composition', queries_with_labels=[...])
         
         Args:
             modality: The modality to run ('protein', 'compound', 'interaction').
             mode: The workflow mode to run ('query_first', 'query_composition').
-            **kwargs: Additional arguments passed to the selected method handler.
+            **kwargs: Additional arguments passed to the selected mode handler.
         """
         if not modality:
             raise ValueError("`modality` is required for MainWorkflow.run")
+        if not mode:
+            raise ValueError("`mode` is required for MainWorkflow.run")
 
         modality = modality.lower()
-        workflow_mode = (mode or method or "query_first").lower()
-        # Debug: log entry into workflow run with provided parameters
+        workflow_mode = mode.lower()
         try:
             self.log.debug("Run invoked with mode=%s modality=%s kwargs=%s", workflow_mode, modality, kwargs)
         except Exception:
@@ -526,7 +525,7 @@ class MainWorkflow:
             context = {
                 "searches": {"uniprot": args},
                 "data": {"uniprot": {}},
-                "metadata": {"method": "query_first", "modality": "protein", "origin": "query"},
+                "metadata": {"mode": "query_first", "modality": "protein", "origin": "query"},
             }
             context["searches"]["uniprot"]["interpreted_query"] = uniprot_interpreter.interpret(query=args.get("query", ""))
            
@@ -598,7 +597,7 @@ class MainWorkflow:
                     }
                 },
                 "data": {},
-                "metadata": {"method": "query_first", "modality": "compound", "origin": "query"},
+                "metadata": {"mode": "query_first", "modality": "compound", "origin": "query"},
             }
         else:
             # Merge explicit function args into existing context args so callers that pass
@@ -708,7 +707,7 @@ class MainWorkflow:
                 "uniprot": args,
             },
             "data": {},
-            "metadata": {"method": "query_first", "modality": "interaction", "origin": "query"},
+            "metadata": {"mode": "query_first", "modality": "interaction", "origin": "query"},
         }
 
 
@@ -812,7 +811,7 @@ class MainWorkflow:
         """
         combined_rows: List[Any] = []
         combined_enrichment: List[Any] = []
-        metadata: dict = {"method": "query_composition", "modality": modality, "origin": "query", "parts": []}
+        metadata: dict = {"mode": "query_composition", "modality": modality, "origin": "query", "parts": []}
 
         for query, label in queries_with_labels:
             if modality == "protein":
@@ -828,8 +827,8 @@ class MainWorkflow:
             #  {"uniprot": pd.DataFrame(...), "uniprot_enrichment": {...}} for protein modality,
             #  {"chembl": pd.DataFrame(...), "uniprot": pd.DataFrame(...), "uniprot_enrichment": {...}} for compound modality
             # On the other hand, part_meta should contain the metadata for that specific run
-            #  {"method": "query_first", "modality": "protein", "origin": "query", "uniprot": {...}, "uniprot_enrichment": {...}} for protein modality,
-            #  {"method": "query_first", "modality": "compound", "origin": "query", "chembl": {...}, "uniprot": {...}, "uniprot_enrichment": {...}} for compound modality 
+            #  {"mode": "query_first", "modality": "protein", "origin": "query", "uniprot": {...}, "uniprot_enrichment": {...}} for protein modality,
+            #  {"mode": "query_first", "modality": "compound", "origin": "query", "chembl": {...}, "uniprot": {...}, "uniprot_enrichment": {...}} for compound modality 
 
             labeled_part = attach_label_to_part(part_data, label, modality)
             if isinstance(labeled_part, dict):

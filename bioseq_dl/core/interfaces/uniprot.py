@@ -526,9 +526,9 @@ class UniprotInterface(UniprotBase):
                     log.info(f"Attempt {attempt + 1} failed: {e}. Retrying...")
                     time.sleep(POLLING_INTERVAL)
                 else:
-                    log.error(f"All attempts failed: {e}.")
-                    metadata["error"] = str(e)
-                    return {}, metadata
+                    message = f"UniProt request failed after all retry attempts: {e}"
+                    log.error(message)
+                    raise RuntimeError(message) from e
     
     def adapt_field_map(self, field_map: Dict[str, tuple], use_prefix=False):
         """Adapt the field map to include a prefix if needed"""
