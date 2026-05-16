@@ -1,13 +1,13 @@
 dataset:
-  name: antimicrobial_reviewed_proteins_csv
-  description: Reviewed UniProt protein records retrieved with an antimicrobial query.
+  name: uniprot_temperature_associated_proteins
+  description: Protein records retrieved from UniProt using a temperature-associated query.
   modality: protein
   mode: query_first
   primary_data_source: uniprot
 
 query:
-  value: "antimicrobial and reviewed:true"
-  description: Retrieve reviewed UniProt protein entries matching an antimicrobial query.
+  value: "temperature:98"
+  description: Retrieve UniProt protein entries with temperature-related annotations.
   filtering_strategy: >
     Filtering is encoded in the UniProt-compatible query string.
 
@@ -21,7 +21,6 @@ execution:
   max_workers: 5
   total_retries: 3
   merge_results: false
-  debug: true
 
 harmonization:
   id_column: "_id"
@@ -34,8 +33,8 @@ harmonization:
     - sequence
 
 export:
-  output_dir: "result_yaml"
-  format: csv
+  output_dir: "results/protein_uniprot_temperature"
+  format: parquet
   include_metadata: true
   include_summary: true
   manifest_file: "metadata.json"

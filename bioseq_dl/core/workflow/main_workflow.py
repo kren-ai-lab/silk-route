@@ -161,39 +161,41 @@ class MainWorkflow:
     def run(
             self, 
             modality: str, 
-            method: str = "query_first",
+            mode: Optional[str] = None,
+            method: Optional[str] = None,
             **kwargs
         ) -> Tuple[Any, dict]:
         """
         Primary public entry. modality is mandatory and selects the declarative
-        pipeline to use (e.g. 'protein', 'compound', 'interaction'). method selects
-        the workflow execution strategy.
+        pipeline to use (e.g. 'protein', 'compound', 'interaction'). mode selects
+        the workflow execution strategy. The method keyword is still accepted for
+        compatibility with existing Python callers.
 
         Examples:
-          run('protein', method='query_first', query='...')
-          run('interaction', method='query_composition', queries_with_labels=[...])
+          run('protein', mode='query_first', query='...')
+          run('interaction', mode='query_composition', queries_with_labels=[...])
         
         Args:
             modality: The modality to run ('protein', 'compound', 'interaction').
-            method: The workflow method to run ('query_first', 'query_composition').
+            mode: The workflow mode to run ('query_first', 'query_composition').
             **kwargs: Additional arguments passed to the selected method handler.
         """
         if not modality:
             raise ValueError("`modality` is required for MainWorkflow.run")
 
         modality = modality.lower()
-        method = (method or "").lower()
+        workflow_mode = (mode or method or "query_first").lower()
         # Debug: log entry into workflow run with provided parameters
         try:
-            self.log.debug("Run invoked with method=%s modality=%s kwargs=%s", method, modality, kwargs)
+            self.log.debug("Run invoked with mode=%s modality=%s kwargs=%s", workflow_mode, modality, kwargs)
         except Exception:
             pass
 
-        if method == "query_first":
+        if workflow_mode == "query_first":
             return self.query_first(modality=modality, **kwargs)
-        if method == "query_composition":
+        if workflow_mode == "query_composition":
             return self.query_composition(modality=modality, **kwargs)
-        raise ValueError(f"Unknown method: {method}")
+        raise ValueError(f"Unknown workflow mode: {workflow_mode}")
 
 
     # ---- Pipeline step implementations ----
