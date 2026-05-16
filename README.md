@@ -143,7 +143,7 @@ Commands that export parsed tabular results can write Parquet files when `parque
 
 ### Workflow YAML recipes
 
-Workflow runs can be described with a small YAML recipe and executed with:
+Workflow runs can be described with a small flat YAML recipe and executed with:
 
 ```bash
 bioseq-dl workflow run --config workflow.yml
@@ -156,20 +156,16 @@ bioseq-dl workflow run --config workflow.yml -o result_override
 bioseq-dl workflow run --config workflow.yml -e csv
 ```
 
-YAML recipes are only for reproducible workflow parameters. Credentials must be provided through `.env` or environment variables, not workflow YAML.
+YAML recipes are flat workflow parameter files for reproducible runs. CLI arguments override YAML values. Credentials must not be placed in YAML; provide them through `.env` or environment variables.
 
 ```yaml
-version: 1
-kind: workflow
-
-workflow:
-  output: result_yaml
-  query: "antimicrobial and reviewed:true"
-  modality: protein
-  method: query_first
-  export_format: parquet
-  enrich: false
-  debug: true
+output: result_yaml
+query: "antimicrobial and reviewed:true"
+modality: protein
+method: query_first
+export_format: parquet
+enrich: false
+debug: true
 ```
 
 ### Workflow Interface (Automated Data Collection Workflows)

@@ -2,6 +2,6 @@ output: result_yaml
 query: "antimicrobial and reviewed:true"
 modality: protein
 method: query_first
-export_format: parquet
+export_format: csv
 enrich: false
 debug: true

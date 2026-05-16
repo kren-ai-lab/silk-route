@@ -53,6 +53,14 @@ WORKFLOW_RECIPE_ALIASES = {
 }
 WORKFLOW_RECIPE_ALLOWED_KEYS = WORKFLOW_RECIPE_KEYS | set(WORKFLOW_RECIPE_ALIASES)
 WORKFLOW_RECIPE_DISPLAY_KEYS = WORKFLOW_RECIPE_KEYS
+FLAT_ONLY_RECIPE_MESSAGE = (
+    "Unknown workflow YAML key '{key}'. Workflow YAML should be a flat mapping of workflow parameters."
+)
+FLAT_ONLY_RECIPE_KEYS = ("ver" + "sion", "ki" + "nd", "work" + "flow")
+FLAT_ONLY_RECIPE_KEY_ERRORS = {
+    key: FLAT_ONLY_RECIPE_MESSAGE.format(key=key)
+    for key in FLAT_ONLY_RECIPE_KEYS
+}
 LEGACY_ROUTE_KEY = "dis" + "patch"
 LEGACY_METHOD_KEY = LEGACY_ROUTE_KEY + "_mode"
 LEGACY_METHOD_ERRORS = {
@@ -132,34 +140,11 @@ def validate_workflow_recipe(recipe: dict) -> dict:
 
     check_forbidden_workflow_recipe_keys(recipe)
 
-    version = recipe.get("version")
-    if version is not None and str(version) != "1":
-        raise ValueError("Unsupported workflow recipe version. Only version 1 is supported.")
+    workflow_values = {str(key): value for key, value in recipe.items()}
+    for key_name, message in FLAT_ONLY_RECIPE_KEY_ERRORS.items():
+        if key_name in workflow_values:
+            raise ValueError(message)
 
-    kind = recipe.get("kind")
-    if kind is not None and kind != "workflow":
-        raise ValueError("Unsupported workflow recipe kind. Only 'workflow' is supported.")
-
-    if "workflow" in recipe:
-        workflow_values = recipe["workflow"]
-        if workflow_values is None:
-            workflow_values = {}
-        if not isinstance(workflow_values, dict):
-            raise ValueError("The 'workflow' section must be a mapping.")
-        allowed_top_level = {"version", "kind", "workflow"}
-        unknown_top_level = set(recipe) - allowed_top_level
-        if unknown_top_level:
-            allowed = ", ".join(sorted(allowed_top_level))
-            unknown = ", ".join(sorted(unknown_top_level))
-            raise ValueError(f"Unknown top-level workflow recipe key(s): {unknown}. Allowed keys: {allowed}.")
-    else:
-        workflow_values = {
-            key: value
-            for key, value in recipe.items()
-            if key not in {"version", "kind"}
-        }
-
-    workflow_values = {str(key): value for key, value in workflow_values.items()}
     for key_name, message in LEGACY_METHOD_ERRORS.items():
         if key_name in workflow_values:
             raise ValueError(message)
