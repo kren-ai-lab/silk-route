@@ -43,11 +43,74 @@ def calculate_enrichment_execution_time(enrichment_metadata: Any) -> float:
     return total
 
 
+def attach_label_to_part(part_data: dict, label: str, modality: str) -> dict:
+    """Attach a query-composition label to a workflow result part."""
+    data_to_label = None
+    key = None
+    if isinstance(part_data, dict):
+        if modality == "protein" and part_data.get("uniprot") is not None:
+            key = "uniprot"
+            data_to_label = part_data.get("uniprot")
+        elif modality == "compound" and part_data.get("chembl") is not None:
+            key = "chembl"
+            data_to_label = part_data.get("chembl")
+        elif modality == "interaction" and part_data.get("data") is not None:
+            key = "data"
+            data_to_label = part_data.get("data")
+        else:
+            return {}
+
+        if data_to_label is not None:
+            if isinstance(data_to_label, pd.DataFrame):
+                if "_label" in data_to_label.columns:
+                    data_to_label = data_to_label.rename(columns={"_label": "_label_original"})
+                data_to_label["_label"] = label
+            elif isinstance(data_to_label, list):
+                for row in data_to_label:
+                    if isinstance(row, dict):
+                        row.setdefault("_label", label)
+            elif isinstance(data_to_label, dict):
+                data_to_label.setdefault("_label", label)
+            else:
+                data_to_label = {"_label": label}
+
+        if key == "chembl" and modality == "compound":
+            return {key: data_to_label, **attach_label_to_part(part_data, label, "protein")}
+        return {key: data_to_label}
+    return {}
+
+
+def merge_enrichment_data(existing: List[Any], new: Any) -> List[Any]:
+    """Merge query-composition enrichment result parts by endpoint label."""
+    if isinstance(new, dict):
+        for db_ep, db_data in new.items():
+            if db_data is None:
+                continue
+            found = False
+            for existing_item in existing:
+                if db_ep in existing_item:
+                    existing_data = existing_item[db_ep]
+                    if isinstance(existing_data, pd.DataFrame) and isinstance(db_data, pd.DataFrame):
+                        combined_df = pd.concat([existing_data, db_data], ignore_index=True)
+                        existing_item[db_ep] = combined_df
+                    elif isinstance(existing_data, list) and isinstance(db_data, list):
+                        existing_data.extend(db_data)
+                        existing_item[db_ep] = existing_data
+                    elif isinstance(existing_data, dict) and isinstance(db_data, dict):
+                        existing_item[db_ep] = [existing_data, db_data]
+                    else:
+                        existing_item[db_ep] = [existing_data, db_data]
+                    found = True
+                    break
+            if not found:
+                existing.append({db_ep: db_data})
+    return existing
+
+
 class MainWorkflow:
     """
-    High-level workflow orchestrator that exposes three main modes:
+    High-level workflow orchestrator for biological modalities and workflow methods:
       - query_first(query, ...): interpret user-friendly queries, fetch from UniProt, optional enrichment
-      - import_first(dataset, ...): load a pre-built dataset (DataFrame or path), optional enrichment
       - query_composition(queries_with_labels, ...): run multiple queries and tag results with labels
 
     By default this class will instantiate reasonable components so the caller does not need
@@ -89,50 +152,48 @@ class MainWorkflow:
         # TODO: Consider normalizing the metadata structure returned by all public methods.
         # Currently metadata is a flexible dict that mixes counters, nested parts, and
         # enrichment outputs (sometimes lists/dicts). Plan: decide on a stable schema
-        # (e.g. {'mode':..., 'results':..., 'enrichment':..., 'parts':...}) and migrate
+        # (e.g. {'method':..., 'modality':..., 'results':..., 'enrichment':..., 'parts':...}) and migrate
         # query_first/import_first/query_composition to always return (data, metadata)
         # with a consistent metadata shape. Leaving this as a TODO until the CLI/PRISM
         # integration decisions are final.
 
-    # Public run entry that routes by mode
+    # Public run entry that routes by workflow method.
     def run(
             self, 
             modality: str, 
-            mode: str = "query_first", 
+            method: str = "query_first",
             **kwargs
         ) -> Tuple[Any, dict]:
         """
         Primary public entry. modality is mandatory and selects the declarative
-        pipeline to use (e.g. 'protein', 'compound', 'interaction'). `mode` keeps
-        backward-compatible routing semantics but modality must always be provided.
+        pipeline to use (e.g. 'protein', 'compound', 'interaction'). method selects
+        the workflow execution strategy.
 
         Examples:
-          run('protein', mode='query_first', query='...')
-          run('interaction', mode='query_composition', queries_with_labels=[...])
+          run('protein', method='query_first', query='...')
+          run('interaction', method='query_composition', queries_with_labels=[...])
         
         Args:
             modality: The modality to run ('protein', 'compound', 'interaction').
-            mode: The mode to run ('query_first', 'import_first', 'query_composition').
-            **kwargs: Additional arguments passed to the selected mode handler.
+            method: The workflow method to run ('query_first', 'query_composition').
+            **kwargs: Additional arguments passed to the selected method handler.
         """
         if not modality:
             raise ValueError("`modality` is required for MainWorkflow.run")
 
         modality = modality.lower()
-        mode = (mode or "").lower()
+        method = (method or "").lower()
         # Debug: log entry into workflow run with provided parameters
         try:
-            self.log.debug("Run invoked with mode=%s modality=%s kwargs=%s", mode, modality, kwargs)
+            self.log.debug("Run invoked with method=%s modality=%s kwargs=%s", method, modality, kwargs)
         except Exception:
             pass
 
-        if mode == "query_first":
+        if method == "query_first":
             return self.query_first(modality=modality, **kwargs)
-        if mode == "import_first":
-            return self.import_first(modality=modality, **kwargs)
-        if mode == "query_composition":
+        if method == "query_composition":
             return self.query_composition(modality=modality, **kwargs)
-        raise ValueError(f"Unknown mode: {mode}")
+        raise ValueError(f"Unknown method: {method}")
 
 
     # ---- Pipeline step implementations ----
@@ -418,7 +479,7 @@ class MainWorkflow:
         # Fallback empty
         context["data"] = pd.DataFrame()
 
-    # ---- Core modes ----
+    # ---- Core modality handlers ----
     def run_protein(
         self,
         query: Optional[str] = None,
@@ -460,12 +521,23 @@ class MainWorkflow:
             override = {k: v for k, v in args.items() if v is not None}
             context["searches"]["uniprot"] = {**existing_args, **override}
         else:
-            context = {"searches": {"uniprot": args}, "data": {"uniprot": {}}, "metadata": {"mode": "protein", "origin": "query"}}
+            context = {
+                "searches": {"uniprot": args},
+                "data": {"uniprot": {}},
+                "metadata": {"method": "query_first", "modality": "protein", "origin": "query"},
+            }
             context["searches"]["uniprot"]["interpreted_query"] = uniprot_interpreter.interpret(query=args.get("query", ""))
            
-        context["searches"]["uniprot"]["additional_crossref_fields"] = uniprot_interpreter.extract_databases(
+        extracted_crossref_fields = uniprot_interpreter.extract_databases(
             query=context["searches"]["uniprot"].get("query", "")
         )
+        explicit_crossref_fields = normalize_crossref_fields(kwargs.get("crossref_fields"))
+        combined_crossref_fields = []
+        for crossref_field in extracted_crossref_fields + explicit_crossref_fields:
+            if crossref_field not in combined_crossref_fields:
+                combined_crossref_fields.append(crossref_field)
+
+        context["searches"]["uniprot"]["additional_crossref_fields"] = combined_crossref_fields
 
         self._step_fetch_uniprot(context)
         self._step_parse_uniprot(context)
@@ -513,7 +585,7 @@ class MainWorkflow:
             "interpreted_query": None,
             "export_format": export_format,
             "search_type": search_type,
-            "mode": "compound"
+            "modality": "compound",
         }
         if context is None:
             context = {
@@ -524,7 +596,7 @@ class MainWorkflow:
                     }
                 },
                 "data": {},
-                "metadata": {}
+                "metadata": {"method": "query_first", "modality": "compound", "origin": "query"},
             }
         else:
             # Merge explicit function args into existing context args so callers that pass
@@ -625,7 +697,7 @@ class MainWorkflow:
             "query": query,
             "export_format": export_format,
             "interaction_type": interaction_type,
-            "mode": "interaction"
+            "modality": "interaction",
         }
         if "uniprot_timeout" in kwargs:
             args["uniprot_timeout"] = kwargs.get("uniprot_timeout")
@@ -634,7 +706,7 @@ class MainWorkflow:
                 "uniprot": args,
             },
             "data": {},
-            "metadata": {"mode": "interaction", "origin": "query"}
+            "metadata": {"method": "query_first", "modality": "interaction", "origin": "query"},
         }
 
 
@@ -692,7 +764,7 @@ class MainWorkflow:
         interaction_type: Optional[str] = None,
         **kwargs,
     ) -> Tuple[dict, dict]:
-        """Interpret `query` and dispatch to modality-specific handler. Returns (data, metadata)."""
+        """Interpret `query` and route to the modality-specific handler. Returns (data, metadata)."""
         modality = (modality or "").lower()
         if modality == "protein":
             return self.run_protein(query=query, fields=fields, sort=sort, include_isoform=include_isoform, export_format=export_format, enrich=enrich, crossref_endpoint_specs=crossref_endpoint_specs, **kwargs)
@@ -711,7 +783,7 @@ class MainWorkflow:
         crossref_endpoint_specs: Optional[List[EndpointSpec]] = None,
         **kwargs,
     ) -> Tuple[dict, dict]:
-        """Load a dataset and dispatch to modality-specific handler. Returns (data, metadata)."""
+        """Load a dataset and route to the modality-specific handler. Returns (data, metadata)."""
         raise NotImplementedError("Import first not implemented yet.")
 
     def query_composition(
@@ -738,7 +810,7 @@ class MainWorkflow:
         """
         combined_rows: List[Any] = []
         combined_enrichment: List[Any] = []
-        metadata: dict = {"mode": "query_composition", "origin": "query", "parts": []}
+        metadata: dict = {"method": "query_composition", "modality": modality, "origin": "query", "parts": []}
 
         for query, label in queries_with_labels:
             if modality == "protein":
@@ -754,94 +826,12 @@ class MainWorkflow:
             #  {"uniprot": pd.DataFrame(...), "uniprot_enrichment": {...}} for protein modality,
             #  {"chembl": pd.DataFrame(...), "uniprot": pd.DataFrame(...), "uniprot_enrichment": {...}} for compound modality
             # On the other hand, part_meta should contain the metadata for that specific run
-            #  {"mode": "protein", "origin": "query", "uniprot": {...}, "uniprot_enrichment": {...}} for protein modality,
-            #  {"mode": "compound", "origin": "query",  "chembl": {...}, "uniprot": {...}, "uniprot_enrichment": {...}} for compound modality 
-
-            # Attach label
-            def attach_label_to_part(part_data: dict, label: str, modality: str) -> dict:
-                # Depending if protein or compound was run, the data can be diferent.
-                # For example, for run_protein, the label should be attached on the part_data["data"]["uniprot"] dataframe.
-                # While for run_compound, the label should be attached on the part_data["data"]["chembl"] dataframe.
-                data_to_label = None
-                key = None
-                if isinstance(part_data, dict):
-                    if modality == "protein" and part_data.get("uniprot") is not None:
-                        key = "uniprot"
-                        data_to_label = part_data.get("uniprot")
-                    elif modality == "compound" and part_data.get("chembl") is not None:
-                        key = "chembl"
-                        data_to_label = part_data.get("chembl")
-                    elif modality == "interaction" and part_data.get("data") is not None:
-                        key = "data"
-                        data_to_label = part_data.get("data")
-                    else:
-                        return {}
-
-                    if data_to_label is not None:
-                        if isinstance(data_to_label, pd.DataFrame):
-                            if "_label" in data_to_label.columns:
-                                data_to_label = data_to_label.rename(columns={"_label": "_label_original"})
-                            data_to_label["_label"] = label
-                        elif isinstance(data_to_label, list):
-                            for row in data_to_label:
-                                if isinstance(row, dict):
-                                    row.setdefault("_label", label)
-                        elif isinstance(data_to_label, dict):
-                            data_to_label.setdefault("_label", label)
-                        else:
-                            data_to_label = {"_label": label}
-
-                    if key == "chembl" and modality == "compound":
-                        return {key: data_to_label, **attach_label_to_part(part_data, label, "protein")}
-                    else:
-                        return {key: data_to_label}
-                return {}
+            #  {"method": "query_first", "modality": "protein", "origin": "query", "uniprot": {...}, "uniprot_enrichment": {...}} for protein modality,
+            #  {"method": "query_first", "modality": "compound", "origin": "query", "chembl": {...}, "uniprot": {...}, "uniprot_enrichment": {...}} for compound modality 
 
             labeled_part = attach_label_to_part(part_data, label, modality)
             if isinstance(labeled_part, dict):
                 combined_rows.append(labeled_part)
-
-            # Handle enrichment data
-            def merge_enrichment_data(existing: List[Any], new: Any) -> List[Any]:
-                # Uniprot enrichment is separated in {database}_{endpoint} so for every
-                # every one we combine the data without attaching any label
-                # For example:
-                # {
-                #   "alphafold_prediciton": pd.DataFrame(...),
-                #   "pdb_entry": pd.DataFrame(...),
-                # }
-                # Every iteration should have
-                # {
-                #   "alphafold_prediciton": pd.DataFrame(..., ...),
-                #   "pdb_entry": None
-                # }
-                # This should be merged in a way that the final result should have only 1
-                # instance of every database_endpoint with all the data combined.
-                # Also dict, list and ET types should be handled.
-                # Merges new enrichment data into existing list
-                if isinstance(new, dict):
-                    for db_ep, db_data in new.items():
-                        if db_data is None:
-                            continue
-                        found = False
-                        for existing_item in existing:
-                            if db_ep in existing_item:
-                                existing_data = existing_item[db_ep]
-                                if isinstance(existing_data, pd.DataFrame) and isinstance(db_data, pd.DataFrame):
-                                    combined_df = pd.concat([existing_data, db_data], ignore_index=True)
-                                    existing_item[db_ep] = combined_df
-                                elif isinstance(existing_data, list) and isinstance(db_data, list):
-                                    existing_data.extend(db_data)
-                                    existing_item[db_ep] = existing_data
-                                elif isinstance(existing_data, dict) and isinstance(db_data, dict):
-                                    existing_item[db_ep] = [existing_data, db_data]
-                                else:
-                                    existing_item[db_ep] = [existing_data, db_data]
-                                found = True
-                                break
-                        if not found:
-                            existing.append({db_ep: db_data})
-                return existing
 
             enrichment_data = part_data.get("uniprot_enrichment") if isinstance(part_data, dict) else None
             if enrichment_data:

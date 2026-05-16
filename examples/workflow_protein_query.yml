@@ -1,0 +1,11 @@
+version: 1
+kind: workflow
+
+workflow:
+  output: result_yaml
+  query: "antimicrobial and reviewed:true"
+  modality: protein
+  method: query_first
+  export_format: parquet
+  enrich: false
+  debug: true

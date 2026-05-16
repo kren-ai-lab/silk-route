@@ -141,6 +141,37 @@ bioseq-dl general-collect uniprot search-by-sequences run \
 
 Commands that export parsed tabular results can write Parquet files when `parquet` is selected as the output format. Parquet export requires the optional Parquet engine installed with the package dependencies.
 
+### Workflow YAML recipes
+
+Workflow runs can be described with a small YAML recipe and executed with:
+
+```bash
+bioseq-dl workflow run --config workflow.yml
+```
+
+CLI arguments override YAML values, so a recipe can be reused with a different output directory or export format:
+
+```bash
+bioseq-dl workflow run --config workflow.yml -o result_override
+bioseq-dl workflow run --config workflow.yml -e csv
+```
+
+YAML recipes are only for reproducible workflow parameters. Credentials must be provided through `.env` or environment variables, not workflow YAML.
+
+```yaml
+version: 1
+kind: workflow
+
+workflow:
+  output: result_yaml
+  query: "antimicrobial and reviewed:true"
+  modality: protein
+  method: query_first
+  export_format: parquet
+  enrich: false
+  debug: true
+```
+
 ### Workflow Interface (Automated Data Collection Workflows)
 
 The **Workflow** interface allows you to run **pre-configured, automated data collection workflows** that handle complex, multi-step queries across different data modalities (proteins, compounds, interactions). Workflows automatically handle enrichment and cross-database linking.
@@ -149,7 +180,7 @@ The **Workflow** interface allows you to run **pre-configured, automated data co
 
 Workflows simplify the process of collecting and enriching biological data by:
 - Supporting multiple **modalities**: proteins, compounds, interactions
-- Offering two **modes** of operation: single-query or multi-query composition
+- Offering two **methods** of operation: single-query or multi-query composition
 - Automatically enriching results with cross-references
 - Handling retries and multi-threaded API calls
 - Exporting results in multiple formats (CSV, JSON, XML, Parquet)
@@ -162,9 +193,9 @@ Workflows simplify the process of collecting and enriching biological data by:
 | **compound** | Chemical compounds and bioactivity | IC50, binding affinity, activity |
 | **interaction** | Protein-protein interactions | Network data, interaction strength |
 
-#### Modes
+#### Methods
 
-| Mode | Use Case | Query Format |
+| Method | Use Case | Query Format |
 |------|----------|--------------|
 | **query_first** | Single, simple query across all available sources | Simple query string (e.g., `temperature:*`) |
 | **query_composition** | Multiple labeled queries, combining different sources | Comma-separated labeled queries (e.g., `query1=label1,query2=label2`) |
@@ -179,7 +210,7 @@ bioseq-dl workflow run [OPTIONS]
 
 - `-o, --output TEXT`: Output directory for results
 - `-m, --modality TEXT`: Data modality (`protein`, `compound`, `interaction`)
-- `-d, --mode TEXT`: Execution mode (`query_first`, `query_composition`)
+- `-d, --method TEXT`: Workflow method (`query_first`, `query_composition`)
 - `-q, --query TEXT`: Query or list of queries
 
 ##### Optional Options
@@ -190,7 +221,7 @@ bioseq-dl workflow run [OPTIONS]
 - `-r, --total-retries INTEGER`: Retry attempts for failed API calls — Default: `3`
 - `--debug`: Enable debug logging
 
-#### Example 1: Query First Mode – Protein Temperature Data
+#### Example 1: Query First Method - Protein Temperature Data
 
 Search for proteins with temperature information and retrieve all available data:
 
@@ -198,8 +229,8 @@ Search for proteins with temperature information and retrieve all available data
 bioseq-dl workflow run \
   -o result \
   -q "temperature:*" \
-  -m "protein" \
-  -d "query_first" \
+  --modality "protein" \
+  --method "query_first" \
   -w 5 \
   -r 1 \
   --debug
@@ -220,7 +251,7 @@ result/
 ├── metadata.json               # Execution metadata
 ```
 
-#### Example 2: Query Composition Mode – Comparative Analysis
+#### Example 2: Query Composition Method - Comparative Analysis
 
 Compare proteins at different temperature optima using labeled queries:
 
@@ -228,8 +259,8 @@ Compare proteins at different temperature optima using labeled queries:
 bioseq-dl workflow run \
   -o workflow_test \
   -q "temp_99=temperature:99,temp_98=temperature:98" \
-  -m "protein" \
-  -d "query_composition" \
+  --modality "protein" \
+  --method "query_composition" \
   --debug
 ```
 
@@ -254,7 +285,7 @@ result/
 
 **Use case:** Compare protein properties, identify temperature-dependent characteristics, or study differential protein behavior under different conditions.
 
-#### Example 3: Query Composition Mode – Compound Bioactivity
+#### Example 3: Query Composition Method - Compound Bioactivity
 
 Classify compounds by bioactivity levels (IC50 ranges):
 
@@ -262,8 +293,8 @@ Classify compounds by bioactivity levels (IC50 ranges):
 bioseq-dl workflow run \
   -o workflow_compound \
   -q "ic50:10-50=active,ic50:50-100=inactive" \
-  -m "compound" \
-  -d "query_composition" \
+  --modality "compound" \
+  --method "query_composition" \
   --debug
 ```
 
@@ -308,7 +339,7 @@ bioseq-dl workflow run \
 
 #### Typical Workflow Scenarios
 
-| Scenario | Modality | Mode | Example Query |
+| Scenario | Modality | Method | Example Query |
 |----------|----------|------|---------------|
 | Find all thermophilic proteins | protein | query_first | `temperature:*` |
 | Compare two temperature optima | protein | query_composition | `temp_low=temperature:20,temp_high=temperature:80` |
