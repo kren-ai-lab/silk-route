@@ -62,14 +62,6 @@ class YourDatabaseInterface(BaseAPIInterface):
         ) -> Union[List, Dict]:
         raise NotImplementedError("This method should be implemented in subclasses.")
     
-    def get_dummy(self, **kwargs) -> Dict:
-        return {
-            "message": "This is a dummy response.",
-            "status": "success"
-        }
-    
     def query_usage(self) -> str:
-        return """
-        This is a dummy query usage for YourDatabaseInterface.
-        """
+        return "Query usage information has not been customized for this interface template."
     

@@ -224,21 +224,6 @@ class InterproInterface(BaseAPIInterface):
         
         return self._extract_fields(data, fields_to_extract)
     
-
-    def get_dummy(self, *, method: Optional[str] = None, **kwargs) -> Dict:
-        """
-        Return a dummy response for testing purposes.
-        Args:
-            *args: Additional positional arguments.
-            **kwargs: Additional keyword arguments.
-        Returns:
-            dict: A dummy response.
-        """
-        # TODO - Implement a dummy response for InterPro API
-        raise NotImplementedError(
-            "Dummy response is not implemented for InterPro API. "
-        )
-
     def query_usage(self) -> str:
         return (
             ""

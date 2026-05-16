@@ -402,28 +402,6 @@ class KEGGInterface(BaseAPIInterface):
             log.error(f"Parsing method '{method}' is not supported.")
             return {}
 
-    def get_dummy(self, *, method: Optional[str] = None, **kwargs) -> dict:
-        """
-        Get a dummy response for testing purposes.
-        Args:
-            *args: Additional positional arguments.
-            **kwargs: Additional keyword arguments.
-        Returns:
-            dict: Dummy response.
-        """
-        # TODO implement a more meaningful dummy response
-        dummy_results = {}
-
-        query = ""
-
-        if method:
-            dummy_results = super().get_dummy(query=query, method=method, **kwargs)
-        else:
-            for method in self.METHODS.keys():
-                dummy_results[method] = super().get_dummy(query=query, method=method, **kwargs)
-        
-        return dummy_results
-        
     def query_usage(self) -> str:
         return (
             "KEGG API allows you to fetch data from KEGG databases.\n"

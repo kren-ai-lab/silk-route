@@ -14,11 +14,43 @@ from typing import Union, List, Dict, Optional
 from itertools import permutations
 from dicttoxml import dicttoxml
 
-from ..utils.base_auxiliary_methods import get_feature_keys, get_nested, get_primary_keys, validate_parameters
+from ..utils.base_auxiliary_methods import get_nested, get_primary_keys, validate_parameters
 
 from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.interfaces.base")
+
+
+def _normalize_matching_tokens(value: Any) -> List[str]:
+    """Split and lowercase input values for loose token matching."""
+    if not value:
+        return []
+    if isinstance(value, str) and value.startswith("[") and value.endswith("]"):
+        try:
+            value = ast.literal_eval(value)
+        except Exception:
+            pass
+    if isinstance(value, (list, tuple)):
+        tokens = []
+        for item in value:
+            tokens.extend(_normalize_matching_tokens(item))
+        return tokens
+    return [token.lower() for token in re.split(r"[\s:\-/|]", str(value)) if token]
+
+
+def _extract_nested_values(value: Any) -> List[str]:
+    """Recursively extract string-like values from a nested structure."""
+    result = []
+    if isinstance(value, dict):
+        for item in value.values():
+            result.extend(_extract_nested_values(item))
+    elif isinstance(value, list):
+        for item in value:
+            result.extend(_extract_nested_values(item))
+    elif isinstance(value, (str, int, float)):
+        result.append(str(value))
+    return result
+
 
 class BaseAPIInterface(ABC):
     API_NAME: ClassVar[str] = "BaseAPI"
@@ -585,44 +617,15 @@ class BaseAPIInterface(ABC):
 
         mapping = {identifier: [] for identifier, _ in subqueries}
 
-        def normalize(val):
-            """Split and lowercase input values for loose token matching."""
-            if not val:
-                return []
-            if isinstance(val, str) and val.startswith("[") and val.endswith("]"):
-                try:
-                    val = ast.literal_eval(val)
-                except Exception:
-                    pass
-            if isinstance(val, (list, tuple)):
-                tokens = []
-                for elem in val:
-                    tokens.extend(normalize(elem))
-                return tokens
-            return [t.lower() for t in re.split(r"[\s:\-/|]", str(val)) if t]
-
-        def extract_all_values(obj):
-            """Recursively extract all string-like values from a nested structure."""
-            result = []
-            if isinstance(obj, dict):
-                for v in obj.values():
-                    result.extend(extract_all_values(v))
-            elif isinstance(obj, list):
-                for item in obj:
-                    result.extend(extract_all_values(item))
-            elif isinstance(obj, (str, int, float)):
-                result.append(str(obj))
-            return result
-
         subquery_values = {}
         for identifier, query in subqueries:
             values = self.get_matching_values(query)
-            norm = sum((normalize(v) for v in values), [])
+            norm = sum((_normalize_matching_tokens(value) for value in values), [])
             subquery_values[identifier] = norm
 
         for i, item in enumerate(full_result):
-            tokens = extract_all_values(item)
-            item_tokens = set(normalize(tokens))
+            tokens = _extract_nested_values(item)
+            item_tokens = set(_normalize_matching_tokens(tokens))
 
             for identifier, expected_tokens in subquery_values.items():
                 # Match if there's any overlap
@@ -994,25 +997,6 @@ class BaseAPIInterface(ABC):
     ###################
     # Auxiliary methods
     ###################
-
-    def get_dummy(self, *args, **kwargs) -> dict:
-        """
-        Get a dummy object for the API interface.
-        This is useful for knowing the structure of the data returned by the API.
-        """
-        query = kwargs.pop('query', None)
-        parse = kwargs.pop('parse', False)
-
-        if not query:
-            raise ValueError("Query must be provided to get dummy data.")
-
-        response = self.fetch_single(query=query, parse=parse, *args, **kwargs)
-        if isinstance(response, list):
-            return get_feature_keys(response[0] if response else {})
-        elif isinstance(response, dict):
-            return get_feature_keys(response)
-        else:
-            raise ValueError("Response must be a list or a dictionary.")
 
     def _extract_fields(self, data: Union[dict, list], fields_to_extract: Optional[Union[list, dict]] = None, **kwargs) -> Union[dict, list]:
         """

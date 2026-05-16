@@ -2,8 +2,17 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from functools import partial
 from typing import Dict, List, Optional, Tuple, Any
 from bioseq_dl.constants.uniprot import XREF_MAPPING
+
+
+def _remove_unknown_field_match(match: re.Match, allowed_fields: set[str]) -> str:
+    """Remove fielded query matches that are not in the allowed field set."""
+    field_name = match.group(2)
+    if field_name not in allowed_fields:
+        return " "
+    return match.group(0)
 
 
 @dataclass(frozen=True)
@@ -313,12 +322,7 @@ class BaseQueryInterpreter:
             flags=re.IGNORECASE,
         )
 
-        def replacement(m: re.Match) -> str:
-            field_name = m.group(2)
-            if field_name not in allowed_fields:
-                return " "
-            return m.group(0)
-
+        replacement = partial(_remove_unknown_field_match, allowed_fields=allowed_fields)
         out = pattern.sub(replacement, out)
 
         out = re.sub(r"\b(AND|OR|NOT)\s*(?=\b(AND|OR|NOT)\b)", " ", out, flags=re.IGNORECASE)

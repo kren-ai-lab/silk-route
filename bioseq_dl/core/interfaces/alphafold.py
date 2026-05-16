@@ -239,20 +239,6 @@ class AlphafoldInterface(BaseAPIInterface):
 
         return self._extract_fields(data, fields_to_extract)
     
-    def get_dummy(self, **kwargs) -> dict:
-        """
-        Get a dummy response.
-        Useful for knowing the structure of the data returned by the API.
-        Returns:
-            Dict: Dummy response with example fields.
-        """
-        parse = kwargs.get("parse", False)
-
-        return super().get_dummy(
-            query="P02666",
-            parse=parse
-        )
-    
     def query_usage(self):
         """
         Get usage information for the Alphafold API.
@@ -273,12 +259,10 @@ class AlphafoldInterface(BaseAPIInterface):
             - pdb: Protein Data Bank format
             - cif: Crystallographic Information File format
             - bcif: Binary Crystallographic Information File format
-        """
-        dummy = self.get_dummy()
 
-        usage += "\n\nExample fields in the response:\n"
-        for key in dummy.keys():
-            usage += f"\t- {key}: {dummy[key]}\n"
+        Common response fields include entry identifiers, model confidence scores,
+        and structure download URLs when structures are requested.
+        """
         return usage
     
     def save(self, data: Union[List, Dict], filename: str, extension: str = "csv"):

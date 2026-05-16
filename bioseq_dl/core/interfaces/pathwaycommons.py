@@ -171,14 +171,6 @@ class PathwayCommonsInterface(BaseAPIInterface):
 
         return self._extract_fields(data, fields_to_extract, **kwargs)
 
-    def get_dummy(self, **kwargs) -> Dict:
-        return {
-            "message": "This is a dummy response.",
-            "status": "success"
-        }
-    
     def query_usage(self) -> str:
-        return """
-        This is a dummy query usage for YourDatabaseInterface.
-        """
+        return "Use Pathway Commons methods with supported pathway identifiers and graph query parameters."
     

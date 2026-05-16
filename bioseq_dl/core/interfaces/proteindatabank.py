@@ -195,21 +195,6 @@ class PDBInterface(BaseAPIInterface):
             fields_to_extract
         )
     
-    def get_dummy(self, **kwargs) -> Dict:
-        """
-        Get a dummy response.
-        Useful for knowing the structure of the data returned by the API.
-        Returns:
-            Dict: Dummy response with example fields.
-        """
-        parse = kwargs.get("parse", False)
-
-        return super().get_dummy(
-            query="4HHB",
-            method="entry",
-            parse=parse
-        )
-    
     def query_usage(self) -> str:
         return """Usage: To fetch PDB entries, use the PDB ID as the query.
         Example: 

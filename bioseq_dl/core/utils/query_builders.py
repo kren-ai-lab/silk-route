@@ -10,6 +10,7 @@ to be used in the corresponding API call.
 import pandas as pd
 import numpy as np
 import ast
+from functools import partial
 
 from bioseq_dl import (
     AlphafoldInterface,
@@ -98,14 +99,14 @@ QUERY_BUILDERS = {}
 
 def register_query_builder(database, method, option=None):
     """
-    Registra una función constructora de queries (query builder) en QUERY_BUILDERS.
+    Register a query builder function in QUERY_BUILDERS.
 
     Args:
-        database (str): Nombre de la base de datos (e.g., 'biodbnet').
-        method (str): Método/endpoint principal (e.g., 'db2db').
-        option (str, optional): Subopción del endpoint, si aplica (e.g., 'full', 'summary').
+        database (str): Database name, such as "biodbnet".
+        method (str): Main endpoint name, such as "db2db".
+        option (str, optional): Endpoint option, when applicable.
 
-    Uso:
+    Usage:
         @register_query_builder("biodbnet", "db2db")
         def build_biodbnet_db2db_query(...):
             ...
@@ -114,15 +115,18 @@ def register_query_builder(database, method, option=None):
         def build_uniprot_search_reviewed_query(...):
             ...
     """
-    def decorator(func):
-        key = "_".join([part for part in (database, method, option) if part])
-        QUERY_BUILDERS[key] = func
-        return func
-    return decorator
+    return partial(_register_query_builder, database=database, method=method, option=option)
+
+
+def _register_query_builder(func, *, database, method, option=None):
+    """Store a query builder function and return it unchanged."""
+    key = "_".join([part for part in (database, method, option) if part])
+    QUERY_BUILDERS[key] = func
+    return func
 
 def get_query_builder(database, method, option=None):
     """
-    Obtiene el query builder registrado para una base de datos y método dados.
+    Return the registered query builder for a database endpoint.
     """
     key = "_".join([part for part in (database, method, option) if part])
     builder = QUERY_BUILDERS.get(key)

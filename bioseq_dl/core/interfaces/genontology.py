@@ -200,32 +200,6 @@ class GenOntologyInterface(BaseAPIInterface):
             log.error(f"Error fetching relationships for GO term {parsed.get('goid', '')}: {e}")
         return parsed
 
-    def get_dummy(self, *, method: Optional[str] = None, **kwargs) -> Dict:
-        """
-        Get example data returned by the API.
-
-        Args:
-            method (str, optional): Specific API method to test (e.g., "ontology-term", "subgraph").
-                If None, returns dummy data for all available methods.
-
-        Returns:
-            dict: A dictionary where each key is a method name and each value is example data.
-        """
-        dummy_results = {}
-
-        query = "GO:0008150"
-
-        if method:
-            dummy_results = super().get_dummy(query=query, method=method, **kwargs)
-        else:
-            for method in self.METHODS.keys():
-                for option in self.METHODS[method]:
-                        dummy_results[
-                            f"{method}_{option}" if option else method
-                        ] = super().get_dummy(query=query, method=method, option=option, **kwargs)
-
-        return dummy_results
-    
     # Patch Solution
     def fetch_single(self, query: Union[str, dict], parse: bool = False, *args, **kwargs) -> Union[List, Dict, pd.DataFrame]:
         option = kwargs.pop("option", "default")

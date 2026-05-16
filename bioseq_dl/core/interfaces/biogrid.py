@@ -161,49 +161,6 @@ class BioGRIDInterface(BaseAPIInterface):
 
         return self._extract_fields(data, fields_to_extract)
 
-    
-    def get_dummy(self, access_key: str = "", method: str = "", **kwargs) -> Dict:
-        """
-        Get a dummy response.
-        Useful for knowing the structure of the data returned by the API.
-        Args:
-            access_key (str): Your BioGRID access key.
-        Returns:
-            Dict: Dummy response with example fields.
-        """
-        parse = kwargs.get("parse", False)
-
-        if not access_key:
-            log.error("Access key must be provided to get dummy data.")
-            return {}
-        if method != "" and method not in self.METHODS.keys():
-            log.error(f"Method {method} is not supported. Supported methods are: {', '.join(self.METHODS.keys())}.")
-            return {}
-        dummy_results = {}
-        query = {
-            "accessKey": access_key,
-            "geneList": ["cdc27", "apc1", "apc2"],
-            "taxId": "559292",
-            'max': 1,
-            "format": "json"
-        }
-
-        if method:
-            dummy_results = super().get_dummy(
-                query=query,
-                method=method,
-                parse=parse
-            )
-        else:
-            for method in self.METHODS.keys():
-                dummy_results[method] = super().get_dummy(
-                    query=query,
-                    method=method,
-                    parse=parse
-                )
-        return dummy_results
-
-        
     def query_usage(self):
         """
         Get usage information for the BioGRID API query parameters.

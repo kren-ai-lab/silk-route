@@ -91,11 +91,11 @@ def extract_variants(features: List) -> List[Dict]:
 
     return extracted
 
-# Nombres diseases: cc_disease PENDING
+# Disease names: cc_disease pending.
 def extract_diseases(diseases: List) -> List[Dict]:
     pass
 
-# for fields ft_act_site, ft_binding and ft_site,
+# For fields ft_act_site, ft_binding, and ft_site.
 def extract_active_sites(active_sites: List) -> List[Dict]:
     """Extracts active sites from features"""
     ACTIVE_SITE_TYPES = {'Active site', 'Binding site', 'Site'}

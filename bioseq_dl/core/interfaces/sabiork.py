@@ -121,14 +121,6 @@ class SabiorkInterface(BaseAPIInterface):
         ) -> Union[List, Dict]:
         return self._extract_fields(data, fields_to_extract)
     
-    def get_dummy(self, **kwargs) -> Dict:
-        return {
-            "message": "This is a dummy response.",
-            "status": "success"
-        }
-    
     def query_usage(self) -> str:
-        return """
-        This is a dummy query usage for YourDatabaseInterface.
-        """
+        return "Use SABIO-RK methods with supported kinetic law query parameters."
     

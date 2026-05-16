@@ -134,37 +134,6 @@ class BrendaInterface(BaseAPIInterface):
         return results
 
     
-    def get_dummy(self, *, method: Optional[str] = None, **kwargs) -> dict:
-        """
-        Get a dummy object for the BRENDA API interface.
-        Args:
-            method (str, optional): Name of the method to get a dummy for.
-                If None, return dummy data for all methods.
-        Returns:
-            dict: Dummy object containing example data for the specified method.
-        """
-        # return super().get_dummy(
-        #     query={
-        #         "ecNumber": "1.1.1.1",
-        #         "organism": "Escherichia coli",
-        #     },
-        #     methods=list(methods.keys())
-
-        # )
-        dummy_results = {}
-
-        query = {
-            "ecNumber": "1.1.1.1",
-            "organism": "Escherichia coli"
-        }
-
-        if method:
-            dummy_results[method] = super().get_dummy(query=query, method=method, **kwargs)
-        else:
-            for method in self.METHODS.keys():
-                dummy_results[method] = super().get_dummy(query=query, method=method, **kwargs)
-        return dummy_results
-    
     def get_methods(self) -> List[str]:
         """
         Get the list of available methods.

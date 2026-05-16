@@ -381,24 +381,3 @@ class ChEMBLInterface(BaseAPIInterface):
             "For example, to search for activities, use:\n"
             "`fetch(query='CHEMBL1824', method='activity-search')`"
         )
-    
-    def get_dummy(self, *, method: Optional[str] = None, **kwargs) -> Dict:
-        """Get dummy data for the ChEMBL API.
-        Args:
-            method (str): Method to use for the dummy data. Default is "activity-search".
-        Returns:
-            Dict: Dummy data with example fields.
-        """
-        query = {"target_chembl_id": "CHEMBL1824", "pchembl_value": 5.62}
-
-        if method is None:
-            method = "activity"
-        if method not in self.METHODS.keys():
-            log.error(f"Method {method} is not supported. Supported methods are: {', '.join(self.METHODS.keys())}.")
-            return {}
-
-        return super().get_dummy(
-            query=query,
-            method=method,
-            **kwargs
-        )
