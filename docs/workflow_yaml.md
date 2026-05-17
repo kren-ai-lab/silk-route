@@ -29,10 +29,16 @@ When a YAML descriptor and CLI options are both provided, values are resolved in
 Examples:
 
 ```bash
-bioseq-dl workflow run --config examples/workflow_uniprot_temperature.yml
-bioseq-dl workflow run --config examples/workflow_uniprot_temperature.yml -o result_override
-bioseq-dl workflow run --config examples/workflow_uniprot_temperature.yml -e csv
+bioseq-dl workflow run --config examples/protein-dataset-construction.yml
+bioseq-dl workflow run --config examples/protein-dataset-construction.yml -o result_override
+bioseq-dl workflow run --config examples/protein-dataset-construction.yml -e csv
 ```
+
+Validated example descriptors are:
+
+- `examples/protein-dataset-construction.yml`
+- `examples/interaction-aware-dataset-construction.yml`
+- `examples/compound-dataset-construction.yml`
 
 ## Top-Level Sections
 
@@ -226,15 +232,15 @@ If `harmonization.id_column` is set, exported DataFrame outputs for CSV, Parquet
 
 ```yaml
 dataset:
-  name: uniprot_temperature_associated_proteins
-  description: Protein records retrieved from UniProt using a temperature-associated query.
+  name: antimicrobial_reviewed_proteins
+  description: Reviewed UniProt protein records retrieved with an antimicrobial query.
   modality: protein
   mode: query_first
   primary_data_source: uniprot
 
 query:
-  value: "temperature:98"
-  description: Retrieve UniProt protein entries with temperature-related annotations.
+  value: "antimicrobial AND reviewed:true"
+  description: Retrieve reviewed UniProt protein entries matching an antimicrobial query.
   filtering_strategy: >
     Filtering is encoded in the UniProt-compatible query string.
 
@@ -248,6 +254,7 @@ execution:
   max_workers: 5
   total_retries: 3
   merge_results: false
+  debug: true
 
 harmonization:
   id_column: "_id"
@@ -260,8 +267,8 @@ harmonization:
     - sequence
 
 export:
-  output_dir: "results/protein_uniprot_temperature"
-  format: parquet
+  output_dir: "results/protein_antimicrobial_reviewed"
+  format: csv
   include_metadata: true
   include_summary: true
   manifest_file: "metadata.json"

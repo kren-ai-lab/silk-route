@@ -1,12 +1,12 @@
 dataset:
-  name: antimicrobial_reviewed_proteins_csv
+  name: antimicrobial_reviewed_proteins
   description: Reviewed UniProt protein records retrieved with an antimicrobial query.
   modality: protein
   mode: query_first
   primary_data_source: uniprot
 
 query:
-  value: "antimicrobial and reviewed:true"
+  value: "antimicrobial AND reviewed:true"
   description: Retrieve reviewed UniProt protein entries matching an antimicrobial query.
   filtering_strategy: >
     Filtering is encoded in the UniProt-compatible query string.
@@ -34,7 +34,7 @@ harmonization:
     - sequence
 
 export:
-  output_dir: "result_yaml"
+  output_dir: "results/protein_antimicrobial_reviewed"
   format: csv
   include_metadata: true
   include_summary: true

@@ -166,17 +166,19 @@ ChEMBL workflow fetches retrieve all available pages by default. In YAML, `execu
 
 Allowed top-level descriptor sections are: `dataset`, `query`, `resources`, `execution`, `harmonization`, `export`, `reporting`, `interaction_retrieval`, `activity_retrieval`, `chemical_metadata_integration`, `protein_target_integration`, `temperature_enrichment`, and `cross_source_integration`.
 
+Validated example descriptors are available at `examples/protein-dataset-construction.yml`, `examples/interaction-aware-dataset-construction.yml`, and `examples/compound-dataset-construction.yml`.
+
 ```yaml
 dataset:
-  name: uniprot_temperature_associated_proteins
-  description: Protein records retrieved from UniProt using a temperature-associated query.
+  name: antimicrobial_reviewed_proteins
+  description: Reviewed UniProt protein records retrieved with an antimicrobial query.
   modality: protein
   mode: query_first
   primary_data_source: uniprot
 
 query:
-  value: "temperature:98"
-  description: Retrieve UniProt protein entries with temperature-related annotations.
+  value: "antimicrobial AND reviewed:true"
+  description: Retrieve reviewed UniProt protein entries matching an antimicrobial query.
   filtering_strategy: >
     Filtering is encoded in the UniProt-compatible query string.
 
@@ -190,6 +192,7 @@ execution:
   max_workers: 5
   total_retries: 3
   merge_results: false
+  debug: true
 
 harmonization:
   id_column: "_id"
@@ -202,8 +205,8 @@ harmonization:
     - sequence
 
 export:
-  output_dir: "results/protein_uniprot_temperature"
-  format: parquet
+  output_dir: "results/protein_antimicrobial_reviewed"
+  format: csv
   include_metadata: true
   include_summary: true
   manifest_file: "metadata.json"
@@ -351,7 +354,7 @@ bioseq-dl workflow run \
 ```
 
 **What happens:**
-1. Searches compound databases (ChEMBL, PubChem, etc.) for compounds with IC50 values in different ranges
+1. Performs ChEMBL activity retrieval with UniProt target mapping for compounds with IC50 values in different ranges
 2. Creates two labeled datasets: `active` (IC50: 10-50 nM) and `inactive` (IC50: 50-100 nM)
 3. Enriches each compound with protein target information from UniProt
 4. Enables bioactivity-based classification and drug discovery workflows
