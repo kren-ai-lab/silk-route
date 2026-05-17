@@ -16,17 +16,34 @@ from pandas.api.types import (
 
 
 PathLike = Union[str, Path]
+USER_EXPORT_FORMATS = ("csv", "json", "xml", "parquet")
+DATAFRAME_EXPORT_FORMAT_ERROR = "Unsupported export format 'dataframe'. Use 'csv' instead."
 
 
-def normalize_export_format(output_format: Optional[str]) -> Optional[str]:
-    """Normalize a user-facing export format to a file format."""
+def normalize_user_export_format(output_format: Optional[str]) -> Optional[str]:
+    """Normalize a user-facing export format."""
     if output_format is None:
         return None
 
-    normalized = output_format.lower().lstrip(".")
+    normalized = str(output_format).lower().lstrip(".")
     if normalized == "dataframe":
-        return "csv"
-    if normalized in {"csv", "tsv", "json", "parquet"}:
+        raise ValueError(DATAFRAME_EXPORT_FORMAT_ERROR)
+    if normalized in USER_EXPORT_FORMATS:
+        return normalized
+    return None
+
+
+def normalize_export_format(output_format: Optional[str]) -> Optional[str]:
+    """Normalize an export format to a file format."""
+    if output_format is None:
+        return None
+
+    normalized = normalize_user_export_format(output_format)
+    if normalized is not None:
+        return normalized
+
+    normalized = str(output_format).lower().lstrip(".")
+    if normalized == "tsv":
         return normalized
     return None
 
@@ -153,7 +170,7 @@ def export_dataframe(
     output_path: PathLike,
     output_format: Optional[str] = None,
 ) -> Path:
-    """Export a DataFrame to CSV, TSV, JSON, or Parquet."""
+    """Export a DataFrame to CSV, TSV, JSON, XML, or Parquet."""
     if not isinstance(df, pd.DataFrame):
         raise TypeError("export_dataframe expects a pandas DataFrame.")
 
@@ -172,6 +189,8 @@ def export_dataframe(
         df.to_csv(path, sep="\t", index=False)
     elif normalized_format == "json":
         df.to_json(path, orient="records", indent=2)
+    elif normalized_format == "xml":
+        df.to_xml(path, index=False)
     elif normalized_format == "parquet":
         safe_df = prepare_dataframe_for_parquet(df)
         safe_df.to_parquet(path, index=False)

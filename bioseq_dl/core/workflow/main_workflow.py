@@ -124,7 +124,7 @@ class MainWorkflow:
         interpreter: Optional[UniProtQueryInterpreter] = None,
         uniprot_interface: Optional[UniprotInterface] = None,
         enricher: Optional[CrossRefEnricher] = None,
-        default_export_format: str = "dataframe",
+        default_export_format: str = "csv",
         logger: Optional[logging.Logger] = None,
     ) -> None:
         # Instantiate sensible defaults if not provided

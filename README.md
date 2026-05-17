@@ -226,7 +226,7 @@ Workflows support:
 - Two execution modes: `query_first`, `query_composition`
 - Optional enrichment through existing cross-reference support
 - Retries and multi-threaded API calls
-- Export formats: CSV, JSON, XML, Parquet, or the default DataFrame-backed CSV export
+- Export formats: CSV, JSON, XML, or Parquet. BioSeqDownloader uses pandas DataFrames internally for tabular data, but `dataframe` is not a user-facing export format.
 - `metadata.json` for detailed technical metadata
 - `run_summary.yml` for a compact execution report
 
@@ -262,7 +262,7 @@ bioseq-dl workflow run [OPTIONS]
 
 ##### Optional Options
 
-- `-e, --export-format TEXT`: Export format (`dataframe`, `csv`, `json`, `xml`, `parquet`)
+- `-e, --export-format TEXT`: Export format (`csv`, `json`, `xml`, `parquet`; default `csv`)
 - `--enrich/--no-enrich`: Enable or disable data enrichment
 - `-w, --max-workers INTEGER`: Number of worker threads for API calls
 - `-r, --total-retries INTEGER`: Retry attempts for failed API calls
@@ -507,7 +507,7 @@ prediction:
   is_reviewed: isReviewed
   is_reference: isReferenceProteome
 ```
-Where the main keys are the names of the methods available for that API, and the values are the fields to be parsed. After the method name, the fields are defined as key-value pairs, where the key is the name of the field in the output dataframe, and the value is the name of the field in the API response.
+Where the main keys are the names of the methods available for that API, and the values are the fields to be parsed. After the method name, the fields are defined as key-value pairs, where the key is the name of the field in the output DataFrame, and the value is the name of the field in the API response.
 
 The `init.yml` file contains the configuration for that specific API. For example, the `alphafold/init.yml` file might look like this:
 ```yaml

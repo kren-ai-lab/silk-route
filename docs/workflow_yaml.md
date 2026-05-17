@@ -129,7 +129,7 @@ Field roles:
 | Field | Type | Required | Default | Role | Internal mapping | Limitations |
 | --- | --- | --- | --- | --- | --- | --- |
 | `output_dir` | string or null | Optional if `dataset.name` is present | `results/{dataset.name}` | Executable | Normalized to `workflow_values["output"]` | Required by merged workflow values after defaults are applied. |
-| `format` | string | Optional | `dataframe` | Executable | Normalized to `workflow_values["export_format"]` | Supported values are `dataframe`, `csv`, `json`, `xml`, and `parquet`. `dataframe` exports tabular outputs as CSV files. |
+| `format` | string | Optional | `csv` | Executable | Normalized to `workflow_values["export_format"]` | Supported values are `csv`, `json`, `xml`, and `parquet`. BioSeqDownloader may use pandas DataFrames internally, but `dataframe` is not a valid file export format. |
 | `include_metadata` | boolean | Optional | `true` | Executable | Normalized to `workflow_values["include_metadata"]` | Controls whether the manifest JSON is written. |
 | `include_summary` | boolean | Optional | `true` | Executable | Normalized to `workflow_values["include_summary"]` | Controls whether the run summary YAML is written. |
 | `manifest_file` | string or null | Optional | `metadata.json` | Executable | Normalized to `workflow_values["manifest_file"]` | The file content is JSON regardless of extension. |
@@ -162,6 +162,7 @@ These YAML fields are not supported:
 | `dispatch_mode` | Old workflow mode name | Use `dataset.mode`. |
 | `query.type` | Query types are not implemented in YAML | Use `query.value`. |
 | `query.filters` | Structured query filters are not implemented | Put executable filtering in `query.value` and descriptive notes in `query.filtering_strategy`. |
+| `export.format: dataframe` | `dataframe` is an internal Python object type, not a file export format | Use `export.format: csv`. |
 
 Credential-like keys are rejected anywhere in the YAML descriptor. Do not put credentials in YAML.
 

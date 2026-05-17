@@ -11,7 +11,12 @@ import pandas as pd
 import typer
 import yaml
 
-from bioseq_dl.core.export import export_dataframe, normalize_export_format
+from bioseq_dl.core.export import (
+    USER_EXPORT_FORMATS,
+    export_dataframe,
+    normalize_export_format,
+    normalize_user_export_format,
+)
 from bioseq_dl.core.interfaces.uniprot import UniprotInterface
 from bioseq_dl.core.workflow.main_workflow import MainWorkflow
 from bioseq_dl.logging import configure_logging, get_logger
@@ -23,7 +28,7 @@ log = get_logger("bioseq_dl.cli.workflows")
 
 MODALITIES = ["protein", "compound", "interaction"]
 MODES = ["query_first", "query_composition"]
-FORMATS = ["dataframe", "csv", "json", "xml", "parquet"]
+FORMATS = list(USER_EXPORT_FORMATS)
 
 REQUIRED_DESCRIPTOR_SECTIONS = {"dataset", "query", "execution", "export"}
 CORE_DESCRIPTOR_SECTIONS = REQUIRED_DESCRIPTOR_SECTIONS | {
@@ -143,7 +148,7 @@ def build_default_workflow_values() -> dict:
         "query": None,
         "modality": None,
         "mode": None,
-        "export_format": "dataframe",
+        "export_format": "csv",
         "enrich": True,
         "workers": 5,
         "retries": 3,
@@ -367,15 +372,18 @@ def validate_export_section(export_section: dict) -> dict:
     validate_optional_string("export", "manifest_file", export_section.get("manifest_file"))
     validate_optional_string("export", "summary_file", export_section.get("summary_file"))
 
-    export_format = export_section.get("format", "dataframe")
-    if export_format not in FORMATS:
-        raise ValueError(f"Unsupported export.format '{export_format}'. Supported formats are: {', '.join(FORMATS)}.")
+    export_format = normalize_user_export_format(export_section.get("format", "csv"))
+    if export_format is None:
+        raw_format = export_section.get("format", "csv")
+        raise ValueError(f"Unsupported export format '{raw_format}'. Supported formats are: {', '.join(FORMATS)}.")
 
     for key in ("include_metadata", "include_summary"):
         if key in export_section:
             validate_bool("export", key, export_section[key])
 
-    return dict(export_section)
+    normalized_export = dict(export_section)
+    normalized_export["format"] = export_format
+    return normalized_export
 
 
 def collect_descriptor_sections(values: dict) -> dict:
@@ -533,7 +541,7 @@ def validate_workflow_recipe(recipe: dict) -> dict:
             "query": query_descriptor["value"],
             "modality": dataset["modality"],
             "mode": dataset["mode"],
-            "export_format": export_section.get("format", "dataframe"),
+            "export_format": export_section.get("format", "csv"),
             "enrich": execution.get("enrich", True),
             "workers": execution.get("max_workers", 5),
             "retries": execution.get("total_retries", 3),
@@ -613,10 +621,12 @@ def validate_merged_workflow_values(values: dict) -> None:
     if values["mode"] not in MODES:
         raise ValueError(f"Unsupported workflow mode '{values['mode']}'. Supported modes are: {', '.join(MODES)}.")
 
-    if values["export_format"] not in FORMATS:
+    export_format = normalize_user_export_format(values["export_format"])
+    if export_format is None:
         raise ValueError(
             f"Unsupported export format '{values['export_format']}'. Supported formats are: {', '.join(FORMATS)}."
         )
+    values["export_format"] = export_format
 
 
 def is_valid_export_label(label: object) -> bool:
@@ -1133,7 +1143,7 @@ def run_workflow(
         None,
         "--export-format",
         "-e",
-        help="Format to export the results. Options: dataframe, csv, json, xml, parquet.",
+        help="Format to export the results. Options: csv, json, xml, parquet. Default is csv.",
     ),
     enrich: Optional[bool] = typer.Option(
         None,

@@ -8,7 +8,13 @@ import pandas as pd
 
 from bioseq_dl import UniprotInterface
 from bioseq_dl.constants.uniprot import VALID_FIELDS, XREF_MAPPING
-from bioseq_dl.core.export import export_dataframe, normalize_export_format, normalize_parse_format
+from bioseq_dl.core.export import (
+    USER_EXPORT_FORMATS,
+    export_dataframe,
+    normalize_export_format,
+    normalize_parse_format,
+    normalize_user_export_format,
+)
 from bioseq_dl.core.utils.crossref_enrichment import run_crossref_enrichment
 from bioseq_dl.logging import configure_logging
 
@@ -53,11 +59,22 @@ def run(
         help="Enable debug logging"
     ),
     export_format: str = typer.Option(
-        "dataframe", "-ef", "--export_format", 
-        help="Export format: dataframe, xml, json, parquet",
+        "csv", "-ef", "--export_format", 
+        help="Export format: csv, json, xml, parquet. Default is csv.",
     )
 ):
     logger = log
+    raw_export_format = export_format
+    try:
+        export_format = normalize_user_export_format(export_format)
+        if export_format is None:
+            raise ValueError(
+                f"Unsupported export format '{raw_export_format}'. Supported formats are: {', '.join(USER_EXPORT_FORMATS)}."
+            )
+    except ValueError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=1)
+
     try:
         if debug:
             configure_logging(level=logging.DEBUG)
@@ -107,7 +124,7 @@ def run(
         )
         metadata["enrichment"] = enriched_metadata
 
-    if export_format in {"dataframe", "parquet"}:
+    if export_format in {"csv", "parquet"}:
         if isinstance(export_data, pd.DataFrame) and not export_data.empty:
             tabular_format = normalize_export_format(export_format)
             export_path = os.path.join(output, f"uniprot_results.{tabular_format}")
@@ -125,7 +142,7 @@ def run(
                 json.dump(metadata, f, indent=2, default=str)
             logger.info(f"Results saved to {export_path}")
         else:
-            logger.warning("No results to save in DataFrame format.")
+            logger.warning("No results to save in %s format.", export_format.upper())
     elif export_format == "json":
         if isinstance(export_data, dict) or isinstance(export_data, list):
             with open(f"{output}/uniprot_results.json", "w") as f:
