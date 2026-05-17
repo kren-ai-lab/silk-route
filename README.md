@@ -143,6 +143,8 @@ Commands that export parsed tabular results can write Parquet files when `parque
 
 ### Workflow YAML descriptors
 
+BioSeqDownloader supports structured YAML descriptors for reproducible workflow runs. These descriptors define dataset, query, execution, harmonization, export, and reporting information. See [`docs/workflow_yaml.md`](docs/workflow_yaml.md) for the full implemented schema, field behavior, forbidden keys, credential policy, and examples.
+
 Workflow runs can be described with a structured dataset descriptor and executed with:
 
 ```bash
