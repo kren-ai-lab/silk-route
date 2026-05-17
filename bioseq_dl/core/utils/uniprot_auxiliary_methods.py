@@ -91,9 +91,63 @@ def extract_variants(features: List) -> List[Dict]:
 
     return extracted
 
-# Disease names: cc_disease pending.
-def extract_diseases(diseases: List) -> List[Dict]:
-    pass
+def extract_diseases(comments: List) -> List[Dict]:
+    """Extract structured disease comments from UniProt comment data."""
+    if not isinstance(comments, list):
+        return []
+
+    extracted = []
+    for comment in comments:
+        if not isinstance(comment, dict) or comment.get("commentType") != "DISEASE":
+            continue
+
+        disease = comment.get("disease")
+        if not isinstance(disease, dict):
+            continue
+
+        note_texts = []
+        note = comment.get("note", {})
+        if isinstance(note, dict):
+            note_items = note.get("texts", [])
+        else:
+            note_items = []
+
+        if isinstance(note_items, dict):
+            note_items = [note_items]
+        elif not isinstance(note_items, list):
+            note_items = [note_items] if note_items else []
+
+        for text in note_items:
+            if isinstance(text, dict):
+                value = text.get("value", "")
+            else:
+                value = str(text)
+            if value:
+                note_texts.append(value)
+
+        cross_reference = disease.get("diseaseCrossReference", {})
+        if isinstance(cross_reference, dict):
+            cross_reference = dict(cross_reference)
+        else:
+            cross_reference = {}
+
+        evidences = disease.get("evidences", [])
+        if isinstance(evidences, list):
+            evidences = list(evidences)
+        else:
+            evidences = []
+
+        extracted.append({
+            "disease_id": disease.get("diseaseId", ""),
+            "acronym": disease.get("acronym", ""),
+            "accession": disease.get("diseaseAccession", ""),
+            "description": disease.get("description", ""),
+            "cross_reference": cross_reference,
+            "note": " ".join(note_texts),
+            "evidences": evidences,
+        })
+
+    return extracted
 
 # For fields ft_act_site, ft_binding, and ft_site.
 def extract_active_sites(active_sites: List) -> List[Dict]:
