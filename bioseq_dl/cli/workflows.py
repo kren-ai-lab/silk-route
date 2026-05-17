@@ -82,6 +82,7 @@ EXECUTION_KEYS = {
     "enrich",
     "max_workers",
     "total_retries",
+    "chembl_pages_to_fetch",
     "merge_results",
     "uniprot_timeout",
     "debug",
@@ -152,6 +153,7 @@ def build_default_workflow_values() -> dict:
         "enrich": True,
         "workers": 5,
         "retries": 3,
+        "chembl_pages_to_fetch": -1,
         "merge_results": False,
         "fields": None,
         "crossref_fields": None,
@@ -253,6 +255,13 @@ def validate_numeric_or_null(section_name: str, key: str, value: object) -> None
         raise ValueError(f"Workflow YAML key '{section_name}.{key}' must be numeric or null.")
 
 
+def validate_pages_to_fetch(section_name: str, key: str, value: object) -> None:
+    """Validate a ChEMBL page count where -1 means all pages."""
+    validate_int(section_name, key, value)
+    if value == 0 or value < -1:
+        raise ValueError(f"Workflow YAML key '{section_name}.{key}' must be -1 or a positive integer.")
+
+
 def validate_string_list(section_name: str, key: str, value: object) -> None:
     """Validate a list containing only strings."""
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
@@ -348,6 +357,8 @@ def validate_execution_section(execution: dict) -> dict:
         validate_int("execution", "max_workers", execution["max_workers"])
     if "total_retries" in execution:
         validate_int("execution", "total_retries", execution["total_retries"])
+    if "chembl_pages_to_fetch" in execution:
+        validate_pages_to_fetch("execution", "chembl_pages_to_fetch", execution["chembl_pages_to_fetch"])
     if "uniprot_timeout" in execution:
         validate_numeric_or_null("execution", "uniprot_timeout", execution["uniprot_timeout"])
     if "debug" in execution:
@@ -432,6 +443,7 @@ def sync_descriptor_from_workflow_values(values: dict) -> dict:
     execution["enrich"] = synced.get("enrich")
     execution["max_workers"] = synced.get("workers")
     execution["total_retries"] = synced.get("retries")
+    execution["chembl_pages_to_fetch"] = synced.get("chembl_pages_to_fetch")
     execution["merge_results"] = synced.get("merge_results")
     if synced.get("uniprot_timeout") is not None:
         execution["uniprot_timeout"] = synced["uniprot_timeout"]
@@ -545,6 +557,7 @@ def validate_workflow_recipe(recipe: dict) -> dict:
             "enrich": execution.get("enrich", True),
             "workers": execution.get("max_workers", 5),
             "retries": execution.get("total_retries", 3),
+            "chembl_pages_to_fetch": execution.get("chembl_pages_to_fetch", -1),
             "merge_results": execution.get("merge_results", False),
             "fields": fields,
             "crossref_fields": crossref_fields,
@@ -586,6 +599,7 @@ def collect_cli_workflow_values(
     debug: Optional[bool],
     include_isoform: Optional[bool],
     interaction_type: Optional[str],
+    chembl_pages_to_fetch: Optional[int] = None,
 ) -> dict:
     """Return workflow values explicitly provided through CLI options."""
     return {
@@ -599,6 +613,7 @@ def collect_cli_workflow_values(
         "enrich": enrich,
         "workers": max_workers,
         "retries": total_retries,
+        "chembl_pages_to_fetch": chembl_pages_to_fetch,
         "uniprot_timeout": uniprot_timeout,
         "debug": debug,
         "include_isoform": include_isoform,
@@ -620,6 +635,12 @@ def validate_merged_workflow_values(values: dict) -> None:
 
     if values["mode"] not in MODES:
         raise ValueError(f"Unsupported workflow mode '{values['mode']}'. Supported modes are: {', '.join(MODES)}.")
+
+    chembl_pages_to_fetch = values.get("chembl_pages_to_fetch", -1)
+    if not isinstance(chembl_pages_to_fetch, int) or isinstance(chembl_pages_to_fetch, bool):
+        raise ValueError("chembl_pages_to_fetch must be -1 or a positive integer.")
+    if chembl_pages_to_fetch == 0 or chembl_pages_to_fetch < -1:
+        raise ValueError("chembl_pages_to_fetch must be -1 or a positive integer.")
 
     export_format = normalize_user_export_format(values["export_format"])
     if export_format is None:
@@ -910,6 +931,7 @@ def build_normalized_workflow_metadata(values: dict) -> dict:
         "enrich",
         "workers",
         "retries",
+        "chembl_pages_to_fetch",
         "merge_results",
         "fields",
         "crossref_fields",
@@ -1002,6 +1024,7 @@ def build_summary_document(
         "enrich": workflow_values.get("enrich"),
         "max_workers": workflow_values.get("workers"),
         "total_retries": workflow_values.get("retries"),
+        "chembl_pages_to_fetch": workflow_values.get("chembl_pages_to_fetch"),
     }
     if error:
         execution_summary["error"] = error
@@ -1162,6 +1185,11 @@ def run_workflow(
         "-r",
         help="Total number of retries for failed API calls.",
     ),
+    chembl_pages_to_fetch: Optional[int] = typer.Option(
+        None,
+        "--chembl-pages-to-fetch",
+        help="ChEMBL pages to fetch. Use -1 for all pages; positive values cap pages. Limit remains records per page.",
+    ),
     uniprot_timeout: Optional[float] = typer.Option(
         None,
         "--uniprot-timeout",
@@ -1198,6 +1226,7 @@ def run_workflow(
             enrich=enrich,
             max_workers=max_workers,
             total_retries=total_retries,
+            chembl_pages_to_fetch=chembl_pages_to_fetch,
             uniprot_timeout=uniprot_timeout,
             debug=debug,
             include_isoform=include_isoform,
@@ -1232,6 +1261,7 @@ def run_workflow(
                 enrich=workflow_values["enrich"],
                 max_workers=workflow_values["workers"],
                 total_retries=workflow_values["retries"],
+                chembl_pages_to_fetch=workflow_values["chembl_pages_to_fetch"],
                 uniprot_timeout=workflow_values["uniprot_timeout"],
                 include_isoform=workflow_values["include_isoform"],
                 interaction_type=workflow_values["interaction_type"],
@@ -1253,6 +1283,7 @@ def run_workflow(
                 enrich=workflow_values["enrich"],
                 max_workers=workflow_values["workers"],
                 total_retries=workflow_values["retries"],
+                chembl_pages_to_fetch=workflow_values["chembl_pages_to_fetch"],
                 uniprot_timeout=workflow_values["uniprot_timeout"],
                 include_isoform=workflow_values["include_isoform"],
                 interaction_type=workflow_values["interaction_type"],

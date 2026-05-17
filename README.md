@@ -162,6 +162,8 @@ YAML descriptors use top-level `dataset`, `query`, `resources`, `execution`, `ha
 
 `resources`, allowed domain-specific integration sections, and most harmonization/reporting fields are preserved in `metadata.json` and `run_summary.yml` unless the current workflow already supports that behavior. `execution.merge_results` is descriptor metadata only; it does not currently trigger automatic result merging. Credentials must be provided through `.env` or environment variables, not YAML.
 
+ChEMBL workflow fetches retrieve all available pages by default. In YAML, `execution.chembl_pages_to_fetch: -1` means all pages; a positive value caps the number of pages. ChEMBL `limit` remains records per page, not total records and not a page count.
+
 Allowed top-level descriptor sections are: `dataset`, `query`, `resources`, `execution`, `harmonization`, `export`, `reporting`, `interaction_retrieval`, `activity_retrieval`, `chemical_metadata_integration`, `protein_target_integration`, `temperature_enrichment`, and `cross_source_integration`.
 
 ```yaml
@@ -266,6 +268,7 @@ bioseq-dl workflow run [OPTIONS]
 - `--enrich/--no-enrich`: Enable or disable data enrichment
 - `-w, --max-workers INTEGER`: Number of worker threads for API calls
 - `-r, --total-retries INTEGER`: Retry attempts for failed API calls
+- `--chembl-pages-to-fetch INTEGER`: ChEMBL pages to fetch (`-1` for all pages, positive values to cap)
 - `--uniprot-timeout FLOAT`: Timeout in seconds for UniProt API requests
 - `--include-isoform/--no-include-isoform`: Include or exclude UniProt isoforms
 - `--debug`: Enable debug logging

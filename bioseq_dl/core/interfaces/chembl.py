@@ -154,6 +154,10 @@ class ChEMBLInterface(BaseAPIInterface):
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
 
+    def get_cache_ignore_keys(self) -> set[str]:
+        """Return ChEMBL cache-ignore keys while preserving pagination in cache keys."""
+        return super().get_cache_ignore_keys() - {"pages_to_fetch"}
+
     @staticmethod
     def _parse_filter_number(value: str) -> Optional[float]:
         """Parse a numeric ChEMBL activity filter value."""
@@ -260,25 +264,6 @@ class ChEMBLInterface(BaseAPIInterface):
             params[max_key] = cls._format_filter_number(max_value)
         return params
 
-    @staticmethod
-    def cap_activity_search_pages(pages_to_fetch: int, limit: Optional[int]) -> int:
-        """
-        Preserve activity-search scale when routing IC50 searches to filtered activity.
-
-        ChEMBL search endpoints cap activity-search results at 10,000 records. The
-        filtered activity endpoint can contain far more rows, so this keeps existing
-        activity-search behavior bounded while still applying real REST filters.
-        """
-        if pages_to_fetch != -1:
-            return pages_to_fetch
-        try:
-            page_limit = int(limit if limit is not None else 20)
-        except (TypeError, ValueError):
-            return pages_to_fetch
-        if page_limit <= 0:
-            return pages_to_fetch
-        return max(1, (10000 + page_limit - 1) // page_limit)
-
     # DEPRECATED - Use validate_parameters instead
     def validate_query(self, method: str, query: Dict):
         """
@@ -314,21 +299,33 @@ class ChEMBLInterface(BaseAPIInterface):
         Returns:
             dict: The fetched data from the next page.
         """
-        log.debug(f"Fetching page: {next_url} for method {method} with pages_to_fetch={pages_to_fetch}")
-        log.info(f"Fetching page: {next_url} for method {method} with pages_to_fetch={pages_to_fetch}")
-
         responses = []
-        try:
-            response = self.session.get(next_url, headers={"Content-Type": "application/json"})
-            self._delay()
-            response.raise_for_status() 
-            
-            if response.status_code == 204:
-                log.warning(f"No content returned for URL {next_url}.")
-                return {}
-            
-            data = response.json()
-            
+        if pages_to_fetch == 0 or pages_to_fetch < -1:
+            log.error("pages_to_fetch must be -1 or a positive integer. Received: %s", pages_to_fetch)
+            return {}
+
+        current_url = next_url
+        pages_remaining = pages_to_fetch
+
+        while current_url:
+            page_label = f"{pages_remaining} (all pages)" if pages_remaining == -1 else str(pages_remaining)
+            log.debug("Fetching page: %s for method %s with pages_to_fetch=%s", current_url, method, page_label)
+            log.info("Fetching page: %s for method %s with pages_to_fetch=%s", current_url, method, page_label)
+
+            try:
+                response = self.session.get(current_url, headers={"Content-Type": "application/json"})
+                self._delay()
+                response.raise_for_status()
+
+                if response.status_code == 204:
+                    log.warning("No content returned for URL %s.", current_url)
+                    break
+
+                data = response.json()
+            except requests.exceptions.RequestException as e:
+                log.error("Error fetching page for method %s: %s", method, e)
+                break
+
             if 'activities' in data.keys() and isinstance(data['activities'], list):
                 responses.extend(data['activities'])
             elif 'binding_sites' in data.keys() and isinstance(data['binding_sites'], list):
@@ -342,25 +339,17 @@ class ChEMBLInterface(BaseAPIInterface):
             else:
                 responses.append(data)
 
-            next = None
-            if 'page_meta' in data and data['page_meta'].get('next'):
-                # Determine whether to recurse: if pages_to_fetch == -1 we want to fetch ALL pages,
-                # so keep -1 for the recursive call. Otherwise only recurse when pages_to_fetch > 1
-                # and pass pages_to_fetch - 1 to the next call.
-                if pages_to_fetch == -1 or pages_to_fetch > 1:
-                    next_pages_to_fetch = pages_to_fetch if pages_to_fetch == -1 else pages_to_fetch - 1
-                    next_res = self.fetch_pages(
-                        "https://www.ebi.ac.uk" + data['page_meta']['next'],
-                        method,
-                        next_pages_to_fetch
-                    )
-                    if next_res:
-                        responses.extend(next_res)
+            if pages_remaining > 0:
+                pages_remaining -= 1
+                if pages_remaining == 0:
+                    break
 
-            return responses
-        except requests.exceptions.RequestException as e:
-            log.error(f"Error fetching next page for method {method}: {e}")
-            return {}
+            next_path = data.get('page_meta', {}).get('next') if isinstance(data, dict) else None
+            if not next_path:
+                break
+            current_url = "https://www.ebi.ac.uk" + next_path
+
+        return responses
     
     def fetch(self, query: Union[str, dict, list], *, method: str = "activity", **kwargs):
         """
@@ -370,13 +359,20 @@ class ChEMBLInterface(BaseAPIInterface):
             **kwargs: Additional parameters for the request.
             - `method`: Method to use for the request. Default is "compound".
             - `pages_to_fetch`: Number of pages to fetch. Default is 1.
-            - `limit`: Maximum number of results to return. Default is None (no limit).
+            - `limit`: Records per page for paginated endpoints. Default is endpoint-specific.
         Returns:
             any: response from the API.
         """
         pages_to_fetch = kwargs.get("pages_to_fetch", 1)
         limit = kwargs.get("limit", None)
-        effective_pages_to_fetch = pages_to_fetch
+        try:
+            pages_to_fetch = int(pages_to_fetch)
+        except (TypeError, ValueError):
+            log.error("pages_to_fetch must be -1 or a positive integer. Received: %s", pages_to_fetch)
+            return {}
+        if pages_to_fetch == 0 or pages_to_fetch < -1:
+            log.error("pages_to_fetch must be -1 or a positive integer. Received: %s", pages_to_fetch)
+            return {}
         
         # Validate method and format
         if method not in self.METHODS.keys():
@@ -422,7 +418,6 @@ class ChEMBLInterface(BaseAPIInterface):
             activity_filter = self.extract_ic50_activity_filter(query_str) if method == "activity-search" else None
             if activity_filter:
                 filter_params = self.build_activity_filter_params(activity_filter, limit if limit is not None else 20)
-                effective_pages_to_fetch = self.cap_activity_search_pages(pages_to_fetch, filter_params.get("limit"))
                 url = f"{CHEMBL.API_URL}activity.json?{urlencode(filter_params)}"
             else:
                 url = f"{CHEMBL.API_URL}{method.replace('-', '/')}.json?limit={limit if limit is not None else 20}&q={query_str.replace(' ', '%20')}"
@@ -430,7 +425,7 @@ class ChEMBLInterface(BaseAPIInterface):
             log.error(f"Method {method} is not implemented in fetch.")
             return {}
 
-        return self.fetch_pages(url, method, effective_pages_to_fetch)
+        return self.fetch_pages(url, method, pages_to_fetch)
 
     def validate_filter_rules(self, filters: Dict) -> bool:
         """

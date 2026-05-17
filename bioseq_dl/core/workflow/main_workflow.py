@@ -171,6 +171,21 @@ def filter_chembl_activity_result(result: Any, activity_filter: Optional[dict]) 
     }
 
 
+def normalize_chembl_pages_to_fetch(value: Optional[int]) -> int:
+    """Normalize a ChEMBL workflow page cap."""
+    if value is None:
+        return -1
+    if isinstance(value, bool):
+        raise ValueError("chembl_pages_to_fetch must be -1 or a positive integer.")
+    try:
+        pages_to_fetch = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("chembl_pages_to_fetch must be -1 or a positive integer.") from exc
+    if pages_to_fetch == 0 or pages_to_fetch < -1:
+        raise ValueError("chembl_pages_to_fetch must be -1 or a positive integer.")
+    return pages_to_fetch
+
+
 def merge_enrichment_data(existing: List[Any], new: Any) -> List[Any]:
     """Merge query-composition enrichment result parts by endpoint label."""
     if isinstance(new, dict):
@@ -481,6 +496,8 @@ class MainWorkflow:
         chembl_search = context.get("searches", {}).get("chembl", {})
         query = chembl_search.get("interpreted_query") or chembl_search.get("query")
         export_format = chembl_search.get("export_format") or self.default_export_format
+        pages_to_fetch = normalize_chembl_pages_to_fetch(chembl_search.get("pages_to_fetch", -1))
+        limit = int(chembl_search.get("limit", 100))
         parse_format = normalize_parse_format(export_format) or "dataframe"
         # Because there is two types of queries assosiated with 2 diferent methods,
         #   we need to check which one to use.
@@ -502,9 +519,15 @@ class MainWorkflow:
             method=f"{search_type}-search" or "activity-search",
             parse=True,
             format=cast(Any, parse_format),
-            pages_to_fetch=-1,
-            limit=100
+            pages_to_fetch=pages_to_fetch,
+            limit=limit
         )
+        if isinstance(meta, dict):
+            meta["pagination"] = {
+                "limit": limit,
+                "pages_to_fetch": pages_to_fetch,
+                "fetch_all_pages": pages_to_fetch == -1,
+            }
         if activity_filter:
             result, post_filter_meta = filter_chembl_activity_result(result, activity_filter)
             if isinstance(meta, dict):
@@ -514,7 +537,7 @@ class MainWorkflow:
                     "applied": True,
                     "endpoint": "activity",
                     "standard_units_constrained": False,
-                    "activity_search_result_cap": 10000,
+                    "pagination_capped": pages_to_fetch != -1,
                 }
                 meta["post_fetch_filter"] = post_filter_meta
                 if isinstance(result, pd.DataFrame):
@@ -684,6 +707,7 @@ class MainWorkflow:
         query: str,
         search_type: Optional[str] = "activity",
         export_format: Optional[str] = None,
+        chembl_pages_to_fetch: Optional[int] = None,
         context: Optional[dict] = None,
         **kwargs,
     ) -> Tuple[dict, dict]:
@@ -698,6 +722,7 @@ class MainWorkflow:
             query: The user-friendly compound query string.
             search_type: The type of ChEMBL search to perform. Defaults to "activity".
             export_format: The desired export format for the results. Defaults to None.
+            chembl_pages_to_fetch: ChEMBL pages to fetch. Use -1 for all pages.
             context: Optional context dictionary to carry state between steps.
 
             Returns (data, metadata).
@@ -705,6 +730,7 @@ class MainWorkflow:
         chembl_interpreter = build_default_chembl_interpreter()
         uniprot_interpreter = build_default_uniprot_interpreter()
         export_format = export_format or self.default_export_format
+        pages_to_fetch = normalize_chembl_pages_to_fetch(chembl_pages_to_fetch)
 
         args = {
             "query": query,
@@ -712,6 +738,7 @@ class MainWorkflow:
             "export_format": export_format,
             "search_type": search_type,
             "modality": "compound",
+            "pages_to_fetch": pages_to_fetch,
         }
         if context is None:
             context = {
@@ -827,6 +854,7 @@ class MainWorkflow:
         }
         if "uniprot_timeout" in kwargs:
             args["uniprot_timeout"] = kwargs.get("uniprot_timeout")
+        chembl_pages_to_fetch = normalize_chembl_pages_to_fetch(kwargs.get("chembl_pages_to_fetch"))
         context = {
             "searches": {
                 "uniprot": args,
@@ -853,6 +881,7 @@ class MainWorkflow:
                 "query": query,
                 "export_format": export_format,
                 "search_type": "target",
+                "pages_to_fetch": chembl_pages_to_fetch,
             }
             # Interpret original interaction query
             context["searches"]["chembl"]["interpreted_query"] = chembl_interpreter.interpret(query=args.get("query", ""))

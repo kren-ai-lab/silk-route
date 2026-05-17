@@ -110,9 +110,12 @@ Field roles:
 | `enrich` | boolean | Optional | `true` | Executable | Normalized to `workflow_values["enrich"]` | Enables supported cross-reference enrichment when usable cross-reference fields exist. |
 | `max_workers` | integer | Optional | `5` | Executable | Normalized to `workflow_values["workers"]` and passed to workflow/enrichment calls | Mainly affects enrichment and extra API calls that use worker pools. |
 | `total_retries` | integer | Optional | `3` | Executable | Normalized to `workflow_values["retries"]`; used to initialize `UniprotInterface(total_retries=...)` and passed to workflow/enrichment calls | Retry behavior depends on the called interface. |
+| `chembl_pages_to_fetch` | integer | Optional | `-1` | Executable for ChEMBL workflow fetches | Passed to ChEMBL workflow acquisition as `pages_to_fetch` | `-1` fetches all available ChEMBL pages. Positive values cap the number of pages. `0` and values below `-1` are rejected. |
 | `merge_results` | boolean | Optional | `false` | Descriptive metadata | Normalized to `workflow_values["merge_results"]` and written to metadata/summary | Does not currently trigger automatic result merging. Query-composition combines results independently of this flag. |
 | `uniprot_timeout` | number or null | Optional | `null` | Executable | Normalized to `workflow_values["uniprot_timeout"]` and passed to UniProt fetches | `null` uses the interface default timeout. |
 | `debug` | boolean | Optional | `false` | Executable | Normalized to `workflow_values["debug"]` | Enables debug logging when true. |
+
+For ChEMBL workflows, `chembl_pages_to_fetch: -1` is the default and means fetch all available pages until ChEMBL stops returning `page_meta.next`. `limit` is records per page, not total records and not a page count.
 
 ### `harmonization`
 
