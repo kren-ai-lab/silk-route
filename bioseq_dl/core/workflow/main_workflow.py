@@ -80,6 +80,97 @@ def attach_label_to_part(part_data: dict, label: str, modality: str) -> dict:
     return {}
 
 
+def activity_filter_metadata(activity_filter: dict) -> dict:
+    """Return a compact activity filter description for workflow metadata."""
+    metadata = {
+        "standard_type": activity_filter.get("standard_type"),
+        "standard_value_min": activity_filter.get("standard_value_min"),
+        "standard_value_max": activity_filter.get("standard_value_max"),
+        "standard_units": activity_filter.get("standard_units"),
+    }
+    if activity_filter.get("standard_value") is not None:
+        metadata["standard_value"] = activity_filter.get("standard_value")
+    return metadata
+
+
+def filter_chembl_activity_dataframe(df: pd.DataFrame, activity_filter: dict) -> Tuple[pd.DataFrame, dict]:
+    """Apply a defensive ChEMBL activity filter to a DataFrame without changing column types."""
+    initial_rows = int(len(df))
+    if df.empty:
+        return df.copy(), {
+            "applied": True,
+            "initial_rows": initial_rows,
+            "filtered_rows": 0,
+            "removed_rows": 0,
+        }
+
+    if "standard_type" not in df.columns or "standard_value" not in df.columns:
+        return df.iloc[0:0].copy(), {
+            "applied": True,
+            "initial_rows": initial_rows,
+            "filtered_rows": 0,
+            "removed_rows": initial_rows,
+            "reason": "missing_standard_type_or_standard_value",
+        }
+
+    standard_type = str(activity_filter.get("standard_type", "")).upper()
+    type_mask = df["standard_type"].astype(str).str.upper() == standard_type
+    values = pd.to_numeric(df["standard_value"], errors="coerce")
+    value_mask = values.notna()
+
+    exact_value = activity_filter.get("standard_value")
+    if exact_value is not None:
+        value_mask &= values == exact_value
+    else:
+        min_value = activity_filter.get("standard_value_min")
+        max_value = activity_filter.get("standard_value_max")
+        if min_value is not None:
+            if activity_filter.get("standard_value_min_inclusive"):
+                value_mask &= values >= min_value
+            else:
+                value_mask &= values > min_value
+        if max_value is not None:
+            if activity_filter.get("standard_value_max_inclusive"):
+                value_mask &= values <= max_value
+            else:
+                value_mask &= values < max_value
+
+    filtered = df.loc[type_mask & value_mask].copy()
+    filtered_rows = int(len(filtered))
+    return filtered, {
+        "applied": True,
+        "initial_rows": initial_rows,
+        "filtered_rows": filtered_rows,
+        "removed_rows": initial_rows - filtered_rows,
+    }
+
+
+def filter_chembl_activity_result(result: Any, activity_filter: Optional[dict]) -> Tuple[Any, dict]:
+    """Apply a defensive ChEMBL activity filter to supported workflow result shapes."""
+    if not activity_filter:
+        return result, {"applied": False}
+
+    if isinstance(result, pd.DataFrame):
+        return filter_chembl_activity_dataframe(result, activity_filter)
+
+    if isinstance(result, list):
+        df = pd.DataFrame(result)
+        filtered, metadata = filter_chembl_activity_dataframe(df, activity_filter)
+        return filtered.to_dict(orient="records"), metadata
+
+    if isinstance(result, dict):
+        df = pd.DataFrame([result])
+        filtered, metadata = filter_chembl_activity_dataframe(df, activity_filter)
+        if filtered.empty:
+            return {}, metadata
+        return filtered.iloc[0].to_dict(), metadata
+
+    return result, {
+        "applied": False,
+        "reason": f"unsupported_result_type:{type(result).__name__}",
+    }
+
+
 def merge_enrichment_data(existing: List[Any], new: Any) -> List[Any]:
     """Merge query-composition enrichment result parts by endpoint label."""
     if isinstance(new, dict):
@@ -401,6 +492,11 @@ class MainWorkflow:
         
         self.log.info("Pipeline: fetching ChEMBL for query=%s search_type=%s", query, search_type)
         instance = ChEMBLInterface()
+        activity_filter = (
+            instance.extract_ic50_activity_filter(query)
+            if search_type == "activity"
+            else None
+        )
         result, meta = instance.fetch_single(
             query=query,
             method=f"{search_type}-search" or "activity-search",
@@ -409,6 +505,35 @@ class MainWorkflow:
             pages_to_fetch=-1,
             limit=100
         )
+        if activity_filter:
+            result, post_filter_meta = filter_chembl_activity_result(result, activity_filter)
+            if isinstance(meta, dict):
+                meta["activity_filter"] = activity_filter_metadata(activity_filter)
+                meta["activity_filter"]["standard_units"] = None
+                meta["api_filter"] = {
+                    "applied": True,
+                    "endpoint": "activity",
+                    "standard_units_constrained": False,
+                    "activity_search_result_cap": 10000,
+                }
+                meta["post_fetch_filter"] = post_filter_meta
+                if isinstance(result, pd.DataFrame):
+                    result_df = result
+                elif isinstance(result, list):
+                    result_df = pd.DataFrame(result)
+                elif isinstance(result, dict):
+                    result_df = pd.DataFrame([result]) if result else pd.DataFrame()
+                else:
+                    result_df = pd.DataFrame()
+                meta["data_info"] = {
+                    "total_entries": int(len(result_df)),
+                    "data_type": type(result),
+                    "columns": [{
+                        "name": col,
+                        "dtype": str(result_df[col].dtype),
+                        "n_missing": int(result_df[col].isna().sum())
+                    } for col in result_df.columns]
+                }
         context["data"].setdefault("chembl", result)
         context["metadata"].setdefault("chembl", meta)
         self.log.debug("Pipeline ChEMBL fetch metadata: %s", meta)

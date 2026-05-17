@@ -659,15 +659,15 @@ class ChEMBLQueryInterpreter(BaseQueryInterpreter):
             low, high = self._parse_numeric_range(value)
             # 1) Range case
             if low is not None and high is not None:
-                return "", f"ic50>{low} AND ic50<{high}"
+                return "", f"standard_type=IC50 AND standard_value>{low} AND standard_value<{high}"
             # 2) Comparison: >1000, <=50, etc.
             elif m_comp:
                 operator = m_comp.group(1)
                 number = m_comp.group(2)
-                return "", f"ic50{operator}{number}"
+                return "", f"standard_type=IC50 AND standard_value{operator}{number}"
             # 3) Plain number
             elif self._is_number(value):
-                return "", f"ic50={value.strip()}"
+                return "", f"standard_type=IC50 AND standard_value={value.strip()}"
         
 
         return prefix, value

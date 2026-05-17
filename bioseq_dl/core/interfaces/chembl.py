@@ -1,5 +1,6 @@
 import os, re, logging
 from typing import Optional, Union, Dict, List, Any
+from urllib.parse import urlencode
 import requests
 
 from .base import BaseAPIInterface
@@ -153,6 +154,131 @@ class ChEMBLInterface(BaseAPIInterface):
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
 
+    @staticmethod
+    def _parse_filter_number(value: str) -> Optional[float]:
+        """Parse a numeric ChEMBL activity filter value."""
+        try:
+            return float(str(value).strip())
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _format_filter_number(value: Optional[float]) -> Optional[str]:
+        """Format a numeric activity filter value for a URL parameter."""
+        if value is None:
+            return None
+        if float(value).is_integer():
+            return str(int(value))
+        return str(value)
+
+    @classmethod
+    def extract_ic50_activity_filter(cls, query: Any) -> Optional[Dict[str, Any]]:
+        """
+        Extract an IC50 activity filter from an interpreted ChEMBL query.
+
+        The workflow interpreter emits IC50 searches as standard_type plus
+        standard_value comparisons. The legacy ic50 comparison form is also
+        recognized so cached or direct interface use can still be guarded.
+        """
+        if not isinstance(query, str):
+            return None
+
+        query_text = query.strip()
+        if not query_text:
+            return None
+
+        standard_type_is_ic50 = bool(
+            re.search(r"\bstandard_type\s*[:=]\s*['\"]?IC50['\"]?(?=\s|$|\))", query_text, flags=re.IGNORECASE)
+        )
+        uses_ic50_macro = bool(
+            re.search(r"\bic50\s*(?:[:=<>]|>=|<=)", query_text, flags=re.IGNORECASE)
+        )
+        if not standard_type_is_ic50 and not uses_ic50_macro:
+            return None
+
+        number_pattern = r"([-+]?\d+(?:\.\d+)?)"
+        activity_filter: Dict[str, Any] = {
+            "standard_type": "IC50",
+            "standard_value_min": None,
+            "standard_value_max": None,
+            "standard_units": None,
+            "standard_value_min_inclusive": False,
+            "standard_value_max_inclusive": False,
+        }
+
+        range_match = re.search(
+            rf"\b(?:ic50|standard_value)\s*:\s*{number_pattern}\s*-\s*{number_pattern}\b",
+            query_text,
+            flags=re.IGNORECASE,
+        )
+        if range_match:
+            activity_filter["standard_value_min"] = cls._parse_filter_number(range_match.group(1))
+            activity_filter["standard_value_max"] = cls._parse_filter_number(range_match.group(2))
+
+        comparison_pattern = re.compile(
+            rf"\b(?:ic50|standard_value)\s*(>=|<=|>|<|=)\s*{number_pattern}",
+            flags=re.IGNORECASE,
+        )
+        for match in comparison_pattern.finditer(query_text):
+            operator = match.group(1)
+            number = cls._parse_filter_number(match.group(2))
+            if number is None:
+                continue
+            if operator in {">", ">="}:
+                activity_filter["standard_value_min"] = number
+                activity_filter["standard_value_min_inclusive"] = operator == ">="
+            elif operator in {"<", "<="}:
+                activity_filter["standard_value_max"] = number
+                activity_filter["standard_value_max_inclusive"] = operator == "<="
+            elif operator == "=":
+                activity_filter["standard_value"] = number
+
+        return activity_filter
+
+    @classmethod
+    def build_activity_filter_params(cls, activity_filter: Dict[str, Any], limit: Optional[int]) -> Dict[str, Any]:
+        """Build ChEMBL activity endpoint query parameters from an activity filter."""
+        params: Dict[str, Any] = {
+            "standard_type": activity_filter["standard_type"],
+            "format": "json",
+        }
+        if limit is not None:
+            params["limit"] = limit
+
+        exact_value = activity_filter.get("standard_value")
+        if exact_value is not None:
+            params["standard_value"] = cls._format_filter_number(exact_value)
+            return params
+
+        min_value = activity_filter.get("standard_value_min")
+        max_value = activity_filter.get("standard_value_max")
+        if min_value is not None:
+            min_key = "standard_value__gte" if activity_filter.get("standard_value_min_inclusive") else "standard_value__gt"
+            params[min_key] = cls._format_filter_number(min_value)
+        if max_value is not None:
+            max_key = "standard_value__lte" if activity_filter.get("standard_value_max_inclusive") else "standard_value__lt"
+            params[max_key] = cls._format_filter_number(max_value)
+        return params
+
+    @staticmethod
+    def cap_activity_search_pages(pages_to_fetch: int, limit: Optional[int]) -> int:
+        """
+        Preserve activity-search scale when routing IC50 searches to filtered activity.
+
+        ChEMBL search endpoints cap activity-search results at 10,000 records. The
+        filtered activity endpoint can contain far more rows, so this keeps existing
+        activity-search behavior bounded while still applying real REST filters.
+        """
+        if pages_to_fetch != -1:
+            return pages_to_fetch
+        try:
+            page_limit = int(limit if limit is not None else 20)
+        except (TypeError, ValueError):
+            return pages_to_fetch
+        if page_limit <= 0:
+            return pages_to_fetch
+        return max(1, (10000 + page_limit - 1) // page_limit)
+
     # DEPRECATED - Use validate_parameters instead
     def validate_query(self, method: str, query: Dict):
         """
@@ -250,6 +376,7 @@ class ChEMBLInterface(BaseAPIInterface):
         """
         pages_to_fetch = kwargs.get("pages_to_fetch", 1)
         limit = kwargs.get("limit", None)
+        effective_pages_to_fetch = pages_to_fetch
         
         # Validate method and format
         if method not in self.METHODS.keys():
@@ -292,12 +419,18 @@ class ChEMBLInterface(BaseAPIInterface):
                     url += f"limit={limit if limit is not None else 20}&format=json"
         elif method in ["activity-search", "target-search"]:
             query_str = validated_params.get("query", "")
-            url = f"{CHEMBL.API_URL}{method.replace('-', '/')}.json?limit={limit if limit is not None else 20}&q={query_str.replace(' ', '%20')}"
+            activity_filter = self.extract_ic50_activity_filter(query_str) if method == "activity-search" else None
+            if activity_filter:
+                filter_params = self.build_activity_filter_params(activity_filter, limit if limit is not None else 20)
+                effective_pages_to_fetch = self.cap_activity_search_pages(pages_to_fetch, filter_params.get("limit"))
+                url = f"{CHEMBL.API_URL}activity.json?{urlencode(filter_params)}"
+            else:
+                url = f"{CHEMBL.API_URL}{method.replace('-', '/')}.json?limit={limit if limit is not None else 20}&q={query_str.replace(' ', '%20')}"
         else:
             log.error(f"Method {method} is not implemented in fetch.")
             return {}
 
-        return self.fetch_pages(url, method, pages_to_fetch)
+        return self.fetch_pages(url, method, effective_pages_to_fetch)
 
     def validate_filter_rules(self, filters: Dict) -> bool:
         """
