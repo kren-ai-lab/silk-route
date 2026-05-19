@@ -121,13 +121,13 @@ Field roles:
 | `uniprot_timeout` | number or null | Optional | `null` | Executable | Normalized to `workflow_values["uniprot_timeout"]` and passed to UniProt fetches | `null` uses the interface default timeout. |
 | `debug` | boolean | Optional | `false` | Executable | Normalized to `workflow_values["debug"]` | Enables debug logging when true. |
 
-For ChEMBL workflows, `chembl_pages_to_fetch: -1` is the default and means fetch all available pages until ChEMBL stops returning `page_meta.next`. `limit` is records per page, not total records and not a page count.
+For ChEMBL workflows, `chembl_pages_to_fetch: -1` is the default and means fetch all available pages until ChEMBL stops returning `page_meta.next`. Positive integers cap the number of pages. `limit` is records per page, not total records and not a page count. Large ChEMBL queries can take longer when all pages are fetched; use a positive page cap for quick validation runs.
 
 ### `harmonization`
 
 | Field | Type | Required | Default | Role | Internal mapping | Limitations |
 | --- | --- | --- | --- | --- | --- | --- |
-| `id_column` | string or null | Optional | `null` | Executable for tabular exports | Normalized to `workflow_values["id_column"]` and used by export helpers | Adds deterministic IDs to exported DataFrame results when the column is absent. It does not mutate in-memory data. |
+| `id_column` | string or null | Optional | `null` | Executable for tabular exports | Normalized to `workflow_values["id_column"]` and used by export helpers | Adds deterministic IDs to exported tabular results when the column is absent. It does not mutate in-memory data. |
 | `label_column` | string or null | Optional | `null` | Descriptive | Preserved in metadata and summary | Query-composition currently writes labels to `_label`; this field does not rename that column. |
 | `sequence_column` | string or null | Optional | `null` | Generated reporting aid | Used to calculate `reporting.unique_sequences` when tabular outputs contain the named column | Does not alter exported columns. |
 | `unique_sequence_strategy` | string or null | Optional | `null` | Descriptive | Preserved in metadata and summary | Does not currently change deduplication or export behavior. |
@@ -138,7 +138,7 @@ For ChEMBL workflows, `chembl_pages_to_fetch: -1` is the default and means fetch
 | Field | Type | Required | Default | Role | Internal mapping | Limitations |
 | --- | --- | --- | --- | --- | --- | --- |
 | `output_dir` | string or null | Optional if `dataset.name` is present | `results/{dataset.name}` | Executable | Normalized to `workflow_values["output"]` | Required by merged workflow values after defaults are applied. |
-| `format` | string | Optional | `csv` | Executable | Normalized to `workflow_values["export_format"]` | Supported values are `csv`, `json`, `xml`, and `parquet`. BioSeqDownloader may use pandas DataFrames internally, but `dataframe` is not a valid file export format. |
+| `format` | string | Optional | `csv` | Executable | Normalized to `workflow_values["export_format"]` | Supported values are `csv`, `json`, `xml`, and `parquet`. |
 | `include_metadata` | boolean | Optional | `true` | Executable | Normalized to `workflow_values["include_metadata"]` | Controls whether the manifest JSON is written. |
 | `include_summary` | boolean | Optional | `true` | Executable | Normalized to `workflow_values["include_summary"]` | Controls whether the run summary YAML is written. |
 | `manifest_file` | string or null | Optional | `metadata.json` | Executable | Normalized to `workflow_values["manifest_file"]` | The file content is JSON regardless of extension. |
@@ -166,12 +166,8 @@ These YAML fields are not supported:
 | `version` | Old root key | Use the structured `dataset`, `query`, `execution`, and `export` sections. |
 | `kind` | Old root key | Use the structured sections. |
 | `workflow` | Old root key | Use the structured sections. |
-| `method` | Old workflow mode name | Use `dataset.mode`. |
-| `dispatch` | Old workflow mode name | Use `dataset.mode`. |
-| `dispatch_mode` | Old workflow mode name | Use `dataset.mode`. |
 | `query.type` | Query types are not implemented in YAML | Use `query.value`. |
 | `query.filters` | Structured query filters are not implemented | Put executable filtering in `query.value` and descriptive notes in `query.filtering_strategy`. |
-| `export.format: dataframe` | `dataframe` is an internal Python object type, not a file export format | Use `export.format: csv`. |
 
 Credential-like keys are rejected anywhere in the YAML descriptor. Do not put credentials in YAML.
 
@@ -226,7 +222,7 @@ Execution status values are:
 
 Primary UniProt request failures raise an error and the CLI exits non-zero. When an output directory is known, failure metadata and/or a failure summary are written according to `include_metadata` and `include_summary`.
 
-If `harmonization.id_column` is set, exported DataFrame outputs for CSV, Parquet, and JSON receive a deterministic ID column when that column is not already present. Empty outputs and labels such as `none` or `null` are not exported as result files.
+If `harmonization.id_column` is set, exported tabular outputs for CSV, Parquet, and JSON receive a deterministic ID column when that column is not already present. Empty outputs and labels such as `none` or `null` are not exported as result files.
 
 ## Example: Minimal Protein Query Workflow
 

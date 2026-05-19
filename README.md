@@ -148,21 +148,21 @@ BioSeqDownloader supports structured YAML descriptors for reproducible workflow 
 Workflow runs can be described with a structured dataset descriptor and executed with:
 
 ```bash
-bioseq-dl workflow run --config workflow.yml
+bioseq-dl workflow run --config examples/protein-dataset-construction.yml
 ```
 
 CLI arguments override YAML values, so a descriptor can be reused with a different output directory or export format:
 
 ```bash
-bioseq-dl workflow run --config workflow.yml -o result_override
-bioseq-dl workflow run --config workflow.yml -e csv
+bioseq-dl workflow run --config examples/protein-dataset-construction.yml -o result_override
+bioseq-dl workflow run --config examples/protein-dataset-construction.yml -e csv
 ```
 
 YAML descriptors use top-level `dataset`, `query`, `resources`, `execution`, `harmonization`, `export`, and `reporting` sections, plus a small allowlist of descriptive integration sections. `dataset.mode` is the workflow execution mode, and the only valid values are `query_first` and `query_composition`. Only part of the descriptor is executable: `dataset.modality`, `dataset.mode`, `query.value`, selected `query` options, supported `execution` options, and `export` options are mapped to the current workflow. `query.value` is the actual API query. `query.description` and `query.filtering_strategy` are descriptive metadata only.
 
 `resources`, allowed domain-specific integration sections, and most harmonization/reporting fields are preserved in `metadata.json` and `run_summary.yml` unless the current workflow already supports that behavior. `execution.merge_results` is descriptor metadata only; it does not currently trigger automatic result merging. Credentials must be provided through `.env` or environment variables, not YAML.
 
-ChEMBL workflow fetches retrieve all available pages by default. In YAML, `execution.chembl_pages_to_fetch: -1` means all pages; a positive value caps the number of pages. ChEMBL `limit` remains records per page, not total records and not a page count.
+ChEMBL workflow fetches retrieve all available pages by default. In YAML, `execution.chembl_pages_to_fetch: -1` means all pages; a positive value caps the number of pages. ChEMBL `limit` remains records per page, not total records and not a page count. Large ChEMBL queries can take longer when all pages are fetched; use a positive page cap for quick validation runs.
 
 Allowed top-level descriptor sections are: `dataset`, `query`, `resources`, `execution`, `harmonization`, `export`, `reporting`, `interaction_retrieval`, `activity_retrieval`, `chemical_metadata_integration`, `protein_target_integration`, `temperature_enrichment`, and `cross_source_integration`.
 
@@ -231,7 +231,7 @@ Workflows support:
 - Two execution modes: `query_first`, `query_composition`
 - Optional enrichment through existing cross-reference support
 - Retries and multi-threaded API calls
-- Export formats: CSV, JSON, XML, or Parquet. BioSeqDownloader uses pandas DataFrames internally for tabular data, but `dataframe` is not a user-facing export format.
+- Export formats: `csv`, `json`, `xml`, or `parquet`.
 - `metadata.json` for detailed technical metadata
 - `run_summary.yml` for a compact execution report
 
@@ -378,7 +378,7 @@ Workflows generate two main types of output:
 1. **Main Results** (`uniprot_results.csv|json|xml`): Raw query results
 2. **Enrichment Data** (`{database}_{endpoint}.csv|json|xml`): Cross-referenced data from other databases
 
-If `harmonization.id_column` is set, exported tabular files receive a deterministic ID column when that column is not already present. The original in-memory DataFrames and raw API outputs are not modified.
+If `harmonization.id_column` is set, exported tabular files receive a deterministic ID column when that column is not already present. The original in-memory tabular objects and raw API outputs are not modified.
 
 `metadata.json` contains existing workflow metadata, the original descriptor sections, normalized executable values, generated output files, and calculated reporting metrics. `run_summary.yml` contains dataset and query information, execution status, start and finish times, duration, export settings, output file names, row and column counts for tabular outputs, and common reporting metrics when they can be calculated. The summary status reflects actual execution: `success` for clean runs, `completed_with_errors` when outputs exist but metadata records errors, and `failed` when execution fails or a primary fetch error leaves no real result output.
 
@@ -513,7 +513,7 @@ prediction:
   is_reviewed: isReviewed
   is_reference: isReferenceProteome
 ```
-Where the main keys are the names of the methods available for that API, and the values are the fields to be parsed. After the method name, the fields are defined as key-value pairs, where the key is the name of the field in the output DataFrame, and the value is the name of the field in the API response.
+Where the main keys are the names of the endpoints available for that API, and the values are the fields to be parsed. After the endpoint name, the fields are defined as key-value pairs, where the key is the name of the field in the tabular output, and the value is the name of the field in the API response.
 
 The `init.yml` file contains the configuration for that specific API. For example, the `alphafold/init.yml` file might look like this:
 ```yaml

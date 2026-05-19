@@ -869,6 +869,28 @@ def get_exported_result_labels(output_infos: list[dict]) -> set[str]:
     }
 
 
+def get_expected_query_composition_labels(workflow_values: dict) -> list[str]:
+    """Return query-composition labels declared in the executable query."""
+    query_value = workflow_values.get("query")
+    if not isinstance(query_value, str):
+        return []
+
+    labels = []
+    seen = set()
+    for query_part in query_value.split(","):
+        query_part = query_part.strip()
+        if not query_part:
+            continue
+        try:
+            _, label = split_pair(query_part)
+        except ValueError:
+            continue
+        if label and label not in seen:
+            labels.append(label)
+            seen.add(label)
+    return labels
+
+
 def count_query_composition_labels(
     workflow_values: dict,
     data: object,
@@ -882,6 +904,9 @@ def count_query_composition_labels(
     if not exported_result_labels:
         return {}
 
+    expected_label_counts = {
+        label: 0 for label in get_expected_query_composition_labels(workflow_values)
+    }
     primary_label = PRIMARY_RESULT_LABELS.get(str(workflow_values.get("modality")))
     label_order = [primary_label] if primary_label else []
     label_order.extend(label for label in data if label != primary_label)
@@ -892,7 +917,9 @@ def count_query_composition_labels(
         content = data.get(label)
         if isinstance(content, pd.DataFrame) and QUERY_COMPOSITION_LABEL_COLUMN in content.columns:
             counts = content[QUERY_COMPOSITION_LABEL_COLUMN].dropna().astype(str).value_counts()
-            return {str(label_value): int(count) for label_value, count in counts.items()}
+            label_counts = dict(expected_label_counts)
+            label_counts.update({str(label_value): int(count) for label_value, count in counts.items()})
+            return label_counts
 
     return {}
 
