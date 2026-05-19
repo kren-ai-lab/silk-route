@@ -18,6 +18,8 @@ Valid `dataset.mode` values are:
 - `query_first`
 - `query_composition`
 
+The CLI equivalent is `--mode` (or `-d`) with the same values.
+
 ## CLI Override Priority
 
 When a YAML descriptor and CLI options are both provided, values are resolved in this order:
@@ -123,6 +125,8 @@ Field roles:
 
 For ChEMBL workflows, `chembl_pages_to_fetch: -1` is the default and means fetch all available pages until ChEMBL stops returning `page_meta.next`. Positive integers cap the number of pages. `limit` is records per page, not total records and not a page count. Large ChEMBL queries can take longer when all pages are fetched; use a positive page cap for quick validation runs.
 
+For IC50 activity queries, the ChEMBL workflow constrains `standard_type` to `IC50` and applies numeric `standard_value` filters for exact values or requested ranges. `standard_units` is reported when available, but the current workflow does not constrain units to nM.
+
 ### `harmonization`
 
 | Field | Type | Required | Default | Role | Internal mapping | Limitations |
@@ -145,6 +149,8 @@ For ChEMBL workflows, `chembl_pages_to_fetch: -1` is the default and means fetch
 | `summary_file` | string or null | Optional | `run_summary.yml` | Executable | Normalized to `workflow_values["summary_file"]` | The file content is YAML regardless of extension. |
 | `result_files` | any YAML value | Optional | omitted | Descriptive | Preserved in the export descriptor | Does not currently control result filenames. Output filenames are derived from result labels such as `uniprot_results`. |
 
+`dataframe` is not a public export format. Use `csv`, `json`, `xml`, or `parquet` in YAML and CLI export options.
+
 ### `reporting`
 
 `reporting` is a free-form mapping with YAML-safe values: null, strings, numbers, booleans, dates, lists, and dictionaries with string keys.
@@ -166,6 +172,9 @@ These YAML fields are not supported:
 | `version` | Old root key | Use the structured `dataset`, `query`, `execution`, and `export` sections. |
 | `kind` | Old root key | Use the structured sections. |
 | `workflow` | Old root key | Use the structured sections. |
+| `dispatch_mode` | Removed workflow mode key | Use `dataset.mode` in YAML or `--mode` in the CLI. |
+| `dispatch` | Removed workflow mode key | Use `dataset.mode` in YAML or `--mode` in the CLI. |
+| `method` | Removed workflow mode key | Use `dataset.mode` in YAML or `--mode` in the CLI. |
 | `query.type` | Query types are not implemented in YAML | Use `query.value`. |
 | `query.filters` | Structured query filters are not implemented | Put executable filtering in `query.value` and descriptive notes in `query.filtering_strategy`. |
 
@@ -348,6 +357,7 @@ Important current limitations:
 - `resources.integration` is descriptive only.
 - `execution.merge_results` is metadata only.
 - Domain-specific extension sections are descriptive only.
+- The validated compound workflow uses ChEMBL activity retrieval with UniProt target mapping; PubChem is not part of the YAML compound workflow path.
 - `harmonization.metadata_fields`, `label_column`, and `unique_sequence_strategy` do not filter, rename, merge, or deduplicate output.
 - `query.fields` is sent to UniProt as the fetch `fields` parameter, but parsing currently uses the workflow parser's field map rather than this value as an output-column filter.
 - `export.result_files` does not control output filenames.

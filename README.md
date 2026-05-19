@@ -1,12 +1,12 @@
 # BioSeqDownloader
 
-**BioSeqDownloader** is a Python-based tool for downloading, analyzing, and enriching biological sequences from multiple databases. Initially focused on **UniProt**, it is designed to scale and support several sources such as **AlphaFold**, **BioGRID**, **BRENDA**, **PDB**, and **KEGG**, providing a unified, reproducible, and efficient way to retrieve biological data.
+**BioSeqDownloader** is a Python package and command-line tool for reproducible biological data retrieval. It provides database-specific interfaces, parsing helpers, enrichment and mapping utilities, YAML workflow descriptors, metadata capture, and export to CSV, JSON, XML, and Parquet.
 
-Additionally, it includes functionalities for **sequence analysis** (e.g., BLAST searches, multiple sequence alignments), making it a comprehensive solution for **bioinformatics workflows**.
+The validated workflow surface currently focuses on UniProt protein retrieval, ChEMBL activity retrieval with UniProt target mapping, and interaction-oriented retrieval through the existing interfaces. BLAST-backed UniProt sequence search is exposed in the CLI, but should be treated as experimental and requires BLAST+ plus local database setup.
 
-### Supported Databases
+### Available Database Interfaces
 
-Currently supported databases include:
+Currently available CLI/API interfaces include:
 
 | Database  | Description |
 | ------------- | ------------- |
@@ -24,7 +24,7 @@ Currently supported databases include:
 | Pathway Commons | Biological pathways |
 | PDB  | Protein Data Bank |
 | Pride  | Proteomics data repository |
-| PubChem | Chemical molecule database |
+| PubChem | Chemical molecule database; not part of the validated YAML compound workflow |
 | Reactome | Pathway database |
 | RefSeq  | NCBI Reference Sequence Database |
 | Rhea  | Biochemical reactions database |
@@ -50,12 +50,13 @@ Currently supported databases include:
 
 ## Features
 
-- Unified access to multiple biological databases.
-- Command-Line and Graphical Interfaces.
-- Configurable YAML-based field parsing system.
-- Cross-database enrichment and mapping (e.g., UniProt ↔ AlphaFold ↔ BioGRID).
-- Optional BLAST and multiple sequence alignment capabilities.
-- Modular and extensible architecture.
+- Command-line interface and programmatic Python API.
+- Reproducible data retrieval workflows described with YAML descriptors.
+- Configurable parsing and field mapping for supported database responses.
+- Cross-database enrichment and mapping for supported cross-reference fields.
+- Credentials loaded from explicit arguments, environment variables, or `.env` files.
+- Workflow metadata and run summaries through `metadata.json` and `run_summary.yml`.
+- Public export formats: `csv`, `json`, `xml`, and `parquet`.
 
 ---
 
@@ -78,16 +79,16 @@ Currently supported databases include:
    pip install -e .
    ```
 
-4. **Optional:** Install BLAST+ from Bioconda:
+4. **Optional, for experimental sequence search:** Install BLAST+ from Bioconda:
    ```bash
    conda install -c bioconda blast
    ```
 
 5. **Run the initial setup:**
    ```bash
-   bioseq-dl
+   bioseq-dl-init
    ```
-   This will copy the configuration files to `~/.config/bioseq_dl/`.
+   This copies the default non-sensitive configuration files and `.env.example` to `~/.config/bioseq_dl/` without overwriting existing files. Running `bioseq-dl` without a subcommand also performs this initialization check.
 
 ---
 
@@ -100,6 +101,8 @@ Currently supported databases include:
 
 ---
 
+## Usage
+
 ### Command Overview
 To explore all available commands:
 ```bash
@@ -108,7 +111,7 @@ bioseq-dl --help
 
 ### Command-Line Interface (CLI)
 
-**Example 1 – Search antimicrobial proteins (length 50–51) in UniProt:**
+**Example 1 - Search antimicrobial proteins (length 50-51) in UniProt:**
 ```bash
 bioseq-dl general-collect uniprot search-by-query run \
 --query "(length:[50 TO 51]) AND antimicrobial AND reviewed:true" \
@@ -117,7 +120,7 @@ bioseq-dl general-collect uniprot search-by-query run \
 --output search_query_test
 ```
 
-**Example 2 – Search UniProt entries by accession IDs:**
+**Example 2 - Search UniProt entries by accession IDs:**
 ```bash
 bioseq-dl general-collect uniprot search-by-ids run \
 --input unknown_ids.csv \
@@ -126,7 +129,7 @@ bioseq-dl general-collect uniprot search-by-ids run \
 --crossref_fields alphafold
 ```
 
-**Example 3 – Perform a BLAST alignment against UniProt:**
+**Example 3 - Experimental BLAST-backed UniProt sequence search:**
 ```bash
 bioseq-dl general-collect uniprot search-by-sequences run \
 --database uniprotkb_reviewed \
@@ -137,9 +140,11 @@ bioseq-dl general-collect uniprot search-by-sequences run \
 --crossref_fields alphafold
 ```
 
+This path is exposed by the CLI but is experimental compared with the validated YAML workflow path.
+
 ### Parquet outputs
 
-Commands that export parsed tabular results can write Parquet files when `parquet` is selected as the output format. Parquet export requires the optional Parquet engine installed with the package dependencies.
+Commands that export parsed tabular results can write Parquet files when `parquet` is selected as the output format. The public export formats are `csv`, `json`, `xml`, and `parquet`; `dataframe` is not accepted as a public export format. Parquet export requires the optional Parquet engine installed with the package dependencies.
 
 ### Workflow YAML descriptors
 
@@ -163,6 +168,8 @@ YAML descriptors use top-level `dataset`, `query`, `resources`, `execution`, `ha
 `resources`, allowed domain-specific integration sections, and most harmonization/reporting fields are preserved in `metadata.json` and `run_summary.yml` unless the current workflow already supports that behavior. `execution.merge_results` is descriptor metadata only; it does not currently trigger automatic result merging. Credentials must be provided through `.env` or environment variables, not YAML.
 
 ChEMBL workflow fetches retrieve all available pages by default. In YAML, `execution.chembl_pages_to_fetch: -1` means all pages; a positive value caps the number of pages. ChEMBL `limit` remains records per page, not total records and not a page count. Large ChEMBL queries can take longer when all pages are fetched; use a positive page cap for quick validation runs.
+
+For IC50 queries, the ChEMBL workflow enforces `standard_type = IC50` and numeric `standard_value` constraints for requested ranges. `standard_units` is preserved when returned by ChEMBL, but the workflow does not currently constrain units to nM.
 
 Allowed top-level descriptor sections are: `dataset`, `query`, `resources`, `execution`, `harmonization`, `export`, `reporting`, `interaction_retrieval`, `activity_retrieval`, `chemical_metadata_integration`, `protein_target_integration`, `temperature_enrichment`, and `cross_source_integration`.
 
@@ -222,7 +229,7 @@ reporting:
 
 ### Workflow Interface (Automated Data Collection Workflows)
 
-The **Workflow** interface runs reproducible data acquisition workflows across biological modalities: proteins, compounds, and interactions. It supports a query-first run and a labeled query-composition run without introducing a general pipeline language.
+The **Workflow** interface runs reproducible data acquisition workflows across the current biological modalities: proteins, compounds, and interactions. It supports a query-first run and a labeled query-composition run without introducing a general pipeline language.
 
 #### Overview
 
@@ -235,6 +242,8 @@ Workflows support:
 - `metadata.json` for detailed technical metadata
 - `run_summary.yml` for a compact execution report
 
+The validated compound workflow is ChEMBL activity retrieval with UniProt target mapping. PubChem remains available through its database interface, but it is not part of the validated YAML compound workflow.
+
 #### Modalities
 
 | Modality | Description | Primary Data |
@@ -245,12 +254,12 @@ Workflows support:
 
 #### Modes
 
-In YAML, set the execution mode with `dataset.mode`.
+In YAML, set the execution mode with `dataset.mode`. In the CLI, use `--mode` or `-d`.
 
 | Mode | Use Case | Query Format |
 |------|----------|--------------|
-| **query_first** | Single, simple query across all available sources | Simple query string (e.g., `temperature:*`) |
-| **query_composition** | Multiple labeled queries, combining different sources | Comma-separated labeled queries (e.g., `query1=label1,query2=label2`) |
+| **query_first** | Single query for the selected modality | Simple query string (e.g., `temperature:*`) |
+| **query_composition** | Multiple labeled queries for comparison or grouping | Comma-separated labeled queries (e.g., `query1=label1,query2=label2`) |
 
 #### Command Structure
 
@@ -278,7 +287,7 @@ bioseq-dl workflow run [OPTIONS]
 
 #### Example 1: Query First Mode - Protein Temperature Data
 
-Search for proteins with temperature information and retrieve all available data:
+Search for proteins with temperature information and export the workflow result:
 
 ```bash
 bioseq-dl workflow run \
@@ -320,11 +329,9 @@ bioseq-dl workflow run \
 ```
 
 **What happens:**
-1. Executes two parallel queries: one for temperature=99, one for temperature=98
-2. Each query is labeled (`temp_99`, `temp_98`) for easy tracking
-3. Automatically enriches each dataset with protein information from UniProt
-4. Compares and combines results in the output directory
-5. Tag the results with their respective labels in the uniprot results for easy differentiation
+1. Executes two labeled UniProt-compatible queries: one for temperature=99, one for temperature=98
+2. Adds the query label (`temp_99`, `temp_98`) to exported records
+3. Writes the combined result file plus metadata and summary files
 
 **Query syntax:**
 - Use `=` or `|` as delimiter: `query=label` or `query|label`
@@ -354,11 +361,11 @@ bioseq-dl workflow run \
 ```
 
 **What happens:**
-1. Performs ChEMBL activity retrieval with UniProt target mapping for compounds with IC50 values in different ranges
-2. Creates two labeled datasets: `active` (IC50: 10-50 nM) and `inactive` (IC50: 50-100 nM)
-3. Enriches each compound with protein target information from UniProt
-4. Enables bioactivity-based classification and drug discovery workflows
-5. Compares structure-activity relationships (SAR) across datasets
+1. Performs ChEMBL activity retrieval with UniProt target mapping for activity records in different IC50 ranges
+2. Creates two labeled datasets: `active` (`standard_value` 10-50) and `inactive` (`standard_value` 50-100)
+3. Enforces `standard_type = IC50` and numeric `standard_value` filtering after retrieval
+4. Preserves `standard_units` when ChEMBL returns it, without constraining units to nM
+5. Writes ChEMBL activity results and available UniProt target-mapping output
 
 **Output files:**
 ```
@@ -369,14 +376,14 @@ workflow_compound/
 `-- run_summary.yml
 ```
 
-**Use case:** Drug discovery, compound screening and classification of bioactive molecules.
+**Use case:** Compound activity grouping and target-aware bioactivity dataset construction.
 
 #### Output Files and Enrichment
 
 Workflows generate two main types of output:
 
-1. **Main Results** (`uniprot_results.csv|json|xml`): Raw query results
-2. **Enrichment Data** (`{database}_{endpoint}.csv|json|xml`): Cross-referenced data from other databases
+1. **Main Results** (`*_results.csv|json|xml|parquet`): retrieved workflow results
+2. **Enrichment Data** (`{database}_{endpoint}.csv|json|xml|parquet`): cross-referenced data from other databases when enrichment produces output
 
 If `harmonization.id_column` is set, exported tabular files receive a deterministic ID column when that column is not already present. The original in-memory tabular objects and raw API outputs are not modified.
 
@@ -404,13 +411,13 @@ bioseq-dl workflow run \
 | Find all thermophilic proteins | protein | query_first | `temperature:*` |
 | Compare two temperature optima | protein | query_composition | `temperature:20=temp_low,temperature:80=temp_high` |
 | Classify compounds by activity | compound | query_composition | `ic50:10-50=active,ic50:50-100=inactive` |
-| Screen drug candidates | compound | query_first | `chembl_id:*` |
+| Fetch IC50 activity records | compound | query_first | `ic50:<1000` |
 
 ---
 
 ### Programmatic API
 
-**Example – Using the UniProt interface:**
+**Example - Using the UniProt interface:**
 
 You can also use the Python API to interact with the tool. Here's an example of how to use the UniProt interface:
 ```python
@@ -435,7 +442,7 @@ results_df, _ = uniprot.parse(results, None)
 print(results_df)
 ```
 
-**Example – Enriching results with other databases:**
+**Example - Enriching results with other databases:**
 
 An enricher module is also available to enrich your data with cross references. Here's an example for a given results_df from UniProt:
 ```python
@@ -487,21 +494,21 @@ Configuration files are stored in:
 ```
 
 Each API module includes:
-- `init.yml` — non-sensitive settings
-- `fields.yml` — field mappings for result parsing
+- `init.yml` - non-sensitive settings
+- `fields.yml` - field mappings for result parsing
 
 **Example directory tree:**
 ```
 .config/
-└── bioseq_dl
-    ├── alphafold
-    │   ├── init.yml
-    │   └── fields.yml
-    ├── biogrid
-    │   └── fields.yml
+`-- bioseq_dl
+    |-- alphafold
+    |   |-- init.yml
+    |   `-- fields.yml
+    |-- biogrid
+    |   `-- fields.yml
     ...
-    └── uniprot
-        └── fields.yml
+    `-- uniprot
+        `-- fields.yml
 ```
 Where every `fields.yml` file contains the fields to be parsed for that specific API. For example, the `alphafold/fields.yml` file might look like this:
 ```yaml
@@ -523,10 +530,10 @@ download_folder: /path/to/download/folder
 
 ## To-do List
 
-- [ ] Add `.env` file documentation
-- [ ] Add BLAST alignment examples
 - [ ] Improve API example notebooks
-- [ ] Expand README examples
+- [ ] Expand README examples as additional workflows are validated
+- [x] Document `.env` credential loading
+- [x] Document YAML workflow descriptors
 - [x] Add logging system
 
 ## Future Features
@@ -534,9 +541,13 @@ download_folder: /path/to/download/folder
 - [ ] Automatic caching and offline mode
 - [ ] Integration with external ML workflows
 
+## Contributing
+
+Issues and pull requests should keep the documented workflow surface aligned with implemented and tested behavior.
+
 ## License
 
-This project is licensed under the **MIT License**.
+This project is licensed under the **GNU General Public License v2 (GPLv2)**, matching the project metadata in `pyproject.toml`.
 
 ## Acknowledgements
 
