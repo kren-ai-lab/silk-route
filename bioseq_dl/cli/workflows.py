@@ -29,6 +29,12 @@ log = get_logger("bioseq_dl.cli.workflows")
 MODALITIES = ["protein", "compound", "interaction"]
 MODES = ["query_first", "query_composition"]
 FORMATS = list(USER_EXPORT_FORMATS)
+QUERY_COMPOSITION_LABEL_COLUMN = "_label"
+PRIMARY_RESULT_LABELS = {
+    "protein": "uniprot",
+    "compound": "chembl",
+    "interaction": "data",
+}
 
 REQUIRED_DESCRIPTOR_SECTIONS = {"dataset", "query", "execution", "export"}
 CORE_DESCRIPTOR_SECTIONS = REQUIRED_DESCRIPTOR_SECTIONS | {
@@ -842,6 +848,76 @@ def count_unique_sequences(data: object, sequence_column: Optional[str]) -> Opti
     return len(set(sequence_values))
 
 
+def is_count_like_reporting_map(value: dict) -> bool:
+    """Return whether a nested reporting map can be filled with counts."""
+    if not value:
+        return False
+    return all(
+        item is None or (isinstance(item, (int, float)) and not isinstance(item, bool))
+        for item in value.values()
+    )
+
+
+def get_exported_result_labels(output_infos: list[dict]) -> set[str]:
+    """Return result labels that were exported with the query-composition label column."""
+    return {
+        str(info["label"])
+        for info in output_infos
+        if info.get("category") == "result"
+        and info.get("label") is not None
+        and QUERY_COMPOSITION_LABEL_COLUMN in info.get("column_names", [])
+    }
+
+
+def count_query_composition_labels(
+    workflow_values: dict,
+    data: object,
+    output_infos: list[dict],
+) -> dict[str, int]:
+    """Return row counts by query-composition label from the main exported result."""
+    if workflow_values.get("mode") != "query_composition" or not isinstance(data, dict):
+        return {}
+
+    exported_result_labels = get_exported_result_labels(output_infos)
+    if not exported_result_labels:
+        return {}
+
+    primary_label = PRIMARY_RESULT_LABELS.get(str(workflow_values.get("modality")))
+    label_order = [primary_label] if primary_label else []
+    label_order.extend(label for label in data if label != primary_label)
+
+    for label in label_order:
+        if not label or label not in exported_result_labels:
+            continue
+        content = data.get(label)
+        if isinstance(content, pd.DataFrame) and QUERY_COMPOSITION_LABEL_COLUMN in content.columns:
+            counts = content[QUERY_COMPOSITION_LABEL_COLUMN].dropna().astype(str).value_counts()
+            return {str(label_value): int(count) for label_value, count in counts.items()}
+
+    return {}
+
+
+def fill_nested_label_reporting(reporting: dict, label_counts: dict[str, int]) -> dict:
+    """Fill nested reporting dictionaries with query-composition label counts."""
+    if not label_counts:
+        return reporting
+
+    filled_reporting = dict(reporting)
+    label_names = set(label_counts)
+    for key, value in reporting.items():
+        if not isinstance(value, dict):
+            continue
+        if not is_count_like_reporting_map(value):
+            continue
+        if not label_names.intersection(str(label_key) for label_key in value):
+            continue
+        filled_reporting[key] = {
+            label_key: int(label_counts.get(str(label_key), 0))
+            for label_key in value
+        }
+    return filled_reporting
+
+
 def calculate_reporting_metrics(
     workflow_values: dict,
     data: object,
@@ -864,6 +940,9 @@ def calculate_reporting_metrics(
     unique_sequences = count_unique_sequences(data, sequence_column)
     if unique_sequences is not None:
         reporting["unique_sequences"] = unique_sequences
+
+    label_counts = count_query_composition_labels(workflow_values, data, output_infos)
+    reporting = fill_nested_label_reporting(reporting, label_counts)
 
     return reporting
 
