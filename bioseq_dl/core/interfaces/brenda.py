@@ -1,17 +1,17 @@
-import os
-from typing import Optional, List, Any, Union
 import hashlib
+import os
+from typing import Any
+
 from zeep import Client
 from zeep.helpers import serialize_object
 
+from bioseq_dl.constants.brenda import METHODS as BRENDA_METHODS
+from bioseq_dl.constants.databases import BRENDA
+from bioseq_dl.core.credentials import is_valid_secret, load_environment_files, resolve_secret
+from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
+from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
-from ...constants.databases import BRENDA
-from ...constants.brenda import METHODS as BRENDA_METHODS
-from ..utils.base_auxiliary_methods import validate_parameters
-from bioseq_dl.core.credentials import load_environment_files, resolve_secret, is_valid_secret
-
-from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.interfaces.brenda")
 
@@ -24,27 +24,29 @@ BRENDA_PASSWORD_ENV_VARS = (
     "BRENDA_PASSWORD",
 )
 
+
 # For aditional implementations see: https://www.brenda-enzymes.org/soap.php
 class BrendaInterface(BaseAPIInterface):
     API_NAME = "BRENDA"
     METHODS = BRENDA_METHODS
 
     def __init__(
-            self, 
-            email: Optional[str] = None, 
-            password: Optional[str] = None,
-            cache_dir: Optional[str] = None,
-            config_dir: Optional[str] = None,
-            **kwargs
-        ):
-        """
-        Initialize the BrendaInstance.
+        self,
+        email: str | None = None,
+        password: str | None = None,
+        cache_dir: str | None = None,
+        config_dir: str | None = None,
+        **kwargs,
+    ):
+        """Initialize the BrendaInstance.
+
         Args:
             email (str): Email address for BRENDA API.
             password (str): Password for BRENDA API.
             cache_dir (str): Directory to cache results.
             config_dir (str): Directory for configuration files.
             output_dir (str): Directory to save output files.
+
         """
         if cache_dir:
             cache_dir = os.path.abspath(cache_dir)
@@ -60,45 +62,43 @@ class BrendaInterface(BaseAPIInterface):
 
         self.email = resolve_secret(email, BRENDA_EMAIL_ENV_VARS)
         raw_password = resolve_secret(password, BRENDA_PASSWORD_ENV_VARS)
-        self.password = (
-            hashlib.sha256(raw_password.encode("utf-8")).hexdigest()
-            if raw_password
-            else None
-        )
+        self.password = hashlib.sha256(raw_password.encode("utf-8")).hexdigest() if raw_password else None
         self.client = Client(BRENDA.API_URL)
 
-
     def show_all_methods(self):
-        print("Available methods:")
+        # Deliberate stdout helper for interactive inspection of available SOAP methods.
+        print("Available methods:")  # noqa: T201
         for service in self.client.wsdl.services.values():
             for port in service.ports.values():
                 for method_name in port.binding._methods.keys():
-                    print(f"- {method_name}")
-    
-    def fetch(self, query: Union[str, dict, list], *, method: str = "getKmValue", **kwargs):
-        """
-        Fetch data from BRENDA for a given EC number and organism.
+                    print(f"- {method_name}")  # noqa: T201
+
+    def fetch(self, query: str | dict | list, *, method: str = "getKmValue", **kwargs):
+        """Fetch data from BRENDA for a given EC number and organism.
+
         Args:
             query (dict): Query parameters to filter the results.
                 - `ecNumber`: Enzyme Commission number (e.g., '1.1.1.1').
                 - `organism`: Organism name (e.g., 'Escherichia coli').
             method (str): Name of the method to perform (e.g., 'getKmValue').
+
         Returns:
             list: List of results from the BRENDA API.
+
         """
         if method not in self.METHODS.keys():
-            print(f"method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+            log.error(f"method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
             return []
         if not isinstance(query, dict):
-            print("Query must be a dictionary with keys matching the method parameters.")
+            log.error("Query must be a dictionary with keys matching the method parameters.")
             return []
-        
+
         if not is_valid_secret(self.email) or self.password is None:
             raise ValueError(
                 "Missing BRENDA credentials. Set BIOSEQ_DL_BRENDA_EMAIL and "
                 "BIOSEQ_DL_BRENDA_PASSWORD or pass them explicitly."
             )
-        
+
         _, _, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, **kwargs)
 
         # Validate and clean parameters
@@ -117,78 +117,86 @@ class BrendaInterface(BaseAPIInterface):
 
             # Add credentials
             parameters = [self.email, self.password] + param_list
-            
+
             func = getattr(self.client.service, method)
             result = serialize_object(func(*parameters))
             result = [dict(entry) for entry in result] if isinstance(result, list) else dict(result)
 
             self._delay()
 
-
             results.extend(result if isinstance(result, list) else [result])
-        
+
         except Exception as e:
-            print(f"Error fetching data for {method} with parameters {query}: {e}")
+            log.error(f"Error fetching data for {method} with parameters {query}: {e}")
             return []
-        
+
         return results
 
-    
-    def get_methods(self) -> List[str]:
-        """
-        Get the list of available methods.
+    def get_methods(self) -> list[str]:
+        """Get the list of available methods.
+
         Returns:
             List[str]: List of method names.
+
         """
         return list(self.METHODS.keys())
 
     def query_usage(self) -> str:
-        """
-        Get the usage of the BRENDA API.
+        """Get the usage of the BRENDA API.
+
         Returns:
             str: Usage information.
+
         """
-        usage = """Usage: To fetch data from BRENDA, use the following parameters.
+        usage = (
+            """Usage: To fetch data from BRENDA, use the following parameters.
         Example:
             - fetch(query={}, methods=["getKmValue", "getIc50Value"])
-        Available methods: """ + ", ".join(self.METHODS.keys()) + "\n\n"
+        Available methods: """
+            + ", ".join(self.METHODS.keys())
+            + "\n\n"
+        )
         usage += "For more information about each method, please refer to the BRENDA documentation."
         usage += "\nOr use `show_method({method_name})` to see the parameters required for each method."
         return usage
-    
-    
+
     def show_method(self, method_name: str) -> str:
-        """
-        Show the parameters required for a specific method.
+        """Show the parameters required for a specific method.
+
         Args:
             method_name (str): Name of the method.
+
         Returns:
             str: Parameters required for the method.
+
         """
         if method_name not in self.METHODS.keys():
             return f"method {method_name} is not supported."
 
         params = self.METHODS[method_name]
         return f"Parameters for {method_name}: {', '.join(params)}"
-    
-    def parse(self, data: Any, fields_to_extract: Optional[Union[list, dict]], **kwargs):
-        """
-        Parse the response from the BioGRID API.
+
+    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs):
+        """Parse the response from the BioGRID API.
+
         Args:
             data (dict): The fetched data.
             fields_to_extract (List|Dict): Fields to keep from the original response.
                 - If List: Keep those keys.
                 - If Dict: Maps {desired_name: real_field_name}.
+
         Returns:
             any: Parsed data from the response.
+
         """
         if not data:
             log.warning("Tried to parse data but the data is empty or None.")
             return {}
 
         if not isinstance(data, (dict, list)):
-            log.error("Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object.")
+            log.error(
+                "Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object."
+            )
             return {}
 
         return self._extract_fields(data, fields_to_extract)
-    

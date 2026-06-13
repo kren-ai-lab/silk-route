@@ -1,0 +1,14 @@
+{
+  "count": 1,
+  "results": [
+    {
+      "id": "10000",
+      "equation": "pentanamide + H2O = pentanoate + NH4(+)",
+      "status": "approved",
+      "htmlequation": "<span class=\"participant\"><span class=\"stoichiometry\"> </span><a data-molid=\"chebi:16459\">pentanamide</a><span class=\"location\"> </span></span> + <span class=\"participant\"><span class=\"stoichiometry\"> </span><a data-molid=\"chebi:15377\">H<small><sub>2</sub></small>O</a><span class=\"location\"> </span></span> = <span class=\"participant\"><span class=\"stoichiometry\"> </span><a data-molid=\"chebi:31011\">pentanoate</a><span class=\"location\"> </span></span> + <span class=\"participant\"><span class=\"stoichiometry\"> </span><a data-molid=\"chebi:28938\">NH<small><sub>4</sub></small><small><sup>+</sup></small></a><span class=\"location\"> </span></span>",
+      "comment": "Published in:\nFriedich, C.G. and Mitrenga, G.\nUtilization of aliphatic amides and formation of two different amidases by <ital>Alcaligenes eutrophus</ital>.\n<ital>J. Gen. Microbiol.</ital> 125 (1981) 367\u2013374.",
+      "balanced": true,
+      "transport": false
+    }
+  ]
+}

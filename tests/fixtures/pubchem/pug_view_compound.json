@@ -1,0 +1,575 @@
+{
+  "Record": {
+    "RecordType": "CID",
+    "RecordNumber": 444444,
+    "RecordTitle": "CID 444444",
+    "Section": [
+      {
+        "TOCHeading": "Structures",
+        "Description": "Structure depictions of this compound, including computationally generated two-dimensional (2D) and three-dimensional (3D) structures, as well as experimentally determined 3D single-crystal structures.",
+        "Section": [
+          {
+            "TOCHeading": "2D Structure",
+            "Description": "A two-dimensional (2D) structure representation of the compound.  Because this structure is processed through chemical structure standardization (H\u00e4hnke et al., J. Cheminform. 2018, 10, 36), it is not necessarily the same as the structures provided by individual data contributors.  ",
+            "URL": "https://doi.org/10.1186/s13321-018-0293-8",
+            "DisplayControls": {
+              "MoveToTop": true
+            },
+            "Information": [
+              {
+                "ReferenceNumber": 1,
+                "Name": "2D Structure",
+                "Value": {
+                  "Boolean": [
+                    true
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "TOCHeading": "Names and Identifiers",
+        "Description": "Chemical names, synonyms, identifiers, and descriptors.",
+        "Section": [
+          {
+            "TOCHeading": "Computed Descriptors",
+            "Description": "Structural descriptors generated or computed for the structures of this compound, including the IUPAC name, InChI/InChIKey, and canonical/isomeric SMILES.",
+            "Section": [
+              {
+                "TOCHeading": "IUPAC Name",
+                "Description": "Chemical name of this compound, computed from its structure based on the International Union of Pure and Applied Chemistry (IUPAC) nomenclature standards.",
+                "URL": "https://iupac.org/what-we-do/nomenclature/",
+                "Information": [
+                  {
+                    "ReferenceNumber": 1,
+                    "Name": "IUPAC Name",
+                    "Value": {
+                      "StringWithMarkup": [
+                        {
+                          "String": "(2S)-2-[benzyl-[methyl(phenyl)phosphoryl]amino]-1-(hydroxyamino)-4-methylpentan-1-ol",
+                          "Markup": [
+                            {
+                              "Start": 2,
+                              "Length": 1,
+                              "Type": "Italics"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "TOCHeading": "InChI",
+                "Description": "The International Chemical Identifier (InChI) is a computed, non-proprietary identifier for a chemical structure.  The InChI is an International Union of Pure and Applied Chemistry (IUPAC) standard.",
+                "URL": "https://iupac.org/who-we-are/divisions/division-details/inchi/",
+                "Information": [
+                  {
+                    "ReferenceNumber": 1,
+                    "Name": "InChI",
+                    "Value": {
+                      "StringWithMarkup": [
+                        {
+                          "String": "InChI=1S/C20H29N2O3P/c1-16(2)14-19(20(23)21-24)22(15-17-10-6-4-7-11-17)26(3,25)18-12-8-5-9-13-18/h4-13,16,19-21,23-24H,14-15H2,1-3H3/t19-,20?,26?/m0/s1"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "TOCHeading": "InChIKey",
+                "Description": "An InChIKey is a 27-character hash code derived from an InChI.  The International Chemical Identifier (InChI) is a computed, non-proprietary identifier for a chemical structure.  The InChI is an International Union of Pure and Applied Chemistry (IUPAC) standard. ",
+                "URL": "https://iupac.org/who-we-are/divisions/division-details/inchi/",
+                "Information": [
+                  {
+                    "ReferenceNumber": 1,
+                    "Name": "InChIKey",
+                    "Value": {
+                      "StringWithMarkup": [
+                        {
+                          "String": "GEVPDOQUNVHKLH-KGDFEOOMSA-N"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "TOCHeading": "SMILES",
+                "Description": "The Simplified Molecular Input Line Entry System (SMILES) is a widely-used line notation for chemical structures. The SMILES in this section includes both sterochemical and isotopic information.",
+                "URL": "https://pubchem.ncbi.nlm.nih.gov/docs/glossary#section=SMILES",
+                "Information": [
+                  {
+                    "ReferenceNumber": 1,
+                    "Name": "SMILES",
+                    "Value": {
+                      "StringWithMarkup": [
+                        {
+                          "String": "CC(C)C[C@@H](C(NO)O)N(CC1=CC=CC=C1)P(=O)(C)C2=CC=CC=C2"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "TOCHeading": "Molecular Formula",
+            "Description": "A chemical formula is a way of expressing information about the proportions of atoms that constitute a particular chemical compound, using a single line of chemical element symbols and numbers. PubChem uses the Hill system, whereby the number of carbon atoms in a molecule is indicated first, the number of hydrogen atoms second, and then the number of all other chemical elements in alphabetical order. When the formula contains no carbon, all the elements, including hydrogen, are listed alphabetically. Sources other than PubChem may include a variant of the formula that is more structural or natural to chemists, for example, H2SO4 for sulfuric acid, rather than the Hill version H2O4S.",
+            "URL": "https://pubs.acs.org/doi/abs/10.1021/ja02046a005",
+            "DisplayControls": {
+              "MoveToTop": true
+            },
+            "Information": [
+              {
+                "ReferenceNumber": 1,
+                "Name": "Molecular Formula",
+                "Value": {
+                  "StringWithMarkup": [
+                    {
+                      "String": "C20H29N2O3P"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "TOCHeading": "Create Date",
+            "Description": "Date when this compound record was created. For more information on various dates for PubChem records, visit the PubChem Record Dates help page.",
+            "URL": "https://pubchem.ncbi.nlm.nih.gov/docs/record-dates",
+            "DisplayControls": {
+              "HideThisSection": true,
+              "MoveToTop": true
+            },
+            "Information": [
+              {
+                "ReferenceNumber": 1,
+                "Name": "Create Date",
+                "Value": {
+                  "DateISO8601": [
+                    "2005-06-24"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "TOCHeading": "Status",
+            "Description": "Status of this compound record. \"Non-live\" means this compound is not currently linked to any live substance. This could be because of (1) a substance being revoked by the original data depositor or (2) changes in the deposited structure of a substance or (3) changes in PubChem's chemical structure processing.",
+            "DisplayControls": {
+              "HideThisSection": true,
+              "MoveToTop": true
+            },
+            "Information": [
+              {
+                "ReferenceNumber": 1,
+                "Name": "Status",
+                "Value": {
+                  "StringWithMarkup": [
+                    {
+                      "String": "Non-live",
+                      "Markup": [
+                        {
+                          "Start": 0,
+                          "Length": 8,
+                          "Type": "Color",
+                          "Extra": "Red"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "TOCHeading": "Chemical and Physical Properties",
+        "Description": "Various chemical and physical properties that are experimentally determined for this compound.  See also the Safety and Hazard Properties section (if available), which has additional properties pertinent to chemical safety and hazards.",
+        "Section": [
+          {
+            "TOCHeading": "Computed Properties",
+            "Description": "Properties of this compound computed from its molecular formula and structure.",
+            "DisplayControls": {
+              "CreateTable": {
+                "FromInformationIn": "Subsections",
+                "NumberOfColumns": 3,
+                "ColumnHeadings": [
+                  "Property Name",
+                  "Property Value",
+                  "Reference"
+                ],
+                "ColumnContents": [
+                  "Name",
+                  "Value",
+                  "Reference"
+                ]
+              }
+            },
+            "Section": [
+              {
+                "TOCHeading": "Molecular Weight",
+                "Description": "Molecular weight or molecular mass refers to the mass of a molecule. It is calculated as the sum of the mass of each constituent atom multiplied by the number of atoms of that element in the molecular formula.  The molecular weight is also called the relative molar mass, because molecular weights are reported in daltons, which is defined relative to the mass of the isotope 12C (carbon 12).",
+                "URL": "https://www.degruyter.com/document/doi/10.1515/pac-2017-1002/html?lang=en",
+                "DisplayControls": {
+                  "MoveToTop": true
+                },
+                "Information": [
+                  {
+                    "ReferenceNumber": 1,
+                    "Name": "Molecular Weight",
+                    "Value": {
+                      "StringWithMarkup": [
+                        {
+                          "String": "376.4"
+                        }
+                      ],
+                      "Unit": "g/mol"
+                    }
+                  }
+                ]
+              },
+              {
+                "TOCHeading": "XLogP3",
+                "Description": "XLogP3 is a predicted octanol-water partition coefficient, computed using the algorithm described in J. Chem. Inf. Model. 2007, 47, 6, 2140-2148. It is used as a measure of hydrophilicity or hydrophobicity of a molecule.",
+                "URL": "https://pubmed.ncbi.nlm.nih.gov/17985865/",
+                "Information": [
+                  {
+                    "ReferenceNumber": 1,
+                    "Name": "XLogP3-AA",
+                    "Value": {
+                      "Number": [
+                        3
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "TOCHeading": "Hydrogen Bond Donor Count",
+                "Description": "The number of hydrogen bond donors in this compound.",
+                "Information": [
+                  {
+                    "ReferenceNumber": 1,
+                    "Name": "Hydrogen Bond Donor Count",
+                    "Value": {
+                      "Number": [
+                        3
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "TOCHeading": "Hydrogen Bond Acceptor Count",
+                "Description": "The number of hydrogen bond acceptors in this compound.",
+                "Information": [
+                  {
+                    "ReferenceNumber": 1,
+                    "Name": "Hydrogen Bond Acceptor Count",
+                    "Value": {
+                      "Number": [
+                        5
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "TOCHeading": "Rotatable Bond Count",
+                "Description": "A rotatable bond is defined as any single-order non-ring bond, where atoms on either side of the bond are in turn bound to nonterminal heavy (i.e., non-hydrogen) atoms. That is, where rotation around the bond axis changes the overall shape of the molecule, and generates conformers which can be distinguished by standard fast spectroscopic methods.",
+                "Information": [
+                  {
+                    "ReferenceNumber": 1,
+                    "Name": "Rotatable Bond Count",
+                    "Value": {
+                      "Number": [
+                        9
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "TOCHeading": "Exact Mass",
+                "Description": "The exact mass of an isotopic species is obtained by summing the masses of the individual isotopes of the molecule.",
+                "Information": [
+                  {
+                    "ReferenceNumber": 1,
+                    "Name": "Exact Mass",
+                    "Value": {
+                      "StringWithMarkup": [
+                        {
+                          "String": "376.19157979"
+                        }
+                      ],
+                      "Unit": "g/mol"
+                    }
+                  }
+                ]
+              },
+              {
+                "TOCHeading": "Monoisotopic Mass",
+                "Description": "The monoisotopic mass is the sum of the masses of the atoms in a molecule using the unbound, ground-state, rest mass of the principal (most abundant) isotope for each element instead of the isotopic average mass.",
+                "Information": [
+                  {
+                    "ReferenceNumber": 1,
+                    "Name": "Monoisotopic Mass",
+                    "Value": {
+                      "StringWithMarkup": [
+                        {
+                          "String": "376.19157979"
+                        }
+                      ],
+                      "Unit": "g/mol"
+                    }
+                  }
+                ]
+              },
+              {
+                "TOCHeading": "Topological Polar Surface Area",
+                "Description": "The topological polar surface area (TPSA) is an estimate of the polar surface area (in Angstroms^2) of a molecule, computed as the surface sum over polar atoms in the molecule.  The implementation follows the paper by Ertl et al. [J. Med. Chem. 2000, 43, 3714-3717]: only N and O are considered, 3D coordinates are not used, and there are various precomputed factors for different hybridizations, charges and participation in aromatic systems.",
+                "URL": "https://pubmed.ncbi.nlm.nih.gov/11020286/",
+                "Information": [
+                  {
+                    "ReferenceNumber": 1,
+                    "Name": "Topological Polar Surface Area",
+                    "Value": {
+                      "Number": [
+                        72.8
+                      ],
+                      "Unit": "A^2"
+                    }
+                  }
+                ]
+              },
+              {
+                "TOCHeading": "Heavy Atom Count",
+                "Description": "The number of heavy atoms (i.e., non-hydrogen atoms) in this compound.",
+                "Information": [
+                  {
+                    "ReferenceNumber": 1,
+                    "Name": "Heavy Atom Count",
+                    "Value": {
+                      "Number": [
+                        26
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "TOCHeading": "Formal Charge",
+                "Description": "Formal charge is the difference between the number of valence electrons of each atom and the number of electrons the atom is associated with. Formal charge assumes any shared electrons are equally shared between the two bonded atoms.",
+                "Information": [
+                  {
+                    "ReferenceNumber": 1,
+                    "Name": "Formal Charge",
+                    "Value": {
+                      "Number": [
+                        0
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "TOCHeading": "Complexity",
+                "Description": "The complexity rating of a compound is a rough estimate of how complicated a structure is, seen from both the point of view of the elements contained and the displayed structural features including symmetry. This complexity rating is computed using the Bertz/Hendrickson/Ihlenfeldt formula.",
+                "URL": "https://pubchem.ncbi.nlm.nih.gov/docs/glossary#section=Complexity",
+                "Information": [
+                  {
+                    "ReferenceNumber": 1,
+                    "Name": "Complexity",
+                    "Value": {
+                      "Number": [
+                        448
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "TOCHeading": "Isotope Atom Count",
+                "Description": "Isotope atom count is the number of isotopes that are not most abundant for the corresponding chemical elements.  Isotopes are variants of a chemical element which differ in neutron number.  For example, among three isotopes of carbon (i.e., C-12, C-13, and C-14), the isotope atom count considers the C-13 and C-14 atoms, because C-12 is the most abundant isotope of carbon.",
+                "Information": [
+                  {
+                    "ReferenceNumber": 1,
+                    "Name": "Isotope Atom Count",
+                    "Value": {
+                      "Number": [
+                        0
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "TOCHeading": "Defined Atom Stereocenter Count",
+                "Description": "An atom stereocenter, also known as a chiral center, is an atom that is attached to four different types of atoms (or groups of atoms) in the tetrahedral arrangement. It can have either (R)- or (S)- configurations.  Some compounds, such as racemic mixtures, have an undefined atom stereocenter, whose (R/S)-configuration is not specifically defined.  The \"defined atom stereocenter count\" is the number of atom stereocenters whose configurations are specifically defined.  ",
+                "Information": [
+                  {
+                    "ReferenceNumber": 1,
+                    "Name": "Defined Atom Stereocenter Count",
+                    "Value": {
+                      "Number": [
+                        1
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "TOCHeading": "Undefined Atom Stereocenter Count",
+                "Description": "The number of atom stereocenters whose configurations are not specifically defined.  For the definition of atom stereocenters, see the \"defined atom stereocenter count\" above.",
+                "Information": [
+                  {
+                    "ReferenceNumber": 1,
+                    "Name": "Undefined Atom Stereocenter Count",
+                    "Value": {
+                      "Number": [
+                        2
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "TOCHeading": "Defined Bond Stereocenter Count",
+                "Description": "A bond stereocenter is a non-rotatable bond around which two atoms can have different arrangement (as in cis- and trans-forms of butene around its double bond).  Some compounds have an undefined bond stereocenter, whose stereochemistry is not specifically defined.  The \"defined bond stereocenter count\" is the number of bond stereocenters whose configurations are specifically defined.  ",
+                "Information": [
+                  {
+                    "ReferenceNumber": 1,
+                    "Name": "Defined Bond Stereocenter Count",
+                    "Value": {
+                      "Number": [
+                        0
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "TOCHeading": "Undefined Bond Stereocenter Count",
+                "Description": "The number of bond stereocenters whose configurations are not specifically defined.  For the definition of bond stereocenters, see the \"defined bond stereocenter count\" above.",
+                "Information": [
+                  {
+                    "ReferenceNumber": 1,
+                    "Name": "Undefined Bond Stereocenter Count",
+                    "Value": {
+                      "Number": [
+                        0
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "TOCHeading": "Covalently-Bonded Unit Count",
+                "Description": "A covalently-bonded unit is a group of atoms connected by covalent bonds, ignoring other bond types (or a single atom without covalent bonds).  The \"covalently-bonded unit count\" property is the number of such units in this compound compound.",
+                "Information": [
+                  {
+                    "ReferenceNumber": 1,
+                    "Name": "Covalently-Bonded Unit Count",
+                    "Value": {
+                      "Number": [
+                        1
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "TOCHeading": "Compound Is Canonicalized",
+                "Description": "Whether the compound has successfully passed PubChem's valence bond canonicalization procedure. Some large, complex, or highly symmetric structures may fail this process.",
+                "Information": [
+                  {
+                    "ReferenceNumber": 1,
+                    "Name": "Compound Is Canonicalized",
+                    "Value": {
+                      "StringWithMarkup": [
+                        {
+                          "String": "Yes"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "TOCHeading": "Related Records",
+        "Description": "Records related to this compound.  This includes PubChem compound and substance records, as well as records in NCBI resources (e.g., PubMed, Gene, Protein Structure, and Taxonomy) and other databases external to NCBI.",
+        "Section": [
+          {
+            "TOCHeading": "Substances",
+            "Description": "Substance records associated with this record.  In PubChem, the term \"substance\" refers to depositor-provided data for a chemical..",
+            "URL": "https://pubchem.ncbi.nlm.nih.gov/docs/substances",
+            "Section": [
+              {
+                "TOCHeading": "Related Substances",
+                "Description": "Substance records related to this compound (e.g., the standardized chemical structures of these substances are the same as this compound or correspond to a mixture containing this compound as a component).",
+                "DisplayControls": {
+                  "CreateTable": {
+                    "FromInformationIn": "ThisSection",
+                    "NumberOfColumns": 2,
+                    "ColumnContents": [
+                      "Name",
+                      "Value"
+                    ]
+                  },
+                  "ShowAtMost": 1
+                },
+                "Information": [
+                  {
+                    "ReferenceNumber": 1,
+                    "Name": "Old substance",
+                    "URL": "https://pubchem.ncbi.nlm.nih.gov/substance/824814/version/1",
+                    "Value": {
+                      "StringWithMarkup": [
+                        {
+                          "String": "SID 824814 version 1"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "ReferenceNumber": 1,
+                    "Name": "Old substance",
+                    "URL": "https://pubchem.ncbi.nlm.nih.gov/substance/824814/version/2",
+                    "Value": {
+                      "StringWithMarkup": [
+                        {
+                          "String": "SID 824814 version 2"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "Reference": [
+      {
+        "ReferenceNumber": 1,
+        "SourceName": "PubChem",
+        "SourceID": "PubChem",
+        "Description": "Data deposited in or computed by PubChem",
+        "URL": "https://pubchem.ncbi.nlm.nih.gov"
+      }
+    ]
+  }
+}

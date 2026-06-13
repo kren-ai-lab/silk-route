@@ -1,3 +1,1 @@
-databases = [
-    "gene", "popset","protein"
-]
+databases = ["gene", "popset", "protein"]

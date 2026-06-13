@@ -4,36 +4,52 @@ build-backend = "hatchling.build"
 
 [project]
 name = "bioseqdownloader"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Tool to download and integrate biological data from multiple APIs (UniProt, AlphaFold, BioGRID, KEGG, etc.)"
 readme = "README.md"
+license = "GPL-3.0-only"
 authors = [{ name = "Kren AI Lab", email = "krenai@umag.cl" }]
-requires-python = ">=3.11,<4.0"
+requires-python = ">=3.11,<3.15"
 
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
-    "License :: OSI Approved :: GNU General Public License v2 (GPLv2)",
-    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
 
 dependencies = [
     "pandas",
     "pyarrow",
-    "fastparquet",
     "tqdm",
     "requests",
-    "rcsb-api",
     "biopython",
     "zeep",
     "python-dotenv",
     "pyyaml",
     "beautifulsoup4",
     "typer",
-    "gradio<6",
     "dicttoxml",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pyrefly>=0.64",
+    "ruff>=0.15",
+    "taskipy>=1.14",
+    "ty>=0.0.30",
+]
+tests = [
+    "pytest>=9.0",
+    "pytest-cov>=7.1",
+    "responses>=0.25",
 ]
 
 [project.scripts]
@@ -44,5 +60,114 @@ bioseq-dl-init = "bioseq_dl.init_config:main_init"
 Homepage = "https://github.com/ProteinEngineering-PESB2/BioSeqDownloader"
 Issues = "https://github.com/ProteinEngineering-PESB2/BioSeqDownloader/issues"
 
+[tool.hatch.version]
+path = "bioseq_dl/__init__.py"
+pattern = '__version__ = "(?P<version>[^"]+)"'
+
 [tool.hatch.build.targets.wheel]
 packages = ["bioseq_dl"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+extend-exclude = ["*.ipynb"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    # --- Group defaults (shared with roxy/sylphy) ---
+    "COM812",
+    "D203",
+    "D213",
+    "N802",
+    "N803",
+    "N806",
+    "PLR0913",
+
+    # --- Transitional: legacy style/docs/typing, not enforced yet ---
+    # Documentation (no docstrings on legacy code yet)
+    "D100", "D101", "D102", "D103", "D104", "D105", "D107",
+    "D200", "D205", "D400", "D401", "D404", "D415", "D417", "D301",
+    # Type annotations (legacy code is largely unannotated)
+    "ANN001", "ANN002", "ANN003", "ANN201", "ANN202", "ANN204", "ANN401",
+    # Logging string style (f-strings in log calls are pervasive and acceptable here)
+    "G003", "G004",
+    # Exception message style
+    "EM101", "EM102", "TRY002", "TRY003", "TRY300", "TRY301", "TRY400",
+    # pathlib migration (deferred; os.path used throughout)
+    "PTH100", "PTH103", "PTH107", "PTH110", "PTH113", "PTH118", "PTH119",
+    "PTH122", "PTH123", "PTH207", "PTH208",
+    # Intentional relative imports within the package
+    "TID252",
+    # Simplifications (deferred; review individually later)
+    "SIM102", "SIM103", "SIM105", "SIM115", "SIM118", "SIM201",
+    # Boolean flags (common in this API surface; CLI also relies on them)
+    "FBT001", "FBT002",
+    # Unused args (interface-contract signatures)
+    "ARG001", "ARG002", "ARG005",
+    # TODO formatting / presence
+    "TD002", "TD003", "TD004", "FIX002",
+    # Misc legacy style
+    "A001", "A002", "E402", "E501", "ICN001", "N817", "PGH003", "PLC0206", "PLC0415",
+    "PLR1714", "RET503", "RET504", "RSE102", "RUF005", "RUF017", "RUF059", "SLF001",
+    "TC003", "UP007", "B905", "B007", "DTZ005", "DTZ006",
+    # Complexity / size (deferred to Phase 3 refactor)
+    "PLR0911", "PLR0915", "PLR2004",
+    # Simplification / perf suggestions (review individually later)
+    "PERF401", "PLW2901", "SIM101", "SIM108", "S110", "TRY004",
+    # Security rules that are noise in this context (cache hashing, jittered delays,
+    # trusted XML/URLs, explicit subprocess in dev tooling)
+    "S202", "S310", "S311", "S314", "S324", "S603", "S605", "S607", "S112",
+
+    # --- Transitional: REAL findings deferred to Phase 2/3 (remove as fixed) ---
+    "ERA001",   # commented-out code: hunt remaining blocks in cleanup
+    "BLE001",   # blind except: Phase 2 error-handling pass (core/exceptions.py)
+    "C901",     # complexity: Phase 3 (split base.py / fetch_single)
+    "PLR0912",  # too many branches: Phase 3
+    "B006",     # mutable default arg (crossref_enricher, alphafold)
+    "PD003",    # .isnull -> .isna (Phase 5 polars migration touches this)
+    "PLW0127",  # `data = data` no-op across ~13 interfaces (Phase 3 dedup)
+    "RUF012",   # mutable ClassVar default (Phase 3 base refactor)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"bioseq_dl/cli/*" = [
+    "B008",    # typer.Option() in function defaults is the intended pattern
+    "FBT001",  # bool flags are standard in CLI functions
+    "FBT002",
+    "FBT003",
+    "TC003",   # Path used at runtime by typer for type coercion
+    "T201",    # CLI commands print user-facing output
+]
+"bioseq_dl/init_config.py" = ["T201"]  # init script prints setup progress
+"tests/*" = [
+    "ANN",
+    "D",
+    "EM101",
+    "FBT003",
+    "PLC0415",
+    "PLR2004",
+    "PT011",
+    "PT017",
+    "S101",
+    "TRY003",
+]
+"examples/*" = [
+    "INP001",  # example scripts are intentionally standalone modules
+    "PLR2004", # small referential scripts can compare against literal sizes
+    "S101",    # lightweight runtime checks are fine in examples
+    "S603",    # subprocess usage is explicit in CLI examples
+    "T201",    # examples print result snippets by design
+]
+
+[tool.taskipy.tasks]
+sort-imports = "ruff check --fix --select I,F401 bioseq_dl/ tests/ examples/"
+format = "task sort-imports && ruff format bioseq_dl/ tests/ examples/"
+lint = "ruff check bioseq_dl/ tests/ examples/"
+lint-fix = "ruff check --fix bioseq_dl/ tests/ examples/"
+ty = "ty check bioseq_dl/ tests/"
+pyrefly = "pyrefly check bioseq_dl/ tests/"
+test = "pytest -q"
+test-v = "pytest -v"
+test-cov = "pytest --cov=bioseq_dl --cov-report=html"
+update-fixtures = "BIOSEQ_DL_CAPTURE=1 python -m tests._capture.capture"

@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 from pathlib import Path
-from typing import Optional, Union
+from typing import Union
 
 import pandas as pd
 from pandas.api.types import (
@@ -14,13 +14,12 @@ from pandas.api.types import (
     is_scalar,
 )
 
-
 PathLike = Union[str, Path]
 USER_EXPORT_FORMATS = ("csv", "json", "xml", "parquet")
 DATAFRAME_EXPORT_FORMAT_ERROR = "Unsupported export format 'dataframe'. Use 'csv' instead."
 
 
-def normalize_user_export_format(output_format: Optional[str]) -> Optional[str]:
+def normalize_user_export_format(output_format: str | None) -> str | None:
     """Normalize a user-facing export format."""
     if output_format is None:
         return None
@@ -33,7 +32,7 @@ def normalize_user_export_format(output_format: Optional[str]) -> Optional[str]:
     return None
 
 
-def normalize_export_format(output_format: Optional[str]) -> Optional[str]:
+def normalize_export_format(output_format: str | None) -> str | None:
     """Normalize an export format to a file format."""
     if output_format is None:
         return None
@@ -48,7 +47,7 @@ def normalize_export_format(output_format: Optional[str]) -> Optional[str]:
     return None
 
 
-def normalize_parse_format(output_format: Optional[str]) -> Optional[str]:
+def normalize_parse_format(output_format: str | None) -> str | None:
     """Normalize an export format to the parser format required upstream."""
     if output_format is None:
         return None
@@ -168,7 +167,7 @@ def prepare_dataframe_for_parquet(df: pd.DataFrame) -> pd.DataFrame:
 def export_dataframe(
     df: pd.DataFrame,
     output_path: PathLike,
-    output_format: Optional[str] = None,
+    output_format: str | None = None,
 ) -> Path:
     """Export a DataFrame to CSV, TSV, JSON, XML, or Parquet."""
     if not isinstance(df, pd.DataFrame):

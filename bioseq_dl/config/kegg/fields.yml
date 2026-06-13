@@ -1,5 +1,5 @@
 get:
-  entry: ENTRY 
+  entry: ENTRY
   name: NAME
   class: CLASS
   path_map: PATHWAY_MAP

@@ -1,0 +1,626 @@
+[
+  {
+    "Name": "eco00750",
+    "Title": "Vitamin B6 metabolism",
+    "Description": "Vitamin B6 metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco04122",
+    "Title": "Sulfur relay system",
+    "Description": "Sulfur relay system",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00410",
+    "Title": "beta-Alanine metabolism",
+    "Description": "beta-Alanine metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00310",
+    "Title": "Lysine degradation",
+    "Description": "Lysine degradation",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00360",
+    "Title": "Phenylalanine metabolism",
+    "Description": "Phenylalanine metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00621",
+    "Title": "Dioxin degradation",
+    "Description": "Dioxin degradation",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00622",
+    "Title": "Xylene degradation",
+    "Description": "Xylene degradation",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00190",
+    "Title": "Oxidative phosphorylation",
+    "Description": "Oxidative phosphorylation",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00363",
+    "Title": "Bisphenol degradation",
+    "Description": "Bisphenol degradation",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00561",
+    "Title": "Glycerolipid metabolism",
+    "Description": "Glycerolipid metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00592",
+    "Title": "alpha-Linolenic acid metabolism",
+    "Description": "alpha-Linolenic acid metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco03010",
+    "Title": "Ribosome",
+    "Description": "Ribosome",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00250",
+    "Title": "Alanine, aspartate and glutamate metabolism",
+    "Description": "Alanine, aspartate and glutamate metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00790",
+    "Title": "Folate biosynthesis",
+    "Description": "Folate biosynthesis",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00660",
+    "Title": "C5-Branched dibasic acid metabolism",
+    "Description": "C5-Branched dibasic acid metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00770",
+    "Title": "Pantothenate and CoA biosynthesis",
+    "Description": "Pantothenate and CoA biosynthesis",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00550",
+    "Title": "Peptidoglycan biosynthesis",
+    "Description": "Peptidoglycan biosynthesis",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00010",
+    "Title": "Glycolysis / Gluconeogenesis",
+    "Description": "Glycolysis / Gluconeogenesis",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00020",
+    "Title": "Citrate cycle (TCA cycle)",
+    "Description": "Citrate cycle (TCA cycle)",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00280",
+    "Title": "Valine, leucine and isoleucine degradation",
+    "Description": "Valine, leucine and isoleucine degradation",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00564",
+    "Title": "Glycerophospholipid metabolism",
+    "Description": "Glycerophospholipid metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00340",
+    "Title": "Histidine metabolism",
+    "Description": "Histidine metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00520",
+    "Title": "Amino sugar and nucleotide sugar metabolism",
+    "Description": "Amino sugar and nucleotide sugar metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00642",
+    "Title": "Ethylbenzene degradation",
+    "Description": "Ethylbenzene degradation",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00633",
+    "Title": "Nitrotoluene degradation",
+    "Description": "Nitrotoluene degradation",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00623",
+    "Title": "Toluene degradation",
+    "Description": "Toluene degradation",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00460",
+    "Title": "Cyanoamino acid metabolism",
+    "Description": "Cyanoamino acid metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00361",
+    "Title": "Chlorocyclohexane and chlorobenzene degradation",
+    "Description": "Chlorocyclohexane and chlorobenzene degradation",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00300",
+    "Title": "Lysine biosynthesis",
+    "Description": "Lysine biosynthesis",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco01120",
+    "Title": "Microbial metabolism in diverse environments",
+    "Description": "Microbial metabolism in diverse environments",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00071",
+    "Title": "Fatty acid metabolism",
+    "Description": "Fatty acid metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco02040",
+    "Title": "Flagellar assembly",
+    "Description": "Flagellar assembly",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00627",
+    "Title": "Aminobenzoate degradation",
+    "Description": "Aminobenzoate degradation",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00400",
+    "Title": "Phenylalanine, tyrosine and tryptophan biosynthesis",
+    "Description": "Phenylalanine, tyrosine and tryptophan biosynthesis",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00130",
+    "Title": "Ubiquinone and other terpenoid-quinone biosynthesis",
+    "Description": "Ubiquinone and other terpenoid-quinone biosynthesis",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00930",
+    "Title": "Caprolactam degradation",
+    "Description": "Caprolactam degradation",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00364",
+    "Title": "Fluorobenzoate degradation",
+    "Description": "Fluorobenzoate degradation",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00680",
+    "Title": "Methane metabolism",
+    "Description": "Methane metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco03060",
+    "Title": "Protein export",
+    "Description": "Protein export",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00670",
+    "Title": "One carbon pool by folate",
+    "Description": "One carbon pool by folate",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00040",
+    "Title": "Pentose and glucuronate interconversions",
+    "Description": "Pentose and glucuronate interconversions",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00471",
+    "Title": "D-Glutamine and D-glutamate metabolism",
+    "Description": "D-Glutamine and D-glutamate metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00760",
+    "Title": "Nicotinate and nicotinamide metabolism",
+    "Description": "Nicotinate and nicotinamide metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00053",
+    "Title": "Ascorbate and aldarate metabolism",
+    "Description": "Ascorbate and aldarate metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00860",
+    "Title": "Porphyrin and chlorophyll metabolism",
+    "Description": "Porphyrin and chlorophyll metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00061",
+    "Title": "Fatty acid biosynthesis",
+    "Description": "Fatty acid biosynthesis",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco03030",
+    "Title": "DNA replication",
+    "Description": "DNA replication",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco03440",
+    "Title": "Homologous recombination",
+    "Description": "Homologous recombination",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00380",
+    "Title": "Tryptophan metabolism",
+    "Description": "Tryptophan metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00401",
+    "Title": "Novobiocin biosynthesis",
+    "Description": "Novobiocin biosynthesis",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00590",
+    "Title": "Arachidonic acid metabolism",
+    "Description": "Arachidonic acid metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00523",
+    "Title": "Polyketide sugar unit biosynthesis",
+    "Description": "Polyketide sugar unit biosynthesis",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00260",
+    "Title": "Glycine, serine and threonine metabolism",
+    "Description": "Glycine, serine and threonine metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco01100",
+    "Title": "Metabolic pathways",
+    "Description": "Metabolic pathways",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco03018",
+    "Title": "RNA degradation",
+    "Description": "RNA degradation",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00620",
+    "Title": "Pyruvate metabolism",
+    "Description": "Pyruvate metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00650",
+    "Title": "Butanoate metabolism",
+    "Description": "Butanoate metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00330",
+    "Title": "Arginine and proline metabolism",
+    "Description": "Arginine and proline metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco03430",
+    "Title": "Mismatch repair",
+    "Description": "Mismatch repair",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00640",
+    "Title": "Propanoate metabolism",
+    "Description": "Propanoate metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00600",
+    "Title": "Sphingolipid metabolism",
+    "Description": "Sphingolipid metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00730",
+    "Title": "Thiamine metabolism",
+    "Description": "Thiamine metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00281",
+    "Title": "Geraniol degradation",
+    "Description": "Geraniol degradation",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00440",
+    "Title": "Phosphonate and phosphinate metabolism",
+    "Description": "Phosphonate and phosphinate metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00920",
+    "Title": "Sulfur metabolism",
+    "Description": "Sulfur metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00740",
+    "Title": "Riboflavin metabolism",
+    "Description": "Riboflavin metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00970",
+    "Title": "Aminoacyl-tRNA biosynthesis",
+    "Description": "Aminoacyl-tRNA biosynthesis",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00630",
+    "Title": "Glyoxylate and dicarboxylate metabolism",
+    "Description": "Glyoxylate and dicarboxylate metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00480",
+    "Title": "Glutathione metabolism",
+    "Description": "Glutathione metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco02030",
+    "Title": "Bacterial chemotaxis",
+    "Description": "Bacterial chemotaxis",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00511",
+    "Title": "Other glycan degradation",
+    "Description": "Other glycan degradation",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00362",
+    "Title": "Benzoate degradation",
+    "Description": "Benzoate degradation",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00625",
+    "Title": "Chloroalkane and chloroalkene degradation",
+    "Description": "Chloroalkane and chloroalkene degradation",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00051",
+    "Title": "Fructose and mannose metabolism",
+    "Description": "Fructose and mannose metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco01053",
+    "Title": "Biosynthesis of siderophore group nonribosomal peptides",
+    "Description": "Biosynthesis of siderophore group nonribosomal peptides",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00785",
+    "Title": "Lipoic acid metabolism",
+    "Description": "Lipoic acid metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00521",
+    "Title": "Streptomycin biosynthesis",
+    "Description": "Streptomycin biosynthesis",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00450",
+    "Title": "Selenocompound metabolism",
+    "Description": "Selenocompound metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00562",
+    "Title": "Inositol phosphate metabolism",
+    "Description": "Inositol phosphate metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00030",
+    "Title": "Pentose phosphate pathway",
+    "Description": "Pentose phosphate pathway",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00290",
+    "Title": "Valine, leucine and isoleucine biosynthesis",
+    "Description": "Valine, leucine and isoleucine biosynthesis",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco02010",
+    "Title": "ABC transporters",
+    "Description": "ABC transporters",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00473",
+    "Title": "D-Alanine metabolism",
+    "Description": "D-Alanine metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00540",
+    "Title": "Lipopolysaccharide biosynthesis",
+    "Description": "Lipopolysaccharide biosynthesis",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco03070",
+    "Title": "Bacterial secretion system",
+    "Description": "Bacterial secretion system",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco02060",
+    "Title": "Phosphotransferase system (PTS)",
+    "Description": "Phosphotransferase system (PTS)",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco02020",
+    "Title": "Two-component system",
+    "Description": "Two-component system",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00500",
+    "Title": "Starch and sucrose metabolism",
+    "Description": "Starch and sucrose metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00052",
+    "Title": "Galactose metabolism",
+    "Description": "Galactose metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00350",
+    "Title": "Tyrosine metabolism",
+    "Description": "Tyrosine metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00430",
+    "Title": "Taurine and hypotaurine metabolism",
+    "Description": "Taurine and hypotaurine metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco03410",
+    "Title": "Base excision repair",
+    "Description": "Base excision repair",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco03420",
+    "Title": "Nucleotide excision repair",
+    "Description": "Nucleotide excision repair",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco03020",
+    "Title": "RNA polymerase",
+    "Description": "RNA polymerase",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00626",
+    "Title": "Naphthalene degradation",
+    "Description": "Naphthalene degradation",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00900",
+    "Title": "Terpenoid backbone biosynthesis",
+    "Description": "Terpenoid backbone biosynthesis",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00270",
+    "Title": "Cysteine and methionine metabolism",
+    "Description": "Cysteine and methionine metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00903",
+    "Title": "Limonene and pinene degradation",
+    "Description": "Limonene and pinene degradation",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00780",
+    "Title": "Biotin metabolism",
+    "Description": "Biotin metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco01110",
+    "Title": "Biosynthesis of secondary metabolites",
+    "Description": "Biosynthesis of secondary metabolites",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00240",
+    "Title": "Pyrimidine metabolism",
+    "Description": "Pyrimidine metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00910",
+    "Title": "Nitrogen metabolism",
+    "Description": "Nitrogen metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco00230",
+    "Title": "Purine metabolism",
+    "Description": "Purine metabolism",
+    "Source_Database": "KEGG"
+  },
+  {
+    "Name": "eco01040",
+    "Title": "Biosynthesis of unsaturated fatty acids",
+    "Description": "Biosynthesis of unsaturated fatty acids",
+    "Source_Database": "KEGG"
+  }
+]

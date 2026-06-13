@@ -3,7 +3,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from functools import partial
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any
+
 from bioseq_dl.constants.uniprot import XREF_MAPPING
 
 
@@ -17,8 +18,7 @@ def _remove_unknown_field_match(match: re.Match, allowed_fields: set[str]) -> st
 
 @dataclass(frozen=True)
 class MultiModeFieldConfig:
-    """
-    Generic configuration for a multimode field.
+    """Generic configuration for a multimode field.
 
     Attributes:
         field: The target/native field name used by the downstream service.
@@ -26,17 +26,19 @@ class MultiModeFieldConfig:
         supports_range: Whether the field accepts numeric ranges (low-high).
         quote_phrases: Whether multi-word phrases should be quoted when formatted.
         resolver_kind: Optional resolver hint for custom resolution logic in subclasses.
+
     """
+
     field: str
-    value_map: Dict[str, str]
+    value_map: dict[str, str]
     supports_range: bool
     quote_phrases: bool
-    resolver_kind: Optional[str]
+    resolver_kind: str | None
+
 
 @dataclass
 class QueryInterpreterConfig:
-    """
-    Generic interpreter configuration shared by concrete interpreters.
+    """Generic interpreter configuration shared by concrete interpreters.
 
     Attributes:
         fields: Mapping of friendly field name to MultiModeFieldConfig.
@@ -44,15 +46,17 @@ class QueryInterpreterConfig:
         ignored_fields: List of field prefixes that should be stripped by the base
                         interpreter because they may imply additional searches.
         extras: Place to keep implementation specific extra config values.
+
     """
-    fields: Dict[str, MultiModeFieldConfig]
-    field_aliases: Dict[str, str]
-    ignored_fields: List[str]
-    extras: Optional[Dict[str, Any]]
+
+    fields: dict[str, MultiModeFieldConfig]
+    field_aliases: dict[str, str]
+    ignored_fields: list[str]
+    extras: dict[str, Any] | None
+
 
 class BaseQueryInterpreter:
-    """
-    Base class for query interpreters.
+    """Base class for query interpreters.
 
     This class provides a set of small, reusable helpers that concrete
     interpreters (e.g. UniProt, ChEMBL) can use when implementing their
@@ -64,25 +68,20 @@ class BaseQueryInterpreter:
         self.config = config
 
     def interpret(self, query: str) -> str:
-        """
-        Interpret the given query string and return a transformed query string
+        """Interpret the given query string and return a transformed query string
         compatible with the target data source.
 
         Subclasses MUST implement this method.
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
-    def _resolve_item(self, prefix: str, value: str, cfg: Any) -> Tuple[str, str]:
-        """
-        Resolve an item value based on the resolver kind specified in the field config.
-        """
+    def _resolve_item(self, prefix: str, value: str, cfg: Any) -> tuple[str, str]:
+        """Resolve an item value based on the resolver kind specified in the field config."""
         raise NotImplementedError("Subclasses must implement this method.")
 
     # --- Generic helpers useful across interpreters ---
     def _resolve_query_items(self, text: str) -> str:
-        """
-        Process individual items in the query string based on field configurations.
-        """
+        """Process individual items in the query string based on field configurations."""
         if not text:
             return ""
 
@@ -90,7 +89,7 @@ class BaseQueryInterpreter:
         tokens = self._tokenize_query(text)
 
         # 2) Expand multimode tokens (commas / _any/_all/_not) into full expressions
-        expanded_tokens: List[str] = []
+        expanded_tokens: list[str] = []
         for tok in tokens:
             expanded = self._split_modes(tok)
             # If expansion produced something different, re-tokenize it so boolean ops are preserved
@@ -100,7 +99,7 @@ class BaseQueryInterpreter:
                 expanded_tokens.append(tok)
 
         # 3) Resolve each final token (field:value) according to config
-        resolved_final: List[str] = []
+        resolved_final: list[str] = []
         for item in expanded_tokens:
             if ":" not in item or item.upper() in {"AND", "OR", "NOT", "(", ")"}:
                 # operator or parenthesized expression without colon
@@ -111,7 +110,7 @@ class BaseQueryInterpreter:
             if not field_cfg:
                 resolved_final.append(item)
                 continue
-            
+
             prefix = self._format_prefix(prefix, field_cfg)
             formatted_value = self._format_value_for_field(value, field_cfg)
             if formatted_value:
@@ -126,14 +125,11 @@ class BaseQueryInterpreter:
         return " ".join(resolved_final)
 
     def _format_prefix(self, prefix: str, cfg: MultiModeFieldConfig) -> str:
-        """
-        Format a field prefix based on the field configuration.
-        """
+        """Format a field prefix based on the field configuration."""
         return cfg.field
-    
-    def _format_value_for_field(self, value: str, cfg: MultiModeFieldConfig) -> Optional[str]:
-        """
-        Format a value for a given field configuration, applying mapping,
+
+    def _format_value_for_field(self, value: str, cfg: MultiModeFieldConfig) -> str | None:
+        """Format a value for a given field configuration, applying mapping,
         range parsing, and quoting as needed.
         """
         # Check for numeric range
@@ -156,8 +152,7 @@ class BaseQueryInterpreter:
         return re.sub(r"\s+", " ", text or "").strip()
 
     def _split_modes(self, text: str) -> str:
-        """
-        Some fields will have multiple modes (e.g., 'any', 'all', 'not').
+        """Some fields will have multiple modes (e.g., 'any', 'all', 'not').
         This should be treated like this:
         - field_any:value1,value2  -> (value1 OR value2)
         - field_all:value1,value2  -> (value1 AND value2)
@@ -168,16 +163,16 @@ class BaseQueryInterpreter:
 
         # Allow optional _mode suffix; if absent, default to 'all'
         m = re.match(
-            r'^\s*(?P<prefix>[^:_\s]+)(?:_(?P<mode>any|all|not))?\s*:\s*(?P<values>.+)$',
+            r"^\s*(?P<prefix>[^:_\s]+)(?:_(?P<mode>any|all|not))?\s*:\s*(?P<values>.+)$",
             text,
             flags=re.IGNORECASE,
         )
         if not m:
             return text
 
-        base_field = m.group('prefix')
-        mode = (m.group('mode') or "all").lower()
-        values = m.group('values').strip()
+        base_field = m.group("prefix")
+        mode = (m.group("mode") or "all").lower()
+        values = m.group("values").strip()
 
         # Split by commas but respect quoted segments (single or double)
         parts = re.findall(r"(?:'[^']*'|\"[^\"]*\"|[^,]+)", values)
@@ -202,9 +197,8 @@ class BaseQueryInterpreter:
 
         return text
 
-    def _tokenize_query(self, text: str) -> List[str]:
-        """
-        Tokenize a query string into components, preserving quoted phrases,
+    def _tokenize_query(self, text: str) -> list[str]:
+        """Tokenize a query string into components, preserving quoted phrases,
         boolean operators (AND/OR/NOT) as separate tokens, and separating
         parentheses '(' and ')' into their own tokens.
         Returns a list of tokens.
@@ -217,7 +211,7 @@ class BaseQueryInterpreter:
             re.IGNORECASE,
         )
 
-        tokens: List[str] = []
+        tokens: list[str] = []
         for m in token_re.finditer(text):
             tok = m.group(0)
             # Normalize boolean operators to uppercase
@@ -226,7 +220,6 @@ class BaseQueryInterpreter:
             else:
                 tokens.append(tok)
         return tokens
-                    
 
         # Captura AND/OR/NOT, pares key:'value' (value puede tener espacios entre comillas) o cualquier otra palabra
         # pattern = re.compile(r"(\bAND\b|\bOR\b|\bNOT\b)|([^\s:]+:(?:'[^']*'|\"[^\"]*\"|[^\s]+))|(\S+)", re.IGNORECASE)
@@ -234,11 +227,9 @@ class BaseQueryInterpreter:
         # for m in pattern.finditer(text):
         #     tokens.append(m.group(1) or m.group(2) or m.group(3))
         # return tokens
-    
-    def _parse_numeric_range(self, value: str) -> Tuple[Optional[str], Optional[str]]:
-        """
-        Parse a numeric range expressed as 'low-high'. If invalid return (None, None).
-        """
+
+    def _parse_numeric_range(self, value: str) -> tuple[str | None, str | None]:
+        """Parse a numeric range expressed as 'low-high'. If invalid return (None, None)."""
         if not value or "-" not in value:
             return None, None
         parts = value.split("-", 1)
@@ -263,8 +254,7 @@ class BaseQueryInterpreter:
         return bool(re.search(r"\s", value or ""))
 
     def _expand_field_aliases(self, text: str) -> str:
-        """
-        Replace simple prefix aliases like 'taxon:' -> 'taxonomy_id:' based on
+        """Replace simple prefix aliases like 'taxon:' -> 'taxonomy_id:' based on
         configuration. This is a simple prefix substitution and does not try to
         fully parse boolean grammar.
         """
@@ -275,8 +265,7 @@ class BaseQueryInterpreter:
         return out
 
     def _remove_ignored_fields(self, text: str) -> str:
-        """
-        Remove ignored field macros from the query so they can be handled elsewhere.
+        """Remove ignored field macros from the query so they can be handled elsewhere.
         The base implementation strips the field tokens and attempts to keep
         boolean operators well-formed.
         If "ignore_all_fields" is set in extras, removes all fielded queries,
@@ -287,12 +276,12 @@ class BaseQueryInterpreter:
 
         for field_name in fields_to_ignore:
             pattern = re.compile(
-                rf"(\s*(?:AND|OR|NOT)\s+)?"                 # optional leading boolean
+                rf"(\s*(?:AND|OR|NOT)\s+)?"  # optional leading boolean
                 rf"\b{re.escape(field_name)}(?:_?(any|all|not))?:"
-                r"("                                       # start items capture
-                r"(?:\"[^\"]+\"|'[^']+')(?:\s*,\s*(?:\"[^\"]+\"|'[^']+'))*"        # quoted csv
+                r"("  # start items capture
+                r"(?:\"[^\"]+\"|'[^']+')(?:\s*,\s*(?:\"[^\"]+\"|'[^']+'))*"  # quoted csv
                 r"|"
-                r"[^\s()]+(?:\s*,\s*[^\s()]+)*"            # unquoted csv (no spaces)
+                r"[^\s()]+(?:\s*,\s*[^\s()]+)*"  # unquoted csv (no spaces)
                 r")",
                 flags=re.IGNORECASE,
             )
@@ -302,22 +291,21 @@ class BaseQueryInterpreter:
         out = re.sub(r"^\s*(AND|OR|NOT)\b\s*", "", out, flags=re.IGNORECASE)
         out = re.sub(r"\b(AND|OR|NOT)\s*$", "", out, flags=re.IGNORECASE)
         return out
-    
+
     def _remove_all_fields(self, text: str) -> str:
-        """
-        Remove all fielded queries from the text, except those explicitly
+        """Remove all fielded queries from the text, except those explicitly
         listed in the configuration fields.
         """
         out = text or ""
         allowed_fields = set(self.config.fields.keys())
 
         pattern = re.compile(
-            rf"(\s*(?:AND|OR|NOT)\s+)?"                 # optional leading boolean
-            rf"\b([a-zA-Z0-9_]+)(?:_?(any|all|not))?:"
-            r"("                                       # start items capture
-            r"(?:\"[^\"]+\"|'[^']+')(?:\s*,\s*(?:\"[^\"]+\"|'[^']+'))*"        # quoted csv
+            r"(\s*(?:AND|OR|NOT)\s+)?"  # optional leading boolean
+            r"\b([a-zA-Z0-9_]+)(?:_?(any|all|not))?:"
+            r"("  # start items capture
+            r"(?:\"[^\"]+\"|'[^']+')(?:\s*,\s*(?:\"[^\"]+\"|'[^']+'))*"  # quoted csv
             r"|"
-            r"[^\s()]+(?:\s*,\s*[^\s()]+)*"            # unquoted csv (no spaces)
+            r"[^\s()]+(?:\s*,\s*[^\s()]+)*"  # unquoted csv (no spaces)
             r")",
             flags=re.IGNORECASE,
         )
@@ -330,84 +318,85 @@ class BaseQueryInterpreter:
         out = re.sub(r"\b(AND|OR|NOT)\s*$", "", out, flags=re.IGNORECASE)
         return out
 
+
 @dataclass
 class UniProtInterpreterConfig(QueryInterpreterConfig):
-    """
-    Configuration for interpreting UniProt-related queries.
+    """Configuration for interpreting UniProt-related queries.
 
     Attributes:
         ph_field: The field name used for pH in UniProt queries.
+
     """
+
     ph_field: str
     temperature_field: str
 
+
 class UniProtQueryInterpreter(BaseQueryInterpreter):
-    """
-    Query interpreter for UniProt queries.
-    """
+    """Query interpreter for UniProt queries."""
+
     def __init__(self, config: UniProtInterpreterConfig) -> None:
         super().__init__(config)
 
     def _looks_like_go_id(self, text: str) -> bool:
-        """
-        Check if a string matches a 7-digit GO numeric ID.
-        """
+        """Check if a string matches a 7-digit GO numeric ID."""
         return bool(re.fullmatch(r"\d{7}", text.strip()))
 
-    def _resolve_item(self, prefix:str, value: str, cfg: Any) -> Tuple[str, str]:
-        """
-        Resolve an item value based on the field configuration.
+    def _resolve_item(self, prefix: str, value: str, cfg: Any) -> tuple[str, str]:
+        """Resolve an item value based on the field configuration.
+
         Args:
             item: The user-provided item value.
             cfg: The UniProtInterpreterConfig field configuration.
+
         Returns:
             The resolved item value.
+
         """
         if cfg.resolver_kind == "go_name_map":
             if self._looks_like_go_id(value):
                 return prefix, value
             # Asumes is a quoted phrase; remove quotes if present
             value = value.strip("'\"")
-            go_id = self.config.fields['go'].value_map.get(value.lower(), None)
+            go_id = self.config.fields["go"].value_map.get(value.lower(), None)
             if go_id:
                 return prefix, go_id
-            
+
         elif cfg.resolver_kind == "keyword_map":
             if "KW-" in value:
                 return prefix, value
             # Asumes is a quoted phrase; remove quotes if present
             value = value.strip("'\"")
-            keyword_id = self.config.fields['keywords'].value_map.get(value.lower(), None)
+            keyword_id = self.config.fields["keywords"].value_map.get(value.lower(), None)
             if keyword_id:
                 return prefix, keyword_id
-            
+
         elif cfg.resolver_kind == "organism_map":
             # Asumes is a quoted phrase; remove quotes if present
             value = value.strip("'\"")
-            tax_id = self.config.fields['organism'].value_map.get(value.lower(), None)
+            tax_id = self.config.fields["organism"].value_map.get(value.lower(), None)
             if tax_id:
                 return prefix, tax_id
-            
+
         elif cfg.resolver_kind == "database_map":
-            db_id = self.config.fields['databases'].value_map.get(value.lower(), None)
+            db_id = self.config.fields["databases"].value_map.get(value.lower(), None)
             if db_id:
                 return prefix, db_id
-            
+
         elif cfg.resolver_kind == "function_map":
-            func_id = self.config.fields['ec'].value_map.get(value.lower(), None)
+            func_id = self.config.fields["ec"].value_map.get(value.lower(), None)
             if func_id:
                 return prefix, func_id
-            
+
         elif cfg.resolver_kind == "length_transform":
             low, high = self._parse_numeric_range(value)
             if low is not None and high is not None:
                 return prefix, f"[{low} TO {high}]"
-            
+
         return prefix, value
 
     def interpret(self, query: str) -> str:
-        """
-        Interpret the given query string and return a transformed query string
+        """Interpret the given query string and return a transformed query string
         compatible with UniProt.
         """
         # Replace field aliases, for example 'taxon:' -> 'taxonomy_id:'
@@ -422,10 +411,9 @@ class UniProtQueryInterpreter(BaseQueryInterpreter):
         # Resolve item values as needed
         processed_query = self._resolve_query_items(processed_query)
         return processed_query
-    
-    def extract_databases(self, query: str) -> List[str]:
-        """
-        There are some special cases where a field implies an enrichment search
+
+    def extract_databases(self, query: str) -> list[str]:
+        """There are some special cases where a field implies an enrichment search
         For example, 'temperature' implies searching in brenda database using the
         endpoints "getTemperatureOptimum", "getTemperatureStability", "getTemperatureRange"
         This method should be used before interpreting the query to extract such databases.
@@ -433,7 +421,7 @@ class UniProtQueryInterpreter(BaseQueryInterpreter):
         processed_query = self._expand_field_aliases(query)
         processed_query = self._cleanup_whitespace(processed_query)
 
-        databases: List[str] = []
+        databases: list[str] = []
         tokens = self._tokenize_query(query)
         for tok in tokens:
             if ":" not in tok:
@@ -445,7 +433,9 @@ class UniProtQueryInterpreter(BaseQueryInterpreter):
 
             if prefix == "databases":
                 for database in value.split(","):
-                    _, resolved_db = self._resolve_item(prefix, database.strip(), self.config.fields["databases"])
+                    _, resolved_db = self._resolve_item(
+                        prefix, database.strip(), self.config.fields["databases"]
+                    )
                     if resolved_db:
                         databases.append(database.strip())
 
@@ -454,22 +444,21 @@ class UniProtQueryInterpreter(BaseQueryInterpreter):
                     [
                         "brenda_getTemperatureOptimum",
                         "brenda_getTemperatureStability",
-                        "brenda_getTemperatureRange"
+                        "brenda_getTemperatureRange",
                     ]
                 )
 
         return databases
-    
-    def extract_additional_searches(self, query: str) -> Dict[str, Any]:
-        """
-        Extract additional searches implied by certain fields in the query.
+
+    def extract_additional_searches(self, query: str) -> dict[str, Any]:
+        """Extract additional searches implied by certain fields in the query.
         For example, 'temperature' implies a brenda search.
         Returns a dictionary mapping search names to parameters.
         """
         processed_query = self._expand_field_aliases(query)
         processed_query = self._cleanup_whitespace(processed_query)
 
-        additional_searches: Dict[str, Any] = {}
+        additional_searches: dict[str, Any] = {}
         tokens = self._tokenize_query(query)
         for tok in tokens:
             if ":" not in tok:
@@ -482,18 +471,15 @@ class UniProtQueryInterpreter(BaseQueryInterpreter):
             if prefix == "temperature":
                 low, high = self._parse_numeric_range(value)
                 if low is not None and high is not None:
-                    additional_searches["brenda"] = {
-                        "temperature_range": (low, high)
-                    }
+                    additional_searches["brenda"] = {"temperature_range": (low, high)}
 
         return additional_searches
-             
+
+
 def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
-    """
-    Build a UniProtQueryInterpreter with default configuration.
-    """
+    """Build a UniProtQueryInterpreter with default configuration."""
     db_map = {db_name: db_name for _, (_, db_name) in XREF_MAPPING.items()}
-    db_map["alphafold"] = "alphafolddb" # Special case
+    db_map["alphafold"] = "alphafolddb"  # Special case
 
     # Small starter dictionary; extend over time from your users' queries.
     go_name_map = {
@@ -512,7 +498,7 @@ def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
         "atp binding": "KW-0067",
         "metal-binding": "KW-0479",
         "antiviral defense": "KW-0051",
-        "antiviral protein": "KW-0930"
+        "antiviral protein": "KW-0930",
     }
 
     function_map = {
@@ -522,7 +508,7 @@ def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
         "lyase": "4",
         "isomerase": "5",
         "ligase": "6",
-        "translocase": "7"
+        "translocase": "7",
     }
 
     taxonomy_id_map = {
@@ -532,7 +518,7 @@ def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
         "mouse": "10090",
         "escherichia coli": "562",
         "ecoli": "562",
-        "yeast": "4932"
+        "yeast": "4932",
     }
 
     fields = {
@@ -642,16 +628,15 @@ def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
 
     return UniProtQueryInterpreter(config=config)
 
+
 class ChEMBLQueryInterpreter(BaseQueryInterpreter):
-    """
-    Query interpreter for ChEMBL queries.
-    """
+    """Query interpreter for ChEMBL queries."""
+
     def __init__(self, config: Any) -> None:
         super().__init__(config)
 
-    def _resolve_item(self, prefix: str, value: str, cfg: Any) -> Tuple[str, str]:
-        """
-        Resolve an item value based on the field configuration.
+    def _resolve_item(self, prefix: str, value: str, cfg: Any) -> tuple[str, str]:
+        """Resolve an item value based on the field configuration.
         Currently, no special resolution is implemented for ChEMBL.
         """
         if cfg.resolver_kind == "ic50_transform":
@@ -661,20 +646,18 @@ class ChEMBLQueryInterpreter(BaseQueryInterpreter):
             if low is not None and high is not None:
                 return "", f"standard_type=IC50 AND standard_value>{low} AND standard_value<{high}"
             # 2) Comparison: >1000, <=50, etc.
-            elif m_comp:
+            if m_comp:
                 operator = m_comp.group(1)
                 number = m_comp.group(2)
                 return "", f"standard_type=IC50 AND standard_value{operator}{number}"
             # 3) Plain number
-            elif self._is_number(value):
+            if self._is_number(value):
                 return "", f"standard_type=IC50 AND standard_value={value.strip()}"
-        
 
         return prefix, value
 
     def interpret(self, query: str) -> str:
-        """
-        Interpret the given query string and return a transformed query string
+        """Interpret the given query string and return a transformed query string
         compatible with ChEMBL.
         """
         # Replace field aliases
@@ -689,17 +672,16 @@ class ChEMBLQueryInterpreter(BaseQueryInterpreter):
         # Resolve item values as needed
         processed_query = self._resolve_query_items(processed_query)
         return processed_query
-    
-    def extract_additional_searches(self, query: str) -> Dict[str, Any]:
-        """
-        Extract additional searches implied by certain fields in the query.
+
+    def extract_additional_searches(self, query: str) -> dict[str, Any]:
+        """Extract additional searches implied by certain fields in the query.
         For example, 'ic50' implies a ChEMBL search.
         Returns a dictionary mapping search names to parameters.
         """
         processed_query = self._expand_field_aliases(query)
         processed_query = self._cleanup_whitespace(processed_query)
 
-        additional_searches: Dict[str, Any] = {}
+        additional_searches: dict[str, Any] = {}
         tokens = self._tokenize_query(query)
         for tok in tokens:
             if ":" not in tok:
@@ -710,11 +692,10 @@ class ChEMBLQueryInterpreter(BaseQueryInterpreter):
                 additional_searches.setdefault("chembl", {})[prefix] = value.strip()
 
         return additional_searches
-    
+
+
 def build_default_chembl_interpreter() -> ChEMBLQueryInterpreter:
-    """
-    Build a ChEMBLQueryInterpreter with default configuration.
-    """
+    """Build a ChEMBLQueryInterpreter with default configuration."""
     fields = {
         "ic50": MultiModeFieldConfig(
             field="ic50",
@@ -743,9 +724,7 @@ def build_default_chembl_interpreter() -> ChEMBLQueryInterpreter:
         fields=fields,
         field_aliases={},
         ignored_fields=[],
-        extras={
-            "ignore_all_fields": True
-        },
+        extras={"ignore_all_fields": True},
     )
 
     return ChEMBLQueryInterpreter(config=config)

@@ -19,7 +19,6 @@ substructure:
   max_phase: max_phase
   molecule_chembl_id: molecule_chembl_id
   active_chembl_id: molecule_hierarchy.active_chembl_id
-  molecule_chembl_id: molecule_hierarchy.molecule_chembl_id
   parent_chembl_id: molecule_hierarchy.parent_chembl_id
   properties_alogp: molecule_properties.alogp
   properties_aromatic_rings: molecule_properties.aromatic_rings
@@ -72,7 +71,6 @@ molecule:
   max_phase: max_phase
   molecule_chembl_id: molecule_chembl_id
   active_chembl_id: molecule_hierarchy.active_chembl_id
-  molecule_chembl_id: molecule_hierarchy.molecule_chembl_id
   parent_chembl_id: molecule_hierarchy.parent_chembl_id
   properties_alogp: molecule_properties.alogp
   properties_aromatic_rings: molecule_properties.aromatic_rings
@@ -185,7 +183,7 @@ activity-search:
   standard_units: standard_units
   standard_upper_value: standard_upper_value
   standard_value: standard_value
-  target_chembl_id: target_chembl_id 
+  target_chembl_id: target_chembl_id
   target_organism: target_organism
   target_pref_name: target_pref_name
   target_tax_id: target_tax_id

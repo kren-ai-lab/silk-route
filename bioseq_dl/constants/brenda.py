@@ -13,7 +13,7 @@ METHODS = {
             "literature": (str, None, True),
         },
         "group_queries": [None],
-        "separator": None
+        "separator": None,
     },
     "getIc50Value": {
         "http_method": "GET",
@@ -29,7 +29,7 @@ METHODS = {
             "literature": (str, None, True),
         },
         "group_queries": [None],
-        "separator": None
+        "separator": None,
     },
     "getKcatKmValue": {
         "http_method": "GET",
@@ -45,7 +45,7 @@ METHODS = {
             "literature": (str, None, True),
         },
         "group_queries": [None],
-        "separator": None
+        "separator": None,
     },
     "getKiValue": {
         "http_method": "GET",
@@ -61,7 +61,7 @@ METHODS = {
             "literature": (str, None, True),
         },
         "group_queries": [None],
-        "separator": None
+        "separator": None,
     },
     "getPhRange": {
         "http_method": "GET",
@@ -75,7 +75,7 @@ METHODS = {
             "literature": (str, None, True),
         },
         "group_queries": [None],
-        "separator": None
+        "separator": None,
     },
     "getPhOptimum": {
         "http_method": "GET",
@@ -89,7 +89,7 @@ METHODS = {
             "literature": (str, None, True),
         },
         "group_queries": [None],
-        "separator": None
+        "separator": None,
     },
     "getPhStability": {
         "http_method": "GET",
@@ -103,7 +103,7 @@ METHODS = {
             "literature": (str, None, True),
         },
         "group_queries": [None],
-        "separator": None
+        "separator": None,
     },
     "getCofactor": {
         "http_method": "GET",
@@ -117,7 +117,7 @@ METHODS = {
             "literature": (str, None, True),
         },
         "group_queries": [None],
-        "separator": None
+        "separator": None,
     },
     "getTemperatureOptimum": {
         "http_method": "GET",
@@ -131,7 +131,7 @@ METHODS = {
             "literature": (str, None, True),
         },
         "group_queries": [None],
-        "separator": None
+        "separator": None,
     },
     "getTemperatureStability": {
         "http_method": "GET",
@@ -145,7 +145,7 @@ METHODS = {
             "literature": (str, None, True),
         },
         "group_queries": [None],
-        "separator": None
+        "separator": None,
     },
     "getTemperatureRange": {
         "http_method": "GET",
@@ -159,6 +159,6 @@ METHODS = {
             "literature": (str, None, True),
         },
         "group_queries": [None],
-        "separator": None
-    }
+        "separator": None,
+    },
 }

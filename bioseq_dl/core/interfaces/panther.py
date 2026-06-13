@@ -1,19 +1,18 @@
-import os, logging
-from typing import Union, List, Dict, Set, Optional
+import os
+
 from requests import Request
 from requests.exceptions import RequestException
 from requests.models import Response
 
-import pandas as pd
-
-from .base import BaseAPIInterface
 # Add the import for your database in constants
-from ...constants.databases import PANTHER
-from ..utils.base_auxiliary_methods import validate_parameters
-
+from bioseq_dl.constants.databases import PANTHER
+from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
 from bioseq_dl.logging import get_logger
 
+from .base import BaseAPIInterface
+
 log = get_logger("bioseq_dl.interfaces.panther")
+
 
 class PantherInterface(BaseAPIInterface):
     API_NAME = "PANTHER"
@@ -28,36 +27,25 @@ class PantherInterface(BaseAPIInterface):
                 "organism": (str, None, True),
             },
             "group_queries": ["geneInputList"],
-            "separator": ","
+            "separator": ",",
         },
         "familyortholog": {
             "http_method": "GET",
             "path_param": None,
-            "parameters": {
-                "family": (str, None, True),
-                "taxonFltr": (str, None, False) 
-            },
+            "parameters": {"family": (str, None, True), "taxonFltr": (str, None, False)},
             "group_queries": ["taxonFltr"],
-            "separator": ","
+            "separator": ",",
         },
         "familymsa": {
             "http_method": "GET",
             "path_param": None,
-            "parameters": {
-                "family": (str, None, True),
-                "taxonFltr": (str, None, False)
-            },
+            "parameters": {"family": (str, None, True), "taxonFltr": (str, None, False)},
             "group_queries": ["taxonFltr"],
-            "separator": ","
-        }
+            "separator": ",",
+        },
     }
 
-    def __init__(
-            self,  
-            cache_dir: Optional[str] = None,
-            config_dir: Optional[str] = None,
-            **kwargs
-        ):
+    def __init__(self, cache_dir: str | None = None, config_dir: str | None = None, **kwargs):
 
         if cache_dir:
             cache_dir = os.path.abspath(cache_dir)
@@ -69,14 +57,10 @@ class PantherInterface(BaseAPIInterface):
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
 
-    def fetch(
-            self, 
-            query: Union[str, dict, list], 
-            *, 
-            method: str = "geneinfo", 
-            **kwargs
-        ):
-        http_method, path_param, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, **kwargs)
+    def fetch(self, query: str | dict | list, *, method: str = "geneinfo", **kwargs):
+        http_method, path_param, parameters, inputs = self.initialize_method_parameters(
+            query, method, self.METHODS, **kwargs
+        )
 
         # Validate and clean parameters
         try:
@@ -84,18 +68,14 @@ class PantherInterface(BaseAPIInterface):
         except ValueError as e:
             log.error(f"Invalid parameters for method '{method}': {e}")
             return {}
-        
+
         url = f"{PANTHER.API_URL}{method}"
 
         if path_param:
             path_value = validated_params.pop(path_param)
             url += f"{path_value}"
-        
-        req = Request(
-            method=http_method,
-            url=url,
-            params=validated_params
-        )
+
+        req = Request(method=http_method, url=url, params=validated_params)
         prepared = self.session.prepare_request(req)
         log.debug(f"Prepared request: {prepared.url}")
 
@@ -122,12 +102,7 @@ class PantherInterface(BaseAPIInterface):
             log.error(f"Error fetching {query} for method '{method}': {e}")
             return {}
 
-    def parse(
-            self, 
-            data: Union[List, Dict],
-            fields_to_extract: Optional[Union[list, dict]],
-            **kwargs
-        ) -> Union[List, Dict]:
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
         if not data:
             log.warning("Tried to parse data but the data is empty or None.")
             return {}
@@ -137,12 +112,12 @@ class PantherInterface(BaseAPIInterface):
         elif isinstance(data, dict):
             data = data
         else:
-            log.error("Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object.")
+            log.error(
+                "Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object."
+            )
             return {}
-        
 
         return self._extract_fields(data, fields_to_extract)
-    
+
     def query_usage(self) -> str:
         return "Use Panther methods such as geneinfo, familyortholog, and familymsa with their supported query parameters."
-    

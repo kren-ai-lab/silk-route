@@ -4,12 +4,10 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Optional
 
 
 def _resolve_log_dir() -> Path:
-    """
-    Resolve the directory where log files will be written.
+    """Resolve the directory where log files will be written.
 
     Precedence
     ----------
@@ -24,6 +22,7 @@ def _resolve_log_dir() -> Path:
     try:
         # Optional: use project config if available
         from bioseq_dl.core import config  # type: ignore
+
         cfg = config.get_config()
         return Path(cfg.cache_paths.logs()).expanduser().resolve()
     except Exception:
@@ -33,8 +32,7 @@ def _resolve_log_dir() -> Path:
 
 
 class _LoggingManager:
-    """
-    Singleton-like manager that configures root logging once and
+    """Singleton-like manager that configures root logging once and
     exposes a small API for obtaining child loggers and adjusting settings.
 
     Key points
@@ -56,22 +54,22 @@ class _LoggingManager:
     def configure(
         self,
         *,
-        enable: Optional[bool] = None,
-        level: Optional[int] = None,
-        log_dir: Optional[os.PathLike[str] | str] = None,
-        fmt: Optional[str] = None,
-        datefmt: Optional[str] = None,
-        use_rotation: Optional[bool] = None,
-        filename: Optional[str] = None,
+        enable: bool | None = None,
+        level: int | None = None,
+        log_dir: os.PathLike[str] | str | None = None,
+        fmt: str | None = None,
+        datefmt: str | None = None,
+        use_rotation: bool | None = None,
+        filename: str | None = None,
     ) -> None:
-        """
-        Update the global logging configuration. Changes are applied lazily
+        """Update the global logging configuration. Changes are applied lazily
         (on the next logger access).
 
         Notes
         -----
         If `log_dir` is not provided, we re-resolve the directory so that any
         runtime change to BIOSEQ_DL_LOG_DIR is honored (useful for pytest fixtures).
+
         """
         if enable is not None:
             self._enable = bool(enable)
@@ -102,9 +100,7 @@ class _LoggingManager:
         self._configured = False
 
     def _build_handlers(self) -> list[logging.Handler]:
-        """
-        Build console + (optional) file handlers for the ROOT logger.
-        """
+        """Build console + (optional) file handlers for the ROOT logger."""
         formatter = logging.Formatter(self._fmt, self._datefmt)
 
         # Console handler
@@ -121,6 +117,7 @@ class _LoggingManager:
 
             if self._use_rotation:
                 from logging.handlers import TimedRotatingFileHandler
+
                 fh = TimedRotatingFileHandler(
                     filename=str(log_path),
                     when="D",
@@ -148,9 +145,7 @@ class _LoggingManager:
         return handlers
 
     def _install_root_handlers(self) -> None:
-        """
-        (Re)install handlers on the ROOT logger exactly once per configuration.
-        """
+        """(Re)install handlers on the ROOT logger exactly once per configuration."""
         root = logging.getLogger()
         root.handlers.clear()
 
@@ -171,13 +166,12 @@ class _LoggingManager:
 
     # ---------------- Public API ----------------
 
-    def get_logger(self, name: Optional[str] = None) -> logging.Logger:
-        """
-        Return a logger. Child loggers PROPAGATE so their messages reach
+    def get_logger(self, name: str | None = None) -> logging.Logger:
+        """Return a logger. Child loggers PROPAGATE so their messages reach
         the root handlers configured here.
         """
         self._ensure_configured()
-        logger = logging.getLogger(name if name else "")
+        logger = logging.getLogger(name or "")
         logger.disabled = not self._enable
         logger.setLevel(self._level)
         logger.propagate = True  # <-- critical: let messages reach root handlers
@@ -199,17 +193,15 @@ _manager = _LoggingManager()
 
 def configure_logging(
     *,
-    enable: Optional[bool] = None,
-    level: Optional[int] = None,
-    log_dir: Optional[os.PathLike[str] | str] = None,
-    fmt: Optional[str] = None,
-    datefmt: Optional[str] = None,
-    use_rotation: Optional[bool] = None,
-    filename: Optional[str] = None,
+    enable: bool | None = None,
+    level: int | None = None,
+    log_dir: os.PathLike[str] | str | None = None,
+    fmt: str | None = None,
+    datefmt: str | None = None,
+    use_rotation: bool | None = None,
+    filename: str | None = None,
 ) -> None:
-    """
-    Configure bioseq_dl logging once at program start (optional).
-    """
+    """Configure bioseq_dl logging once at program start (optional)."""
     # Deactivate zeep and urllib3 logging by default
     logging.getLogger("zeep").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
@@ -224,13 +216,12 @@ def configure_logging(
     )
 
 
-def get_logger(name: Optional[str] = None) -> logging.Logger:
-    """
-    Return a logger for the current module/class.
+def get_logger(name: str | None = None) -> logging.Logger:
+    """Return a logger for the current module/class.
     Children should keep level=NOTSET to inherit the root's effective level.
     """
     _manager._ensure_configured()
-    logger = logging.getLogger(name if name else "")
+    logger = logging.getLogger(name or "")
     logger.disabled = not _manager._enable
     logger.setLevel(logging.NOTSET)  # <-- inherit from root
     logger.propagate = True

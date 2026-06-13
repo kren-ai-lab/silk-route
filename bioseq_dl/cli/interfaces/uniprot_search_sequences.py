@@ -1,15 +1,14 @@
-import os
-import typer
-import shutil
-import logging
 import json
+import logging
+import os
+import shutil
 from typing import Literal, cast
 
 import pandas as pd
+import typer
 
-from bioseq_dl.constants.databases import BASE_BLAST_DB_DIR as DB_DIR
-from bioseq_dl.constants.uniprot import DATABASES, VALID_FIELDS, VALID_CROSS_REF_FIELDS, XREF_MAPPING
 from bioseq_dl import UniprotInterface
+from bioseq_dl.constants.uniprot import DATABASES, VALID_FIELDS, XREF_MAPPING
 from bioseq_dl.core.export import (
     USER_EXPORT_FORMATS,
     export_dataframe,
@@ -17,81 +16,67 @@ from bioseq_dl.core.export import (
     normalize_parse_format,
     normalize_user_export_format,
 )
-
 from bioseq_dl.core.utils.blast_search import (
-    download_uniprot_database,
     check_blast,
+    download_uniprot_database,
     make_blast_database,
+    parse_blast_results,
     run_blast,
-    parse_blast_results
 )
-from bioseq_dl.logging import configure_logging
 from bioseq_dl.core.utils.crossref_enrichment import run_crossref_enrichment
-
-from bioseq_dl.logging import get_logger
+from bioseq_dl.logging import configure_logging, get_logger
 
 log = get_logger("bioseq_dl.cli.uniprot_search_sequences")
 
-app = typer.Typer(help="Run BLAST alignment on sequences and [optionaly] download matching sequences from UniProt.")
+app = typer.Typer(
+    help="Run BLAST alignment on sequences and [optionaly] download matching sequences from UniProt."
+)
+
 
 @app.command()
 def run(
     database: str = typer.Option(
-        ..., "--database", "-d",
-        help="Database to download. Supported databases: " + ", ".join(DATABASES.keys())
+        ...,
+        "--database",
+        "-d",
+        help="Database to download. Supported databases: " + ", ".join(DATABASES.keys()),
     ),
     extension: str = typer.Option(
-        "fasta", "--extension", "-e",
-        help="File extension of the database. Default is 'fasta'."
+        "fasta", "--extension", "-e", help="File extension of the database. Default is 'fasta'."
     ),
-    input: str = typer.Option(
-        ..., "--input", "-i",
-        help="File with sequences to run BLAST on."
-    ),
-    seq_column: str = typer.Option(
-        "sequences", "--seq-column", "-c",
-        help="Column name with sequences."
-    ),
-    output: str = typer.Option(
-        ..., "-o", "--output", 
-        help="Output directory for results"
-    ),
-    evalue: float = typer.Option(
-        0.001, "--evalue", "-v",
-        help="E-value threshold for BLAST search."
-    ),
+    input: str = typer.Option(..., "--input", "-i", help="File with sequences to run BLAST on."),
+    seq_column: str = typer.Option("sequences", "--seq-column", "-c", help="Column name with sequences."),
+    output: str = typer.Option(..., "-o", "--output", help="Output directory for results"),
+    evalue: float = typer.Option(0.001, "--evalue", "-v", help="E-value threshold for BLAST search."),
     blast_type: str = typer.Option(
-        "blastp", "--blast-type", "-b",
-        help="Type of BLAST to run. Default is 'blastp'."
+        "blastp", "--blast-type", "-b", help="Type of BLAST to run. Default is 'blastp'."
     ),
     no_download: bool = typer.Option(
-        False, "--no-download", "-u",
-        help="If set, will not download information from UniProt after BLAST."
-    ),  
+        False, "--no-download", "-u", help="If set, will not download information from UniProt after BLAST."
+    ),
     fields: str = typer.Option(
-        ",".join(VALID_FIELDS), "-f", "--fields", 
-        help="Fields to include in the output"
+        ",".join(VALID_FIELDS), "-f", "--fields", help="Fields to include in the output"
     ),
     crossref_fields: str = typer.Option(
-        "", "-xr", "--crossref_fields", 
-        help="Cross reference fields to include in the output, options: " + ", ".join([xref[1] for xref in XREF_MAPPING.values()])
+        "",
+        "-xr",
+        "--crossref_fields",
+        help="Cross reference fields to include in the output, options: "
+        + ", ".join([xref[1] for xref in XREF_MAPPING.values()]),
     ),
     min_identity: float = typer.Option(
-        90.0, "--min_identity", 
-        help="Minimum identity threshold for BLAST search."
+        90.0, "--min_identity", help="Minimum identity threshold for BLAST search."
     ),
     min_coverage: float = typer.Option(
-        0.0, "--min_coverage", 
-        help="Minimum coverage threshold for BLAST search."
+        0.0, "--min_coverage", help="Minimum coverage threshold for BLAST search."
     ),
-    debug: bool = typer.Option(
-        False, "--debug",
-        help="Enable debug logging"
-    ),
+    debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
     export_format: str = typer.Option(
-        "csv", "-ef", "--export_format",
+        "csv",
+        "-ef",
+        "--export_format",
         help="Export format: csv, json, xml, parquet. Default is csv.",
-    )
+    ),
 ):
     logger = log
     raw_export_format = export_format
@@ -103,12 +88,14 @@ def run(
             )
     except ValueError as e:
         typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
 
     try:
         if debug:
             configure_logging(level=logging.DEBUG)
-            logger = get_logger("bioseq_dl.cli.uniprot_search_query")  # re-fetch so root handlers pick new level
+            logger = get_logger(
+                "bioseq_dl.cli.uniprot_search_query"
+            )  # re-fetch so root handlers pick new level
             logger.debug("Debug logging enabled")
     except Exception as e:
         logger.warning(f"Could not configure logging: {e}")
@@ -174,15 +161,12 @@ def run(
         metadata = {}
         log.info("Downloading additional UniProt data...")
         instance = UniprotInterface()
-        logger.debug(f"Downloading data using blast results\nfields {fields}\ncrossref_fields {crossref_fields}\n")
+        logger.debug(
+            f"Downloading data using blast results\nfields {fields}\ncrossref_fields {crossref_fields}\n"
+        )
 
         response, fetch_metadata = instance.download_batch(
-            df_blast, 
-            "accession", 
-            True, 
-            "UniProtKB_AC-ID", 
-            "UniProtKB", 
-            5000
+            df_blast, "accession", True, "UniProtKB_AC-ID", "UniProtKB", 5000
         )
         metadata["fetch"] = fetch_metadata
 
@@ -195,7 +179,7 @@ def run(
         export_data, parsed_metadata = instance.parse(
             results=response,
             extract_fields=None,
-            format=cast(Literal["json", "dataframe", "xml"], parse_format)
+            format=cast("Literal['json', 'dataframe', 'xml']", parse_format),
         )
         metadata["parsing"] = parsed_metadata
 
@@ -203,12 +187,11 @@ def run(
         if crossref_fields:
             logger.info("Running cross-reference enrichment...")
             enriched_data, enriched_metadata = run_crossref_enrichment(
-                export_data, 
-                crossref_fields.split(","), 
-                format=cast(Literal["json", "dataframe", "xml"], parse_format)
+                export_data,
+                crossref_fields.split(","),
+                format=cast("Literal['json', 'dataframe', 'xml']", parse_format),
             )
             metadata["enrichment"] = enriched_metadata
-
 
         if export_format in {"csv", "parquet"}:
             if isinstance(export_data, pd.DataFrame) and not export_data.empty:
@@ -223,7 +206,7 @@ def run(
                             os.path.join(output, f"{key}_results.{tabular_format}"),
                             output_format=tabular_format,
                         )
-        
+
                 with open(f"{output}/metadata.json", "w") as f:
                     json.dump(metadata, f, indent=2, default=str)
                 logger.info(f"Results saved to {export_path}")
@@ -233,7 +216,7 @@ def run(
             if isinstance(export_data, dict) or isinstance(export_data, list):
                 with open(f"{output}/uniprot_results.json", "w") as f:
                     json.dump(export_data, f, indent=2, default=str)
-                
+
                 if isinstance(enriched_data, dict):
                     for key, value in enriched_data.items():
                         logger.info(f"Saving {key} results into {output} directory")

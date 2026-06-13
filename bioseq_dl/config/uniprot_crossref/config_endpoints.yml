@@ -118,7 +118,7 @@ pubchem:
         concise:
           enabled: true
         summary:
-          enabled: true  
+          enabled: true
 reactome:
   enabled: false
   endpoints:

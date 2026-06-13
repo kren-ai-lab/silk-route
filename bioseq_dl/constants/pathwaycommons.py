@@ -1,11 +1,4 @@
-OUTPUT_FORMATS = [
-    "biopax",
-    "gsea",
-    "jsonld",
-    "sbgn",
-    "sif",
-    "txt"
-]
+OUTPUT_FORMATS = ["biopax", "gsea", "jsonld", "sbgn", "sif", "txt"]
 PATTERNS = [
     "controls-state-change-of",
     "controls-transport-of",
@@ -20,7 +13,7 @@ PATTERNS = [
     "controls-transport-of-chemical",
     "chemical-affects",
     "reacts-with",
-    "used-to-produce"
+    "used-to-produce",
 ]
 
 DATASOURCES = [
@@ -48,4 +41,5 @@ DATASOURCES = [
     "biofactoid",
     "chebi",
     "uniprot",
-    "unichem"]
+    "unichem",
+]

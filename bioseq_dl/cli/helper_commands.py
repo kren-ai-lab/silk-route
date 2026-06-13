@@ -1,9 +1,9 @@
-import typer
 import logging
-from typing import List, Optional
 
-from bioseq_dl.logging.logger import configure_logging
+import typer
+
 from bioseq_dl.core.cache import clear_cache, list_caches
+from bioseq_dl.logging.logger import configure_logging
 
 app = typer.Typer(name="cache", help="Cache utility commands for BioSeqDownloader.")
 
@@ -16,9 +16,7 @@ def list_registered(
         "info", "--log", "-l", help="Logging level (debug, info, warning, error, critical)."
     ),
 ):
-    """
-    List registered caches.
-    """
+    """List registered caches."""
     LOG_LEVELS = {
         "debug": logging.DEBUG,
         "info": logging.INFO,
@@ -36,18 +34,20 @@ def list_registered(
         raise typer.Exit()
     log.info("Registered caches:")
     for k, v in regs.items():
-        log.info("  %s -> %s", k, getattr(v, 'CACHE_DIR', v))
+        log.info("  %s -> %s", k, getattr(v, "CACHE_DIR", v))
 
 
 @app.command("clear")
 def clear(
-    cache_names: Optional[List[str]] = typer.Option(
+    cache_names: list[str] | None = typer.Option(
         None, "--name", "-n", help="Cache name to clear (repeatable)."
     ),
     clear_all: bool = typer.Option(False, "--all", help="Clear all registered caches."),
     dry_run: bool = typer.Option(True, "--dry-run", help="Don't delete, only show what would be removed."),
-    older_than: Optional[int] = typer.Option(None, "--older-than", help="Only delete entries older than this many days."),
-    pattern: Optional[str] = typer.Option(None, "--pattern", help="Glob pattern relative to each cache path."),
+    older_than: int | None = typer.Option(
+        None, "--older-than", help="Only delete entries older than this many days."
+    ),
+    pattern: str | None = typer.Option(None, "--pattern", help="Glob pattern relative to each cache path."),
     force: bool = typer.Option(False, "--force", help="Skip any confirmation prompts (non-interactive)."),
     list_registered: bool = typer.Option(False, "--list", help="List registered caches and exit."),
     empty: bool = typer.Option(False, "--empty", help="Clear empty caches only."),
@@ -55,8 +55,7 @@ def clear(
         "info", "--log", "-l", help="Logging level (debug, info, warning, error, critical)."
     ),
 ):
-    """
-    Clear cached data. Use --name to specify one or more registered cache names,
+    """Clear cached data. Use --name to specify one or more registered cache names,
     or --all to clear everything. By default the command runs in --dry-run mode.
     """
     LOG_LEVELS = {
@@ -78,7 +77,7 @@ def clear(
             raise typer.Exit()
         log.info("Registered caches:")
         for k, v in regs.items():
-            log.info("  %s -> %s", k, getattr(v, 'CACHE_DIR', v))
+            log.info("  %s -> %s", k, getattr(v, "CACHE_DIR", v))
         raise typer.Exit()
 
     if cache_names and clear_all:
@@ -95,13 +94,13 @@ def clear(
         force=force,
         older_than_days=older_than,
         pattern=pattern,
-        empty=empty
+        empty=empty,
     )
 
     # Summarize results
     total = sum(len(v) for v in results.values())
     if dry_run:
-        log.info("Dry-run: %d path(s) would be affected." , total)
+        log.info("Dry-run: %d path(s) would be affected.", total)
     else:
         log.info("Removed %d path(s).", total)
 

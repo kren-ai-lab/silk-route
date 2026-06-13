@@ -1,0 +1,2174 @@
+[
+  {
+    "literature": [
+      285577
+    ],
+    "substrate": "more",
+    "kmValue": "-999",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 0
+  },
+  {
+    "literature": [
+      285578
+    ],
+    "substrate": "more",
+    "kmValue": "-999",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 0
+  },
+  {
+    "literature": [
+      285568
+    ],
+    "substrate": "more",
+    "kmValue": "-999",
+    "kmValueMaximum": null,
+    "commentary": "Km values for the class I isoenzymes with the substrates ethanol, methanol, ethylene glycol, benzyl alcohol, octanol, cyclohexanol and 16-hydroxyhexadecanoic acid",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 0
+  },
+  {
+    "literature": [
+      655197
+    ],
+    "substrate": "more",
+    "kmValue": "-999",
+    "kmValueMaximum": null,
+    "commentary": "steady-state kinetics, MW 25 kDa",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 0
+  },
+  {
+    "literature": [
+      656058
+    ],
+    "substrate": "more",
+    "kmValue": "-999",
+    "kmValueMaximum": null,
+    "commentary": "steady-state kinetics, kinetic mechanism",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 0
+  },
+  {
+    "literature": [
+      655206
+    ],
+    "substrate": "more",
+    "kmValue": "-999",
+    "kmValueMaximum": null,
+    "commentary": "steady-state kinetics",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 0
+  },
+  {
+    "literature": [
+      655479
+    ],
+    "substrate": "more",
+    "kmValue": "-999",
+    "kmValueMaximum": null,
+    "commentary": "Km for isozymes ADH1B1, ADH1B2, and ADH4 for all retinoid substrates in forward and reverse reaction",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 0
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "1-formyl-8-methylpyrene",
+    "kmValue": "0.000035",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH4, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4711
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "1-formyl-6-methylpyrene",
+    "kmValue": "0.000036",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH4, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4710
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "1-formyl-8-methylpyrene",
+    "kmValue": "0.00024",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH2, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4711
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "1-hydroxymethyl-6-methylpyrene",
+    "kmValue": "0.00028",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH4, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 12678
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "1-hydroxymethyl-8-methylpyrene",
+    "kmValue": "0.00031",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH3, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 12679
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "1-formyl-6-methylpyrene",
+    "kmValue": "0.00032",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH2, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4710
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "4-hydroxymethylpyrene",
+    "kmValue": "0.00037",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH3, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 12677
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "2-hydroxymethylpyrene",
+    "kmValue": "0.00048",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH1C, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 12676
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "4-formylpyrene",
+    "kmValue": "0.00048",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH4, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4709
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "1-formylpyrene",
+    "kmValue": "0.0005",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH1C, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4707
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "1-formylpyrene",
+    "kmValue": "0.00055",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH3, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4707
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "1-hydroxymethyl-6-methylpyrene",
+    "kmValue": "0.00057",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH3, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 12678
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "1-hydroxymethylpyrene",
+    "kmValue": "0.00059",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH3, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 8860
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "1-hydroxymethylpyrene",
+    "kmValue": "0.00075",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH1C, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 8860
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "1-formyl-6-methylpyrene",
+    "kmValue": "0.0009",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH1C, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4710
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "1-formylpyrene",
+    "kmValue": "0.00092",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH4, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4707
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "4-hydroxymethylpyrene",
+    "kmValue": "0.001",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH1C, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 12677
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "4-formylpyrene",
+    "kmValue": "0.001",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH1C, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4709
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "1-hydroxymethyl-6-methylpyrene",
+    "kmValue": "0.00115",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH1C, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 12678
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "1-formyl-8-methylpyrene",
+    "kmValue": "0.00131",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH1C, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4711
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "1-formyl-8-methylpyrene",
+    "kmValue": "0.00149",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH3, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4711
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "1-hydroxymethyl-8-methylpyrene",
+    "kmValue": "0.0016",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH4, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 12679
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "2-formylpyrene",
+    "kmValue": "0.0021",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH1C, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4708
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "4-formylpyrene",
+    "kmValue": "0.0021",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH3, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4709
+  },
+  {
+    "literature": [
+      285571
+    ],
+    "substrate": "NADH",
+    "kmValue": "0.0025",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 3
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "2-formylpyrene",
+    "kmValue": "0.0029",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH2, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4708
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "4-hydroxymethylpyrene",
+    "kmValue": "0.0029",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH4, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 12677
+  },
+  {
+    "literature": [
+      655206
+    ],
+    "substrate": "5beta-pregnan-3,20-dione",
+    "kmValue": "0.0036",
+    "kmValueMaximum": null,
+    "commentary": "pH 7.3, 37?C, ADH1C*2 (gamma2gamma2)",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 1539
+  },
+  {
+    "literature": [
+      655206
+    ],
+    "substrate": "5alpha-androstan-17beta-ol-3-one",
+    "kmValue": "0.0036",
+    "kmValueMaximum": null,
+    "commentary": "pH 7.3, 37?C, ADH1C*2 (gamma2gamma2)",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 594
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "1-formyl-6-methylpyrene",
+    "kmValue": "0.0038",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH3, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4710
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "4-formylpyrene",
+    "kmValue": "0.0038",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH2, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4709
+  },
+  {
+    "literature": [
+      654370
+    ],
+    "substrate": "4-hydroxy-retinol",
+    "kmValue": "0.004",
+    "kmValueMaximum": null,
+    "commentary": "pH 7.5, 25?C, isozyme ADH1B1",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 7733
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "2-hydroxymethylpyrene",
+    "kmValue": "0.0044",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH2, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 12676
+  },
+  {
+    "literature": [
+      285571
+    ],
+    "substrate": "NADH",
+    "kmValue": "0.0064",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme beta1,beta1",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 3
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "1-hydroxymethyl-6-methylpyrene",
+    "kmValue": "0.0064",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH2, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 12678
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "1-hydroxymethyl-8-methylpyrene",
+    "kmValue": "0.0064",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH2, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 12679
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "2-formylpyrene",
+    "kmValue": "0.0069",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH4, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4708
+  },
+  {
+    "literature": [
+      285571
+    ],
+    "substrate": "NADH",
+    "kmValue": "0.007",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme gamma1,gamma1",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 3
+  },
+  {
+    "literature": [
+      285569
+    ],
+    "substrate": "Octanol",
+    "kmValue": "0.007",
+    "kmValueMaximum": null,
+    "commentary": "0.1 M glycine-NaOH buffer, pH 10.0, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 931
+  },
+  {
+    "literature": [
+      285569
+    ],
+    "substrate": "benzyl alcohol",
+    "kmValue": "0.007",
+    "kmValueMaximum": null,
+    "commentary": "0.1 M glycine-NaOH buffer, pH 10.0, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 226
+  },
+  {
+    "literature": [
+      285572
+    ],
+    "substrate": "NAD+",
+    "kmValue": "0.0074",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme beta1,beta1",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4
+  },
+  {
+    "literature": [
+      285571
+    ],
+    "substrate": "NAD+",
+    "kmValue": "0.0074",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme beta2,beta2",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4
+  },
+  {
+    "literature": [
+      285571
+    ],
+    "substrate": "NAD+",
+    "kmValue": "0.0079",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme gamma1,gamma1",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4
+  },
+  {
+    "literature": [
+      285572
+    ],
+    "substrate": "NAD+",
+    "kmValue": "0.0079",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme gamma1,gamma1",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4
+  },
+  {
+    "literature": [
+      285568
+    ],
+    "substrate": "Cyclohexanol",
+    "kmValue": "0.008",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme alpha,gamma1",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 688
+  },
+  {
+    "literature": [
+      285571
+    ],
+    "substrate": "NAD+",
+    "kmValue": "0.0087",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme gamma2,gamma2",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4
+  },
+  {
+    "literature": [
+      285572
+    ],
+    "substrate": "NAD+",
+    "kmValue": "0.0087",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme gamma2,gamma2",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4
+  },
+  {
+    "literature": [
+      285608
+    ],
+    "substrate": "all-trans-retinol",
+    "kmValue": "0.009",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 671
+  },
+  {
+    "literature": [
+      655197
+    ],
+    "substrate": "Octanol",
+    "kmValue": "0.009",
+    "kmValueMaximum": null,
+    "commentary": "recombinant allozyme Ile308, pH 7.5, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 931
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "2-formylpyrene",
+    "kmValue": "0.009",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH3, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4708
+  },
+  {
+    "literature": [
+      285571
+    ],
+    "substrate": "NADH",
+    "kmValue": "0.011",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme alpha,alpha",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 3
+  },
+  {
+    "literature": [
+      655197
+    ],
+    "substrate": "retinol",
+    "kmValue": "0.011",
+    "kmValueMaximum": null,
+    "commentary": "recombinant allozyme Ile308, pH 7.5, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 671
+  },
+  {
+    "literature": [
+      654370
+    ],
+    "substrate": "4-hydroxy-retinol",
+    "kmValue": "0.011",
+    "kmValueMaximum": null,
+    "commentary": "pH 7.5, 25?C, isozyme ADH1B2",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 7733
+  },
+  {
+    "literature": [
+      654370
+    ],
+    "substrate": "all-trans-retinal",
+    "kmValue": "0.011",
+    "kmValueMaximum": null,
+    "commentary": "pH 7.5, 25?C, isozyme ADH1B1",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 626
+  },
+  {
+    "literature": [
+      655479
+    ],
+    "substrate": "9-cis-retinol",
+    "kmValue": "0.011",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH1B1, pH 7.5, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 2613
+  },
+  {
+    "literature": [
+      655197
+    ],
+    "substrate": "retinol",
+    "kmValue": "0.012",
+    "kmValueMaximum": null,
+    "commentary": "recombinant allozyme Val308, pH 7.5, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 671
+  },
+  {
+    "literature": [
+      654370
+    ],
+    "substrate": "all-trans-retinal",
+    "kmValue": "0.012",
+    "kmValueMaximum": null,
+    "commentary": "pH 7.5, 25?C, isozyme ADH1B2",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 626
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "1-formylpyrene",
+    "kmValue": "0.012",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH2, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4707
+  },
+  {
+    "literature": [
+      285571
+    ],
+    "substrate": "NAD+",
+    "kmValue": "0.013",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme alpha,alpha",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4
+  },
+  {
+    "literature": [
+      285572
+    ],
+    "substrate": "NAD+",
+    "kmValue": "0.013",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme alpha,alpha",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4
+  },
+  {
+    "literature": [
+      654370
+    ],
+    "substrate": "4-hydroxy-retinol",
+    "kmValue": "0.015",
+    "kmValueMaximum": null,
+    "commentary": "pH 7.5, 25?C, isozyme ADH4",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 7733
+  },
+  {
+    "literature": [
+      655197
+    ],
+    "substrate": "Octanol",
+    "kmValue": "0.016",
+    "kmValueMaximum": null,
+    "commentary": "recombinant allozyme Val308, pH 7.5, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 931
+  },
+  {
+    "literature": [
+      654370
+    ],
+    "substrate": "4-oxo-retinal",
+    "kmValue": "0.017",
+    "kmValueMaximum": null,
+    "commentary": "pH 7.5, 25?C, isozyme ADH4",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 7734
+  },
+  {
+    "literature": [
+      655479
+    ],
+    "substrate": "11-cis-retinol",
+    "kmValue": "0.018",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH1B2, pH 7.5, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 1613
+  },
+  {
+    "literature": [
+      285575
+    ],
+    "substrate": "ethanol",
+    "kmValue": "0.022",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme beta1,beta1, 0.1 M sodium phosphate buffer, pH 7.5, at 25 ?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 65
+  },
+  {
+    "literature": [
+      285567
+    ],
+    "substrate": "NAD+",
+    "kmValue": "0.022",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4
+  },
+  {
+    "literature": [
+      654370
+    ],
+    "substrate": "all-trans-retinol",
+    "kmValue": "0.023",
+    "kmValueMaximum": null,
+    "commentary": "pH 7.5, 25?C, isozyme ADH4",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 671
+  },
+  {
+    "literature": [
+      655479
+    ],
+    "substrate": "9-cis-retinol",
+    "kmValue": "0.023",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH1B2, pH 7.5, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 2613
+  },
+  {
+    "literature": [
+      654370
+    ],
+    "substrate": "3,4-dihydro-retinol",
+    "kmValue": "0.024",
+    "kmValueMaximum": null,
+    "commentary": "pH 7.5, 25?C, isozyme ADH1B2",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 11682
+  },
+  {
+    "literature": [
+      285571
+    ],
+    "substrate": "NAD+",
+    "kmValue": "0.025",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4
+  },
+  {
+    "literature": [
+      654370
+    ],
+    "substrate": "4-oxo-retinal",
+    "kmValue": "0.025",
+    "kmValueMaximum": null,
+    "commentary": "pH 7.5, 25?C, isozyme ADH1B1",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 7734
+  },
+  {
+    "literature": [
+      654370
+    ],
+    "substrate": "3,4-dihydro-retinal",
+    "kmValue": "0.025",
+    "kmValueMaximum": null,
+    "commentary": "pH 7.5, 25?C, isozyme ADH1B2",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 2617
+  },
+  {
+    "literature": [
+      654370
+    ],
+    "substrate": "3,4-dihydro-retinal",
+    "kmValue": "0.026",
+    "kmValueMaximum": null,
+    "commentary": "pH 7.5, 25?C, isozyme ADH4",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 2617
+  },
+  {
+    "literature": [
+      655206
+    ],
+    "substrate": "5beta-Pregnan-3beta-ol-20-one",
+    "kmValue": "0.027",
+    "kmValueMaximum": null,
+    "commentary": "pH 7.3, 37?C, ADH1C*2 (gamma2gamma2)",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 3310
+  },
+  {
+    "literature": [
+      654370
+    ],
+    "substrate": "4-oxo-retinal",
+    "kmValue": "0.027",
+    "kmValueMaximum": null,
+    "commentary": "pH 7.5, 25?C, isozyme ADH1B2",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 7734
+  },
+  {
+    "literature": [
+      654370
+    ],
+    "substrate": "3,4-dihydro-retinol",
+    "kmValue": "0.028",
+    "kmValueMaximum": null,
+    "commentary": "pH 7.5, 25?C, isozyme ADH4",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 11682
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "1-hydroxymethylpyrene",
+    "kmValue": "0.0283",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH4, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 8860
+  },
+  {
+    "literature": [
+      654370
+    ],
+    "substrate": "all-trans-retinol",
+    "kmValue": "0.03",
+    "kmValueMaximum": null,
+    "commentary": "pH 7.5, 25?C, isozyme ADH1B1",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 671
+  },
+  {
+    "literature": [
+      655479
+    ],
+    "substrate": "all-trans-retinol",
+    "kmValue": "0.03",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH1B1, pH 7.5, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 671
+  },
+  {
+    "literature": [
+      285569
+    ],
+    "substrate": "3-Phenyl-1-propanol",
+    "kmValue": "0.032",
+    "kmValueMaximum": null,
+    "commentary": "0.1 M glycine-NaOH buffer, pH 10.0, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 3528
+  },
+  {
+    "literature": [
+      654370
+    ],
+    "substrate": "all-trans-retinol",
+    "kmValue": "0.033",
+    "kmValueMaximum": null,
+    "commentary": "pH 7.5, 25?C, isozyme ADH1B2",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 671
+  },
+  {
+    "literature": [
+      655479
+    ],
+    "substrate": "all-trans-retinol",
+    "kmValue": "0.033",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH1B2, pH 7.5, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 671
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "2-hydroxymethylpyrene",
+    "kmValue": "0.033",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH4, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 12676
+  },
+  {
+    "literature": [
+      285569
+    ],
+    "substrate": "Vanillyl alcohol",
+    "kmValue": "0.034",
+    "kmValueMaximum": null,
+    "commentary": "0.1 M glycine-NaOH buffer, pH 10.0, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 1320
+  },
+  {
+    "literature": [
+      654370
+    ],
+    "substrate": "all-trans-retinal",
+    "kmValue": "0.034",
+    "kmValueMaximum": null,
+    "commentary": "pH 7.5, 25?C, isozyme ADH4",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 626
+  },
+  {
+    "literature": [
+      655479
+    ],
+    "substrate": "11-cis-retinol",
+    "kmValue": "0.035",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH1B1, pH 7.5, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 1613
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "4-hydroxymethylpyrene",
+    "kmValue": "0.04",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH2, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 12677
+  },
+  {
+    "literature": [
+      285651
+    ],
+    "substrate": "Pentanol",
+    "kmValue": "0.044",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 874
+  },
+  {
+    "literature": [
+      655206
+    ],
+    "substrate": "5beta-androstan-17beta-ol-3-one",
+    "kmValue": "0.046",
+    "kmValueMaximum": null,
+    "commentary": "pH 7.3, 37?C, ADH1C*2 (gamma2gamma2)",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 1523
+  },
+  {
+    "literature": [
+      285651
+    ],
+    "substrate": "12-hydroxydodecanoate",
+    "kmValue": "0.047",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 2155
+  },
+  {
+    "literature": [
+      285608
+    ],
+    "substrate": "12-hydroxydodecanoate",
+    "kmValue": "0.048",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 2155
+  },
+  {
+    "literature": [
+      285570
+    ],
+    "substrate": "ethanol",
+    "kmValue": "0.049",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 65
+  },
+  {
+    "literature": [
+      285572
+    ],
+    "substrate": "ethanol",
+    "kmValue": "0.049",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme beta1,beta1",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 65
+  },
+  {
+    "literature": [
+      285566
+    ],
+    "substrate": "12-Hydroxydodecanoic acid",
+    "kmValue": "0.056",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 2155
+  },
+  {
+    "literature": [
+      655206
+    ],
+    "substrate": "5beta-androstan-3beta-ol-17-one",
+    "kmValue": "0.058",
+    "kmValueMaximum": null,
+    "commentary": "pH 7.3, 37?C, ADH1C*2 (gamma2gamma2)",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 3536
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "1-hydroxymethyl-8-methylpyrene",
+    "kmValue": "0.059",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH1C, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 12679
+  },
+  {
+    "literature": [
+      285569
+    ],
+    "substrate": "16-hydroxyhexadecanoate",
+    "kmValue": "0.06",
+    "kmValueMaximum": null,
+    "commentary": "0.1 M glycine-NaOH buffer, pH 10.0, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 7784
+  },
+  {
+    "literature": [
+      655197
+    ],
+    "substrate": "NAD+",
+    "kmValue": "0.063",
+    "kmValueMaximum": null,
+    "commentary": "recombinant allozyme Ile308, pH 7.5, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4
+  },
+  {
+    "literature": [
+      655197
+    ],
+    "substrate": "NAD+",
+    "kmValue": "0.074",
+    "kmValueMaximum": null,
+    "commentary": "recombinant allozyme Val308, pH 7.5, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "1-hydroxymethylpyrene",
+    "kmValue": "0.076",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH2, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 8860
+  },
+  {
+    "literature": [
+      285568
+    ],
+    "substrate": "Octanol",
+    "kmValue": "0.08",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme alpha,gamma1",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 931
+  },
+  {
+    "literature": [
+      285570
+    ],
+    "substrate": "acetaldehyde",
+    "kmValue": "0.085",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme beta1,beta1",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 84
+  },
+  {
+    "literature": [
+      285575
+    ],
+    "substrate": "acetaldehyde",
+    "kmValue": "0.085",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme beta1,beta1, 0.1 M sodium phosphate buffer, pH 7.5, at 25 ?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 84
+  },
+  {
+    "literature": [
+      285569
+    ],
+    "substrate": "Pentanol",
+    "kmValue": "0.09",
+    "kmValueMaximum": null,
+    "commentary": "0.1 M glycine-NaOH buffer, pH 10.0, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 874
+  },
+  {
+    "literature": [
+      285571
+    ],
+    "substrate": "12-hydroxydodecanoate",
+    "kmValue": "0.1",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 2155
+  },
+  {
+    "literature": [
+      285571
+    ],
+    "substrate": "NADH",
+    "kmValue": "0.105",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme beta2,beta2",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 3
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "2-hydroxymethylpyrene",
+    "kmValue": "0.106",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH3, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 12676
+  },
+  {
+    "literature": [
+      285608
+    ],
+    "substrate": "Hexanol",
+    "kmValue": "0.13",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 921
+  },
+  {
+    "literature": [
+      285651
+    ],
+    "substrate": "benzyl alcohol",
+    "kmValue": "0.15",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 226
+  },
+  {
+    "literature": [
+      285571
+    ],
+    "substrate": "NAD+",
+    "kmValue": "0.18",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme beta1,beta1",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4
+  },
+  {
+    "literature": [
+      285569
+    ],
+    "substrate": "tryptophol",
+    "kmValue": "0.2",
+    "kmValueMaximum": null,
+    "commentary": "0.1 M glycine-NaOH buffer, pH 10.0, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 10701
+  },
+  {
+    "literature": [
+      285569
+    ],
+    "substrate": "12-hydroxydodecanoate",
+    "kmValue": "0.23",
+    "kmValueMaximum": null,
+    "commentary": "0.1 M glycine-NaOH buffer, pH 10.0, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 2155
+  },
+  {
+    "literature": [
+      285570
+    ],
+    "substrate": "acetaldehyde",
+    "kmValue": "0.24",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme gamma2,gamma2",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 84
+  },
+  {
+    "literature": [
+      285570
+    ],
+    "substrate": "acetaldehyde",
+    "kmValue": "0.24",
+    "kmValueMaximum": null,
+    "commentary": "isoenzymes beta2,beta2",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 84
+  },
+  {
+    "literature": [
+      285575
+    ],
+    "substrate": "acetaldehyde",
+    "kmValue": "0.24",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme beta2,beta2, 0.1 M sodium phosphate buffer, pH 7.5, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 84
+  },
+  {
+    "literature": [
+      285651
+    ],
+    "substrate": "butanol",
+    "kmValue": "0.24",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 456
+  },
+  {
+    "literature": [
+      655206
+    ],
+    "substrate": "5beta-cholanic acid-3-one",
+    "kmValue": "0.25",
+    "kmValueMaximum": null,
+    "commentary": "pH 7.3, 37?C, ADH1C*2 (gamma2gamma2)",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 6079
+  },
+  {
+    "literature": [
+      285608
+    ],
+    "substrate": "Pentanol",
+    "kmValue": "0.28",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 874
+  },
+  {
+    "literature": [
+      285570
+    ],
+    "substrate": "acetaldehyde",
+    "kmValue": "0.33",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme gamma1,gamma1",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 84
+  },
+  {
+    "literature": [
+      285651
+    ],
+    "substrate": "NAD+",
+    "kmValue": "0.34",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "acetaldehyde",
+    "kmValue": "0.34",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH1C, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 84
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "1-Octanol",
+    "kmValue": "0.39",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH3, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 931
+  },
+  {
+    "literature": [
+      285567
+    ],
+    "substrate": "ethanol",
+    "kmValue": "0.45",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 65
+  },
+  {
+    "literature": [
+      285566
+    ],
+    "substrate": "1-Octanol",
+    "kmValue": "0.55",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 931
+  },
+  {
+    "literature": [
+      285570
+    ],
+    "substrate": "ethanol",
+    "kmValue": "0.63",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme gamma2,gamma2",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 65
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "ethanol",
+    "kmValue": "0.77",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH1C, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 65
+  },
+  {
+    "literature": [
+      285608
+    ],
+    "substrate": "butanol",
+    "kmValue": "0.79",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 456
+  },
+  {
+    "literature": [
+      285576
+    ],
+    "substrate": "Octanol",
+    "kmValue": "0.8",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 931
+  },
+  {
+    "literature": [
+      285575
+    ],
+    "substrate": "ethanol",
+    "kmValue": "0.84",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme beta2,beta2, 0.1 M sodium phosphate buffer, pH 7.5, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 65
+  },
+  {
+    "literature": [
+      285651
+    ],
+    "substrate": "Propanol",
+    "kmValue": "0.91",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 536
+  },
+  {
+    "literature": [
+      285570
+    ],
+    "substrate": "ethanol",
+    "kmValue": "0.94",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme beta2,beta2",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 65
+  },
+  {
+    "literature": [
+      285570
+    ],
+    "substrate": "ethanol",
+    "kmValue": "1",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme gamma1,gamma1",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 65
+  },
+  {
+    "literature": [
+      285571
+    ],
+    "substrate": "Octanol",
+    "kmValue": "1.2",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 931
+  },
+  {
+    "literature": [
+      285608
+    ],
+    "substrate": "Propanol",
+    "kmValue": "1.39",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 536
+  },
+  {
+    "literature": [
+      285572
+    ],
+    "substrate": "ethanol",
+    "kmValue": "1.5",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme alpha,alpha",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 65
+  },
+  {
+    "literature": [
+      285572
+    ],
+    "substrate": "ethanol",
+    "kmValue": "1.6",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme beta1,beta1",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 65
+  },
+  {
+    "literature": [
+      285572
+    ],
+    "substrate": "ethanol",
+    "kmValue": "1.7",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme gamma2,gamma2",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 65
+  },
+  {
+    "literature": [
+      285568
+    ],
+    "substrate": "ethanol",
+    "kmValue": "1.7",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme alpha,gamma1",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 65
+  },
+  {
+    "literature": [
+      285565
+    ],
+    "substrate": "ethanol",
+    "kmValue": "1.8",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 65
+  },
+  {
+    "literature": [
+      285571
+    ],
+    "substrate": "octanal",
+    "kmValue": "2.4",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 664
+  },
+  {
+    "literature": [
+      285572
+    ],
+    "substrate": "ethanol",
+    "kmValue": "3.2",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme gamma1,gamma1",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 65
+  },
+  {
+    "literature": [
+      285575
+    ],
+    "substrate": "acetaldehyde",
+    "kmValue": "3.4",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme beta3,beta3, 0.1 M sodium phospahte buffer, pH 7.5, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 84
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "ethanol",
+    "kmValue": "3.6",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH4, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 65
+  },
+  {
+    "literature": [
+      285570
+    ],
+    "substrate": "ethanol",
+    "kmValue": "4.2",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme alpha,alpha",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 65
+  },
+  {
+    "literature": [
+      285572
+    ],
+    "substrate": "ethanol",
+    "kmValue": "4.2",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme alpha,alpha",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 65
+  },
+  {
+    "literature": [
+      285570
+    ],
+    "substrate": "acetaldehyde",
+    "kmValue": "4.3",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme alpha,alpha",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 84
+  },
+  {
+    "literature": [
+      285575
+    ],
+    "substrate": "NADH",
+    "kmValue": "6.4",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme beta1,beta1, 0.1 M sodium phosphate buffer, pH 7.5, at 25 ?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 3
+  },
+  {
+    "literature": [
+      285575
+    ],
+    "substrate": "NAD+",
+    "kmValue": "7.4",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme beta1,beta1, 0.1 M sodium phosphate buffer, pH 7.5, at 25 ?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4
+  },
+  {
+    "literature": [
+      655197
+    ],
+    "substrate": "ethanol",
+    "kmValue": "9",
+    "kmValueMaximum": null,
+    "commentary": "recombinant allozyme Ile308, pH 7.5, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 65
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "octanal",
+    "kmValue": "9.6",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH3, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 664
+  },
+  {
+    "literature": [
+      285567
+    ],
+    "substrate": "methanol",
+    "kmValue": "10.4",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 78
+  },
+  {
+    "literature": [
+      655197
+    ],
+    "substrate": "ethanol",
+    "kmValue": "10.6",
+    "kmValueMaximum": null,
+    "commentary": "recombinant allozyme Val308, pH 7.5, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 65
+  },
+  {
+    "literature": [
+      285571
+    ],
+    "substrate": "Vanillyl alcohol",
+    "kmValue": "11",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 1320
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "acetaldehyde",
+    "kmValue": "12.7",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH4, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 84
+  },
+  {
+    "literature": [
+      285576
+    ],
+    "substrate": "Hexanol",
+    "kmValue": "17",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 921
+  },
+  {
+    "literature": [
+      285651
+    ],
+    "substrate": "ethanol",
+    "kmValue": "18",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 65
+  },
+  {
+    "literature": [
+      285568
+    ],
+    "substrate": "Cyclohexanol",
+    "kmValue": "23",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme beta1,beta1",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 688
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "acetaldehyde",
+    "kmValue": "26",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH2, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 84
+  },
+  {
+    "literature": [
+      285566
+    ],
+    "substrate": "1-Pentanol",
+    "kmValue": "27",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 874
+  },
+  {
+    "literature": [
+      285608
+    ],
+    "substrate": "ethanol",
+    "kmValue": "28",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 65
+  },
+  {
+    "literature": [
+      701322
+    ],
+    "substrate": "ethanol",
+    "kmValue": "33",
+    "kmValueMaximum": null,
+    "commentary": "isozyme ADH2, at 21-23?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 65
+  },
+  {
+    "literature": [
+      285575
+    ],
+    "substrate": "ethanol",
+    "kmValue": "36",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme beta3,beta3, 0.1 M sodium phospahte buffer, pH 7.5, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 65
+  },
+  {
+    "literature": [
+      285568
+    ],
+    "substrate": "ethylene glycol",
+    "kmValue": "50",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme alpha,gamma1",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 1064
+  },
+  {
+    "literature": [
+      285575
+    ],
+    "substrate": "NADH",
+    "kmValue": "105",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme beta2,beta2, 0.1 M sodium phosphate buffer, pH 7.5, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 3
+  },
+  {
+    "literature": [
+      285569
+    ],
+    "substrate": "ethanol",
+    "kmValue": "120",
+    "kmValueMaximum": null,
+    "commentary": "0.1 M glycine-NaOH buffer, pH 10.0, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 65
+  },
+  {
+    "literature": [
+      285608
+    ],
+    "substrate": "(S)-2-butanol",
+    "kmValue": "120",
+    "kmValueMaximum": null,
+    "commentary": null,
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 1476
+  },
+  {
+    "literature": [
+      285568
+    ],
+    "substrate": "methanol",
+    "kmValue": "150",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme alpha,gamma1",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 78
+  },
+  {
+    "literature": [
+      285575
+    ],
+    "substrate": "NAD+",
+    "kmValue": "180",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme beta2,beta2, 0.1 M sodium phosphate buffer, pH 7.5, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4
+  },
+  {
+    "literature": [
+      285569
+    ],
+    "substrate": "Cyclohexanol",
+    "kmValue": "210",
+    "kmValueMaximum": null,
+    "commentary": "0.1 M glycine-NaOH buffer, pH 10.0, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 688
+  },
+  {
+    "literature": [
+      285575
+    ],
+    "substrate": "NADH",
+    "kmValue": "260",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme beta3,beta3, 0.1 M sodium phospahte buffer, pH 7.5, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 3
+  },
+  {
+    "literature": [
+      285569
+    ],
+    "substrate": "ethylene glycol",
+    "kmValue": "290",
+    "kmValueMaximum": null,
+    "commentary": "0.1 M glycine-NaOH buffer, pH 10.0, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 1064
+  },
+  {
+    "literature": [
+      285569
+    ],
+    "substrate": "2-deoxy-D-ribose",
+    "kmValue": "310",
+    "kmValueMaximum": null,
+    "commentary": "0.1 M glycine-NaOH buffer, pH 10.0, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 2023
+  },
+  {
+    "literature": [
+      285569
+    ],
+    "substrate": "2-propanol",
+    "kmValue": "560",
+    "kmValueMaximum": null,
+    "commentary": "0.1 M glycine-NaOH buffer, pH 10.0, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 551
+  },
+  {
+    "literature": [
+      285575
+    ],
+    "substrate": "NAD+",
+    "kmValue": "710",
+    "kmValueMaximum": null,
+    "commentary": "isoenzyme beta3,beta3, 0.1 M sodium phospahte buffer, pH 7.5, 25?C",
+    "organism": "Homo sapiens",
+    "ecNumber": "1.1.1.1",
+    "ligandStructureId": 4
+  }
+]

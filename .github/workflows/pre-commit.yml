@@ -1,0 +1,17 @@
+name: pre-commit
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  prek:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: uv sync --extra dev --extra tests
+      - uses: j178/prek-action@v2

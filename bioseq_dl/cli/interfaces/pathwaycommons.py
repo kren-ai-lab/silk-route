@@ -1,24 +1,30 @@
 import typer
 
 from bioseq_dl import PathwayCommonsInterface
+from bioseq_dl.cli._shared import save_or_print
 
 app = typer.Typer(help="Fetch data from Pathway Commons.")
+
+
 @app.command("top_pathways")
 def run_top_pathways(
-    query: str = typer.Argument(
-        ...,
-        help="Gene or protein identifier to query."
-    ),
+    query: str = typer.Argument(..., help="Gene or protein identifier to query."),
     organism: str = typer.Option(
-        None, "--organism", "-org",
+        None,
+        "--organism",
+        "-org",
         help="Organism name to filter results",
     ),
     databases: str = typer.Option(
-        None, "--databases", "-dbs",
+        None,
+        "--databases",
+        "-dbs",
         help="Comma-separated list of databases to filter results (e.g., reactome, uniprot).",
     ),
     output: str = typer.Option(
-        None, "--output", "-o",
+        None,
+        "--output",
+        "-o",
         help="Output file to save the top pathways.",
     ),
 ):
@@ -29,102 +35,90 @@ def run_top_pathways(
     if organism:
         query_params["organism"] = [organism]
     if databases:
-        query_params["datasource"] = [db.strip() for db in databases.split(',')]
+        query_params["datasource"] = [db.strip() for db in databases.split(",")]
 
-    df = instance.fetch_single(
-        query=query_params,
-        method="top_pathways",
-        parse=True,
-        format="dataframe"
-    )
+    df = instance.fetch_single(query=query_params, method="top_pathways", parse=True, format="dataframe")
 
-    if output:
-        df.to_csv(output, index=False)
-    else:
-        typer.echo(df.head(5))
+    save_or_print(df, output)
+
 
 @app.command("fetch")
 def run_fetch(
-    uri: str = typer.Argument(
-        ...,
-        help="BioPAX URI to fetch data for."
-    ),
+    uri: str = typer.Argument(..., help="BioPAX URI to fetch data for."),
     pattern: str = typer.Option(
-        None, "--pattern", "-p",
+        None,
+        "--pattern",
+        "-p",
         help="Pattern to filter the fetched data.",
     ),
     output: str = typer.Option(
-        None, "--output", "-o",
+        None,
+        "--output",
+        "-o",
         help="Output file to save the fetched data.",
-    )
+    ),
 ):
     """Fetch data from Pathway Commons using a BioPAX URI."""
     instance = PathwayCommonsInterface()
 
     data = instance.fetch_single(
         query={
-            "uri": [u.strip() for u in uri.split(',')],
-            "pattern": [p.strip() for p in pattern.split(',')] if pattern else None
+            "uri": [u.strip() for u in uri.split(",")],
+            "pattern": [p.strip() for p in pattern.split(",")] if pattern else None,
         },
         method="fetch",
         parse=True,
-        format="dataframe"
+        format="dataframe",
     )
 
-    if output:
-        data.to_csv(output, index=False)
-    else:
-        typer.echo(data.head(5))
+    save_or_print(data, output)
+
 
 @app.command("neighborhood")
 def run_neighborhood(
-    source: str = typer.Argument(
-        ...,
-        help="Source gene or protein identifier."
-    ),
+    source: str = typer.Argument(..., help="Source gene or protein identifier."),
     limit: int = typer.Option(
-        1, "--limit", "-l",
+        1,
+        "--limit",
+        "-l",
         help="Limit the number of neighbors to fetch.",
     ),
     organism: str = typer.Option(
-        None, "--organism", "-org",
+        None,
+        "--organism",
+        "-org",
         help="Organism name to filter results",
     ),
     databases: str = typer.Option(
-        None, "--databases", "-dbs",
+        None,
+        "--databases",
+        "-dbs",
         help="Comma-separated list of databases to filter results (e.g., reactome, uniprot).",
     ),
     pattern: str = typer.Option(
-        None, "--pattern", "-p",
+        None,
+        "--pattern",
+        "-p",
         help="Pattern to filter the fetched data.",
     ),
     output: str = typer.Option(
-        None, "--output", "-o",
+        None,
+        "--output",
+        "-o",
         help="Output file to save the neighborhood data.",
-    )
+    ),
 ):
     """Fetch neighborhood data from Pathway Commons."""
     instance = PathwayCommonsInterface()
 
-    query_params = {
-        "source": [s.strip() for s in source.split(',')],
-        "limit": limit
-    }
+    query_params = {"source": [s.strip() for s in source.split(",")], "limit": limit}
     if organism:
         query_params["organism"] = [organism]
     if databases:
-        query_params["datasource"] = [db.strip() for db in databases.split(',')]
+        query_params["datasource"] = [db.strip() for db in databases.split(",")]
     if pattern:
-        query_params["pattern"] = [p.strip() for p in pattern.split(',')]
+        query_params["pattern"] = [p.strip() for p in pattern.split(",")]
 
-    df = instance.fetch_single(
-        query=query_params,
-        method="neighborhood",
-        parse=True,
-        format="dataframe"
-    )
+    df = instance.fetch_single(query=query_params, method="neighborhood", parse=True, format="dataframe")
 
-    if output:
-        df.to_csv(output, index=False)
-    else:
-        typer.echo(df.head(5))
+    save_or_print(df, output)

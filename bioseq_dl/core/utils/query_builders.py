@@ -1,24 +1,24 @@
 # bioseq_dl/core/utils/query_builders.py
-"""
-An important part to build the cross-reference queries is
+"""An important part to build the cross-reference queries is
 the "query builders", which are functions that take a row of
 a DataFrame, identifies if the fields required for the
 query are present, and returns a list of query parameters
 to be used in the corresponding API call.
 """
 
-import pandas as pd
-import numpy as np
 import ast
 from functools import partial
 
+import numpy as np
+import pandas as pd
+
 from bioseq_dl import (
     AlphafoldInterface,
-    BioGRIDInterface,
     BioDBNetInterface,
+    BioGRIDInterface,
     BrendaInterface,
-    ChEMBLInterface,
     ChEBIInterface,
+    ChEMBLInterface,
     GenOntologyInterface,
     InterproInterface,
     KEGGInterface,
@@ -27,12 +27,11 @@ from bioseq_dl import (
     PDBInterface,
     PubChemInterface,
     ReactomeInterface,
-    RheaInterface,
     RefSeqInterface,
+    RheaInterface,
     SabiorkInterface,
-    StringInterface
+    StringInterface,
 )
-
 
 INTERFACE_CLASSES = {
     "alphafold": AlphafoldInterface,
@@ -52,16 +51,16 @@ INTERFACE_CLASSES = {
     "rhea": RheaInterface,
     "refseq": RefSeqInterface,
     "sabio-rk": SabiorkInterface,
-    "string": StringInterface
+    "string": StringInterface,
 }
 
 ##########################################
 # Helper functions
 ###########################################
 
+
 def to_str_list(value):
-    """
-    Normalize a cell value into a clean list[str].
+    """Normalize a cell value into a clean list[str].
     Handles: None/NaN, scalar strings, JSON-like strings ('[a,b]'),
     lists/tuples/ndarrays, and returns a list of non-empty strings.
     """
@@ -92,14 +91,15 @@ def to_str_list(value):
     # Fallback: scalar -> list with one string
     return [str(value).strip()] if str(value).strip() else []
 
+
 ##########################################
 # Query Builders
 ###########################################
 QUERY_BUILDERS = {}
 
+
 def register_query_builder(database, method, option=None):
-    """
-    Register a query builder function in QUERY_BUILDERS.
+    """Register a query builder function in QUERY_BUILDERS.
 
     Args:
         database (str): Database name, such as "biodbnet".
@@ -114,6 +114,7 @@ def register_query_builder(database, method, option=None):
         @register_query_builder("uniprot", "search", "reviewed")
         def build_uniprot_search_reviewed_query(...):
             ...
+
     """
     return partial(_register_query_builder, database=database, method=method, option=option)
 
@@ -124,23 +125,22 @@ def _register_query_builder(func, *, database, method, option=None):
     QUERY_BUILDERS[key] = func
     return func
 
+
 def get_query_builder(database, method, option=None):
-    """
-    Return the registered query builder for a database endpoint.
-    """
+    """Return the registered query builder for a database endpoint."""
     key = "_".join([part for part in (database, method, option) if part])
     builder = QUERY_BUILDERS.get(key)
     if builder is None:
         raise ValueError(f"No query builder registered for endpoint '{key}'")
     return builder
 
+
 @register_query_builder("alphafold", "prediction")
 def build_query_alphafold_prediction(row, params):
     alphafold_ids = to_str_list(row.get("alphafold_ids"))
     if alphafold_ids:
         return alphafold_ids
-    else:
-        return []
+    return []
 
 
 @register_query_builder("biodbnet", "db2db")
@@ -148,25 +148,17 @@ def build_query_biodbnet_db2db(row, params):
     genes = to_str_list(row.get("gene_primary"))
     organism = to_str_list(row.get("organism_id"))[0]
     if genes and organism:
-        return [{
-            "inputValues": genes,
-            "taxonId": organism,
-            **params
-        }]
-    else:
-        return []
+        return [{"inputValues": genes, "taxonId": organism, **params}]
+    return []
+
 
 @register_query_builder("biodbnet", "getpathways")
 def build_query_biodbnet_getpathways(row, params):
     organism = to_str_list(row.get("organism_id"))
     if organism:
-        return [{
-            "taxonId": organism_id,
-            **params
-        } for organism_id in organism]
-    else:
-        return []
-    
+        return [{"taxonId": organism_id, **params} for organism_id in organism]
+    return []
+
 
 @register_query_builder("biogrid", "interactions")
 def build_query_biogrid_interactions(row, params):
@@ -175,18 +167,10 @@ def build_query_biogrid_interactions(row, params):
     biogrid_ids = to_str_list(row.get("biogrid_ids"))
 
     if genes and organism:
-        return [{
-            "geneList": genes,
-            "taxId": organism,
-            **params
-        }]
-    elif biogrid_ids:
-        return [{
-            "id": biogrid_id,
-            **params
-        } for biogrid_id in biogrid_ids]
-    else:
-        return []
+        return [{"geneList": genes, "taxId": organism, **params}]
+    if biogrid_ids:
+        return [{"id": biogrid_id, **params} for biogrid_id in biogrid_ids]
+    return []
 
 
 @register_query_builder("brenda", "getKmValue")
@@ -203,53 +187,44 @@ def build_query_biogrid_interactions(row, params):
 def build_query_brenda(row, params):
     ec_numbers = to_str_list(row.get("ec"))
     ec_numbers = [
-        ec for ec in ec_numbers if len(ec.split('.')) == 4 and \
-            all(part.isdigit() for part in ec.replace('-', '').split('.'))
+        ec
+        for ec in ec_numbers
+        if len(ec.split(".")) == 4 and all(part.isdigit() for part in ec.replace("-", "").split("."))
     ]
 
     if ec_numbers:
-        return [{
-            "ecNumber": ec,
-            **params
-        } for ec in ec_numbers]
-    else:
-        return []
-    
+        return [{"ecNumber": ec, **params} for ec in ec_numbers]
+    return []
+
+
 @register_query_builder("chembl", "activity")
 @register_query_builder("chembl", "binding_site")
 def build_query_chembl(row, params):
     chembl_ids = to_str_list(row.get("chembl_ids"))
     if chembl_ids:
-        return [{
-            "target_chembl_id": chembl_id,
-            **params
-        } for chembl_id in chembl_ids]
-    else:
-        return []
-    
+        return [{"target_chembl_id": chembl_id, **params} for chembl_id in chembl_ids]
+    return []
+
+
 @register_query_builder("chebi", "compounds")
 def build_query_chebi_compounds(row, params):
     group_of = 5
     chebi_ids = to_str_list(row.get("chebi_ids"))
     if chebi_ids:
-        return [{
-            "chebi_ids": chebi_ids[i: i + group_of],
-            **params
-        } for i in range(0, len(chebi_ids), group_of)]
-    else:
-        return []
+        return [
+            {"chebi_ids": chebi_ids[i : i + group_of], **params} for i in range(0, len(chebi_ids), group_of)
+        ]
+    return []
+
 
 @register_query_builder("chebi", "ontology-children")
 @register_query_builder("chebi", "ontology-parents")
 def build_query_chebi_ontology(row, params):
     chebi_ids = to_str_list(row.get("chebi_ids"))
     if chebi_ids:
-        return [{
-            "chebi_id": chebi_id,
-            **params
-        } for chebi_id in chebi_ids]
-    else:
-        return []
+        return [{"chebi_id": chebi_id, **params} for chebi_id in chebi_ids]
+    return []
+
 
 @register_query_builder("go", "bioentity-function")
 @register_query_builder("go", "ontology-term")
@@ -257,8 +232,8 @@ def build_query_go(row, params):
     go_terms = to_str_list(row.get("go_terms"))
     if go_terms:
         return go_terms
-    else:
-        return []
+    return []
+
 
 @register_query_builder("interpro", "entry")
 def build_query_interpro(row, params):
@@ -266,74 +241,54 @@ def build_query_interpro(row, params):
     accession = to_str_list(row.get("accession"))[0]
     organism = to_str_list(row.get("organism_id"))[0]
     if interpro_ids:
-        return [{
-            "id": interpro_id,
-            "db": "InterPro",
-            "modifiers": {},
-            **params
-        } for interpro_id in interpro_ids]
-    elif accession and organism:
+        return [
+            {"id": interpro_id, "db": "InterPro", "modifiers": {}, **params} for interpro_id in interpro_ids
+        ]
+    if accession and organism:
         # If accession and organism_id are present, use them to fetch InterPro entries
-        return [{
-            "db": "InterPro",
-            "modifiers": {},
-            "filters": [
-                {
-                    "type": "protein",
-                    "db": "reviewed",
-                    "value": accession
-                },
-                {
-                    "type": "taxonomy",
-                    "db": "uniprot",
-                    "value": organism
-                }
-            ],
-            **params
-        }]
-    else:
-        return []
+        return [
+            {
+                "db": "InterPro",
+                "modifiers": {},
+                "filters": [
+                    {"type": "protein", "db": "reviewed", "value": accession},
+                    {"type": "taxonomy", "db": "uniprot", "value": organism},
+                ],
+                **params,
+            }
+        ]
+    return []
+
 
 @register_query_builder("kegg", "get")
 def build_query_kegg(row, params):
     kegg_ids = to_str_list(row.get("kegg_ids"))
     if kegg_ids:
-        return [{
-            "entries": kegg_id,
-            **params
-        } for kegg_id in kegg_ids]
-    else:
-        return []
-    
+        return [{"entries": kegg_id, **params} for kegg_id in kegg_ids]
+    return []
+
+
 @register_query_builder("panther", "familymsa")
 def build_query_panther_familymsa(row, params):
     panther_ids = to_str_list(row.get("panther_ids"))
     if panther_ids:
-        return [{
-            "family": panther_id,
-            **params
-        } for panther_id in panther_ids]
-    else:
-        return []
-    
+        return [{"family": panther_id, **params} for panther_id in panther_ids]
+    return []
+
+
 @register_query_builder("panther", "geneinfo")
 def build_query_panther_geneinfo(row, params):
     genes = to_str_list(row.get("gene_primary"))
     organism = to_str_list(row.get("organism_id"))
 
     if genes and organism:
-        return [{
-            "geneInputList": genes,
-            "organism": org,
-            **params
-        } for org in organism]
-    else:
-        return []
+        return [{"geneInputList": genes, "organism": org, **params} for org in organism]
+    return []
+
 
 @register_query_builder("pathwaycommons", "fetch")
 def build_query_pathwaycommons_fetch(row, params):
-    """
-    Build PathwayCommons 'fetch' requests from 'reactome_ids' column.
+    """Build PathwayCommons 'fetch' requests from 'reactome_ids' column.
     Returns a list of query dicts. Empty if no valid IDs.
     """
     ids = to_str_list(row.get("reactome_ids"))
@@ -341,19 +296,16 @@ def build_query_pathwaycommons_fetch(row, params):
         return []
     return [{"uri": [rid], **params} for rid in ids]
 
+
 @register_query_builder("pathwaycommons", "top_pathways")
 def build_query_pathwaycommons_top_pathways(row, params):
     genes = to_str_list(row.get("gene_primary"))
     organism = to_str_list(row.get("organism_id"))
 
     if genes and organism:
-        return [{
-            "q": gene,
-            "organism": organism,
-            **params
-        } for gene in genes]
-    else:
-        return []
+        return [{"q": gene, "organism": organism, **params} for gene in genes]
+    return []
+
 
 @register_query_builder("pathwaycommons", "neighborhood")
 def build_query_pathwaycommons_neighborhood(row, params):
@@ -361,13 +313,9 @@ def build_query_pathwaycommons_neighborhood(row, params):
     organism = to_str_list(row.get("organism_id"))
 
     if accession and organism:
-        return [{
-            "source": [accession],
-            "organism": organism,
-            **params
-        }]
-    else:
-        return []
+        return [{"source": [accession], "organism": organism, **params}]
+    return []
+
 
 @register_query_builder("pdb", "entry")
 def build_query_pdb(row, params):
@@ -375,6 +323,7 @@ def build_query_pdb(row, params):
     if pdb:
         return pdb
     return []
+
 
 @register_query_builder("pubchem", "compound", "summary")
 def build_query_pubchem_compound_summary(row, params):
@@ -384,64 +333,50 @@ def build_query_pubchem_compound_summary(row, params):
             if isinstance(row["gene_primary"], str) and row["gene_primary"].startswith("[")
             else [row["gene_primary"]]
         )
-        return [{
-            "genesymbol": gene,
-            "taxid": str(row["organism_id"]),
-            **params
-        } for gene in gene_primary]
-    else:
-        return []
+        return [{"genesymbol": gene, "taxid": str(row["organism_id"]), **params} for gene in gene_primary]
+    return []
+
 
 @register_query_builder("pubchem", "protein", "summary")
 @register_query_builder("pubchem", "protein", "concise")
 def build_query_pubchem_protein(row, params):
     if not pd.isna(row.get("accession")):
-        return [{
-            "accession": row["accession"],
-            **params
-        }]
-    else:
-        return []
+        return [{"accession": row["accession"], **params}]
+    return []
+
 
 @register_query_builder("reactome", "data-discover")
 def build_query_reactome(row, params):
     ids_raw = to_str_list(row.get("reactome_ids"))
     if ids_raw:
         return ids_raw
-    else:
-        return []
-    
+    return []
+
 
 @register_query_builder("rhea", "rhea")
 def build_query_rhea(row, params):
     ids_raw = to_str_list(row.get("rhea_ids"))
     if ids_raw:
-        return [{
-            "query": id,
-            **params
-        } for id in ids_raw]
-    else:
-        return []
+        return [{"query": id, **params} for id in ids_raw]
+    return []
+
 
 @register_query_builder("refseq", "protein")
 def build_query_refseq(row, params):
     ids_raw = to_str_list(row.get("refseq_ids"))
     if ids_raw:
         return ids_raw
-    else:
-        return []
+    return []
+
 
 @register_query_builder("sabio-rk", "kineticlaws")
 def build_query_sabiork_kineticlaws(row, params):
     sabiork_ids = to_str_list(row.get("sabiork_ids"))
 
     if sabiork_ids:
-        return [{
-            "UniProtKB_AC": sabiork_id,
-            **params
-        } for sabiork_id in sabiork_ids]
-    else:
-        return []
+        return [{"UniProtKB_AC": sabiork_id, **params} for sabiork_id in sabiork_ids]
+    return []
+
 
 @register_query_builder("string", "interaction_partners")
 @register_query_builder("string", "get_string_ids")
@@ -450,15 +385,7 @@ def build_query_stringdb(row, params):
     organism = to_str_list(row.get("organism_id"))[0]
     gene_primary = to_str_list(row.get("gene_primary"))
     if string_ids:
-        return [{
-            "identifiers": string_id,
-            **params
-        } for string_id in string_ids]
-    elif gene_primary and organism:
-        return [{
-            "identifiers": gene,
-            "species": organism,
-            **params
-        } for gene in gene_primary]
-    else:
-        return []
+        return [{"identifiers": string_id, **params} for string_id in string_ids]
+    if gene_primary and organism:
+        return [{"identifiers": gene, "species": organism, **params} for gene in gene_primary]
+    return []

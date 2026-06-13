@@ -1,0 +1,1131 @@
+{
+  "search": {
+    "product": {
+      "source": "PANTHERDB",
+      "version": 19
+    },
+    "mapped_genes": {
+      "gene": {
+        "family_id": "PTHR11447",
+        "sf_id": "PTHR11447:SF6",
+        "annotation_type_list": {
+          "annotation_data_type": [
+            {
+              "annotation_list": {
+                "annotation": [
+                  {
+                    "name": "DNA-binding transcription factor activity, RNA polymerase II-specific",
+                    "id": "GO:0000981"
+                  },
+                  {
+                    "name": "RNA polymerase II cis-regulatory region sequence-specific DNA binding",
+                    "id": "GO:0000978"
+                  }
+                ]
+              },
+              "release_version": 19,
+              "content": "ANNOT_TYPE_ID_PANTHER_GO_SLIM_MF"
+            },
+            {
+              "annotation_list": {
+                "annotation": {
+                  "name": "regulation of transcription by RNA polymerase II",
+                  "id": "GO:0006357"
+                }
+              },
+              "release_version": 19,
+              "content": "ANNOT_TYPE_ID_PANTHER_GO_SLIM_BP"
+            },
+            {
+              "annotation_list": {
+                "annotation": {
+                  "name": "P53-like transcription factor",
+                  "id": "PC00253"
+                }
+              },
+              "release_version": 19,
+              "content": "ANNOT_TYPE_ID_PANTHER_PC"
+            },
+            {
+              "annotation_list": {
+                "annotation": [
+                  {
+                    "name": "p53 pathway by glucose deprivation",
+                    "id": "P04397"
+                  },
+                  {
+                    "name": "p53 pathway",
+                    "id": "P00059"
+                  },
+                  {
+                    "name": "P53 pathway feedback loops 1",
+                    "id": "P04392"
+                  },
+                  {
+                    "name": "Huntington disease",
+                    "id": "P00029"
+                  },
+                  {
+                    "name": "Apoptosis signaling pathway",
+                    "id": "P00006"
+                  },
+                  {
+                    "name": "p53 pathway feedback loops 2",
+                    "id": "P04398"
+                  },
+                  {
+                    "name": "Wnt signaling pathway",
+                    "id": "P00057"
+                  }
+                ]
+              },
+              "release_version": 19,
+              "content": "ANNOT_TYPE_ID_PANTHER_PATHWAY"
+            },
+            {
+              "annotation_list": {
+                "annotation": [
+                  {
+                    "name": "transcription cis-regulatory region binding",
+                    "id": "GO:0000976"
+                  },
+                  {
+                    "name": "RNA polymerase II cis-regulatory region sequence-specific DNA binding",
+                    "id": "GO:0000978"
+                  },
+                  {
+                    "name": "DNA-binding transcription factor activity, RNA polymerase II-specific",
+                    "id": "GO:0000981"
+                  },
+                  {
+                    "name": "cis-regulatory region sequence-specific DNA binding",
+                    "id": "GO:0000987"
+                  },
+                  {
+                    "name": "core promoter sequence-specific DNA binding",
+                    "id": "GO:0001046"
+                  },
+                  {
+                    "name": "TFIID-class transcription factor complex binding",
+                    "id": "GO:0001094"
+                  },
+                  {
+                    "name": "transcription coactivator binding",
+                    "id": "GO:0001223"
+                  },
+                  {
+                    "name": "DNA-binding transcription repressor activity, RNA polymerase II-specific",
+                    "id": "GO:0001227"
+                  },
+                  {
+                    "name": "DNA-binding transcription activator activity, RNA polymerase II-specific",
+                    "id": "GO:0001228"
+                  },
+                  {
+                    "name": "protease binding",
+                    "id": "GO:0002020"
+                  },
+                  {
+                    "name": "p53 binding",
+                    "id": "GO:0002039"
+                  },
+                  {
+                    "name": "DNA binding",
+                    "id": "GO:0003677"
+                  },
+                  {
+                    "name": "chromatin binding",
+                    "id": "GO:0003682"
+                  },
+                  {
+                    "name": "DNA-binding transcription factor activity",
+                    "id": "GO:0003700"
+                  },
+                  {
+                    "name": "mRNA 3'-UTR binding",
+                    "id": "GO:0003730"
+                  },
+                  {
+                    "name": "copper ion binding",
+                    "id": "GO:0005507"
+                  },
+                  {
+                    "name": "protein binding",
+                    "id": "GO:0005515"
+                  },
+                  {
+                    "name": "zinc ion binding",
+                    "id": "GO:0008270"
+                  },
+                  {
+                    "name": "enzyme binding",
+                    "id": "GO:0019899"
+                  },
+                  {
+                    "name": "receptor tyrosine kinase binding",
+                    "id": "GO:0030971"
+                  },
+                  {
+                    "name": "ubiquitin protein ligase binding",
+                    "id": "GO:0031625"
+                  },
+                  {
+                    "name": "ATP-dependent DNA/DNA annealing activity",
+                    "id": "GO:0036310"
+                  },
+                  {
+                    "name": "identical protein binding",
+                    "id": "GO:0042802"
+                  },
+                  {
+                    "name": "histone deacetylase binding",
+                    "id": "GO:0042826"
+                  },
+                  {
+                    "name": "metal ion binding",
+                    "id": "GO:0046872"
+                  },
+                  {
+                    "name": "protein heterodimerization activity",
+                    "id": "GO:0046982"
+                  },
+                  {
+                    "name": "protein-folding chaperone binding",
+                    "id": "GO:0051087"
+                  },
+                  {
+                    "name": "protein phosphatase 2A binding",
+                    "id": "GO:0051721"
+                  },
+                  {
+                    "name": "RNA polymerase II-specific DNA-binding transcription factor binding",
+                    "id": "GO:0061629"
+                  },
+                  {
+                    "name": "14-3-3 protein binding",
+                    "id": "GO:0071889"
+                  },
+                  {
+                    "name": "MDM2/MDM4 family protein binding",
+                    "id": "GO:0097371"
+                  },
+                  {
+                    "name": "disordered domain specific binding",
+                    "id": "GO:0097718"
+                  },
+                  {
+                    "name": "general transcription initiation factor binding",
+                    "id": "GO:0140296"
+                  },
+                  {
+                    "name": "molecular function activator activity",
+                    "id": "GO:0140677"
+                  },
+                  {
+                    "name": "molecular condensate scaffold activity",
+                    "id": "GO:0140693"
+                  },
+                  {
+                    "name": "promoter-specific chromatin binding",
+                    "id": "GO:1990841"
+                  }
+                ]
+              },
+              "release_version": "10.XXXX/zenodo.XXXXXXXX",
+              "content": "GO:0003674"
+            },
+            {
+              "annotation_list": {
+                "annotation": [
+                  {
+                    "name": "negative regulation of transcription by RNA polymerase II",
+                    "id": "GO:0000122"
+                  },
+                  {
+                    "name": "hematopoietic progenitor cell differentiation",
+                    "id": "GO:0002244"
+                  },
+                  {
+                    "name": "nucleotide-excision repair",
+                    "id": "GO:0006289"
+                  },
+                  {
+                    "name": "regulation of DNA-templated transcription",
+                    "id": "GO:0006355"
+                  },
+                  {
+                    "name": "regulation of transcription by RNA polymerase II",
+                    "id": "GO:0006357"
+                  },
+                  {
+                    "name": "autophagy",
+                    "id": "GO:0006914"
+                  },
+                  {
+                    "name": "apoptotic process",
+                    "id": "GO:0006915"
+                  },
+                  {
+                    "name": "DNA damage response",
+                    "id": "GO:0006974"
+                  },
+                  {
+                    "name": "response to oxidative stress",
+                    "id": "GO:0006979"
+                  },
+                  {
+                    "name": "ER overload response",
+                    "id": "GO:0006983"
+                  },
+                  {
+                    "name": "Ras protein signal transduction",
+                    "id": "GO:0007265"
+                  },
+                  {
+                    "name": "circadian rhythm",
+                    "id": "GO:0007623"
+                  },
+                  {
+                    "name": "intracellular protein localization",
+                    "id": "GO:0008104"
+                  },
+                  {
+                    "name": "negative regulation of cell population proliferation",
+                    "id": "GO:0008285"
+                  },
+                  {
+                    "name": "determination of adult lifespan",
+                    "id": "GO:0008340"
+                  },
+                  {
+                    "name": "mRNA transcription",
+                    "id": "GO:0009299"
+                  },
+                  {
+                    "name": "response to xenobiotic stimulus",
+                    "id": "GO:0009410"
+                  },
+                  {
+                    "name": "response to UV",
+                    "id": "GO:0009411"
+                  },
+                  {
+                    "name": "response to ionizing radiation",
+                    "id": "GO:0010212"
+                  },
+                  {
+                    "name": "response to gamma radiation",
+                    "id": "GO:0010332"
+                  },
+                  {
+                    "name": "positive regulation of gene expression",
+                    "id": "GO:0010628"
+                  },
+                  {
+                    "name": "programmed cell death",
+                    "id": "GO:0012501"
+                  },
+                  {
+                    "name": "viral process",
+                    "id": "GO:0016032"
+                  },
+                  {
+                    "name": "negative regulation of cell growth",
+                    "id": "GO:0030308"
+                  },
+                  {
+                    "name": "DNA damage response, signal transduction by p53 class mediator",
+                    "id": "GO:0030330"
+                  },
+                  {
+                    "name": "mitotic G1 DNA damage checkpoint signaling",
+                    "id": "GO:0031571"
+                  },
+                  {
+                    "name": "negative regulation of telomere maintenance via telomerase",
+                    "id": "GO:0032211"
+                  },
+                  {
+                    "name": "tumor necrosis factor-mediated signaling pathway",
+                    "id": "GO:0033209"
+                  },
+                  {
+                    "name": "cellular response to UV",
+                    "id": "GO:0034644"
+                  },
+                  {
+                    "name": "cellular response to glucose starvation",
+                    "id": "GO:0042149"
+                  },
+                  {
+                    "name": "intrinsic apoptotic signaling pathway in response to DNA damage by p53 class mediator",
+                    "id": "GO:0042771"
+                  },
+                  {
+                    "name": "regulation of apoptotic process",
+                    "id": "GO:0042981"
+                  },
+                  {
+                    "name": "positive regulation of apoptotic process",
+                    "id": "GO:0043065"
+                  },
+                  {
+                    "name": "negative regulation of apoptotic process",
+                    "id": "GO:0043066"
+                  },
+                  {
+                    "name": "entrainment of circadian clock by photoperiod",
+                    "id": "GO:0043153"
+                  },
+                  {
+                    "name": "transcription initiation-coupled chromatin remodeling",
+                    "id": "GO:0045815"
+                  },
+                  {
+                    "name": "negative regulation of DNA-templated transcription",
+                    "id": "GO:0045892"
+                  },
+                  {
+                    "name": "positive regulation of DNA-templated transcription",
+                    "id": "GO:0045893"
+                  },
+                  {
+                    "name": "positive regulation of RNA polymerase II transcription preinitiation complex assembly",
+                    "id": "GO:0045899"
+                  },
+                  {
+                    "name": "positive regulation of transcription by RNA polymerase II",
+                    "id": "GO:0045944"
+                  },
+                  {
+                    "name": "response to antibiotic",
+                    "id": "GO:0046677"
+                  },
+                  {
+                    "name": "negative regulation of fibroblast proliferation",
+                    "id": "GO:0048147"
+                  },
+                  {
+                    "name": "rhythmic process",
+                    "id": "GO:0048511"
+                  },
+                  {
+                    "name": "circadian behavior",
+                    "id": "GO:0048512"
+                  },
+                  {
+                    "name": "bone marrow development",
+                    "id": "GO:0048539"
+                  },
+                  {
+                    "name": "negative regulation of DNA metabolic process",
+                    "id": "GO:0051053"
+                  },
+                  {
+                    "name": "negative regulation of helicase activity",
+                    "id": "GO:0051097"
+                  },
+                  {
+                    "name": "protein tetramerization",
+                    "id": "GO:0051262"
+                  },
+                  {
+                    "name": "regulation of cell cycle",
+                    "id": "GO:0051726"
+                  },
+                  {
+                    "name": "hematopoietic stem cell differentiation",
+                    "id": "GO:0060218"
+                  },
+                  {
+                    "name": "type II interferon-mediated signaling pathway",
+                    "id": "GO:0060333"
+                  },
+                  {
+                    "name": "positive regulation of programmed necrotic cell death",
+                    "id": "GO:0062100"
+                  },
+                  {
+                    "name": "protein-containing complex assembly",
+                    "id": "GO:0065003"
+                  },
+                  {
+                    "name": "intrinsic apoptotic signaling pathway in response to endoplasmic reticulum stress",
+                    "id": "GO:0070059"
+                  },
+                  {
+                    "name": "positive regulation of thymocyte apoptotic process",
+                    "id": "GO:0070245"
+                  },
+                  {
+                    "name": "cellular response to hypoxia",
+                    "id": "GO:0071456"
+                  },
+                  {
+                    "name": "cellular response to xenobiotic stimulus",
+                    "id": "GO:0071466"
+                  },
+                  {
+                    "name": "cellular response to ionizing radiation",
+                    "id": "GO:0071479"
+                  },
+                  {
+                    "name": "cellular response to gamma radiation",
+                    "id": "GO:0071480"
+                  },
+                  {
+                    "name": "signal transduction by p53 class mediator",
+                    "id": "GO:0072331"
+                  },
+                  {
+                    "name": "intrinsic apoptotic signaling pathway by p53 class mediator",
+                    "id": "GO:0072332"
+                  },
+                  {
+                    "name": "cellular response to actinomycin D",
+                    "id": "GO:0072717"
+                  },
+                  {
+                    "name": "positive regulation of release of cytochrome c from mitochondria",
+                    "id": "GO:0090200"
+                  },
+                  {
+                    "name": "cellular senescence",
+                    "id": "GO:0090398"
+                  },
+                  {
+                    "name": "replicative senescence",
+                    "id": "GO:0090399"
+                  },
+                  {
+                    "name": "oxidative stress-induced premature senescence",
+                    "id": "GO:0090403"
+                  },
+                  {
+                    "name": "apoptotic signaling pathway",
+                    "id": "GO:0097190"
+                  },
+                  {
+                    "name": "intrinsic apoptotic signaling pathway",
+                    "id": "GO:0097193"
+                  },
+                  {
+                    "name": "oligodendrocyte apoptotic process",
+                    "id": "GO:0097252"
+                  },
+                  {
+                    "name": "positive regulation of execution phase of apoptosis",
+                    "id": "GO:1900119"
+                  },
+                  {
+                    "name": "regulation of cell cycle G2/M phase transition",
+                    "id": "GO:1902749"
+                  },
+                  {
+                    "name": "positive regulation of miRNA transcription",
+                    "id": "GO:1902895"
+                  },
+                  {
+                    "name": "negative regulation of G1 to G0 transition",
+                    "id": "GO:1903451"
+                  },
+                  {
+                    "name": "negative regulation of pentose-phosphate shunt",
+                    "id": "GO:1905856"
+                  },
+                  {
+                    "name": "positive regulation of reactive oxygen species metabolic process",
+                    "id": "GO:2000379"
+                  },
+                  {
+                    "name": "positive regulation of cellular senescence",
+                    "id": "GO:2000774"
+                  },
+                  {
+                    "name": "regulation of intrinsic apoptotic signaling pathway",
+                    "id": "GO:2001242"
+                  },
+                  {
+                    "name": "positive regulation of intrinsic apoptotic signaling pathway",
+                    "id": "GO:2001244"
+                  }
+                ]
+              },
+              "release_version": "10.XXXX/zenodo.XXXXXXXX",
+              "content": "GO:0008150"
+            },
+            {
+              "annotation_list": {
+                "annotation": [
+                  {
+                    "name": "chromatin",
+                    "id": "GO:0000785"
+                  },
+                  {
+                    "name": "nucleus",
+                    "id": "GO:0005634"
+                  },
+                  {
+                    "name": "nucleoplasm",
+                    "id": "GO:0005654"
+                  },
+                  {
+                    "name": "transcription regulator complex",
+                    "id": "GO:0005667"
+                  },
+                  {
+                    "name": "nucleolus",
+                    "id": "GO:0005730"
+                  },
+                  {
+                    "name": "cytoplasm",
+                    "id": "GO:0005737"
+                  },
+                  {
+                    "name": "mitochondrion",
+                    "id": "GO:0005739"
+                  },
+                  {
+                    "name": "mitochondrial matrix",
+                    "id": "GO:0005759"
+                  },
+                  {
+                    "name": "endoplasmic reticulum",
+                    "id": "GO:0005783"
+                  },
+                  {
+                    "name": "centrosome",
+                    "id": "GO:0005813"
+                  },
+                  {
+                    "name": "cytosol",
+                    "id": "GO:0005829"
+                  },
+                  {
+                    "name": "nuclear matrix",
+                    "id": "GO:0016363"
+                  },
+                  {
+                    "name": "nuclear body",
+                    "id": "GO:0016604"
+                  },
+                  {
+                    "name": "PML body",
+                    "id": "GO:0016605"
+                  },
+                  {
+                    "name": "transcription repressor complex",
+                    "id": "GO:0017053"
+                  },
+                  {
+                    "name": "protein-containing complex",
+                    "id": "GO:0032991"
+                  }
+                ]
+              },
+              "release_version": "10.XXXX/zenodo.XXXXXXXX",
+              "content": "GO:0005575"
+            },
+            {
+              "annotation_list": {
+                "annotation": [
+                  {
+                    "name": "Signaling by Interleukins",
+                    "id": "R-HSA-449147"
+                  },
+                  {
+                    "name": "Interleukin-1 family signaling",
+                    "id": "R-HSA-446652"
+                  },
+                  {
+                    "name": "Signaling by ALK fusions and activated point mutants",
+                    "id": "R-HSA-9725370"
+                  },
+                  {
+                    "name": "Signaling by NOTCH",
+                    "id": "R-HSA-157118"
+                  },
+                  {
+                    "name": "Regulation of TP53 Activity",
+                    "id": "R-HSA-5633007"
+                  },
+                  {
+                    "name": "Programmed Cell Death",
+                    "id": "R-HSA-5357801"
+                  },
+                  {
+                    "name": "Disease",
+                    "id": "R-HSA-1643685"
+                  },
+                  {
+                    "name": "Toll Like Receptor TLR6:TLR2 Cascade",
+                    "id": "R-HSA-168188"
+                  },
+                  {
+                    "name": "Cellular responses to stress",
+                    "id": "R-HSA-2262752"
+                  },
+                  {
+                    "name": "Regulation of TP53 Activity through Phosphorylation",
+                    "id": "R-HSA-6804756"
+                  },
+                  {
+                    "name": "Interferon Signaling",
+                    "id": "R-HSA-913531"
+                  },
+                  {
+                    "name": "Toll Like Receptor 5 (TLR5) Cascade",
+                    "id": "R-HSA-168176"
+                  },
+                  {
+                    "name": "Transcriptional Regulation by TP53",
+                    "id": "R-HSA-3700989"
+                  },
+                  {
+                    "name": "TP53 Regulates Transcription of Genes Involved in G2 Cell Cycle Arrest",
+                    "id": "R-HSA-6804114"
+                  },
+                  {
+                    "name": "Protein folding",
+                    "id": "R-HSA-391251"
+                  },
+                  {
+                    "name": "Regulation of TP53 Activity through Methylation",
+                    "id": "R-HSA-6804760"
+                  },
+                  {
+                    "name": "Transcriptional activation of p53 responsive genes",
+                    "id": "R-HSA-69560"
+                  },
+                  {
+                    "name": "Apoptosis",
+                    "id": "R-HSA-109581"
+                  },
+                  {
+                    "name": "Developmental Biology",
+                    "id": "R-HSA-1266738"
+                  },
+                  {
+                    "name": "MyD88 cascade initiated on plasma membrane",
+                    "id": "R-HSA-975871"
+                  },
+                  {
+                    "name": "Regulation of TP53 Activity through Association with Co-factors",
+                    "id": "R-HSA-6804759"
+                  },
+                  {
+                    "name": "Factors involved in megakaryocyte development and platelet production",
+                    "id": "R-HSA-983231"
+                  },
+                  {
+                    "name": "RUNX3 regulates CDKN1A transcription",
+                    "id": "R-HSA-8941855"
+                  },
+                  {
+                    "name": "Toll-like Receptor Cascades",
+                    "id": "R-HSA-168898"
+                  },
+                  {
+                    "name": "p53-Dependent G1/S DNA damage checkpoint",
+                    "id": "R-HSA-69580"
+                  },
+                  {
+                    "name": "Toll Like Receptor 4 (TLR4) Cascade",
+                    "id": "R-HSA-166016"
+                  },
+                  {
+                    "name": "Pyroptosis",
+                    "id": "R-HSA-5620971"
+                  },
+                  {
+                    "name": "Post-translational protein modification",
+                    "id": "R-HSA-597592"
+                  },
+                  {
+                    "name": "TP53 regulates transcription of additional cell cycle genes whose exact role in the p53 pathway remain uncertain",
+                    "id": "R-HSA-6804115"
+                  },
+                  {
+                    "name": "Stabilization of p53",
+                    "id": "R-HSA-69541"
+                  },
+                  {
+                    "name": "Intracellular signaling by second messengers",
+                    "id": "R-HSA-9006925"
+                  },
+                  {
+                    "name": "SUMO E3 ligases SUMOylate target proteins",
+                    "id": "R-HSA-3108232"
+                  },
+                  {
+                    "name": "G2/M Transition",
+                    "id": "R-HSA-69275"
+                  },
+                  {
+                    "name": "Transcriptional  activation of  cell cycle inhibitor p21",
+                    "id": "R-HSA-69895"
+                  },
+                  {
+                    "name": "Regulation of NF-kappa B signaling",
+                    "id": "R-HSA-9758274"
+                  },
+                  {
+                    "name": "Pre-NOTCH Expression and Processing",
+                    "id": "R-HSA-1912422"
+                  },
+                  {
+                    "name": "TRIF(TICAM1)-mediated TLR4 signaling",
+                    "id": "R-HSA-937061"
+                  },
+                  {
+                    "name": "Toll Like Receptor TLR1:TLR2 Cascade",
+                    "id": "R-HSA-168179"
+                  },
+                  {
+                    "name": "Cell Cycle",
+                    "id": "R-HSA-1640170"
+                  },
+                  {
+                    "name": "Cytokine Signaling in Immune system",
+                    "id": "R-HSA-1280215"
+                  },
+                  {
+                    "name": "G2/M Checkpoints",
+                    "id": "R-HSA-69481"
+                  },
+                  {
+                    "name": "PIP3 activates AKT signaling",
+                    "id": "R-HSA-1257604"
+                  },
+                  {
+                    "name": "Toll Like Receptor 3 (TLR3) Cascade",
+                    "id": "R-HSA-168164"
+                  },
+                  {
+                    "name": "Transcriptional regulation by RUNX3",
+                    "id": "R-HSA-8878159"
+                  },
+                  {
+                    "name": "PTEN Regulation",
+                    "id": "R-HSA-6807070"
+                  },
+                  {
+                    "name": "Cell Cycle, Mitotic",
+                    "id": "R-HSA-69278"
+                  },
+                  {
+                    "name": "Diseases of programmed cell death",
+                    "id": "R-HSA-9645723"
+                  },
+                  {
+                    "name": "Oxidative Stress Induced Senescence",
+                    "id": "R-HSA-2559580"
+                  },
+                  {
+                    "name": "Signal Transduction",
+                    "id": "R-HSA-162582"
+                  },
+                  {
+                    "name": "TRAF6 mediated induction of NFkB and MAP kinases upon TLR7/8 or 9 activation",
+                    "id": "R-HSA-975138"
+                  },
+                  {
+                    "name": "Intrinsic Pathway for Apoptosis",
+                    "id": "R-HSA-109606"
+                  },
+                  {
+                    "name": "PKR-mediated signaling",
+                    "id": "R-HSA-9833482"
+                  },
+                  {
+                    "name": "Cellular responses to stimuli",
+                    "id": "R-HSA-8953897"
+                  },
+                  {
+                    "name": "Regulation of PTEN gene transcription",
+                    "id": "R-HSA-8943724"
+                  },
+                  {
+                    "name": "Maternal to zygotic transition (MZT)",
+                    "id": "R-HSA-9816359"
+                  },
+                  {
+                    "name": "Metabolism of proteins",
+                    "id": "R-HSA-392499"
+                  },
+                  {
+                    "name": "Cell Cycle Checkpoints",
+                    "id": "R-HSA-69620"
+                  },
+                  {
+                    "name": "Signaling by ALK in cancer",
+                    "id": "R-HSA-9700206"
+                  },
+                  {
+                    "name": "Toll Like Receptor 7/8 (TLR7/8) Cascade",
+                    "id": "R-HSA-168181"
+                  },
+                  {
+                    "name": "TP53 Regulates Transcription of Genes Involved in Cytochrome C Release",
+                    "id": "R-HSA-6803204"
+                  },
+                  {
+                    "name": "Hemostasis",
+                    "id": "R-HSA-109582"
+                  },
+                  {
+                    "name": "Association of TriC/CCT with target proteins during biosynthesis",
+                    "id": "R-HSA-390471"
+                  },
+                  {
+                    "name": "Deubiquitination",
+                    "id": "R-HSA-5688426"
+                  },
+                  {
+                    "name": "Pre-NOTCH Transcription and Translation",
+                    "id": "R-HSA-1912408"
+                  },
+                  {
+                    "name": "Interleukin-4 and Interleukin-13 signaling",
+                    "id": "R-HSA-6785807"
+                  },
+                  {
+                    "name": "MyD88:MAL(TIRAP) cascade initiated on plasma membrane",
+                    "id": "R-HSA-166058"
+                  },
+                  {
+                    "name": "Regulation of TP53 Activity through Acetylation",
+                    "id": "R-HSA-6804758"
+                  },
+                  {
+                    "name": "Generic Transcription Pathway",
+                    "id": "R-HSA-212436"
+                  },
+                  {
+                    "name": "Activation of NOXA and translocation to mitochondria",
+                    "id": "R-HSA-111448"
+                  },
+                  {
+                    "name": "TP53 Regulates Metabolic Genes",
+                    "id": "R-HSA-5628897"
+                  },
+                  {
+                    "name": "Zygotic genome activation (ZGA)",
+                    "id": "R-HSA-9819196"
+                  },
+                  {
+                    "name": "Cellular Senescence",
+                    "id": "R-HSA-2559583"
+                  },
+                  {
+                    "name": "DNA Repair",
+                    "id": "R-HSA-73894"
+                  },
+                  {
+                    "name": "Oncogene Induced Senescence",
+                    "id": "R-HSA-2559585"
+                  },
+                  {
+                    "name": "Loss of function of TP53 in cancer due to loss of tetramerization ability",
+                    "id": "R-HSA-9723905"
+                  },
+                  {
+                    "name": "Ovarian tumor domain proteases",
+                    "id": "R-HSA-5689896"
+                  },
+                  {
+                    "name": "Immune System",
+                    "id": "R-HSA-168256"
+                  },
+                  {
+                    "name": "Transcriptional Regulation by VENTX",
+                    "id": "R-HSA-8853884"
+                  },
+                  {
+                    "name": "Chaperonin-mediated protein folding",
+                    "id": "R-HSA-390466"
+                  },
+                  {
+                    "name": "Activation of BH3-only proteins",
+                    "id": "R-HSA-114452"
+                  },
+                  {
+                    "name": "Gene expression (Transcription)",
+                    "id": "R-HSA-74160"
+                  },
+                  {
+                    "name": "TAK1-dependent IKK and NF-kappa-B activation",
+                    "id": "R-HSA-445989"
+                  },
+                  {
+                    "name": "TP53 Regulates Transcription of Cell Death Genes",
+                    "id": "R-HSA-5633008"
+                  },
+                  {
+                    "name": "Defective Intrinsic Pathway for Apoptosis",
+                    "id": "R-HSA-9734009"
+                  },
+                  {
+                    "name": "Diseases of signal transduction by growth factor receptors and second messengers",
+                    "id": "R-HSA-5663202"
+                  },
+                  {
+                    "name": "TP53 Regulates Transcription of DNA Repair Genes",
+                    "id": "R-HSA-6796648"
+                  },
+                  {
+                    "name": "Mitotic G2-G2/M phases",
+                    "id": "R-HSA-453274"
+                  },
+                  {
+                    "name": "TP53 Regulates Transcription of Cell Cycle Genes",
+                    "id": "R-HSA-6791312"
+                  },
+                  {
+                    "name": "TP53 Regulates Transcription of Death Receptors and Ligands",
+                    "id": "R-HSA-6803211"
+                  },
+                  {
+                    "name": "Toll Like Receptor 10 (TLR10) Cascade",
+                    "id": "R-HSA-168142"
+                  },
+                  {
+                    "name": "TP53 Regulates Transcription of Caspase Activators and Caspases",
+                    "id": "R-HSA-6803207"
+                  },
+                  {
+                    "name": "G1/S DNA Damage Checkpoints",
+                    "id": "R-HSA-69615"
+                  },
+                  {
+                    "name": "Loss of Function of TP53 in Cancer",
+                    "id": "R-HSA-9723907"
+                  },
+                  {
+                    "name": "SUMOylation",
+                    "id": "R-HSA-2990846"
+                  },
+                  {
+                    "name": "Interleukin-1 signaling",
+                    "id": "R-HSA-9020702"
+                  },
+                  {
+                    "name": "Antiviral mechanism by IFN-stimulated genes",
+                    "id": "R-HSA-1169410"
+                  },
+                  {
+                    "name": "Toll Like Receptor 2 (TLR2) Cascade",
+                    "id": "R-HSA-181438"
+                  },
+                  {
+                    "name": "Ub-specific processing proteases",
+                    "id": "R-HSA-5689880"
+                  },
+                  {
+                    "name": "Activation of PUMA and translocation to mitochondria",
+                    "id": "R-HSA-139915"
+                  },
+                  {
+                    "name": "TP53 Regulates Transcription of Genes Involved in G1 Cell Cycle Arrest",
+                    "id": "R-HSA-6804116"
+                  },
+                  {
+                    "name": "MyD88-independent TLR4 cascade",
+                    "id": "R-HSA-166166"
+                  },
+                  {
+                    "name": "DNA Double Strand Break Response",
+                    "id": "R-HSA-5693606"
+                  },
+                  {
+                    "name": "Toll Like Receptor 9 (TLR9) Cascade",
+                    "id": "R-HSA-168138"
+                  },
+                  {
+                    "name": "Regulation of TP53 Expression",
+                    "id": "R-HSA-6804754"
+                  },
+                  {
+                    "name": "Formation of Senescence-Associated Heterochromatin Foci (SAHF)",
+                    "id": "R-HSA-2559584"
+                  },
+                  {
+                    "name": "Innate Immune System",
+                    "id": "R-HSA-168249"
+                  },
+                  {
+                    "name": "MyD88 dependent cascade initiated on endosome",
+                    "id": "R-HSA-975155"
+                  },
+                  {
+                    "name": "Recruitment and ATM-mediated phosphorylation of repair and signaling proteins at DNA double strand breaks",
+                    "id": "R-HSA-5693565"
+                  },
+                  {
+                    "name": "DNA Double-Strand Break Repair",
+                    "id": "R-HSA-5693532"
+                  },
+                  {
+                    "name": "DNA Damage/Telomere Stress Induced Senescence",
+                    "id": "R-HSA-2559586"
+                  },
+                  {
+                    "name": "p53-Dependent G1 DNA Damage Response",
+                    "id": "R-HSA-69563"
+                  },
+                  {
+                    "name": "The role of GTSE1 in G2/M progression after G2 checkpoint",
+                    "id": "R-HSA-8852276"
+                  },
+                  {
+                    "name": "Regulated Necrosis",
+                    "id": "R-HSA-5218859"
+                  },
+                  {
+                    "name": "G2/M DNA damage checkpoint",
+                    "id": "R-HSA-69473"
+                  },
+                  {
+                    "name": "TP53 regulates transcription of several additional cell death genes whose specific roles in p53-dependent apoptosis remain uncertain",
+                    "id": "R-HSA-6803205"
+                  },
+                  {
+                    "name": "Autodegradation of the E3 ubiquitin ligase COP1",
+                    "id": "R-HSA-349425"
+                  },
+                  {
+                    "name": "Regulation of TP53 Degradation",
+                    "id": "R-HSA-6804757"
+                  },
+                  {
+                    "name": "PI5P Regulates TP53 Acetylation",
+                    "id": "R-HSA-6811555"
+                  },
+                  {
+                    "name": "SUMOylation of transcription factors",
+                    "id": "R-HSA-3232118"
+                  },
+                  {
+                    "name": "RNA Polymerase II Transcription",
+                    "id": "R-HSA-73857"
+                  },
+                  {
+                    "name": "Regulation of TP53 Expression and Degradation",
+                    "id": "R-HSA-6806003"
+                  }
+                ]
+              },
+              "release_version": 86,
+              "content": "ANNOT_TYPE_ID_REACTOME_PATHWAY"
+            }
+          ]
+        },
+        "mapped_id_list": "TP53",
+        "accession": "HUMAN|HGNC=11998|UniProtKB=P04637",
+        "family_name": "CELLULAR TUMOR ANTIGEN P53",
+        "sf_name": "CELLULAR TUMOR ANTIGEN P53"
+      }
+    },
+    "search_type": "gene info"
+  }
+}

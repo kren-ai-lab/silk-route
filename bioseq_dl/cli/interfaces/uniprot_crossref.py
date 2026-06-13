@@ -1,15 +1,13 @@
 # bioseq_dl/cli/uniprot_crossref.py
-import os, logging
-from typing import List
+import os
+
 import pandas as pd
 import typer
-from bioseq_dl.core.utils.query_builders import QUERY_BUILDERS, INTERFACE_CLASSES
-from typer.colors import YELLOW
 
-from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
-from bioseq_dl.core.interfacesconfig import ConfigLoader
 from bioseq_dl.constants.databases import BASE_CONFIG_DIR
 from bioseq_dl.constants.uniprot import XREF_MAPPING
+from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
+from bioseq_dl.core.interfacesconfig import ConfigLoader
 
 app = typer.Typer(help="Search and download cross-references from UniProt.")
 
@@ -18,6 +16,7 @@ from bioseq_dl.logging import get_logger
 log = get_logger("bioseq_dl.cli.uniprot_crossref")
 
 CROSS_REF_FIELDS = [xref.lower() for xref in XREF_MAPPING.keys()]
+
 
 def save_to_file(df, out_dir, filename, db, endpoint, option):
     # Make folder with filename
@@ -30,24 +29,32 @@ def save_to_file(df, out_dir, filename, db, endpoint, option):
     df.to_csv(output_file, index=False)
     log.info(f"Results for {db} with option {option} saved to {output_file}")
 
+
 @app.command(name="")
 def run(
     input: str = typer.Option(
-        ..., "--input", "-i",
+        ...,
+        "--input",
+        "-i",
         help="Input file with UniProt IDs.",
         case_sensitive=True,
     ),
     out_dir: str = typer.Option(
-        ..., "--out_dir", "-o",
+        ...,
+        "--out_dir",
+        "-o",
         help="Output directory for results.",
         case_sensitive=True,
     ),
     databases: str = typer.Option(
-        "all", "--databases", "-d",
-        help="List of databases to query separated by commas, or 'all' to query all databases. Options: " + ", ".join(CROSS_REF_FIELDS),
+        "all",
+        "--databases",
+        "-d",
+        help="List of databases to query separated by commas, or 'all' to query all databases. Options: "
+        + ", ".join(CROSS_REF_FIELDS),
         case_sensitive=False,
-    )
-):    
+    ),
+):
     try:
         # Check if input file exists
         if not os.path.exists(input):
@@ -57,11 +64,11 @@ def run(
         try:
             df = pd.read_csv(input)
         except Exception as e:
-            raise ValueError(f"Error reading input file {input}: {e}")
-        
+            raise ValueError(f"Error reading input file {input}: {e}") from e
+
         config = ConfigLoader(config_dir=str(BASE_CONFIG_DIR) + "/uniprot_crossref")
         config.load_config("config_endpoints")
-    
+
         if databases == "all":
             databases = ",".join(CROSS_REF_FIELDS)
 
@@ -94,9 +101,11 @@ def run(
                                     params=ep_info.get("params", {}),
                                 )
                             )
-        
+
         if not endpoint_specs:
-            raise ValueError("No valid endpoint specifications found. Please check your database selections and configuration.")
+            raise ValueError(
+                "No valid endpoint specifications found. Please check your database selections and configuration."
+            )
         log.debug(f"Endpoint specifications: {endpoint_specs}")
         enricher = CrossRefEnricher(endpoint_specs)
         enriched_data, enriched_metadata = enricher.enrich(df)
@@ -108,7 +117,6 @@ def run(
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
 
-
         if isinstance(enriched_data, pd.DataFrame) and not enriched_data.empty:
             filename = os.path.splitext(os.path.basename(input))[0]
             enriched_data.to_csv(os.path.join(out_dir, f"{filename}_results.csv"), index=False)
@@ -118,14 +126,13 @@ def run(
 
         with open(os.path.join(out_dir, "metadata.json"), "w") as f:
             import json
+
             json.dump(enriched_metadata, f, indent=2)
             log.info(f"Metadata saved to {os.path.join(out_dir, 'metadata.json')}")
 
-
-
     except typer.BadParameter as e:
         typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=2)
+        raise typer.Exit(code=2) from None
     except Exception as e:
         typer.secho(f"Unexpected error: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None

@@ -1,0 +1,1880 @@
+[
+  {
+    "GBSeq_locus": "NP_000537",
+    "GBSeq_length": "393",
+    "GBSeq_moltype": "AA",
+    "GBSeq_topology": "linear",
+    "GBSeq_division": "PRI",
+    "GBSeq_update-date": "21-NOV-2025",
+    "GBSeq_create-date": "19-MAR-1999",
+    "GBSeq_definition": "cellular tumor antigen p53 isoform a [Homo sapiens]",
+    "GBSeq_primary-accession": "NP_000537",
+    "GBSeq_accession-version": "NP_000537.3",
+    "GBSeq_other-seqids": [
+      "ref|NP_000537.3|",
+      "gi|120407068"
+    ],
+    "GBSeq_keywords": [
+      "RefSeq",
+      "MANE Select"
+    ],
+    "GBSeq_source": "Homo sapiens (human)",
+    "GBSeq_organism": "Homo sapiens",
+    "GBSeq_taxonomy": "Eukaryota; Metazoa; Chordata; Craniata; Vertebrata; Euteleostomi; Mammalia; Eutheria; Euarchontoglires; Primates; Haplorrhini; Catarrhini; Hominidae; Homo",
+    "GBSeq_references": [
+      {
+        "GBReference_reference": "1",
+        "GBReference_position": "1..393",
+        "GBReference_authors": [
+          "Mirgayazova,R.",
+          "Khadiullina,R.",
+          "Chasov,V.",
+          "Mingaleeva,R.",
+          "Miftakhova,R.",
+          "Rizvanov,A.",
+          "Bulatov,E."
+        ],
+        "GBReference_title": "Therapeutic Editing of the TP53 Gene: Is CRISPR/Cas9 an Option?",
+        "GBReference_journal": "Genes (Basel) 11 (6), 704 (2020)",
+        "GBReference_xref": [
+          {
+            "GBXref_dbname": "doi",
+            "GBXref_id": "10.3390/genes11060704"
+          }
+        ],
+        "GBReference_pubmed": "32630614",
+        "GBReference_remark": "GeneRIF: Therapeutic Editing of the TP53 Gene: Is CRISPR/Cas9 an Option?\nReview article; Publication Status: Online-Only"
+      },
+      {
+        "GBReference_reference": "2",
+        "GBReference_position": "1..393",
+        "GBReference_authors": [
+          "Flynt,E.",
+          "Bisht,K.",
+          "Sridharan,V.",
+          "Ortiz,M.",
+          "Towfic,F.",
+          "Thakurta,A."
+        ],
+        "GBReference_title": "Prognosis, Biology, and Targeting of TP53 Dysregulation in Multiple Myeloma",
+        "GBReference_journal": "Cells 9 (2), 287 (2020)",
+        "GBReference_xref": [
+          {
+            "GBXref_dbname": "doi",
+            "GBXref_id": "10.3390/cells9020287"
+          }
+        ],
+        "GBReference_pubmed": "31991614",
+        "GBReference_remark": "Review article; Publication Status: Online-Only"
+      },
+      {
+        "GBReference_reference": "3",
+        "GBReference_position": "1..393",
+        "GBReference_authors": [
+          "Barnoud,T.",
+          "Parris,J.L.D.",
+          "Murphy,M.E."
+        ],
+        "GBReference_title": "Common genetic variants in the TP53 pathway and their impact on cancer",
+        "GBReference_journal": "J Mol Cell Biol 11 (7), 578-585 (2019)",
+        "GBReference_xref": [
+          {
+            "GBXref_dbname": "doi",
+            "GBXref_id": "10.1093/jmcb/mjz052"
+          }
+        ],
+        "GBReference_pubmed": "31152665",
+        "GBReference_remark": "GeneRIF: Common genetic variants in the TP53 pathway and their impact on cancer.\nReview article"
+      },
+      {
+        "GBReference_reference": "4",
+        "GBReference_position": "1..393",
+        "GBReference_authors": [
+          "Hu,W.",
+          "Chen,S.",
+          "Thorne,R.F.",
+          "Wu,M."
+        ],
+        "GBReference_title": "TP53, TP53 Target Genes (DRAM, TIGAR), and Autophagy",
+        "GBReference_journal": "Adv Exp Med Biol 1206, 127-149 (2019)",
+        "GBReference_xref": [
+          {
+            "GBXref_dbname": "doi",
+            "GBXref_id": "10.1007/978-981-15-0602-4_6"
+          }
+        ],
+        "GBReference_pubmed": "31776983",
+        "GBReference_remark": "Review article"
+      },
+      {
+        "GBReference_reference": "5",
+        "GBReference_position": "1..393",
+        "GBReference_authors": [
+          "Baugh,E.H.",
+          "Ke,H.",
+          "Levine,A.J.",
+          "Bonneau,R.A.",
+          "Chan,C.S."
+        ],
+        "GBReference_title": "Why are there hotspot mutations in the TP53 gene in human cancers?",
+        "GBReference_journal": "Cell Death Differ 25 (1), 154-160 (2018)",
+        "GBReference_xref": [
+          {
+            "GBXref_dbname": "doi",
+            "GBXref_id": "10.1038/cdd.2017.180"
+          }
+        ],
+        "GBReference_pubmed": "29099487",
+        "GBReference_remark": "GeneRIF: TP53 missense mutant alleles that occur in human cancers are discussed in the context of high resolution models of these p53 mutant protein structures to determine the structural features of mutations (review).\nReview article"
+      },
+      {
+        "GBReference_reference": "6",
+        "GBReference_position": "1..393",
+        "GBReference_authors": [
+          "Aubrey,B.J.",
+          "Strasser,A.",
+          "Kelly,G.L."
+        ],
+        "GBReference_title": "Tumor-Suppressor Functions of the TP53 Pathway",
+        "GBReference_journal": "Cold Spring Harb Perspect Med 6 (5), a026062 (2016)",
+        "GBReference_xref": [
+          {
+            "GBXref_dbname": "doi",
+            "GBXref_id": "10.1101/cshperspect.a026062"
+          }
+        ],
+        "GBReference_pubmed": "27141080",
+        "GBReference_remark": "Review article; Publication Status: Online-Only"
+      },
+      {
+        "GBReference_reference": "7",
+        "GBReference_position": "1..393",
+        "GBReference_authors": [
+          "Soussi,T.",
+          "Wiman,K.G."
+        ],
+        "GBReference_title": "TP53: an oncogene in disguise",
+        "GBReference_journal": "Cell Death Differ 22 (8), 1239-1249 (2015)",
+        "GBReference_xref": [
+          {
+            "GBXref_dbname": "doi",
+            "GBXref_id": "10.1038/cdd.2015.53"
+          }
+        ],
+        "GBReference_pubmed": "26024390",
+        "GBReference_remark": "Review article"
+      },
+      {
+        "GBReference_reference": "8",
+        "GBReference_position": "1..393",
+        "GBReference_authors": [
+          "Soussi,T."
+        ],
+        "GBReference_title": "The TP53 gene network in a postgenomic era",
+        "GBReference_journal": "Hum Mutat 35 (6), 641-642 (2014)",
+        "GBReference_xref": [
+          {
+            "GBXref_dbname": "doi",
+            "GBXref_id": "10.1002/humu.22562"
+          }
+        ],
+        "GBReference_pubmed": "24753184",
+        "GBReference_remark": "GeneRIF: Recommendations and guidelines for reporting and annotating TP53 variants are also provided, to help researchers generate standardized data that are easy to understand, analyze, and exchange across various cancer variant databases\nReview article"
+      },
+      {
+        "GBReference_reference": "9",
+        "GBReference_position": "1..393",
+        "GBReference_authors": [
+          "Anczukow,O.",
+          "Ware,M.D.",
+          "Buisson,M.",
+          "Zetoune,A.B.",
+          "Stoppa-Lyonnet,D.",
+          "Sinilnikova,O.M.",
+          "Mazoyer,S."
+        ],
+        "GBReference_title": "Does the nonsense-mediated mRNA decay mechanism prevent the synthesis of truncated BRCA1, CHK2, and p53 proteins?",
+        "GBReference_journal": "Hum Mutat 29 (1), 65-73 (2008)",
+        "GBReference_xref": [
+          {
+            "GBXref_dbname": "doi",
+            "GBXref_id": "10.1002/humu.20590"
+          }
+        ],
+        "GBReference_pubmed": "17694537",
+        "GBReference_remark": "GeneRIF: the p53 protein encoded by the 770delT allele is as abundant as the wild-type protein, as removal of the C-terminal p53 domain leads to a stabilized mutant protein, whose abundance is markedly increased when NMD is inhibited."
+      },
+      {
+        "GBReference_reference": "10",
+        "GBReference_position": "1..393",
+        "GBReference_authors": [
+          "Bourdon,J.C."
+        ],
+        "GBReference_title": "p53 Family isoforms",
+        "GBReference_journal": "Curr Pharm Biotechnol 8 (6), 332-336 (2007)",
+        "GBReference_xref": [
+          {
+            "GBXref_dbname": "doi",
+            "GBXref_id": "10.2174/138920107783018444"
+          }
+        ],
+        "GBReference_pubmed": "18289041",
+        "GBReference_remark": "Review article"
+      },
+      {
+        "GBReference_reference": "11",
+        "GBReference_position": "1..393",
+        "GBReference_authors": [
+          "Candeias,M.M.",
+          "Powell,D.J.",
+          "Roubalova,E.",
+          "Apcher,S.",
+          "Bourougaa,K.",
+          "Vojtesek,B.",
+          "Bruzzoni-Giovanelli,H.",
+          "Fahraeus,R."
+        ],
+        "GBReference_title": "Expression of p53 and p53/47 are controlled by alternative mechanisms of messenger RNA translation initiation",
+        "GBReference_journal": "Oncogene 25 (52), 6936-6947 (2006)",
+        "GBReference_xref": [
+          {
+            "GBXref_dbname": "doi",
+            "GBXref_id": "10.1038/sj.onc.1209996"
+          }
+        ],
+        "GBReference_pubmed": "16983332",
+        "GBReference_remark": "GeneRIF: harbouring alternative translation initiation sites, the p53 mRNA gives rise to different levels of the p53 isoforms which help to orchestrate the cell biological outcome of p53 activation"
+      },
+      {
+        "GBReference_reference": "12",
+        "GBReference_position": "1..393",
+        "GBReference_authors": [
+          "Murray-Zmijewski,F.",
+          "Lane,D.P.",
+          "Bourdon,J.C."
+        ],
+        "GBReference_title": "p53/p63/p73 isoforms: an orchestra of isoforms to harmonise cell differentiation and response to stress",
+        "GBReference_journal": "Cell Death Differ 13 (6), 962-972 (2006)",
+        "GBReference_xref": [
+          {
+            "GBXref_dbname": "doi",
+            "GBXref_id": "10.1038/sj.cdd.4401914"
+          }
+        ],
+        "GBReference_pubmed": "16601753",
+        "GBReference_remark": "Review article"
+      },
+      {
+        "GBReference_reference": "13",
+        "GBReference_position": "1..393",
+        "GBReference_authors": [
+          "Bourdon,J.C.",
+          "Fernandes,K.",
+          "Murray-Zmijewski,F.",
+          "Liu,G.",
+          "Diot,A.",
+          "Xirodimas,D.P.",
+          "Saville,M.K.",
+          "Lane,D.P."
+        ],
+        "GBReference_title": "p53 isoforms can regulate p53 transcriptional activity",
+        "GBReference_journal": "Genes Dev 19 (18), 2122-2137 (2005)",
+        "GBReference_xref": [
+          {
+            "GBXref_dbname": "doi",
+            "GBXref_id": "10.1101/gad.1339905"
+          }
+        ],
+        "GBReference_pubmed": "16131611",
+        "GBReference_remark": "GeneRIF: p53 isoforms can regulate p53 transcriptional activity."
+      },
+      {
+        "GBReference_reference": "14",
+        "GBReference_position": "1..393",
+        "GBReference_authors": [
+          "Ghosh,A.",
+          "Stewart,D.",
+          "Matlashewski,G."
+        ],
+        "GBReference_title": "Regulation of human p53 activity and cell localization by alternative splicing",
+        "GBReference_journal": "Mol Cell Biol 24 (18), 7987-7997 (2004)",
+        "GBReference_xref": [
+          {
+            "GBXref_dbname": "doi",
+            "GBXref_id": "10.1128/MCB.24.18.7987-7997.2004"
+          }
+        ],
+        "GBReference_pubmed": "15340061",
+        "GBReference_remark": "GeneRIF: mechanism of p53 regulation originating through alternative splicing of the human p53 gene resulting in the expression of a novel p53 mRNA"
+      },
+      {
+        "GBReference_reference": "15",
+        "GBReference_position": "1..393",
+        "GBReference_authors": [
+          "Flaman,J.M.",
+          "Waridel,F.",
+          "Estreicher,A.",
+          "Vannier,A.",
+          "Limacher,J.M.",
+          "Gilbert,D.",
+          "Iggo,R.",
+          "Frebourg,T."
+        ],
+        "GBReference_title": "The human tumour suppressor gene p53 is alternatively spliced in normal cells",
+        "GBReference_journal": "Oncogene 12 (4), 813-818 (1996)",
+        "GBReference_pubmed": "8632903"
+      },
+      {
+        "GBReference_reference": "16",
+        "GBReference_position": "1..393",
+        "GBReference_authors": [
+          "Schneider,K.",
+          "Zelley,K.",
+          "Nichols,K.E.",
+          "Schwartz Levine,A.",
+          "Garber,J."
+        ],
+        "GBReference_title": "Li-Fraumeni Syndrome",
+        "GBReference_journal": "(in) Adam MP, Bick S, Mirzaa GM, Pagon RA, Wallace SE and Amemiya A (Eds.); GENEREVIEWS(R); (1993)",
+        "GBReference_pubmed": "20301488"
+      },
+      {
+        "GBReference_reference": "17",
+        "GBReference_position": "1..393",
+        "GBReference_authors": [
+          "Turner,J.T.",
+          "Brzezinski,J.",
+          "Dome,J.S."
+        ],
+        "GBReference_title": "Wilms Tumor Predisposition",
+        "GBReference_journal": "(in) Adam MP, Bick S, Mirzaa GM, Pagon RA, Wallace SE and Amemiya A (Eds.); GENEREVIEWS(R); (1993)",
+        "GBReference_pubmed": "20301471"
+      },
+      {
+        "GBReference_reference": "18",
+        "GBReference_position": "1..393",
+        "GBReference_authors": [
+          "Lamb,P.",
+          "Crawford,L."
+        ],
+        "GBReference_title": "Characterization of the human p53 gene",
+        "GBReference_journal": "Mol Cell Biol 6 (5), 1379-1385 (1986)",
+        "GBReference_xref": [
+          {
+            "GBXref_dbname": "doi",
+            "GBXref_id": "10.1128/mcb.6.5.1379-1385.1986"
+          }
+        ],
+        "GBReference_pubmed": "2946935"
+      },
+      {
+        "GBReference_reference": "19",
+        "GBReference_position": "1..393",
+        "GBReference_authors": [
+          "Isobe,M.",
+          "Emanuel,B.S.",
+          "Givol,D.",
+          "Oren,M.",
+          "Croce,C.M."
+        ],
+        "GBReference_title": "Localization of gene for human p53 tumour antigen to band 17p13",
+        "GBReference_journal": "Nature 320 (6057), 84-85 (1986)",
+        "GBReference_xref": [
+          {
+            "GBXref_dbname": "doi",
+            "GBXref_id": "10.1038/320084a0"
+          }
+        ],
+        "GBReference_pubmed": "3456488"
+      },
+      {
+        "GBReference_reference": "20",
+        "GBReference_position": "1..393",
+        "GBReference_authors": [
+          "Benchimol,S.",
+          "Lamb,P.",
+          "Crawford,L.V.",
+          "Sheer,D.",
+          "Shows,T.B.",
+          "Bruns,G.A.",
+          "Peacock,J."
+        ],
+        "GBReference_title": "Transformation associated p53 protein is encoded by a gene on human chromosome 17",
+        "GBReference_journal": "Somat Cell Mol Genet 11 (5), 505-510 (1985)",
+        "GBReference_xref": [
+          {
+            "GBXref_dbname": "doi",
+            "GBXref_id": "10.1007/BF01534845"
+          }
+        ],
+        "GBReference_pubmed": "2994241"
+      },
+      {
+        "GBReference_reference": "21",
+        "GBReference_position": "1..393",
+        "GBReference_authors": [
+          "Harlow,E.",
+          "Williamson,N.M.",
+          "Ralston,R.",
+          "Helfman,D.M.",
+          "Adams,T.E."
+        ],
+        "GBReference_title": "Molecular cloning and in vitro expression of a cDNA clone for human cellular tumor antigen p53",
+        "GBReference_journal": "Mol Cell Biol 5 (7), 1601-1610 (1985)",
+        "GBReference_xref": [
+          {
+            "GBXref_dbname": "doi",
+            "GBXref_id": "10.1128/mcb.5.7.1601-1610.1985"
+          }
+        ],
+        "GBReference_pubmed": "3894933"
+      },
+      {
+        "GBReference_reference": "22",
+        "GBReference_position": "1..393",
+        "GBReference_authors": [
+          "Zakut-Houri,R.",
+          "Bienz-Tadmor,B.",
+          "Givol,D.",
+          "Oren,M."
+        ],
+        "GBReference_title": "Human p53 cellular tumor antigen: cDNA sequence and expression in COS cells",
+        "GBReference_journal": "EMBO J 4 (5), 1251-1255 (1985)",
+        "GBReference_xref": [
+          {
+            "GBXref_dbname": "doi",
+            "GBXref_id": "10.1002/j.1460-2075.1985.tb03768.x"
+          }
+        ],
+        "GBReference_pubmed": "4006916"
+      },
+      {
+        "GBReference_reference": "23",
+        "GBReference_position": "1..393",
+        "GBReference_authors": [
+          "Matlashewski,G.",
+          "Lamb,P.",
+          "Pim,D.",
+          "Peacock,J.",
+          "Crawford,L.",
+          "Benchimol,S."
+        ],
+        "GBReference_title": "Isolation and characterization of a human p53 cDNA clone: expression of the human p53 gene",
+        "GBReference_journal": "EMBO J 3 (13), 3257-3262 (1984)",
+        "GBReference_xref": [
+          {
+            "GBXref_dbname": "doi",
+            "GBXref_id": "10.1002/j.1460-2075.1984.tb02287.x"
+          }
+        ],
+        "GBReference_pubmed": "6396087"
+      }
+    ],
+    "GBSeq_comment": "REVIEWED REFSEQ: This record has been curated by NCBI staff. The reference sequence was derived from DA453049.1, X02469.1 and AK223026.1.; On Dec 29, 2006 this sequence version replaced NP_000537.2.; ~Summary: This gene encodes a tumor suppressor protein containing transcriptional activation, DNA binding, and oligomerization domains. The encoded protein responds to diverse cellular stresses to regulate expression of target genes, thereby inducing cell cycle arrest, apoptosis, senescence, DNA repair, or changes in metabolism. Mutations in this gene are associated with a variety of human cancers, including hereditary cancers such as Li-Fraumeni syndrome. Alternative splicing of this gene and the use of alternate promoters result in multiple transcript variants and isoforms. Additional isoforms have also been shown to result from the use of alternate translation initiation codons from identical transcript variants (PMIDs: 12032546, 20937277). [provided by RefSeq, Dec 2016].; ~Transcript Variant: This variant (1) can initiate translation from two in-frame AUG start codons. The isoform represented in this variant (a, also known as p53alpha) results from translation initiation at the upstream start codon. Both variants 1 and 2 encode isoform a, which is the longest isoform.; ~Publication Note: This RefSeq record includes a subset of the publications that are available for this gene. Please see the Gene record to access additional publications.; ##Evidence-Data-START## ; Transcript exon combination :: BC003596.1, AF307851.1 [ECO:0000332] ; RNAseq introns :: mixed sample support SAMEA1965299, SAMEA1966682 [ECO:0006172] ; ##Evidence-Data-END##; ##RefSeq-Attributes-START## ; MANE Ensembl match :: ENST00000269305.9/ ENSP00000269305.4 ; RefSeq Select criteria :: based on manual assertion, conservation, expression, longest protein ; ##RefSeq-Attributes-END##",
+    "GBSeq_source-db": "REFSEQ: accession NM_000546.6",
+    "GBSeq_feature-table": [
+      {
+        "GBFeature_key": "source",
+        "GBFeature_location": "1..393",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "1",
+            "GBInterval_to": "393",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "organism",
+            "GBQualifier_value": "Homo sapiens"
+          },
+          {
+            "GBQualifier_name": "db_xref",
+            "GBQualifier_value": "taxon:9606"
+          },
+          {
+            "GBQualifier_name": "chromosome",
+            "GBQualifier_value": "17"
+          },
+          {
+            "GBQualifier_name": "map",
+            "GBQualifier_value": "17p13.1"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Protein",
+        "GBFeature_location": "1..393",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "1",
+            "GBInterval_to": "393",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "product",
+            "GBQualifier_value": "cellular tumor antigen p53 isoform a"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "tumor protein 53; mutant tumor protein 53; cellular tumor antigen p53; phosphoprotein p53; transformation-related protein 53; antigen NY-CO-13; tumor supressor p53"
+          },
+          {
+            "GBQualifier_name": "calculated_mol_wt",
+            "GBQualifier_value": "43522"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "1..320",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "1",
+            "GBInterval_to": "320",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "Interaction with CCAR2. /evidence=ECO:0000269|PubMed:25732823"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "1..83",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "1",
+            "GBInterval_to": "83",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "Interaction with HRMT1L2. /evidence=ECO:0000269|PubMed:15186775"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "1..44",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "1",
+            "GBInterval_to": "44",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "Transcription activation (acidic)"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "6..30",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "6",
+            "GBInterval_to": "30",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "P53_TAD"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "P53 transactivation motif; pfam08563"
+          },
+          {
+            "GBQualifier_name": "db_xref",
+            "GBQualifier_value": "CDD:462520"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "9",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "9",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "phosphorylation"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "Phosphoserine, by HIPK4. /evidence=ECO:0000269|PubMed:18022393; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "15",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "15",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "phosphorylation"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "Phosphoserine, by CDK5, PRPK, AMPK, NUAK1 and ATM. /evidence=ECO:0000269|PubMed:10570149, ECO:0000269|PubMed:11554766, ECO:0000269|PubMed:15866171, ECO:0000269|PubMed:17108107, ECO:0000269|PubMed:17591690, ECO:0000269|PubMed:17967874, ECO:0000269|PubMed:21317932, ECO:0000269|PubMed:28842590; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "17..25",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "17",
+            "GBInterval_to": "25",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "TADI"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "18",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "18",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "phosphorylation"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "Phosphothreonine, by CK1, VRK1 and VRK2. /evidence=ECO:0000269|PubMed:10606744, ECO:0000269|PubMed:10951572, ECO:0000269|PubMed:16704422, ECO:0000269|PubMed:31527692; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "20",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "20",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "phosphorylation"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "Phosphoserine, by CHEK2, CK1 and PLK3. /evidence=ECO:0000269|PubMed:10570149, ECO:0000269|PubMed:11447225, ECO:0000269|PubMed:11551930, ECO:0000269|PubMed:12810724, ECO:0000269|PubMed:20041275; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "33",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "33",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "phosphorylation"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "Phosphoserine, by CDK5 and CDK7. /evidence=ECO:0000269|PubMed:17591690, ECO:0000269|PubMed:9372954; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "35..59",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "35",
+            "GBInterval_to": "59",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "TAD2"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "Transactivation domain 2; pfam18521"
+          },
+          {
+            "GBQualifier_name": "db_xref",
+            "GBQualifier_value": "CDD:375947"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "37",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "37",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "phosphorylation"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "Phosphoserine, by MAPKAPK5. /evidence=ECO:0000269|PubMed:17254968; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "40",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "40",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "alternative start codon"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "delta40p53alpha"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "46",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "46",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "phosphorylation"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "Phosphoserine, by CDK5, DYRK2, HIPK2 and PKC/PRKCG. /evidence=ECO:0000269|PubMed:11740489, ECO:0000269|PubMed:11780126, ECO:0000269|PubMed:16377624, ECO:0000269|PubMed:17349958, ECO:0000269|PubMed:17591690; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "48..56",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "48",
+            "GBInterval_to": "56",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "TADII"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "50..96",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "50",
+            "GBInterval_to": "96",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "Disordered. /evidence=ECO:0000269|PubMed:31953488"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "55",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "55",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "phosphorylation"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "Phosphothreonine, by TAF1 and GRK5. /evidence=ECO:0000269|PubMed:15053879, ECO:0000269|PubMed:20124405; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "66..110",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "66",
+            "GBInterval_to": "110",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "Interaction with WWOX"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "100..370",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "100",
+            "GBInterval_to": "370",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "Interaction with HIPK1. /evidence=ECO:0000250"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "100..300",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "100",
+            "GBInterval_to": "300",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "Required for interaction with ZNF385A. /evidence=ECO:0000269|PubMed:17719541"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "109..288",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "109",
+            "GBInterval_to": "288",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "P53"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "P53 DNA-binding domain; cd08367"
+          },
+          {
+            "GBQualifier_name": "db_xref",
+            "GBQualifier_value": "CDD:176262"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "113..236",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "113",
+            "GBInterval_to": "236",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "Required for interaction with FBXO42. /evidence=ECO:0000269|PubMed:19509332"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "116..292",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "116",
+            "GBInterval_to": "292",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "Interaction with AXIN1. /evidence=ECO:0000250"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "120",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "120",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "other"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "Interaction with DNA. /evidence=ECO:0000269|PubMed:16793544, ECO:0000269|PubMed:18996393, ECO:0000269|PubMed:20364130; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "120",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "120",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "acetylation"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "N6-acetyllysine. /evidence=ECO:0000269|PubMed:17189187, ECO:0000269|PubMed:19854137, ECO:0000269|PubMed:23431171; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "order(176,179,238,242)",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "176",
+            "GBInterval_accession": "NP_000537.3"
+          },
+          {
+            "GBInterval_point": "179",
+            "GBInterval_accession": "NP_000537.3"
+          },
+          {
+            "GBInterval_point": "238",
+            "GBInterval_accession": "NP_000537.3"
+          },
+          {
+            "GBInterval_point": "242",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_operator": "order",
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "other"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "zinc binding site [ion binding]"
+          },
+          {
+            "GBQualifier_name": "db_xref",
+            "GBQualifier_value": "CDD:176262"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "order(177..179,181)",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "177",
+            "GBInterval_to": "179",
+            "GBInterval_accession": "NP_000537.3"
+          },
+          {
+            "GBInterval_point": "181",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_operator": "order",
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "other"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "dimerization site [polypeptide binding]"
+          },
+          {
+            "GBQualifier_name": "db_xref",
+            "GBQualifier_value": "CDD:176262"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "183",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "183",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "phosphorylation"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "Phosphoserine, by AURKB. /evidence=ECO:0000269|PubMed:20959462; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "order(239,241,248,273,275..277,280)",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "239",
+            "GBInterval_accession": "NP_000537.3"
+          },
+          {
+            "GBInterval_point": "241",
+            "GBInterval_accession": "NP_000537.3"
+          },
+          {
+            "GBInterval_point": "248",
+            "GBInterval_accession": "NP_000537.3"
+          },
+          {
+            "GBInterval_point": "273",
+            "GBInterval_accession": "NP_000537.3"
+          },
+          {
+            "GBInterval_from": "275",
+            "GBInterval_to": "277",
+            "GBInterval_accession": "NP_000537.3"
+          },
+          {
+            "GBInterval_point": "280",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_operator": "order",
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "DNA binding"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "DNA binding site [nucleotide binding]"
+          },
+          {
+            "GBQualifier_name": "db_xref",
+            "GBQualifier_value": "CDD:176262"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "241..248",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "241",
+            "GBInterval_to": "248",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "Interaction with the 53BP2 SH3 domain"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "256..294",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "256",
+            "GBInterval_to": "294",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "Interaction with E4F1. /evidence=ECO:0000269|PubMed:10644996"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "269",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "269",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "phosphorylation"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "Phosphoserine, by AURKB. /evidence=ECO:0000269|PubMed:20959462; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "273..280",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "273",
+            "GBInterval_to": "280",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "Interaction with DNA"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "282..325",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "282",
+            "GBInterval_to": "325",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "Disordered. /evidence=ECO:0000256|SAM:MobiDB-lite"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "284",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "284",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "phosphorylation"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "Phosphothreonine, by AURKB. /evidence=ECO:0000269|PubMed:20959462; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "300..393",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "300",
+            "GBInterval_to": "393",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "Interaction with CARM1. /evidence=ECO:0000269|PubMed:15186775"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "305..321",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "305",
+            "GBInterval_to": "321",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "Bipartite nuclear localization signal"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "305",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "305",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "acetylation"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "N6-acetyllysine. /evidence=ECO:0000269|PubMed:12724314; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "315",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "315",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "phosphorylation"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "Phosphoserine, by AURKA, CDK1 and CDK2. /evidence=ECO:0000269|PubMed:10884347, ECO:0000269|PubMed:14702041; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "319..360",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "319",
+            "GBInterval_to": "360",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "Interaction with HIPK2"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "319..358",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "319",
+            "GBInterval_to": "358",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "P53_tetramer"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "P53 tetramerization motif; pfam07710"
+          },
+          {
+            "GBQualifier_name": "db_xref",
+            "GBQualifier_value": "CDD:462238"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "321",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "321",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "acetylation"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "N6-acetyllysine. /evidence=ECO:0000250|UniProtKB:P02340; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "325..356",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "325",
+            "GBInterval_to": "356",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "Oligomerization"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "333",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "333",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "methylation"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "Omega-N-methylarginine, by PRMT5. /evidence=ECO:0000269|PubMed:19011621; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "335",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "335",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "methylation"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "Symmetric dimethylarginine, by PRMT5. /evidence=ECO:0000269|PubMed:19011621; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "337",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "337",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "methylation"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "Symmetric dimethylarginine, by PRMT5. /evidence=ECO:0000269|PubMed:19011621; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "339..350",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "339",
+            "GBInterval_to": "350",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "Nuclear export signal"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "351..393",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "351",
+            "GBInterval_to": "393",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "Disordered. /evidence=ECO:0000269|PubMed:31953488, ECO:0000269|PubMed:36108750"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "359..363",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "359",
+            "GBInterval_to": "363",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "Interaction with USP7"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "368..387",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "368",
+            "GBInterval_to": "387",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "Basic (repression of DNA-binding)"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "370..372",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "370",
+            "GBInterval_to": "372",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "[KR]-[STA]-K motif"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "370",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "370",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "methylation"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "N6,N6-dimethyllysine, alternate. /evidence=ECO:0000269|PubMed:17108971, ECO:0000269|PubMed:22864287; N6-methyllysine, by SMYD2, alternate. /evidence=ECO:0000269|PubMed:17108971, ECO:0000269|PubMed:22864287; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "372",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "372",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "methylation"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "N6-methyllysine, by SETD7. /evidence=ECO:0000269|PubMed:15525938, ECO:0000269|PubMed:16415881; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "373",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "373",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "methylation"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "N6,N6-dimethyllysine, by EHMT1 and EHMT2, alternate. /evidence=ECO:0000269|PubMed:20118233; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "373",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "373",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "acetylation"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "N6-acetyllysine, alternate. /evidence=ECO:0000269|PubMed:10656795; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Region",
+        "GBFeature_location": "374..393",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "374",
+            "GBInterval_to": "393",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "region_name",
+            "GBQualifier_value": "Interaction with MORN3. /evidence=ECO:0000269|PubMed:29681526"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "381",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "381",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "acetylation"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "N6-acetyllysine. /evidence=ECO:0000269|PubMed:29474172, ECO:0007744|PubMed:19608861; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "382",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "382",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "methylation"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "N6,N6-dimethyllysine, alternate. /evidence=ECO:0000269|PubMed:17707234, ECO:0000269|PubMed:20870725, ECO:0000269|PubMed:22864287; N6-methyllysine, by KMT5A, alternate. /evidence=ECO:0000269|PubMed:17707234, ECO:0000269|PubMed:20870725, ECO:0000269|PubMed:22864287; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "382",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "382",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "acetylation"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "N6-acetyllysine, alternate. /evidence=ECO:0000269|PubMed:10656795, ECO:0000269|PubMed:15448695, ECO:0000269|PubMed:20228809, ECO:0000269|PubMed:23431171, ECO:0000269|PubMed:29681526, ECO:0007744|PubMed:19608861; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "Site",
+        "GBFeature_location": "392",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_point": "392",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "site_type",
+            "GBQualifier_value": "phosphorylation"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "Phosphoserine, by CK2, CDK2 and NUAK1. /evidence=ECO:0000269|PubMed:10884347, ECO:0000269|PubMed:11239457, ECO:0000269|PubMed:17108107, ECO:0000269|PubMed:21317932, ECO:0000269|PubMed:22214662, ECO:0000269|PubMed:35618207; propagated from UniProtKB/Swiss-Prot (P04637.4)"
+          }
+        ]
+      },
+      {
+        "GBFeature_key": "CDS",
+        "GBFeature_location": "1..393",
+        "GBFeature_intervals": [
+          {
+            "GBInterval_from": "1",
+            "GBInterval_to": "393",
+            "GBInterval_accession": "NP_000537.3"
+          }
+        ],
+        "GBFeature_quals": [
+          {
+            "GBQualifier_name": "gene",
+            "GBQualifier_value": "TP53"
+          },
+          {
+            "GBQualifier_name": "gene_synonym",
+            "GBQualifier_value": "BCC7; BMFS5; LFS1; P53; TRP53"
+          },
+          {
+            "GBQualifier_name": "coded_by",
+            "GBQualifier_value": "NM_000546.6:143..1324"
+          },
+          {
+            "GBQualifier_name": "note",
+            "GBQualifier_value": "isoform a is encoded by transcript variant 1"
+          },
+          {
+            "GBQualifier_name": "transl_table",
+            "GBQualifier_value": "1"
+          },
+          {
+            "GBQualifier_name": "db_xref",
+            "GBQualifier_value": "CCDS:CCDS11118.1"
+          },
+          {
+            "GBQualifier_name": "db_xref",
+            "GBQualifier_value": "GeneID:7157"
+          },
+          {
+            "GBQualifier_name": "db_xref",
+            "GBQualifier_value": "HGNC:HGNC:11998"
+          },
+          {
+            "GBQualifier_name": "db_xref",
+            "GBQualifier_value": "MIM:191170"
+          }
+        ]
+      }
+    ],
+    "GBSeq_sequence": "meepqsdpsvepplsqetfsdlwkllpennvlsplpsqamddlmlspddieqwftedpgpdeaprmpeaappvapapaaptpaapapapswplsssvpsqktyqgsygfrlgflhsgtaksvtctyspalnkmfcqlaktcpvqlwvdstpppgtrvramaiykqsqhmtevvrrcphhercsdsdglappqhlirvegnlrveylddrntfrhsvvvpyeppevgsdcttihynymcnsscmggmnrrpiltiitledssgnllgrnsfevrvcacpgrdrrteeenlrkkgephhelppgstkralpnntssspqpkkkpldgeyftlqirgrerfemfrelnealelkdaqagkepggsrahsshlkskkgqstsrhkklmfktegpdsd"
+  }
+]

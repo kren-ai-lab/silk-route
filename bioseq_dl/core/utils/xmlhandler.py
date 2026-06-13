@@ -4,14 +4,8 @@ from typing import Any
 import pandas as pd
 
 
-def dict_to_element(
-    data: Any,
-    parent: ET.Element,
-    *,
-    list_item_tag: str = "item"
-) -> None:
-    """
-    Convert a dict, list, or scalar value to XML under `parent`.
+def dict_to_element(data: Any, parent: ET.Element, *, list_item_tag: str = "item") -> None:
+    """Convert a dict, list, or scalar value to XML under `parent`.
 
     Rules:
     - dict  -> <key>...</key>
@@ -33,7 +27,7 @@ def dict_to_element(
 
 
 def dict_to_elementtree(
-    data: dict,
+    data: Any,
     root_tag: str = "results",
     list_item_tag: str = "item",
 ) -> ET.ElementTree:
@@ -53,11 +47,7 @@ def _parse_xml_container(element: ET.Element, list_item_tag: str) -> Any:
 
     if items:
         if all(_xml_is_leaf(item) for item in items):
-            return [
-                (item.text or "").strip()
-                for item in items
-                if (item.text or "").strip()
-            ]
+            return [(item.text or "").strip() for item in items if (item.text or "").strip()]
 
         output = []
         for item in items:
@@ -77,9 +67,7 @@ def _parse_xml_container(element: ET.Element, list_item_tag: str) -> Any:
     parsed = {}
     for child in list(element):
         parsed[child.tag] = (
-            (child.text or "").strip()
-            if _xml_is_leaf(child)
-            else ET.tostring(child, encoding="unicode")
+            (child.text or "").strip() if _xml_is_leaf(child) else ET.tostring(child, encoding="unicode")
         )
     return parsed
 
@@ -89,15 +77,13 @@ def elementtree_to_dataframe(
     record_path: str = "./item",
     list_item_tag: str = "item",
 ) -> pd.DataFrame:
-    """
-    Convert an ElementTree to a DataFrame.
+    """Convert an ElementTree to a DataFrame.
 
     Rules:
     - Each element at record_path becomes one row
     - Leaf elements -> scalar values
     - Containers with repeated <item> -> list[str] or list[dict]
     """
-
     root = tree.getroot()
     records = root.findall(record_path)
 
