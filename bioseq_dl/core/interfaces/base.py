@@ -19,7 +19,7 @@ from requests.exceptions import RequestException
 from requests.models import Request, Response
 
 from bioseq_dl.core.dbconfig import DBConfig
-from bioseq_dl.core.interfacesconfig import read_config_file
+from bioseq_dl.core.interfacesconfig import load_packaged_config, read_config_file
 from bioseq_dl.core.utils.base_auxiliary_methods import get_nested, get_primary_keys, validate_parameters
 from bioseq_dl.logging import get_logger
 
@@ -136,8 +136,15 @@ class BaseAPIInterface(ABC):
         self.configs: dict[str, dict] = {}
         self.fields_config: dict[str, dict] = {}
 
-        if self.use_config and self.config_dir:
-            self._load_all_configs(self.config_dir)
+        if self.use_config:
+            # Optional user-provided extra configs (never required).
+            if self.config_dir:
+                self._load_all_configs(self.config_dir)
+            # Field-extraction maps are library internals: always load the
+            # packaged version, which overrides any user copy (no overrides).
+            packaged_fields = self._load_packaged_fields()
+            if packaged_fields:
+                self.configs["fields"] = packaged_fields
 
         log.debug(f"Parent class BaseAPIInterface initialized. {self.__class__.__name__}")
         log.debug(f"Cache directory set to: {self.cache_dir}")
@@ -153,17 +160,32 @@ class BaseAPIInterface(ABC):
         self.session.mount("http://", adapter)
         self.session.headers.update(self.headers or {"Content-Type": "application/json"})
 
+    def _load_packaged_fields(self) -> dict:
+        """Load the packaged ``fields.yml`` for this interface from package resources.
+
+        Field maps are library internals, not user config: the bundled version is
+        authoritative and always in sync with the parse code. The package subdir is
+        derived from ``DB_CONFIG.CONFIG_DIR`` (e.g. ``.../go`` -> ``go``).
+        """
+        db = self.DB_CONFIG
+        if db is None or not db.CONFIG_DIR:
+            return {}
+        subdir = os.path.basename(os.path.normpath(db.CONFIG_DIR))
+        return load_packaged_config(subdir, "fields.yml") or {}
+
     def _load_all_configs(self, config_dir: str) -> None:
-        """Load all configuration files from the specified directory.
+        """Load optional user-provided configuration files from a directory.
+
+        A missing directory is not an error: the library falls back to packaged
+        defaults, so interfaces work on a clean machine without ``bioseq-dl-init``.
 
         Args:
             config_dir (str): Directory containing configuration files.
 
         """
         if not os.path.exists(config_dir):
-            raise FileNotFoundError(f"Configuration directory not found: {config_dir}")
-
-        self.configs = {}
+            log.debug(f"Config directory not found, using packaged defaults only: {config_dir}")
+            return
 
         for fname in os.listdir(config_dir):
             path = os.path.join(config_dir, fname)

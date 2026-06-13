@@ -16,12 +16,18 @@ def ensure_config_dir_exists(config_dir) -> None:
 
 
 def list_config_files() -> list[str]:
-    """List all configuration files in the package's config directory."""
+    """List user-facing configuration files in the package's config directory.
+
+    ``fields.yml`` files are intentionally excluded: field-extraction maps are
+    library internals loaded from package resources, not user-overridable config.
+    """
     files = []
     try:
         with resources.path("bioseq_dl", "config") as config_path:
             for root, dirs, filenames in os.walk(config_path):
                 for filename in filenames:
+                    if filename == "fields.yml":
+                        continue
                     file_path = Path(root) / filename
                     # Get the relative path from config_path
                     rel_path = file_path.relative_to(config_path)

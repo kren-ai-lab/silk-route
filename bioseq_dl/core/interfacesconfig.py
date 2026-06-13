@@ -1,5 +1,6 @@
 import json
 import os
+from importlib import resources
 from typing import Any
 
 import yaml
@@ -18,6 +19,23 @@ def read_config_file(path: str) -> Any:
         if ext == ".json":
             return json.load(f)
         return yaml.safe_load(f)
+
+
+def load_packaged_config(subdir: str, name: str) -> Any:
+    """Load a config file bundled in the package (``bioseq_dl/config/<subdir>/<name>``).
+
+    These are library defaults (e.g. field-extraction maps) shipped with the
+    package — the authoritative source, always in sync with the parse code.
+    Returns ``None`` when the resource does not exist.
+    """
+    try:
+        resource = resources.files("bioseq_dl") / "config" / subdir / name
+        if not resource.is_file():
+            return None
+        with resources.as_file(resource) as path:
+            return read_config_file(str(path))
+    except (FileNotFoundError, ModuleNotFoundError):
+        return None
 
 
 class ConfigLoader:

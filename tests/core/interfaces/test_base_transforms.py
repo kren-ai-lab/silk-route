@@ -196,3 +196,24 @@ def test_resolve_dirs_explicit_cache_dir_made_absolute():
 def test_resolve_dirs_explicit_config_dir_preserved():
     _, config = FakeWithDB._resolve_dirs(None, "my/config")
     assert config == "my/config"
+
+
+# --- packaged field maps (Phase 5) ----------------------------------------
+
+
+def test_packaged_fields_loaded_without_user_config_dir(tmp_path):
+    # use_config=True + a non-existent config dir must NOT raise: field maps come
+    # from packaged resources, not the user directory.
+    from bioseq_dl import ChEBIInterface
+
+    iface = ChEBIInterface(
+        cache_dir=str(tmp_path), config_dir=str(tmp_path / "missing"), use_config=True
+    )
+    fields = iface.get_config("fields")
+    assert fields  # non-empty, loaded from bioseq_dl/config/chebi/fields.yml
+    assert "compounds" in fields
+
+
+def test_load_packaged_fields_empty_without_db_config(iface):
+    # FakeInterface has no DB_CONFIG -> no packaged fields, returns {}.
+    assert iface._load_packaged_fields() == {}
