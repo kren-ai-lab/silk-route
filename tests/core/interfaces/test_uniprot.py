@@ -31,9 +31,7 @@ def test_parse_extracts_requested_fields(interface):
 
 
 def test_submit_id_mapping_posts_and_returns_job_id(interface, mocked_responses):
-    mocked_responses.add(
-        responses.POST, f"{API_URL}/idmapping/run", json={"jobId": "JOB123"}, status=200
-    )
+    mocked_responses.add(responses.POST, f"{API_URL}/idmapping/run", json={"jobId": "JOB123"}, status=200)
 
     job_id = interface.submit_id_mapping("UniProtKB_AC-ID", "UniProtKB", ["P12345"])
 
@@ -52,9 +50,7 @@ def test_id_mapping_flow_resolves_and_fetches_results(interface, mocked_response
     mocked_responses.add(
         responses.GET, f"{API_URL}/idmapping/details/{job}", json={"redirectURL": link}, status=200
     )
-    mocked_responses.add(
-        responses.GET, link, json=results, status=200, headers={"x-total-results": "1"}
-    )
+    mocked_responses.add(responses.GET, link, json=results, status=200, headers={"x-total-results": "1"})
 
     assert interface.check_id_mapping_results_ready(job) is True
     resolved = interface.get_id_mapping_results_link(job)

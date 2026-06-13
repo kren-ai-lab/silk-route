@@ -76,7 +76,9 @@ def _tmp_kwargs() -> dict:
 def capture_rhea() -> None:
     from bioseq_dl.core.interfaces.rhea import RheaInterface
 
-    _capture_raw("rhea", "reaction", RheaInterface(**_tmp_kwargs()), query="RHEA:10000", method="rhea", limit=1)
+    _capture_raw(
+        "rhea", "reaction", RheaInterface(**_tmp_kwargs()), query="RHEA:10000", method="rhea", limit=1
+    )
 
 
 def capture_chebi() -> None:
@@ -106,7 +108,11 @@ def capture_genontology() -> None:
     from bioseq_dl.core.interfaces.genontology import GenOntologyInterface
 
     _capture_raw(
-        "genontology", "term", GenOntologyInterface(**_tmp_kwargs()), query="GO:0008150", method="ontology-term"
+        "genontology",
+        "term",
+        GenOntologyInterface(**_tmp_kwargs()),
+        query="GO:0008150",
+        method="ontology-term",
     )
 
 
@@ -151,7 +157,11 @@ def capture_reactome() -> None:
     from bioseq_dl.core.interfaces.reactome import ReactomeInterface
 
     _capture_raw(
-        "reactome", "discover", ReactomeInterface(**_tmp_kwargs()), query="R-HSA-109581", method="data-discover"
+        "reactome",
+        "discover",
+        ReactomeInterface(**_tmp_kwargs()),
+        query="R-HSA-109581",
+        method="data-discover",
     )
 
 
@@ -185,7 +195,12 @@ def capture_kegg() -> None:
     from bioseq_dl.core.interfaces.kegg import KEGGInterface
 
     _capture_raw(
-        "kegg", "get", KEGGInterface(**_tmp_kwargs()), as_text=True, query={"entries": "hsa:10458"}, method="get"
+        "kegg",
+        "get",
+        KEGGInterface(**_tmp_kwargs()),
+        as_text=True,
+        query={"entries": "hsa:10458"},
+        method="get",
     )
 
 

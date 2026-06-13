@@ -98,7 +98,7 @@ pug/gene:
     assay_type: Assay Type
     pubmed_id: PubMed ID
     rna_i: RNAi
-  aids:    
+  aids:
     protein_accession: ProteinAccession
     aid: AID
   summary:

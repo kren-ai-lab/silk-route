@@ -35,7 +35,9 @@ def test_fetch_builds_url_and_wraps_in_list(interface, mocked_responses):
 
 def test_parse_extracts_requested_fields(interface):
     body = load_fixture("interpro", "entry")
-    parsed = interface.parse(body, fields_to_extract={"accession": "metadata.accession", "type": "metadata.type"})
+    parsed = interface.parse(
+        body, fields_to_extract={"accession": "metadata.accession", "type": "metadata.type"}
+    )
 
     assert parsed == {"accession": "IPR000001", "type": "domain"}
 
