@@ -32,7 +32,7 @@ def dict_to_elementtree(
     list_item_tag: str = "item",
 ) -> ET.ElementTree:
     root = ET.Element(root_tag)
-    dict_to_element(data, root, list_item_tatg=list_item_tag)
+    dict_to_element(data, root, list_item_tag=list_item_tag)
     return ET.ElementTree(root)
 
 
