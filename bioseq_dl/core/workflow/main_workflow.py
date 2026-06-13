@@ -254,7 +254,7 @@ class MainWorkflow:
         # Currently metadata is a flexible dict that mixes counters, nested parts, and
         # enrichment outputs (sometimes lists/dicts). Plan: decide on a stable schema
         # (e.g. {'mode':..., 'modality':..., 'results':..., 'enrichment':..., 'parts':...}) and migrate
-        # query_first/import_first/query_composition to always return (data, metadata)
+        # query_first/query_composition to always return (data, metadata)
         # with a consistent metadata shape. Leaving this as a TODO until the CLI/PRISM
         # integration decisions are final.
 
@@ -298,37 +298,6 @@ class MainWorkflow:
         raise ValueError(f"Unknown workflow mode: {workflow_mode}")
 
     # ---- Pipeline step implementations ----
-    def _step_interpret(self, context: dict) -> None:
-        args = context.get("args", {})
-        # If interpreted_query already present in context, do not re-interpret to avoid
-        # overwriting or alias-rewriting (e.g., 'xref:' -> 'database:') produced by later
-        # pipeline stages such as compound -> chembl -> uniprot. This preserves the
-        # subquery built from ChEMBL IDs.
-        if context.get("interpreted_query"):
-            # Ensure crossref fields are present for enrichment steps if missing
-            if "additional_crossref_fields" not in context:
-                query = args.get("query")
-                if query:
-                    crossref_fields = self.interpreter.extract_databases(query)
-                    context["additional_crossref_fields"] = crossref_fields
-            return
-
-        query = args.get("query")
-        if not query:
-            return
-        # Get the main query
-        interpreted = self.interpreter.interpret(query)
-        context["interpreted_query"] = interpreted
-        # Get crossref fields
-        crossref_fields = self.interpreter.extract_databases(query)
-        context["additional_crossref_fields"] = crossref_fields
-        # Get additional searches (e.g., ChEMBL)
-        # additional_searches = self.interpreter.extract_additional_searches(query)
-        # context.setdefault("metadata", {})["additional_searches"] = additional_searches
-
-        self.log.debug("Interpreted query: %s", interpreted)
-        self.log.debug("Additional crossref fields: %s", crossref_fields)
-
     def _step_fetch_uniprot(self, context: dict) -> None:
         args = context.get("searches", {}).get("uniprot", {}) or context.get("args", {})
         interpreted = context.get("searches", {}).get("uniprot", {}).get("interpreted_query") or args.get(
@@ -626,22 +595,6 @@ class MainWorkflow:
                 new_query = out
             context["searches"]["uniprot"]["query"] = new_query
             self.log.debug("Pipeline built UniProt subquery from ChEMBL IDs: %s", out)
-
-    def _step_build_interactions(self, context: dict) -> None:
-        """Transform fetched candidates into an interactions dataset. Minimal default behaviour:
-        - If Biogrid response is a DataFrame, return as-is
-        - If ChEMBL response, attempt to build protein-ligand mapping via target_chembl_id -> xref:chembl-...
-        Users can override via `self.step_overrides['build_interactions']`.
-        """
-        resp = context.get("response")
-        if isinstance(resp, pd.DataFrame):
-            context["data"] = resp
-            return
-        if isinstance(resp, list):
-            context["data"] = resp
-            return
-        # Fallback empty
-        context["data"] = pd.DataFrame()
 
     # ---- Core modality handlers ----
     def run_protein(
@@ -983,18 +936,6 @@ class MainWorkflow:
                 **kwargs,
             )
         raise ValueError(f"Unknown modality: {modality}")
-
-    def import_first(
-        self,
-        modality: str,
-        dataset: pd.DataFrame | str,
-        dataset_format: str | None = None,
-        enrich: bool = False,
-        crossref_endpoint_specs: list[EndpointSpec] | None = None,
-        **kwargs,
-    ) -> tuple[dict, dict]:
-        """Load a dataset and route to the modality-specific handler. Returns (data, metadata)."""
-        raise NotImplementedError("Import first not implemented yet.")
 
     def query_composition(
         self,
