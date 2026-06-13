@@ -2,10 +2,9 @@ from typing import Any, Literal
 
 import pandas as pd
 
-from bioseq_dl.constants.databases import BASE_CONFIG_DIR
 from bioseq_dl.constants.uniprot import XREF_MAPPING
 from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
-from bioseq_dl.core.interfacesconfig import ConfigLoader
+from bioseq_dl.core.interfacesconfig import load_packaged_config
 from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.core.utils.crossref_enrichment")
@@ -115,8 +114,7 @@ def run_crossref_enrichment(
             processed_crossref_fields.setdefault(field, []).append({"method": None, "option": None})
 
     log.info(f"Running crossref enrichment for fields: {crossref_fields}")
-    config = ConfigLoader(config_dir=str(BASE_CONFIG_DIR) + "/uniprot_crossref")
-    config.load_config("config_endpoints")
+    endpoints_config = load_packaged_config("uniprot_crossref", "config_endpoints.yml") or {}
 
     endpoint_specs = []
     # Generate the endpoint specs based on selected crossref fields
@@ -126,7 +124,7 @@ def run_crossref_enrichment(
             if processed_crossref_fields[db_name] == [{"method": None, "option": None}]:
                 # Use all available methods for this database
                 log.debug(f"Using all available methods for database: {db_name}")
-                endpoint_config = config.get_parameter(db_name)
+                endpoint_config = endpoints_config.get(db_name)
                 if not isinstance(endpoint_config, dict):
                     continue
                 # if not endpoint_config.get("enabled", False):
@@ -158,7 +156,7 @@ def run_crossref_enrichment(
                 for method in processed_crossref_fields[db_name]:
                     method_name = method["method"]
                     option = method["option"]
-                    endpoint_config = config.get_parameter(db_name)
+                    endpoint_config = endpoints_config.get(db_name)
                     if not isinstance(endpoint_config, dict):
                         continue
                     # if not endpoint_config.get("enabled", False):

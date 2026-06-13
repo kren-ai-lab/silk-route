@@ -84,11 +84,11 @@ Currently available CLI/API interfaces include:
    conda install -c bioconda blast
    ```
 
-5. **Run the initial setup:**
-   ```bash
-   bioseq-dl-init
-   ```
-   This copies the default non-sensitive configuration files and `.env.example` to `~/.config/bioseq_dl/` without overwriting existing files. Running `bioseq-dl` without a subcommand also performs this initialization check.
+5. **(Optional) Set credentials.**
+   No setup step is required — the library ships its configuration internally and
+   works on first import. For APIs needing credentials (BioGRID, BRENDA, RefSeq),
+   set the `BIOSEQ_DL_*` environment variables (or place a `.env`; a template lives
+   at `bioseq_dl/config/.env.example`). See the credentials section below.
 
 ---
 
@@ -483,49 +483,33 @@ Supported environment variables:
 - `BIOSEQ_DL_REFSEQ_EMAIL` (legacy: `NCBI_EMAIL`, `ENTREZ_EMAIL`)
 
 Notes:
-- Credentials are never read from `init.yml`.
-- `init.yml` is only for non-sensitive configuration.
+- Credentials come only from environment variables or a `.env` file — never from
+  packaged config.
 - Do not commit `.env` files to version control.
-- A safe template is available at `bioseq_dl/config/.env.example` and copied by `bioseq-dl-init`.
+- A safe template is available at `bioseq_dl/config/.env.example`.
 
-Configuration files are stored in:
-```
-~/.config/bioseq_dl/
-```
+Configuration ships **inside the package** (`bioseq_dl/config/<api>/`) and is loaded
+from there automatically — no setup step, no copying to `~/.config`. The relevant
+files per API are:
 
-Each API module includes:
-- `init.yml` - non-sensitive settings
-- `fields.yml` - field mappings for result parsing
+- `fields.yml` — field-extraction maps (which API-response fields become output
+  columns). These are **library internals**: loaded from package resources and not
+  user-overridable (editing them would break parsing). Example
+  (`alphafold/fields.yml`):
+  ```yaml
+  prediction:
+    entry: entryId
+    gene: gene
+    tax_id: taxId
+    organism: organismScientificName
+    is_reviewed: isReviewed
+    is_reference: isReferenceProteome
+  ```
+  Keys are the endpoint names; under each, `output_column: api.response.path`.
 
-**Example directory tree:**
-```
-.config/
-`-- bioseq_dl
-    |-- alphafold
-    |   |-- init.yml
-    |   `-- fields.yml
-    |-- biogrid
-    |   `-- fields.yml
-    ...
-    `-- uniprot
-        `-- fields.yml
-```
-Where every `fields.yml` file contains the fields to be parsed for that specific API. For example, the `alphafold/fields.yml` file might look like this:
-```yaml
-prediction:
-  entry: entryId
-  gene: gene
-  tax_id: taxId
-  organism: organismScientificName
-  is_reviewed: isReviewed
-  is_reference: isReferenceProteome
-```
-Where the main keys are the names of the endpoints available for that API, and the values are the fields to be parsed. After the endpoint name, the fields are defined as key-value pairs, where the key is the name of the field in the tabular output, and the value is the name of the field in the API response.
-
-The `init.yml` file contains the configuration for that specific API. For example, the `alphafold/init.yml` file might look like this:
-```yaml
-download_folder: /path/to/download/folder
-```
+The only user-facing configuration is **credentials**, supplied via `BIOSEQ_DL_*`
+environment variables or a `.env` file (template: `bioseq_dl/config/.env.example`).
+Download locations are set per call via the interface `output_dir` argument.
 
 
 ## To-do List

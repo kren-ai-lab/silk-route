@@ -4,10 +4,9 @@ import os
 import pandas as pd
 import typer
 
-from bioseq_dl.constants.databases import BASE_CONFIG_DIR
 from bioseq_dl.constants.uniprot import XREF_MAPPING
 from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
-from bioseq_dl.core.interfacesconfig import ConfigLoader
+from bioseq_dl.core.interfacesconfig import load_packaged_config
 
 app = typer.Typer(help="Search and download cross-references from UniProt.")
 
@@ -66,8 +65,7 @@ def run(
         except Exception as e:
             raise ValueError(f"Error reading input file {input}: {e}") from e
 
-        config = ConfigLoader(config_dir=str(BASE_CONFIG_DIR) + "/uniprot_crossref")
-        config.load_config("config_endpoints")
+        endpoints_config = load_packaged_config("uniprot_crossref", "config_endpoints.yml") or {}
 
         if databases == "all":
             databases = ",".join(CROSS_REF_FIELDS)
@@ -76,7 +74,7 @@ def run(
         # Generate the endpoint specs based on selected crossref fields
         for xref in databases.split(","):
             if xref in CROSS_REF_FIELDS:
-                endpoint_config = config.get_parameter(xref)
+                endpoint_config = endpoints_config.get(xref)
                 if not isinstance(endpoint_config, dict):
                     continue
 

@@ -166,9 +166,7 @@ def test_make_identifier_uses_primary_keys(iface):
 
 
 class FakeWithDB(FakeInterface):
-    DB_CONFIG = DBConfig(
-        API_URL="http://example/", CACHE_DIR="/fake/cache", CONFIG_DIR="/fake/config"
-    )
+    DB_CONFIG = DBConfig(API_URL="http://example/", CACHE_DIR="/fake/cache", CONFIG_DIR="/fake/config")
 
 
 def test_resolve_dirs_default_fallback_is_absolute():
@@ -206,9 +204,7 @@ def test_packaged_fields_loaded_without_user_config_dir(tmp_path):
     # from packaged resources, not the user directory.
     from bioseq_dl import ChEBIInterface
 
-    iface = ChEBIInterface(
-        cache_dir=str(tmp_path), config_dir=str(tmp_path / "missing"), use_config=True
-    )
+    iface = ChEBIInterface(cache_dir=str(tmp_path), config_dir=str(tmp_path / "missing"), use_config=True)
     fields = iface.get_config("fields")
     assert fields  # non-empty, loaded from bioseq_dl/config/chebi/fields.yml
     assert "compounds" in fields

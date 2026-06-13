@@ -8,7 +8,7 @@ from requests.exceptions import RequestException
 
 from bioseq_dl.constants.databases import ALPHAFOLD
 from bioseq_dl.core.export import export_dataframe
-from bioseq_dl.core.interfacesconfig import ConfigLoader
+from bioseq_dl.core.interfacesconfig import load_packaged_config
 from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
 from bioseq_dl.logging import get_logger
 
@@ -50,11 +50,8 @@ class AlphafoldInterface(BaseAPIInterface):
 
         """
         cache_dir, config_dir = self._resolve_dirs(cache_dir, config_dir)
-        download_folder_fallback = cache_dir
-
-        config = ConfigLoader(config_dir=config_dir)
-        if config.load_config("init"):
-            download_folder_fallback = config.get_parameter("download_folder") or cache_dir
+        packaged_init = load_packaged_config("alphafold", "init.yml") or {}
+        download_folder_fallback = packaged_init.get("download_folder") or cache_dir
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
         self.output_dir = output_dir or download_folder_fallback

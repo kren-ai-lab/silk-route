@@ -3,11 +3,11 @@ from typing import Any
 
 import pandas as pd
 import requests
-import yaml
 from requests import Request
 from requests.exceptions import RequestException
 
 from bioseq_dl.constants.databases import PDB
+from bioseq_dl.core.interfacesconfig import load_packaged_config
 from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
 from bioseq_dl.logging import get_logger
 
@@ -54,12 +54,8 @@ class PDBInterface(BaseAPIInterface):
             output_dir (str): Directory to save downloaded files. If None, defaults to the cache directory.
         """
         cache_dir, config_dir = self._resolve_dirs(cache_dir, config_dir)
-        download_folder_fallback = cache_dir
-        init_yml = os.path.join(config_dir, "init.yml") if config_dir else None
-        if init_yml and os.path.exists(init_yml):
-            with open(init_yml) as f:
-                config = yaml.safe_load(f)
-            download_folder_fallback = config.get("download_folder", cache_dir)
+        packaged_init = load_packaged_config("pdb", "init.yml") or {}
+        download_folder_fallback = packaged_init.get("download_folder") or cache_dir
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
         self.output_dir = output_dir or download_folder_fallback
