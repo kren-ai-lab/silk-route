@@ -19,6 +19,7 @@ from requests.exceptions import RequestException
 from requests.models import Request, Response
 
 from bioseq_dl.core.dbconfig import DBConfig
+from bioseq_dl.core.exceptions import RequestError
 from bioseq_dl.core.interfacesconfig import load_packaged_config, read_config_file
 from bioseq_dl.core.utils.base_auxiliary_methods import get_nested, get_primary_keys, validate_parameters
 from bioseq_dl.logging import get_logger
@@ -1069,7 +1070,7 @@ class BaseAPIInterface(ABC):
 
         return parsed
 
-    def _do_request(self, query: str | dict | list, *, method: str, **kwargs) -> dict | list | Response:
+    def _do_request(self, query: str | dict | list, *, method: str, **kwargs) -> Response:
         """Fetch data from the API based on the provided query and method.
 
         Args:
@@ -1079,11 +1080,13 @@ class BaseAPIInterface(ABC):
             api_url (str): API URL to use for the request.
 
         Returns:
-            dict: Fetched data from the API.
+            Response: The raw HTTP response from the API.
 
         Raises:
             ValueError: If the method is not defined in the METHODS.
-            RequestException: If there is an error during the HTTP request.
+            RequestError: If there is an error during the HTTP request. Raised
+                instead of silently returning an empty result so callers can
+                distinguish a failed request from a successful empty response.
 
         """
         api_url = kwargs.pop("api_url", None)
@@ -1117,7 +1120,7 @@ class BaseAPIInterface(ABC):
             return response
         except RequestException as e:
             log.error(f"Error fetching {query} for method '{method}': {e}")
-            return {}
+            raise RequestError(f"Request failed for method '{method}': {e}") from e
 
     @abstractmethod
     def fetch(self, query: str | dict | list, *, method: str, **kwargs):
