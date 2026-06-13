@@ -5,8 +5,8 @@ fixtures replayed by the offline tests can be regenerated from the real APIs.
 
 Usage::
 
-    BIOSEQ_CAPTURE=1 uv run python -m tests._capture.capture
-    BIOSEQ_CAPTURE=1 uv run python -m tests._capture.capture rhea chebi
+    BIOSEQ_DL_CAPTURE=1 uv run python -m tests._capture.capture
+    BIOSEQ_DL_CAPTURE=1 uv run python -m tests._capture.capture rhea chebi
 
 Optional positional args restrict capture to the named APIs.
 
@@ -333,8 +333,8 @@ CAPTURES = {
 
 
 def main(argv: list[str]) -> int:
-    if os.getenv("BIOSEQ_CAPTURE") != "1":
-        print("Refusing to run: set BIOSEQ_CAPTURE=1 to capture fixtures from the network.")  # noqa: T201
+    if os.getenv("BIOSEQ_DL_CAPTURE") != "1":
+        print("Refusing to run: set BIOSEQ_DL_CAPTURE=1 to capture fixtures from the network.")  # noqa: T201
         return 1
 
     selected = argv or list(CAPTURES)

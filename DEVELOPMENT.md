@@ -113,11 +113,11 @@ Fixtures are loaded with the helpers in `tests/_helpers.py`
 
 `tests/_capture/capture.py` regenerates the fixtures from the real APIs. It is
 **never** run by the test suite or CI and refuses to do anything unless
-`BIOSEQ_CAPTURE=1` is set:
+`BIOSEQ_DL_CAPTURE=1` is set:
 
 ```bash
-BIOSEQ_CAPTURE=1 uv run python -m tests._capture.capture          # all APIs
-BIOSEQ_CAPTURE=1 uv run python -m tests._capture.capture rhea chebi
+BIOSEQ_DL_CAPTURE=1 uv run python -m tests._capture.capture          # all APIs
+BIOSEQ_DL_CAPTURE=1 uv run python -m tests._capture.capture rhea chebi
 ```
 
 Each capture drives the real interface, so the request (URL, params, method,
