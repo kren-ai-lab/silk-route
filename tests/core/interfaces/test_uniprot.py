@@ -1,6 +1,6 @@
 """Offline tests for the UniProt interface.
 
-UniProt is standalone (not a BaseAPIInterface) and uses a multi-step id-mapping
+UniProt subclasses BaseAPIInterface but keeps a bespoke multi-step id-mapping
 flow: submit -> poll status -> resolve link -> fetch results. We replay that
 sequence with ``responses``, plus a direct parse-shape test.
 """

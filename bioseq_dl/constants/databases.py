@@ -149,3 +149,9 @@ STRING = DBConfig(
 REFSEQ = DBConfig(
     CACHE_DIR=os.path.join(BASE_CACHE_DIR, "refseq"), CONFIG_DIR=os.path.join(BASE_CONFIG_DIR, "refseq")
 )
+
+UNIPROT = DBConfig(
+    API_URL="https://rest.uniprot.org",
+    CACHE_DIR=os.path.join(BASE_CACHE_DIR, "uniprot"),
+    CONFIG_DIR=os.path.join(BASE_CONFIG_DIR, "uniprot"),
+)
