@@ -58,9 +58,7 @@ class UniprotInterface(BaseAPIInterface):
         UniProt ships no per-database YAML config.
         """
         kwargs.setdefault("use_config", False)
-        super().__init__(
-            cache_dir=cache_dir, config_dir=config_dir, total_retries=total_retries, **kwargs
-        )
+        super().__init__(cache_dir=cache_dir, config_dir=config_dir, total_retries=total_retries, **kwargs)
         self.timeout = timeout
         self.db_config = {
             "uniprot": {

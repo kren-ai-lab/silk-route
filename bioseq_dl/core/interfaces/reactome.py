@@ -1,4 +1,3 @@
-
 import requests
 
 from bioseq_dl.constants.databases import REACTOME

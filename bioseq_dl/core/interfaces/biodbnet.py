@@ -1,4 +1,3 @@
-
 from requests import Request
 from requests.exceptions import RequestException
 

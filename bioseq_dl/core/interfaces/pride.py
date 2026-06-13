@@ -1,4 +1,3 @@
-
 import pandas as pd
 from requests import Request, Response
 from requests.exceptions import RequestException
