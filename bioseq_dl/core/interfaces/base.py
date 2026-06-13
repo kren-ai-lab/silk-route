@@ -13,13 +13,13 @@ from typing import Any, ClassVar, Literal
 
 import pandas as pd
 import requests
-import yaml
 from dicttoxml import dicttoxml
 from requests.adapters import HTTPAdapter, Retry
 from requests.exceptions import RequestException
 from requests.models import Request, Response
 
 from bioseq_dl.core.dbconfig import DBConfig
+from bioseq_dl.core.interfacesconfig import read_config_file
 from bioseq_dl.core.utils.base_auxiliary_methods import get_nested, get_primary_keys, validate_parameters
 from bioseq_dl.logging import get_logger
 
@@ -167,18 +167,41 @@ class BaseAPIInterface(ABC):
             path = os.path.join(config_dir, fname)
             if os.path.isfile(path):
                 name, ext = os.path.splitext(fname)
-                with open(path) as f:
-                    try:
-                        if ext == ".json":
-                            self.configs[name] = json.load(f)
-                        elif ext in [".yaml", ".yml"]:
-                            self.configs[name] = yaml.safe_load(f)
-                    except Exception as e:
-                        log.error(f"Error loading config {fname}: {e}")
+                if ext not in (".json", ".yaml", ".yml"):
+                    continue
+                try:
+                    self.configs[name] = read_config_file(path)
+                except Exception as e:
+                    log.error(f"Error loading config {fname}: {e}")
 
     def _delay(self):
         """Introduce a random delay between min_wait and max_wait."""
         time.sleep(random.uniform(self.min_wait, self.max_wait))
+
+    @staticmethod
+    def _empty_metadata() -> dict[str, Any]:
+        """Return a fresh metadata skeleton shared by fetch_single/fetch_batch."""
+        return {
+            "cached_ids": [],
+            "cached_subqueries": [],
+            "fetched_ids": [],
+            "fetched_subqueries": [],
+            "failed_ids": [],
+            "fetched_length": 0,
+            "data_info": {},
+            "execution_time": 0.0,
+            "api_name": "",
+            "method": "",
+            "option": "",
+        }
+
+    @staticmethod
+    def _build_columns_info(df: pd.DataFrame) -> list[dict]:
+        """Build the per-column ``data_info`` block (name / dtype / n_missing)."""
+        return [
+            {"name": col, "dtype": str(df[col].dtype), "n_missing": int(df[col].isna().sum())}
+            for col in df.columns
+        ]
 
     def get_cache_ignore_keys(self) -> set[str]:
         """Get the set of keys to ignore when generating cache keys.
@@ -690,19 +713,7 @@ class BaseAPIInterface(ABC):
             Tuple[Union[List, Dict, pd.DataFrame], Dict]: Fetched (and optionally parsed) data and metadata.
 
         """
-        metadata = {
-            "cached_ids": [],
-            "cached_subqueries": [],
-            "fetched_ids": [],
-            "fetched_subqueries": [],
-            "failed_ids": [],
-            "fetched_length": 0,
-            "data_info": {},
-            "execution_time": 0.0,
-            "api_name": "",
-            "method": "",
-            "option": "",
-        }
+        metadata = self._empty_metadata()
         # Extract flags and avoid passing twice to _maybe_parse
         format = kwargs.pop("format", "json")
         method = kwargs.get("method", "NOT_GIVEN")
@@ -778,14 +789,7 @@ class BaseAPIInterface(ABC):
                     metadata["data_info"] = {
                         "total_entries": len(export_df),
                         "data_type": type(export_df),
-                        "columns": [
-                            {
-                                "name": col,
-                                "dtype": str(export_df[col].dtype),
-                                "n_missing": int(export_df[col].isna().sum()),
-                            }
-                            for col in export_df.columns
-                        ],
+                        "columns": self._build_columns_info(export_df),
                     }
                     metadata["execution_time"] = time.time() - t0
                     metadata["api_name"] = self.API_NAME
@@ -858,10 +862,7 @@ class BaseAPIInterface(ABC):
         metadata["data_info"] = {
             "total_entries": len(tmp_df),
             "data_type": type(parsed),
-            "columns": [
-                {"name": col, "dtype": str(tmp_df[col].dtype), "n_missing": int(tmp_df[col].isna().sum())}
-                for col in tmp_df.columns
-            ],
+            "columns": self._build_columns_info(tmp_df),
         }
         metadata["execution_time"] = time.time() - t0
         metadata["api_name"] = self.API_NAME
@@ -888,19 +889,7 @@ class BaseAPIInterface(ABC):
             Tuple[Union[List, pd.DataFrame, bytes, str], Dict]: Fetched (and optionally parsed) data and metadata.
 
         """
-        metadata = {
-            "cached_ids": [],
-            "cached_subqueries": [],
-            "fetched_ids": [],
-            "fetched_subqueries": [],
-            "failed_ids": [],
-            "fetched_length": 0,
-            "data_info": {},
-            "execution_time": 0.0,
-            "api_name": "",
-            "method": "",
-            "option": "",
-        }
+        metadata = self._empty_metadata()
         method = kwargs.get("method", "NOT_GIVEN")
         format = kwargs.pop("format", "json")
         option = kwargs.get("option")
@@ -1006,14 +995,7 @@ class BaseAPIInterface(ABC):
         columns_info = []
         if all(isinstance(r, pd.DataFrame) for r in results) and len(results) > 0:
             batch_data = pd.concat(results, ignore_index=True)
-            columns_info = [
-                {
-                    "name": col,
-                    "dtype": str(batch_data[col].dtype),
-                    "n_missing": int(batch_data[col].isnull().sum()),
-                }
-                for col in batch_data.columns
-            ]
+            columns_info = self._build_columns_info(batch_data)
         else:
             batch_data = results
             tmp_df = pd.DataFrame(batch_data)

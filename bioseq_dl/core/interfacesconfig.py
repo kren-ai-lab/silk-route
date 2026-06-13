@@ -1,6 +1,23 @@
+import json
 import os
+from typing import Any
 
 import yaml
+
+
+def read_config_file(path: str) -> Any:
+    """Load a single JSON/YAML config file into a Python object.
+
+    Returns ``None`` for unsupported extensions. Shared by ``ConfigLoader`` and
+    ``BaseAPIInterface._load_all_configs`` so the parse logic lives in one place.
+    """
+    ext = os.path.splitext(path)[1]
+    with open(path) as f:
+        if ext == ".json":
+            return json.load(f)
+        if ext in (".yaml", ".yml"):
+            return yaml.safe_load(f)
+    return None
 
 
 class ConfigLoader:
@@ -15,10 +32,7 @@ class ConfigLoader:
         if not os.path.isfile(config_path):
             raise FileNotFoundError(f"Configuration file {filename}.yml not found at {config_path}")
 
-        with open(config_path) as file:
-            config = yaml.safe_load(file)
-
-        self.config = config
+        self.config = read_config_file(config_path)
 
         return True
 
