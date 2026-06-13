@@ -7,9 +7,12 @@ interface relies on — independent of any single API.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pandas as pd
 import pytest
 
+from bioseq_dl.core.dbconfig import DBConfig
 from bioseq_dl.core.interfaces.base import BaseAPIInterface
 
 
@@ -157,3 +160,39 @@ def test_prepare_params_joins_group_query_list(iface):
 def test_make_identifier_uses_primary_keys(iface):
     spec = FakeInterface.METHODS["get"]
     assert iface._make_identifier({"id": "a", "db": "x"}, spec) == "a"
+
+
+# --- _resolve_dirs ---------------------------------------------------------
+
+
+class FakeWithDB(FakeInterface):
+    DB_CONFIG = DBConfig(
+        API_URL="http://example/", CACHE_DIR="/fake/cache", CONFIG_DIR="/fake/config"
+    )
+
+
+def test_resolve_dirs_default_fallback_is_absolute():
+    # No DB_CONFIG and no explicit dir -> "./cache", normalized to absolute.
+    cache, config = FakeInterface._resolve_dirs(None, None)
+    assert cache == str(Path.cwd() / "cache")
+    assert Path(cache).is_absolute()
+    assert config is None
+
+
+def test_resolve_dirs_uses_db_config():
+    cache, config = FakeWithDB._resolve_dirs(None, None)
+    assert cache == "/fake/cache"
+    assert config == "/fake/config"
+
+
+def test_resolve_dirs_explicit_cache_dir_made_absolute():
+    # Explicit (relative) cache_dir overrides DB_CONFIG and is made absolute.
+    cache, config = FakeWithDB._resolve_dirs("relative/cache", None)
+    assert cache == str(Path.cwd() / "relative" / "cache")
+    assert Path(cache).is_absolute()
+    assert config == "/fake/config"
+
+
+def test_resolve_dirs_explicit_config_dir_preserved():
+    _, config = FakeWithDB._resolve_dirs(None, "my/config")
+    assert config == "my/config"

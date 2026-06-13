@@ -32,9 +32,9 @@ DATABASES = {
 
 # Platform-appropriate cache/config roots (XDG on Linux, ~/Library on macOS,
 # %LOCALAPPDATA% on Windows). Overridable via env for tests/CI/custom layouts.
-BASE_CACHE_DIR = Path(os.getenv("BIOSEQ_DL_CACHE_DIR") or user_cache_dir(APP_NAME))
+BASE_CACHE_DIR = Path(os.getenv("BIOSEQ_DL_CACHE_DIR") or user_cache_dir(APP_NAME)).expanduser()
 BASE_BLAST_DB_DIR = BASE_CACHE_DIR / "blast_db"
-BASE_CONFIG_DIR = Path(os.getenv("BIOSEQ_DL_CONFIG_DIR") or user_config_dir(APP_NAME))
+BASE_CONFIG_DIR = Path(os.getenv("BIOSEQ_DL_CONFIG_DIR") or user_config_dir(APP_NAME)).expanduser()
 
 ALPHAFOLD = DBConfig(
     API_URL="https://alphafold.ebi.ac.uk/api/",

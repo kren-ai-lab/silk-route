@@ -11,13 +11,13 @@ def read_config_file(path: str) -> Any:
     Returns ``None`` for unsupported extensions. Shared by ``ConfigLoader`` and
     ``BaseAPIInterface._load_all_configs`` so the parse logic lives in one place.
     """
-    ext = os.path.splitext(path)[1]
-    with open(path) as f:
+    ext = os.path.splitext(path)[1].lower()
+    if ext not in (".json", ".yaml", ".yml"):
+        return None
+    with open(path, encoding="utf-8") as f:
         if ext == ".json":
             return json.load(f)
-        if ext in (".yaml", ".yml"):
-            return yaml.safe_load(f)
-    return None
+        return yaml.safe_load(f)
 
 
 class ConfigLoader:

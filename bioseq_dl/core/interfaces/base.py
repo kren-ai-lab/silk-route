@@ -85,12 +85,14 @@ class BaseAPIInterface(ABC):
         (e.g. to read an ``init`` config) can call this directly.
         """
         db = cls.DB_CONFIG
-        if cache_dir:
-            cache_dir = os.path.abspath(cache_dir)
-        elif db is not None and db.CACHE_DIR is not None:
-            cache_dir = db.CACHE_DIR
-        else:
-            cache_dir = "./cache"
+        if not cache_dir:
+            if db is not None and db.CACHE_DIR is not None:
+                cache_dir = db.CACHE_DIR
+            else:
+                cache_dir = "./cache"
+        # Always normalize to an absolute path so caches don't land relative to
+        # the current working directory (DB_CONFIG/env values may be relative).
+        cache_dir = os.path.abspath(cache_dir)
 
         if config_dir is None and db is not None:
             config_dir = db.CONFIG_DIR
@@ -167,7 +169,7 @@ class BaseAPIInterface(ABC):
             path = os.path.join(config_dir, fname)
             if os.path.isfile(path):
                 name, ext = os.path.splitext(fname)
-                if ext not in (".json", ".yaml", ".yml"):
+                if ext.lower() not in (".json", ".yaml", ".yml"):
                     continue
                 try:
                     self.configs[name] = read_config_file(path)
