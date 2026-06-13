@@ -69,9 +69,7 @@ def test_maybe_parse_to_xml_bytes(iface):
 
 
 def test_maybe_parse_with_parse_extracts_fields(iface):
-    out = iface._maybe_parse(
-        {"a": 1, "b": 2}, parse=True, format="json", fields_to_extract=["a"]
-    )
+    out = iface._maybe_parse({"a": 1, "b": 2}, parse=True, format="json", fields_to_extract=["a"])
     assert out == {"a": 1}
 
 
