@@ -1,4 +1,3 @@
-import os
 
 from Bio import Entrez
 from Bio.Entrez.Parser import DictionaryElement, ListElement, StringElement
@@ -21,6 +20,7 @@ REFSEQ_EMAIL_ENV_VARS = (
 
 class RefSeqInterface(BaseAPIInterface):
     API_NAME = "RefSeq"
+    DB_CONFIG = REFSEQ
     METHODS = {
         "protein": {
             "http_method": "GET",
@@ -63,17 +63,9 @@ class RefSeqInterface(BaseAPIInterface):
             output_dir (str): Directory to save downloaded files. If None, defaults to the cache directory.
 
         """
-        if cache_dir:
-            cache_dir = os.path.abspath(cache_dir)
-        else:
-            cache_dir = REFSEQ.CACHE_DIR if REFSEQ.CACHE_DIR is not None else ""
-
-        if config_dir is None:
-            config_dir = REFSEQ.CONFIG_DIR if REFSEQ.CONFIG_DIR is not None else ""
-
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
 
-        load_environment_files(config_dir=config_dir)
+        load_environment_files(config_dir=self.config_dir)
 
         self.email = resolve_secret(email, REFSEQ_EMAIL_ENV_VARS)
         if is_valid_secret(self.email):

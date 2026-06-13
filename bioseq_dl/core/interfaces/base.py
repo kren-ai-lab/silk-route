@@ -19,6 +19,7 @@ from requests.adapters import HTTPAdapter, Retry
 from requests.exceptions import RequestException
 from requests.models import Request, Response
 
+from bioseq_dl.core.dbconfig import DBConfig
 from bioseq_dl.core.utils.base_auxiliary_methods import get_nested, get_primary_keys, validate_parameters
 from bioseq_dl.logging import get_logger
 
@@ -59,6 +60,7 @@ def _extract_nested_values(value: Any) -> list[str]:
 class BaseAPIInterface(ABC):
     API_NAME: ClassVar[str] = "BaseAPI"
     METHODS: ClassVar[dict[str, Any]] = {}
+    DB_CONFIG: ClassVar[DBConfig | None] = None
 
     cache_key_ignore_args: set[str] = {
         "parse",
@@ -72,9 +74,32 @@ class BaseAPIInterface(ABC):
     }
     subquery_match_keys: set[str] = set()
 
+    @classmethod
+    def _resolve_dirs(cls, cache_dir: str | None, config_dir: str | None) -> tuple[str, str | None]:
+        """Resolve cache_dir/config_dir, falling back to the class ``DB_CONFIG``.
+
+        An explicit ``cache_dir`` is made absolute; otherwise the value from
+        ``DB_CONFIG.CACHE_DIR`` is used (already absolute), falling back to
+        ``"./cache"``. ``config_dir`` defaults to ``DB_CONFIG.CONFIG_DIR`` when
+        not given. Subclasses that need the resolved dirs before ``super().__init__``
+        (e.g. to read an ``init`` config) can call this directly.
+        """
+        db = cls.DB_CONFIG
+        if cache_dir:
+            cache_dir = os.path.abspath(cache_dir)
+        elif db is not None and db.CACHE_DIR is not None:
+            cache_dir = db.CACHE_DIR
+        else:
+            cache_dir = "./cache"
+
+        if config_dir is None and db is not None:
+            config_dir = db.CONFIG_DIR
+
+        return cache_dir, config_dir
+
     def __init__(
         self,
-        cache_dir: str = "./cache",
+        cache_dir: str | None = None,
         config_dir: str | None = None,
         max_workers: int = 5,
         min_wait: float = 1.0,
@@ -96,7 +121,8 @@ class BaseAPIInterface(ABC):
             use_config (bool): Whether to use a configuration file for initialization.
 
         """
-        self.cache_dir = os.path.abspath(cache_dir)
+        cache_dir, config_dir = self._resolve_dirs(cache_dir, config_dir)
+        self.cache_dir = cache_dir
         self.config_dir = config_dir
         self.max_workers = max_workers
         self.min_wait = min_wait

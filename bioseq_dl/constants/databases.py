@@ -1,9 +1,13 @@
 import os
 from pathlib import Path
 
+from platformdirs import user_cache_dir, user_config_dir
+
 from bioseq_dl.core.dbconfig import DBConfig
 
 POLLING_INTERVAL = 3
+
+APP_NAME = "bioseq_dl"
 
 DATABASES = {
     "alphafold_ids": "AlphaFoldDB",
@@ -26,9 +30,11 @@ DATABASES = {
     "string_ids": "STRING",
 }
 
-BASE_CACHE_DIR = Path.home() / ".cache" / "bioseq_dl"
+# Platform-appropriate cache/config roots (XDG on Linux, ~/Library on macOS,
+# %LOCALAPPDATA% on Windows). Overridable via env for tests/CI/custom layouts.
+BASE_CACHE_DIR = Path(os.getenv("BIOSEQ_DL_CACHE_DIR") or user_cache_dir(APP_NAME))
 BASE_BLAST_DB_DIR = BASE_CACHE_DIR / "blast_db"
-BASE_CONFIG_DIR = Path.home() / ".config" / "bioseq_dl"
+BASE_CONFIG_DIR = Path(os.getenv("BIOSEQ_DL_CONFIG_DIR") or user_config_dir(APP_NAME))
 
 ALPHAFOLD = DBConfig(
     API_URL="https://alphafold.ebi.ac.uk/api/",

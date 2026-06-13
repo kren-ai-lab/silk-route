@@ -1,4 +1,3 @@
-import os
 
 from requests import Request
 from requests.exceptions import RequestException
@@ -16,6 +15,7 @@ log = get_logger("bioseq_dl.interfaces.panther")
 
 class PantherInterface(BaseAPIInterface):
     API_NAME = "PANTHER"
+    DB_CONFIG = PANTHER
     # Definition of methods for PANTHER API
     # Each parameter is a tuple with (type, default_value, primary_key)
     METHODS = {
@@ -44,18 +44,6 @@ class PantherInterface(BaseAPIInterface):
             "separator": ",",
         },
     }
-
-    def __init__(self, cache_dir: str | None = None, config_dir: str | None = None, **kwargs):
-
-        if cache_dir:
-            cache_dir = os.path.abspath(cache_dir)
-        else:
-            cache_dir = PANTHER.CACHE_DIR if PANTHER.CACHE_DIR is not None else ""
-
-        if config_dir is None:
-            config_dir = PANTHER.CONFIG_DIR if PANTHER.CONFIG_DIR is not None else ""
-
-        super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
 
     def fetch(self, query: str | dict | list, *, method: str = "geneinfo", **kwargs):
         http_method, path_param, parameters, inputs = self.initialize_method_parameters(

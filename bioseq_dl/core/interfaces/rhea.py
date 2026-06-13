@@ -1,4 +1,3 @@
-import os
 
 from requests import Request
 from requests.exceptions import RequestException
@@ -16,6 +15,7 @@ log = get_logger("bioseq_dl.interfaces.rhea")
 
 class RheaInterface(BaseAPIInterface):
     API_NAME = "Rhea"
+    DB_CONFIG = RHEA
     METHODS = {
         "rhea": {
             "http_method": "GET",
@@ -30,18 +30,6 @@ class RheaInterface(BaseAPIInterface):
             "separator": None,
         }
     }
-
-    def __init__(self, cache_dir: str | None = None, config_dir: str | None = None, **kwargs):
-
-        if cache_dir:
-            cache_dir = os.path.abspath(cache_dir)
-        else:
-            cache_dir = RHEA.CACHE_DIR if RHEA.CACHE_DIR is not None else ""
-
-        if config_dir is None:
-            config_dir = RHEA.CONFIG_DIR if RHEA.CONFIG_DIR is not None else ""
-
-        super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
 
     def fetch(self, query: str | dict | list, *, method: str = "rhea", **kwargs):
         if method not in self.METHODS.keys():

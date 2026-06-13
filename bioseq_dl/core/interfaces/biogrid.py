@@ -1,4 +1,3 @@
-import os
 from typing import Any
 
 import requests
@@ -34,6 +33,7 @@ BIOGRID_ENV_VARS = (
 # This error will go to a low priority issue, as it is not as used as the JSON format.
 class BioGRIDInterface(BaseAPIInterface):
     API_NAME = "BioGRID"
+    DB_CONFIG = BIOGRID
     METHODS = {
         "interactions": {
             "http_method": "GET",
@@ -73,14 +73,7 @@ class BioGRIDInterface(BaseAPIInterface):
             output_dir (str): Directory to save output files.
 
         """
-        if cache_dir:
-            cache_dir = os.path.abspath(cache_dir)
-        else:
-            cache_dir = BIOGRID.CACHE_DIR if BIOGRID.CACHE_DIR is not None else ""
-
-        if config_dir is None:
-            config_dir = BIOGRID.CONFIG_DIR if BIOGRID.CONFIG_DIR is not None else ""
-
+        cache_dir, config_dir = self._resolve_dirs(cache_dir, config_dir)
         load_environment_files(config_dir=config_dir)
 
         self.api_key = resolve_secret(api_key, BIOGRID_ENV_VARS)

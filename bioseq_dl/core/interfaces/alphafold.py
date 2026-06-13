@@ -19,6 +19,7 @@ log = get_logger("bioseq_dl.interfaces.alphafold")
 
 class AlphafoldInterface(BaseAPIInterface):
     API_NAME = "Alphafold"
+    DB_CONFIG = ALPHAFOLD
     METHODS = {
         "prediction": {
             "http_method": "GET",
@@ -48,14 +49,7 @@ class AlphafoldInterface(BaseAPIInterface):
             output_dir (str): Directory to save downloaded files. If None, defaults to the cache directory.
 
         """
-        if cache_dir:
-            cache_dir = os.path.abspath(cache_dir)
-        else:
-            cache_dir = ALPHAFOLD.CACHE_DIR if ALPHAFOLD.CACHE_DIR is not None else ""
-
-        if config_dir is None:
-            config_dir = ALPHAFOLD.CONFIG_DIR if ALPHAFOLD.CONFIG_DIR is not None else ""
-
+        cache_dir, config_dir = self._resolve_dirs(cache_dir, config_dir)
         download_folder_fallback = cache_dir
 
         config = ConfigLoader(config_dir=config_dir)

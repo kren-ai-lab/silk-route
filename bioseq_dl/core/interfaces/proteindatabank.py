@@ -23,6 +23,7 @@ log = get_logger("bioseq_dl.interfaces.pdb")
 
 class PDBInterface(BaseAPIInterface):
     API_NAME = "PDB"
+    DB_CONFIG = PDB
     METHODS = {
         "entry": {
             "http_method": "GET",
@@ -52,17 +53,11 @@ class PDBInterface(BaseAPIInterface):
             config_dir (str): Directory for configuration files. If None, defaults to the config directory defined in constants.
             output_dir (str): Directory to save downloaded files. If None, defaults to the cache directory.
         """
-        if cache_dir:
-            cache_dir = os.path.abspath(cache_dir)
-        else:
-            cache_dir = PDB.CACHE_DIR if PDB.CACHE_DIR is not None else ""
-
-        if config_dir is None:
-            config_dir = PDB.CONFIG_DIR if PDB.CONFIG_DIR is not None else ""
-
+        cache_dir, config_dir = self._resolve_dirs(cache_dir, config_dir)
         download_folder_fallback = cache_dir
-        if os.path.exists(config_dir + "/init.yml"):
-            with open(config_dir + "/init.yml") as f:
+        init_yml = os.path.join(config_dir, "init.yml") if config_dir else None
+        if init_yml and os.path.exists(init_yml):
+            with open(init_yml) as f:
                 config = yaml.safe_load(f)
             download_folder_fallback = config.get("download_folder", cache_dir)
 

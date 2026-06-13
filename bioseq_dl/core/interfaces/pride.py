@@ -1,4 +1,3 @@
-import os
 
 import pandas as pd
 from requests import Request, Response
@@ -16,6 +15,7 @@ log = get_logger("bioseq_dl.interfaces.pride")
 
 class PrideInterface(BaseAPIInterface):
     API_NAME = "PRIDE"
+    DB_CONFIG = PRIDE
     METHODS = {
         "search": {
             "projects": {
@@ -56,18 +56,6 @@ class PrideInterface(BaseAPIInterface):
             },
         },
     }
-
-    def __init__(self, cache_dir: str | None = None, config_dir: str | None = None, **kwargs):
-
-        if cache_dir:
-            cache_dir = os.path.abspath(cache_dir)
-        else:
-            cache_dir = PRIDE.CACHE_DIR if PRIDE.CACHE_DIR is not None else ""
-
-        if config_dir is None:
-            config_dir = PRIDE.CONFIG_DIR if PRIDE.CONFIG_DIR is not None else ""
-
-        super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
 
     def fetch(self, query: str | dict | list, *, method: str = "search", **kwargs):
         if method not in self.METHODS.keys():

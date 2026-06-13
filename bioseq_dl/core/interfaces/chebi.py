@@ -1,5 +1,4 @@
 import json
-import os
 from urllib.parse import quote
 
 from requests import Request
@@ -20,6 +19,7 @@ log = get_logger("bioseq_dl.interfaces.chebi")
 
 class ChEBIInterface(BaseAPIInterface):
     API_NAME = "ChEBI"
+    DB_CONFIG = CHEBI
     METHODS = {
         "compound": {
             "http_method": "GET",
@@ -85,18 +85,6 @@ class ChEBIInterface(BaseAPIInterface):
         #     }
         # }
     }
-
-    def __init__(self, cache_dir: str | None = None, config_dir: str | None = None, **kwargs):
-
-        if cache_dir:
-            cache_dir = os.path.abspath(cache_dir)
-        else:
-            cache_dir = CHEBI.CACHE_DIR if CHEBI.CACHE_DIR is not None else ""
-
-        if config_dir is None:
-            config_dir = CHEBI.CONFIG_DIR if CHEBI.CONFIG_DIR is not None else ""
-
-        super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
 
     def fetch(self, query: str | dict | list, *, method: str = "compound", **kwargs):
         if method not in self.METHODS.keys():

@@ -1,5 +1,4 @@
 import json
-import os
 import urllib.parse
 
 import pandas as pd
@@ -23,6 +22,7 @@ log = get_logger("bioseq_dl.interfaces.pubchem")
 
 class PubChemInterface(BaseAPIInterface):
     API_NAME = "PubChem"
+    DB_CONFIG = PUBCHEM
     METHODS = {
         "pug/compound": {
             **dict.fromkeys(OPTIONS["pug/compound"], COMPOUND_TEMPLATE),
@@ -103,18 +103,6 @@ class PubChemInterface(BaseAPIInterface):
             }
         },
     }
-
-    def __init__(self, cache_dir: str | None = None, config_dir: str | None = None, **kwargs):
-
-        if cache_dir:
-            cache_dir = os.path.abspath(cache_dir)
-        else:
-            cache_dir = PUBCHEM.CACHE_DIR if PUBCHEM.CACHE_DIR is not None else ""
-
-        if config_dir is None:
-            config_dir = PUBCHEM.CONFIG_DIR if PUBCHEM.CONFIG_DIR is not None else ""
-
-        super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
 
     def fetch(self, query: str | dict | list, *, method: str = "DEFAULT", **kwargs):
         option_given = False

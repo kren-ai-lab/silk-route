@@ -1,4 +1,3 @@
-import os
 
 from requests import Request
 from requests.exceptions import RequestException
@@ -17,6 +16,7 @@ log = get_logger("bioseq_dl.interfaces.biodbnet")
 
 class BioDBNetInterface(BaseAPIInterface):
     API_NAME = "BioDBNet"
+    DB_CONFIG = BIODBNET
     METHODS = {
         "getpathways": {
             "http_method": "GET",
@@ -42,18 +42,6 @@ class BioDBNetInterface(BaseAPIInterface):
             "separator": ",",
         },
     }
-
-    def __init__(self, cache_dir: str | None = None, config_dir: str | None = None, **kwargs):
-
-        if cache_dir:
-            cache_dir = os.path.abspath(cache_dir)
-        else:
-            cache_dir = BIODBNET.CACHE_DIR if BIODBNET.CACHE_DIR is not None else ""
-
-        if config_dir is None:
-            config_dir = BIODBNET.CONFIG_DIR if BIODBNET.CONFIG_DIR is not None else ""
-
-        super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
 
     def fetch(self, query: str | dict | list, *, method: str = "getpathways", **kwargs):
         if method not in self.METHODS.keys():
