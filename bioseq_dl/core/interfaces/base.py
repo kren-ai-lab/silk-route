@@ -264,7 +264,7 @@ class BaseAPIInterface(ABC):
             if k in self.get_cache_ignore_keys():
                 continue
             if sort_lists and isinstance(v, list):
-                # Solo ordena si los elementos son comparables (no dict)
+                # Only sort if items are comparable (not dicts)
                 if all(not isinstance(item, dict) for item in v):
                     v = sorted(v)
             result[k] = v
@@ -286,22 +286,17 @@ class BaseAPIInterface(ABC):
 
         # Include relevant kwargs (like 'operation') in the cache key
         if relevant_kwargs:
-            # extra = json.dumps(relevant_kwargs, sort_keys=True)
             extra = "_".join(f"{v}" for _, v in relevant_kwargs.items())
 
         if base and extra:
-            # log.debug(f"Cache_key: {base}_{extra}")
             return f"{base}_{extra}"
         if base:
-            # log.debug(f"Cache_key: {base}")
             return base
         # A rarer case where input_obj is empty or None
         return extra
 
     def _hash_key(self, key: str) -> str:
-        # TODO change it to hash
         return hashlib.md5(key.encode("utf-8")).hexdigest()
-        # return key
 
     def _get_cache_path(self, identifier: str) -> str:
         """Generate a cache file path based on the identifier."""
@@ -348,7 +343,6 @@ class BaseAPIInterface(ABC):
         """Return the configuration dictionary for a given key (config filename without extension)."""
         return self.configs.get(key, {})
 
-    # def _resolve_fields_from_kwargs(self, include_defaults_from=None, **kwargs) -> Optional[Dict]:
     def _resolve_fields_from_kwargs(self, **kwargs) -> dict | None:
         """Resolve fields_to_extract by matching kwargs against keys in fields.yml.
 
@@ -392,7 +386,6 @@ class BaseAPIInterface(ABC):
             if not fields_to_extract and self.use_config:
                 log.debug("No fields_to_extract provided, trying to resolve from kwargs.")
                 # 1. Try to resolve fields from kwargs
-                # fields_to_extract = self._resolve_fields_from_kwargs(include_defaults_from=self.fetch, **kwargs)
                 fields_to_extract = self._resolve_fields_from_kwargs(**kwargs)
 
                 # 2. If not found, try to get from config
@@ -528,9 +521,6 @@ class BaseAPIInterface(ABC):
 
         method_info = method_info.get(option, {}) if option else method_info
 
-        # Redundant
-        # if not all(k in method_info.keys() for k in ["http_method", "path_param", "parameters", "group_queries", "separator"]):
-        #    raise ValueError(f"Method '{method}' with option '{option}' is not defined correctly in the method definition. Defined method: {method_info.keys()}")
         http_method = method_info["http_method"]
         path_param = method_info["path_param"]
         parameters = method_info["parameters"]
@@ -550,9 +540,6 @@ class BaseAPIInterface(ABC):
                     f"Query must be a dictionary when multiple primary keys are defined for method '{method}'. "
                     f"Received: {type(query)} with value {query}"
                 )
-            # if not all(key in query.keys() for key in primary_keys):
-            #     raise ValueError(f"Query must contain primary keys {primary_keys} for method '{method}'. "
-            #                  f"Received: {query.keys()} with value {query}")
 
         inputs = {}
 
@@ -562,14 +549,13 @@ class BaseAPIInterface(ABC):
                     if key in query and isinstance(query[key], list):
                         inputs[key] = separator.join(query[key])
                         log.debug(f"Joined {key} with separator '{separator}': {inputs[key]}")
-                    # TODO Changed else for elif, check
                     elif key in query:
                         inputs[key] = query.get(key, "")
                 inputs.update({k: v for k, v in query.items() if k not in group_queries})
             else:
                 inputs.update(query)
         elif isinstance(query, list):
-            # Asume that the list contains or a single value or a list of values for the primary key
+            # Assume the list contains a single value or a list of values for the primary key
             if group_queries and primary_keys[0] in group_queries:
                 inputs[primary_keys[0]] = separator.join(query)
             else:
@@ -578,10 +564,6 @@ class BaseAPIInterface(ABC):
             inputs[primary_keys[0]] = query
         else:
             raise ValueError(f"Unsupported query type: {type(query)}. Expected str, dict, or list.")
-
-        # Probably this line is not needed. All inputs should be in the query
-        # TODO TRY IF IN OTHER APIS THIS CHANGE MAKE ERRORS
-        # inputs.update([(k, v) for k, v in kwargs.items() if k not in self.get_cache_ignore_keys()])
 
         return http_method, path_param, parameters, inputs
 
@@ -706,7 +688,7 @@ class BaseAPIInterface(ABC):
             for k, v in d.items():
                 if k not in merged:
                     merged[k] = v
-                # Si ya hay una lista, añade solo si es distinto
+                # If already a list, append only if different
                 elif isinstance(merged[k], list):
                     if v not in merged[k]:
                         merged[k].append(v)
@@ -758,7 +740,6 @@ class BaseAPIInterface(ABC):
             log.debug(f"Generated a group of queries based on key '{group_key}' with multiple values.")
             results = {}
             remaining = []
-            # values = list(query[group_key])
             subqueries = self.decompose_query(query, method, option)
             # Check cache per individual
             log.debug(f"Subqueries generated: {subqueries}")
@@ -1014,7 +995,6 @@ class BaseAPIInterface(ABC):
         metadata["execution_time"] = time.time() - t0
         metadata["fetched_length"] = sum(len(r) if isinstance(r, list) else 1 for r in results)
 
-        # Patch solution. Make sure that it works as intended
         # If it's a list of dataframes, concatenate them
         columns_info = []
         if all(isinstance(r, pd.DataFrame) for r in results) and len(results) > 0:

@@ -215,11 +215,6 @@ class KEGGInterface(BaseAPIInterface):
             return {}
 
         if method == "get" or method == "pathways":
-            # d = data.strip().split("///")[:-1]  # Split entries by "///" and remove the last empty entry
-
-            # key_val_pattern = re.compile(r"^(\w+)(?:\s{2,}|\t+)(.+)$")
-            # key_val_pattern = re.compile(r"^(\w+)\s+(.+)$")
-
             # Primary field: no indentation, KEGG key + value
             primary_key_val_pattern = re.compile(r"^(\w+)\s+(.+)$")
             # Secondary (nested) field: leading spaces + key + value

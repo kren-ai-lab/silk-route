@@ -47,9 +47,6 @@ class StringInterface(BaseAPIInterface):
         # Add other methods as needed
     }
 
-    # def get_subquery_match_keys(self) -> Set[str]:
-    #     return super().get_subquery_match_keys().union({"identifiers", "species"})
-
     def fetch(self, query: str | dict | list, *, method: str = "get_string_ids", **kwargs):
         """Fetch data from the STRING API.
 

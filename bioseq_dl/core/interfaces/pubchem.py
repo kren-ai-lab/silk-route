@@ -160,10 +160,6 @@ class PubChemInterface(BaseAPIInterface):
             ):
                 log.error("Only one 'cid', 'name', 'smiles', or 'inchi' parameters must be specified.")
                 return {}
-            # if "property" in validated_params:
-            #     for prop in  validated_params["property"].split(","):
-            #         if prop not in PROPERTIES[method]:
-            #             log.error(f"Property '{prop}' is not valid for method '{method}'. Allowed properties: {PROPERTIES[method]}")
         elif method == "pug/gene":
             if (
                 sum(
@@ -174,9 +170,6 @@ class PubChemInterface(BaseAPIInterface):
             ):
                 log.error("Only one 'genesymbol', 'geneid', or 'synonym' parameters must be specified.")
                 return {}
-
-        # if "specification" in validated_params and validated_params["specification"] not in PROPERTIES[method]:
-        #     log.error(f"Specification '{validated_params['specification']}' is not valid for method '{method}'. Allowed specifications: {PROPERTIES[method]}")
 
         if method == "autocomplete":
             url = f"{PUBCHEM.API_URL}{method}"
@@ -375,14 +368,12 @@ class PubChemInterface(BaseAPIInterface):
 
         return export_data
 
-    # Patch Solution
     def fetch_single(
         self, query: str | dict, parse: bool = False, *args, **kwargs
     ) -> tuple[list | dict | pd.DataFrame, dict]:
         option = kwargs.pop("option", "default")
         return super().fetch_single(*args, query=query, parse=parse, option=option, **kwargs)
 
-    # Patch Solution
     def fetch_batch(
         self, queries: list[str | dict], parse: bool = False, *args, **kwargs
     ) -> tuple[list | pd.DataFrame, dict]:

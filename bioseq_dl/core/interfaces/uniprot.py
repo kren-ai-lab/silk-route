@@ -625,9 +625,6 @@ class UniprotInterface(BaseAPIInterface):
                 metadata
             ) > 0 else metadata
         if format == "xml":
-            # xml_bytes = dicttoxml(parsed, custom_root='results', attr_type=False)
-            # return xml_bytes, metadata[0] if len(metadata) > 0 else metadata
-
             return dict_to_elementtree(parsed, root_tag="results"), metadata[0] if len(
                 metadata
             ) > 0 else metadata

@@ -208,13 +208,6 @@ class BaseQueryInterpreter:
                 tokens.append(tok)
         return tokens
 
-        # Captura AND/OR/NOT, pares key:'value' (value puede tener espacios entre comillas) o cualquier otra palabra
-        # pattern = re.compile(r"(\bAND\b|\bOR\b|\bNOT\b)|([^\s:]+:(?:'[^']*'|\"[^\"]*\"|[^\s]+))|(\S+)", re.IGNORECASE)
-        # tokens = []
-        # for m in pattern.finditer(text):
-        #     tokens.append(m.group(1) or m.group(2) or m.group(3))
-        # return tokens
-
     def _parse_numeric_range(self, value: str) -> tuple[str | None, str | None]:
         """Parse a numeric range expressed as 'low-high'. If invalid return (None, None)."""
         if not value or "-" not in value:
@@ -339,7 +332,7 @@ class UniProtQueryInterpreter(BaseQueryInterpreter):
         if cfg.resolver_kind == "go_name_map":
             if self._looks_like_go_id(value):
                 return prefix, value
-            # Asumes is a quoted phrase; remove quotes if present
+            # Assume a quoted phrase; strip surrounding quotes
             value = value.strip("'\"")
             go_id = self.config.fields["go"].value_map.get(value.lower(), None)
             if go_id:
@@ -348,14 +341,14 @@ class UniProtQueryInterpreter(BaseQueryInterpreter):
         elif cfg.resolver_kind == "keyword_map":
             if "KW-" in value:
                 return prefix, value
-            # Asumes is a quoted phrase; remove quotes if present
+            # Assume a quoted phrase; strip surrounding quotes
             value = value.strip("'\"")
             keyword_id = self.config.fields["keywords"].value_map.get(value.lower(), None)
             if keyword_id:
                 return prefix, keyword_id
 
         elif cfg.resolver_kind == "organism_map":
-            # Asumes is a quoted phrase; remove quotes if present
+            # Assume a quoted phrase; strip surrounding quotes
             value = value.strip("'\"")
             tax_id = self.config.fields["organism"].value_map.get(value.lower(), None)
             if tax_id:
@@ -401,9 +394,6 @@ class UniProtQueryInterpreter(BaseQueryInterpreter):
         endpoints "getTemperatureOptimum", "getTemperatureStability", "getTemperatureRange"
         This method should be used before interpreting the query to extract such databases.
         """
-        processed_query = self._expand_field_aliases(query)
-        processed_query = self._cleanup_whitespace(processed_query)
-
         databases: list[str] = []
         tokens = self._tokenize_query(query)
         for tok in tokens:

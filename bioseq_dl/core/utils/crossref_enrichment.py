@@ -127,8 +127,6 @@ def run_crossref_enrichment(
                 endpoint_config = endpoints_config.get(db_name)
                 if not isinstance(endpoint_config, dict):
                     continue
-                # if not endpoint_config.get("enabled", False):
-                #   continue
 
                 for ep_name, ep_info in endpoint_config.get("endpoints", {}).items():
                     if ep_info.get("enabled", False):
@@ -159,8 +157,6 @@ def run_crossref_enrichment(
                     endpoint_config = endpoints_config.get(db_name)
                     if not isinstance(endpoint_config, dict):
                         continue
-                    # if not endpoint_config.get("enabled", False):
-                    #    continue
 
                     ep_info = endpoint_config.get("endpoints", {}).get(method_name, None)
                     if ep_info and ep_info.get("enabled", False):

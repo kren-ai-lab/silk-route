@@ -181,14 +181,12 @@ class GenOntologyInterface(BaseAPIInterface):
             log.error(f"Error fetching relationships for GO term {parsed.get('goid', '')}: {e}")
         return parsed
 
-    # Patch Solution
     def fetch_single(
         self, query: str | dict, parse: bool = False, *args, **kwargs
     ) -> list | dict | pd.DataFrame:
         option = kwargs.pop("option", "default")
         return super().fetch_single(*args, query=query, parse=parse, option=option, **kwargs)
 
-    # Patch Solution
     def fetch_batch(
         self, queries: list[str | dict], parse: bool = False, *args, **kwargs
     ) -> list | pd.DataFrame:

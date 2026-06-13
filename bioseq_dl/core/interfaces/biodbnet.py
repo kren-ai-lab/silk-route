@@ -1,11 +1,7 @@
 from requests import Request
 from requests.exceptions import RequestException
 
-# Add the import for your database in constants
 from bioseq_dl.constants.databases import BIODBNET
-
-# Some deprecated imports, you can remove them if not needed
-# from ...constants.biodbnet import inputs, outputs
 from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
