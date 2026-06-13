@@ -1,20 +1,6 @@
-import re
 from typing import Any
 
 ### Useful functions ###
-
-
-def camel_to_snake(name: str) -> str:
-    """Convert str from camelCase to snake_case.
-
-    Args:
-        name (str): String in camelCase.
-
-    Returns:
-        str: String in snake_case.
-
-    """
-    return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
 
 
 def get_nested(data: dict, path: str, sep: str = ".") -> Any:

@@ -645,11 +645,3 @@ class UniprotInterface(BaseAPIInterface):
             "UniprotInterface does not implement generic fetch(); use submit_stream() "
             "for query search or download_batch()/submit_id_mapping() for id mapping."
         )
-
-    def query_usage(self) -> str:
-        return (
-            "UniProt interface. Retrieve data via submit_stream(query, fields, sort) for "
-            "query/field search, or download_batch(dataframe, column_ids) / submit_id_mapping("
-            "from_db, to_db, ids) for id mapping. Use parse(results, extract_fields, format) "
-            "to shape results into json / dataframe / xml."
-        )

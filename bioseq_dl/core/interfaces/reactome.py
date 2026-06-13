@@ -141,11 +141,3 @@ class ReactomeInterface(BaseAPIInterface):
             return {}
 
         return self._extract_fields(data, fields_to_extract)
-
-    def query_usage(self) -> str:
-        return (
-            "To query Reactome, use the pathway ID as a string. "
-            "Example usage:\n"
-            "reactome_instance.fetch('R-HSA-123456')\n"
-            "This will return the pathway data for the specified Reactome pathway ID."
-        )

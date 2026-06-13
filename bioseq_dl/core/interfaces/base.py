@@ -1144,9 +1144,5 @@ class BaseAPIInterface(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def query_usage(self) -> str:
-        raise NotImplementedError
-
-    @abstractmethod
     def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs):
         raise NotImplementedError

@@ -4,7 +4,7 @@ from requests import Request
 from requests.exceptions import RequestException
 
 from bioseq_dl.constants.databases import STRING
-from bioseq_dl.constants.stringdb import METHOD_FORMATS, METHODS
+from bioseq_dl.constants.stringdb import METHOD_FORMATS
 from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
 from bioseq_dl.logging import get_logger
 
@@ -134,12 +134,3 @@ class StringInterface(BaseAPIInterface):
         else:
             log.error(f"Format {fmt} is not supported. Supported formats are: json, tsv")
             return {}
-
-    def query_usage(self) -> str:
-        return (
-            "To query STRING, use the method name and parameters as a dictionary. "
-            "Example usage:\n"
-            "string_instance.fetch(query={'identifiers': ['p53', 'cdk2'], 'species': 9606}, method='get_string_ids', outfmt='json')\n"
-            "Supported methods: " + ", ".join(METHODS) + "\n"
-            "Supported output formats: " + ", ".join(METHOD_FORMATS["get_string_ids"])
-        )

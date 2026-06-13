@@ -168,6 +168,3 @@ class ChEBIInterface(BaseAPIInterface):
             return {}
 
         return self._extract_fields(data, fields_to_extract)
-
-    def query_usage(self) -> str:
-        return "Query usage information for ChEBI API"

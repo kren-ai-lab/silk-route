@@ -388,6 +388,3 @@ class PubChemInterface(BaseAPIInterface):
     ) -> tuple[list | pd.DataFrame, dict]:
         option = kwargs.pop("option", "default")
         return super().fetch_batch(*args, queries=queries, parse=parse, option=option, **kwargs)
-
-    def query_usage(self) -> str:
-        return "Use PubChem PUG and PUG-View methods with compound, gene, or protein query parameters."

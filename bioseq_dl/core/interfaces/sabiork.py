@@ -104,6 +104,3 @@ class SabiorkInterface(BaseAPIInterface):
 
     def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
         return self._extract_fields(data, fields_to_extract)
-
-    def query_usage(self) -> str:
-        return "Use SABIO-RK methods with supported kinetic law query parameters."

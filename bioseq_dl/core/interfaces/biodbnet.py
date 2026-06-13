@@ -96,6 +96,3 @@ class BioDBNetInterface(BaseAPIInterface):
             return {}
 
         return self._extract_fields(data, fields_to_extract)
-
-    def query_usage(self) -> str:
-        return "Use BioDBNet methods such as db2db and getpathways with their supported identifier mapping parameters."

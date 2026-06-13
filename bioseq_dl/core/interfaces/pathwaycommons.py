@@ -139,6 +139,3 @@ class PathwayCommonsInterface(BaseAPIInterface):
             return {}
 
         return self._extract_fields(data, fields_to_extract, **kwargs)
-
-    def query_usage(self) -> str:
-        return "Use Pathway Commons methods with supported pathway identifiers and graph query parameters."

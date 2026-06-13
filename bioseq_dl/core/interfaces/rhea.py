@@ -84,6 +84,3 @@ class RheaInterface(BaseAPIInterface):
             return {}
 
         return self._extract_fields(data, fields_to_extract, **kwargs)
-
-    def query_usage(self) -> str:
-        return "Use Rhea methods with supported reaction identifiers or query parameters."

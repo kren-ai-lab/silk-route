@@ -127,6 +127,3 @@ class PrideInterface(BaseAPIInterface):
     ) -> list | dict | pd.DataFrame:
         option = kwargs.pop("option", "default")
         return super().fetch_single(*args, query=query, parse=parse, option=option, **kwargs)
-
-    def query_usage(self) -> str:
-        return "Use PRIDE methods with supported project, protein, peptide, or assay query parameters."

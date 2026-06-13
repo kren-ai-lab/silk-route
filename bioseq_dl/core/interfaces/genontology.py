@@ -194,16 +194,3 @@ class GenOntologyInterface(BaseAPIInterface):
     ) -> list | pd.DataFrame:
         option = kwargs.pop("option", "default")
         return super().fetch_batch(*args, queries=queries, parse=parse, option=option, **kwargs)
-
-    def query_usage(self) -> str:
-        return (
-            "GenOntology API allows you to fetch ontology terms and their relationships.\n"
-            "Available methods:\n"
-            "- ontology-term: Fetch ontology term details.\n"
-            "- go: Fetch Gene Ontology hierarchy or models.\n"
-            "Options for 'ontology-term': graph, subgraph.\n"
-            "Options for 'go': hierarchy, models.\n"
-            "Example usage:\n"
-            "  - Fetch ontology term: fetch_single('GO:0008150', method='ontology-term')\n"
-            "  - Fetch GO hierarchy: fetch_single('GO:0008150', method='go', option='hierarchy')\n"
-        )

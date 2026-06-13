@@ -105,6 +105,3 @@ class PantherInterface(BaseAPIInterface):
             return {}
 
         return self._extract_fields(data, fields_to_extract)
-
-    def query_usage(self) -> str:
-        return "Use Panther methods such as geneinfo, familyortholog, and familymsa with their supported query parameters."

@@ -381,19 +381,3 @@ class KEGGInterface(BaseAPIInterface):
             return data
         log.error(f"Parsing method '{method}' is not supported.")
         return {}
-
-    def query_usage(self) -> str:
-        return (
-            "KEGG API allows you to fetch data from KEGG databases.\n"
-            "You can use methods like 'info', 'list', 'find', 'get', 'conv', 'link', and 'ddi'.\n"
-            "Supported databases include 'pathway', 'brite', 'module', 'ko', 'vg', 'vp', 'ag', "
-            "'genome', 'compound', 'glycan', 'reaction', 'rclass', 'enzyme', 'network', "
-            "'variant', 'disease', 'drug', 'dgroup', and more.\n"
-            "Example usage:\n"
-            "    kegg = KEGGInterface()\n"
-            "    response = kegg.fetch_single("
-            "        query='hsa:10458', method='get', parse=True\n"
-            "    )\n"
-            "    print(response)\n"
-            "For more information, visit: https://www.kegg.jp/kegg/rest/keggapi.html"
-        )
