@@ -60,3 +60,8 @@ src/.pdb_cache/
 .env
 
 !examples/data/*.csv
+
+# Test fixtures must be tracked despite the global *.json / *.csv rules above
+!tests/**/*.json
+!tests/**/*.csv
+!tests/**/

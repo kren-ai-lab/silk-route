@@ -1,0 +1,46 @@
+#:schema https://www.schemastore.org/prek.json
+
+exclude = "^.idea/"
+
+[[repos]]
+repo = "https://github.com/pre-commit/pre-commit-hooks"
+rev = "v6.0.0"
+hooks = [
+  { id = "check-yaml" },
+  { id = "check-toml" },
+  { id = "end-of-file-fixer" },
+  { id = "trailing-whitespace" }
+]
+
+[[repos]]
+repo = "local"
+hooks = [
+  {
+    id = "format",
+    name = "lint-check",
+    entry = "uv run task format",
+    language = "system",
+    pass_filenames = false
+  },
+  {
+    id = "lint",
+    name = "lint-check",
+    entry = "uv run task lint",
+    language = "system",
+    pass_filenames = false
+  },
+  {
+    id = "ty",
+    name = "ty-check",
+    entry = "uv run task ty",
+    language = "system",
+    pass_filenames = false
+  },
+  {
+    id = "pyrefly",
+    name = "pyrefly-check",
+    entry = "uv run task pyrefly",
+    language = "system",
+    pass_filenames = false
+  }
+]
