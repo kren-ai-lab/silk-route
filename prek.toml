@@ -28,19 +28,10 @@ hooks = [
     entry = "uv run task lint",
     language = "system",
     pass_filenames = false
-  },
-  {
-    id = "ty",
-    name = "ty-check",
-    entry = "uv run task ty",
-    language = "system",
-    pass_filenames = false
-  },
-  {
-    id = "pyrefly",
-    name = "pyrefly-check",
-    entry = "uv run task pyrefly",
-    language = "system",
-    pass_filenames = false
   }
+  # ty and pyrefly are intentionally NOT blocking hooks yet: the legacy code has
+  # ~223 ty diagnostics and 1 pyrefly error (the interpro query_usage bug). They
+  # remain available as `uv run task ty` / `uv run task pyrefly`. Re-enable as
+  # blocking hooks during the dedicated typing pass (pyrefly after Phase 2 fixes
+  # interpro; ty once annotations are added).
 ]

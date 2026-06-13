@@ -1,22 +1,18 @@
-import os, logging
-import html
+import os
 
-from typing import Union, List, Dict, Set, Optional
 from requests import Request
 from requests.exceptions import RequestException
 from requests.models import Response
-from bs4 import BeautifulSoup
 
-import pandas as pd
-
-from .base import BaseAPIInterface
 # Add the import for your database in constants
-from ...constants.databases import RHEA
-from ..utils.base_auxiliary_methods import validate_parameters, get_primary_keys
-
+from bioseq_dl.constants.databases import RHEA
+from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
 from bioseq_dl.logging import get_logger
 
+from .base import BaseAPIInterface
+
 log = get_logger("bioseq_dl.interfaces.rhea")
+
 
 class RheaInterface(BaseAPIInterface):
     API_NAME = "Rhea"
@@ -31,16 +27,11 @@ class RheaInterface(BaseAPIInterface):
                 "limit": (int, 100, False),
             },
             "group_queries": [None],
-            "separator": None
+            "separator": None,
         }
     }
 
-    def __init__(
-            self,  
-            cache_dir: Optional[str] = None,
-            config_dir: Optional[str] = None,
-            **kwargs
-        ):
+    def __init__(self, cache_dir: str | None = None, config_dir: str | None = None, **kwargs):
 
         if cache_dir:
             cache_dir = os.path.abspath(cache_dir)
@@ -52,18 +43,14 @@ class RheaInterface(BaseAPIInterface):
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
 
-    def fetch(
-            self, 
-            query: Union[str, dict, list], 
-            *, 
-            method: str = "rhea", 
-            **kwargs
-        ):
+    def fetch(self, query: str | dict | list, *, method: str = "rhea", **kwargs):
         if method not in self.METHODS.keys():
             log.error(f"Method '{method}' is not supported. Available methods: {list(self.METHODS.keys())}")
             return {}
 
-        http_method, path_param, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, **kwargs)
+        http_method, path_param, parameters, inputs = self.initialize_method_parameters(
+            query, method, self.METHODS, **kwargs
+        )
 
         # Validate and clean parameters
         try:
@@ -76,12 +63,8 @@ class RheaInterface(BaseAPIInterface):
         if path_param:
             path_value = validated_params.pop(path_param)
             url += f"{path_value}"
-        
-        req = Request(
-            method=http_method,
-            url=url,
-            params=validated_params
-        )
+
+        req = Request(method=http_method, url=url, params=validated_params)
         prepared = self.session.prepare_request(req)
         log.debug(f"Prepared request: {prepared.url}")
 
@@ -92,19 +75,14 @@ class RheaInterface(BaseAPIInterface):
             response = response.json()
 
             if "results" in response:
-                response = response["results"]  
+                response = response["results"]
 
             return response
         except RequestException as e:
             log.error(f"Error fetching prediction for {query}: {e}")
             return {}
-        
-    def parse(
-            self, 
-            data: Union[List, Dict],
-            fields_to_extract: Optional[Union[list, dict]],
-            **kwargs
-        ) -> Union[List, Dict]:
+
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
         if not data:
             return {}
 
@@ -113,10 +91,12 @@ class RheaInterface(BaseAPIInterface):
         elif isinstance(data, (dict, list)):
             data = data
         else:
-            log.error("Tried to parse data but the type is not supported. Data should be a list or a dictionary.")
+            log.error(
+                "Tried to parse data but the type is not supported. Data should be a list or a dictionary."
+            )
             return {}
 
         return self._extract_fields(data, fields_to_extract, **kwargs)
-    
+
     def query_usage(self) -> str:
         return "Use Rhea methods with supported reaction identifiers or query parameters."

@@ -1,17 +1,17 @@
-import pandas as pd
-from typing import Tuple, Dict, Any, Literal, List, Union
+from typing import Any, Literal
 
-from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
-from bioseq_dl.core.interfacesconfig import ConfigLoader
+import pandas as pd
+
 from bioseq_dl.constants.databases import BASE_CONFIG_DIR
 from bioseq_dl.constants.uniprot import XREF_MAPPING
-
+from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
+from bioseq_dl.core.interfacesconfig import ConfigLoader
 from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.core.utils.crossref_enrichment")
 
 
-def normalize_crossref_fields(crossref_fields: Any) -> List[str]:
+def normalize_crossref_fields(crossref_fields: Any) -> list[str]:
     """Return cleaned cross-reference field names."""
     if crossref_fields is None:
         return []
@@ -64,12 +64,12 @@ def has_enrichment_result_value(value: Any) -> bool:
 
 
 def run_crossref_enrichment(
-        data: pd.DataFrame | List[Dict] | bytes | str | Dict , 
-        crossref_fields: list, 
-        format: Literal["dataframe", "json", "xml"] = "json",
-        max_workers: int = 4,
-        total_retries: int = 3
-    ) -> Tuple[Any, Union[Dict, List[Dict]]]:
+    data: pd.DataFrame | list[dict] | bytes | str | dict,
+    crossref_fields: list,
+    format: Literal["dataframe", "json", "xml"] = "json",
+    max_workers: int = 4,
+    total_retries: int = 3,
+) -> tuple[Any, dict | list[dict]]:
     crossref_fields = normalize_crossref_fields(crossref_fields)
     if not crossref_fields:
         log.info("Skipping CrossRef enrichment because no cross-reference fields were requested.")
@@ -103,9 +103,13 @@ def run_crossref_enrichment(
             db_name, method_part = field.split("_", 1)
             if "_" in method_part:
                 method_name, option = method_part.rsplit("_", 1)
-                processed_crossref_fields.setdefault(db_name, []).append({"method": method_name, "option": option})
+                processed_crossref_fields.setdefault(db_name, []).append(
+                    {"method": method_name, "option": option}
+                )
             else:
-                processed_crossref_fields.setdefault(db_name, []).append({"method": method_part, "option": None})
+                processed_crossref_fields.setdefault(db_name, []).append(
+                    {"method": method_part, "option": None}
+                )
         else:
             # Plain database name -> use all methods
             processed_crossref_fields.setdefault(field, []).append({"method": None, "option": None})
@@ -117,15 +121,15 @@ def run_crossref_enrichment(
     endpoint_specs = []
     # Generate the endpoint specs based on selected crossref fields
     for key, (uniprot_field, db_name) in XREF_MAPPING.items():
-        if db_name and db_name in processed_crossref_fields.keys():
+        if db_name and db_name in processed_crossref_fields:
             log.debug(f"Processing crossref field: {key} -> db: {db_name}, uniprot_field: {uniprot_field}")
-            if processed_crossref_fields[db_name] == [ {"method": None, "option": None} ]:
+            if processed_crossref_fields[db_name] == [{"method": None, "option": None}]:
                 # Use all available methods for this database
                 log.debug(f"Using all available methods for database: {db_name}")
                 endpoint_config = config.get_parameter(db_name)
                 if not isinstance(endpoint_config, dict):
                     continue
-                #if not endpoint_config.get("enabled", False):
+                # if not endpoint_config.get("enabled", False):
                 #   continue
 
                 for ep_name, ep_info in endpoint_config.get("endpoints", {}).items():
@@ -157,7 +161,7 @@ def run_crossref_enrichment(
                     endpoint_config = config.get_parameter(db_name)
                     if not isinstance(endpoint_config, dict):
                         continue
-                    #if not endpoint_config.get("enabled", False):
+                    # if not endpoint_config.get("enabled", False):
                     #    continue
 
                     ep_info = endpoint_config.get("endpoints", {}).get(method_name, None)
@@ -171,31 +175,33 @@ def run_crossref_enrichment(
                             )
                         )
                     else:
-                        log.warning(f"Method {method_name} for database {db_name} is not enabled or does not exist in config.")
-    
+                        log.warning(
+                            f"Method {method_name} for database {db_name} is not enabled or does not exist in config."
+                        )
+
     log.debug(f"Final endpoint specs: {endpoint_specs}")
     if not endpoint_specs:
         log.info("Skipping CrossRef enrichment because no endpoint specs were resolved.")
         return {}, {"skipped": True, "reason": "no_endpoint_specs"}
 
-    enricher = CrossRefEnricher(endpoint_specs=endpoint_specs, max_workers=max_workers, total_retries=total_retries)
+    enricher = CrossRefEnricher(
+        endpoint_specs=endpoint_specs, max_workers=max_workers, total_retries=total_retries
+    )
     enriched_data, enriched_metadata = enricher.enrich(data, format=format)
-    
+
     # Normalize metadata to a dict to satisfy the annotated return type
     if enriched_metadata is None:
         enriched_metadata = {}
     elif not isinstance(enriched_metadata, dict):
         enriched_metadata = {"details": enriched_metadata}
-    
-    if isinstance(enriched_data, pd.DataFrame) and not enriched_data.empty:
+
+    if (isinstance(enriched_data, pd.DataFrame) and not enriched_data.empty) or (
+        isinstance(enriched_data, list) and len(enriched_data) > 0
+    ):
         return enriched_data, enriched_metadata
-    elif isinstance(enriched_data, list) and len(enriched_data) > 0:
-        return enriched_data, enriched_metadata
-    elif isinstance(enriched_data, dict):
+    if isinstance(enriched_data, dict):
         enriched_data = {
-            label: value
-            for label, value in enriched_data.items()
-            if has_enrichment_result_value(value)
+            label: value for label, value in enriched_data.items() if has_enrichment_result_value(value)
         }
         if enriched_data:
             return enriched_data, enriched_metadata

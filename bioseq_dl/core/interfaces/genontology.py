@@ -1,18 +1,19 @@
-import os, logging
-from typing import Optional, Union, List, Dict, Any
+import os
+from typing import Any
+
+import pandas as pd
 import requests
 from requests import Request
 from requests.exceptions import RequestException
 
-import pandas as pd
-
-from .base import BaseAPIInterface
-from ...constants.databases import GENONTOLOGY
-from ..utils.base_auxiliary_methods import validate_parameters
-
+from bioseq_dl.constants.databases import GENONTOLOGY
+from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
 from bioseq_dl.logging import get_logger
 
+from .base import BaseAPIInterface
+
 log = get_logger("bioseq_dl.interfaces.genontology")
+
 
 class GenOntologyInterface(BaseAPIInterface):
     API_NAME = "GenOntology"
@@ -25,7 +26,7 @@ class GenOntologyInterface(BaseAPIInterface):
                     "goid": (str, None, True),
                 },
                 "group_queries": [None],
-                "separator": None
+                "separator": None,
             },
             "graph": {
                 "http_method": "GET",
@@ -34,9 +35,8 @@ class GenOntologyInterface(BaseAPIInterface):
                     "goid": (str, None, True),
                 },
                 "group_queries": [None],
-                "separator": None
-
-            }
+                "separator": None,
+            },
         },
         "go": {
             "default": {
@@ -46,7 +46,7 @@ class GenOntologyInterface(BaseAPIInterface):
                     "goid": (str, None, True),
                 },
                 "group_queries": [None],
-                "separator": None
+                "separator": None,
             }
         },
         "bioentity-function": {
@@ -57,23 +57,19 @@ class GenOntologyInterface(BaseAPIInterface):
                     "goid": (str, None, True),
                 },
                 "group_queries": [None],
-                "separator": None
+                "separator": None,
             }
-        }
+        },
     }
 
-    def __init__(
-            self,
-            cache_dir: Optional[str] = None,
-            config_dir: Optional[str] = None,
-            **kwargs
-    ):
-        """
-        Initialize the GenOntologyInterface class.
+    def __init__(self, cache_dir: str | None = None, config_dir: str | None = None, **kwargs):
+        """Initialize the GenOntologyInterface class.
+
         Args:
             cache_dir (str): Directory to cache results.
             config_dir (str): Directory for configuration files.
             output_dir (str): Directory to save output files.
+
         """
         if cache_dir:
             cache_dir = os.path.abspath(cache_dir)
@@ -83,26 +79,30 @@ class GenOntologyInterface(BaseAPIInterface):
         if config_dir is None:
             config_dir = GENONTOLOGY.CONFIG_DIR if GENONTOLOGY.CONFIG_DIR is not None else ""
 
-        super().__init__(cache_dir=cache_dir, config_dir=config_dir,**kwargs)
+        super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
 
-    def fetch(self, query: Union[str, dict, list], *, method: str = "ontology-term", **kwargs):
-        """
-        Fetch data from the GenOntology API.
+    def fetch(self, query: str | dict | list, *, method: str = "ontology-term", **kwargs):
+        """Fetch data from the GenOntology API.
+
         Args:
             query (str): Query string to search for.
             method (str): Method to use for the request. Used methods are 'ontology-term' and 'go'.
             **kwargs: Additional parameters for the request.
-            - `option`: Additional options for the request. 
+            - `option`: Additional options for the request.
+
         Returns:
             any: response from the API.
+
         """
         if method not in self.METHODS.keys():
             log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
             return {}
-        
+
         option = kwargs.pop("option", "default")
 
-        http_method, _, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, option=option, **kwargs)
+        http_method, _, parameters, inputs = self.initialize_method_parameters(
+            query, method, self.METHODS, option=option, **kwargs
+        )
 
         # Validate and clean parameters
         try:
@@ -110,8 +110,7 @@ class GenOntologyInterface(BaseAPIInterface):
         except ValueError as e:
             log.error(f"Invalid parameters for method '{method}': {e}")
             return {}
-        
-        
+
         url = f"{GENONTOLOGY.API_URL}{method.replace('-', '/')}/"
         for param in validated_params:
             if param in validated_params:
@@ -138,14 +137,9 @@ class GenOntologyInterface(BaseAPIInterface):
             log.error(f"Error fetching data from {url}: {e}")
             return {}
 
-    def parse(
-            self,
-            data: Any,
-            fields_to_extract: Optional[Union[list, dict]],
-            **kwargs
-    ) -> Union[Dict, List]:
-        """
-        Parse the response from the GenOntology API.
+    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs) -> dict | list:
+        """Parse the response from the GenOntology API.
+
         Args:
             data (Any): Raw data from the API response.
             fields_to_extract (List|Dict): Fields to keep from the original response.
@@ -153,8 +147,10 @@ class GenOntologyInterface(BaseAPIInterface):
                 - If Dict: Maps {desired_name: real_field_name}.
             **kwargs: Additional parameters for parsing.
             - `look_for_relationships`: If True, fetch related ontology terms.
+
         Returns:
             dict: Parsed response.
+
         """
         look_for_relationships = kwargs.get("look_for_relationships")
         if not data:
@@ -166,26 +162,30 @@ class GenOntologyInterface(BaseAPIInterface):
         elif isinstance(data, dict):
             data = data
         else:
-            log.error("Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object.")
+            log.error(
+                "Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object."
+            )
             return {}
-        
+
         parsed = self._extract_fields(data, fields_to_extract)
 
         if look_for_relationships:
             if isinstance(parsed, list):
                 parsed = [self.fetch_related_ontology_terms(item) for item in parsed]
             else:
-                parsed =  self.fetch_related_ontology_terms(parsed)
+                parsed = self.fetch_related_ontology_terms(parsed)
 
         return parsed
 
-    def fetch_related_ontology_terms(self, parsed: Dict) -> Dict:
-        """
-        Fetch related ontology terms for a given ontology term.
+    def fetch_related_ontology_terms(self, parsed: dict) -> dict:
+        """Fetch related ontology terms for a given ontology term.
+
         Args:
             parsed (dict): Parsed ontology term data.
+
         Returns:
             dict: Updated parsed data with relationships.
+
         """
         try:
             rel_response = self.fetch(method="ontology-term", query=parsed.get("goid", ""), option="graph")
@@ -201,12 +201,16 @@ class GenOntologyInterface(BaseAPIInterface):
         return parsed
 
     # Patch Solution
-    def fetch_single(self, query: Union[str, dict], parse: bool = False, *args, **kwargs) -> Union[List, Dict, pd.DataFrame]:
+    def fetch_single(
+        self, query: str | dict, parse: bool = False, *args, **kwargs
+    ) -> list | dict | pd.DataFrame:
         option = kwargs.pop("option", "default")
         return super().fetch_single(query=query, parse=parse, option=option, *args, **kwargs)
-    
+
     # Patch Solution
-    def fetch_batch(self, queries: List[Union[str, dict]], parse: bool = False, *args, **kwargs) -> Union[List, pd.DataFrame]:
+    def fetch_batch(
+        self, queries: list[str | dict], parse: bool = False, *args, **kwargs
+    ) -> list | pd.DataFrame:
         option = kwargs.pop("option", "default")
         return super().fetch_batch(queries=queries, parse=parse, option=option, *args, **kwargs)
 

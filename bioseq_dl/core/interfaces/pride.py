@@ -1,18 +1,18 @@
-import os, logging
-from typing import Union, List, Dict, Set, Optional
+import os
+
+import pandas as pd
 from requests import Request, Response
 from requests.exceptions import RequestException
 
-import pandas as pd
-
-from .base import BaseAPIInterface
 # Add the import for your database in constants
-from ...constants.databases import PRIDE
-from ..utils.base_auxiliary_methods import validate_parameters
-
+from bioseq_dl.constants.databases import PRIDE
+from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
 from bioseq_dl.logging import get_logger
 
+from .base import BaseAPIInterface
+
 log = get_logger("bioseq_dl.interfaces.pride")
+
 
 class PrideInterface(BaseAPIInterface):
     API_NAME = "PRIDE"
@@ -27,12 +27,11 @@ class PrideInterface(BaseAPIInterface):
                     "page": (int, 0, True),
                     "dateGap": (str, None, True),
                     "sortDirection": (str, "DESC", False),
-                    "sortFields": (str, "submissionDate", False)
+                    "sortFields": (str, "submissionDate", False),
                 },
                 "group_queries": [None],
-                "separator": None
+                "separator": None,
             },
-
         },
         "projects": {
             "default": {
@@ -42,7 +41,7 @@ class PrideInterface(BaseAPIInterface):
                     "projectAccession": (str, None, True),
                 },
                 "group_queries": [None],
-                "separator": None
+                "separator": None,
             },
             "similarProjects": {
                 "http_method": "GET",
@@ -50,20 +49,15 @@ class PrideInterface(BaseAPIInterface):
                 "parameters": {
                     "accession": (str, None, True),
                     "page": (int, 0, True),
-                    "pageSize": (int, 10, True)
+                    "pageSize": (int, 10, True),
                 },
                 "group_queries": [None],
-                "separator": None
-            }
-        }
+                "separator": None,
+            },
+        },
     }
 
-    def __init__(
-            self,  
-            cache_dir: Optional[str] = None,
-            config_dir: Optional[str] = None,
-            **kwargs
-        ):
+    def __init__(self, cache_dir: str | None = None, config_dir: str | None = None, **kwargs):
 
         if cache_dir:
             cache_dir = os.path.abspath(cache_dir)
@@ -75,19 +69,15 @@ class PrideInterface(BaseAPIInterface):
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
 
-    def fetch(
-            self, 
-            query: Union[str, dict, list], 
-            *, 
-            method: str = "search", 
-            **kwargs
-        ):
+    def fetch(self, query: str | dict | list, *, method: str = "search", **kwargs):
         if method not in self.METHODS.keys():
             log.error(f"Method '{method}' is not defined in the interface.")
             return {}
         option = kwargs.pop("option", "default")
-        
-        http_method, path_param, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, option=option, **kwargs)
+
+        http_method, path_param, parameters, inputs = self.initialize_method_parameters(
+            query, method, self.METHODS, option=option, **kwargs
+        )
 
         # Validate and clean parameters
         try:
@@ -100,10 +90,12 @@ class PrideInterface(BaseAPIInterface):
 
         if path_param:
             if isinstance(path_param, list):
-                url += "/" + "/".join(str(validated_params.pop(param)) for param in path_param if param in validated_params)
+                url += "/" + "/".join(
+                    str(validated_params.pop(param)) for param in path_param if param in validated_params
+                )
             else:
                 url += f"/{validated_params.pop(path_param)}"
- 
+
         if option and option != "default":
             url += f"/{option}"
 
@@ -125,14 +117,9 @@ class PrideInterface(BaseAPIInterface):
         except RequestException as e:
             log.error(f"Error fetching data from {url}: {e}")
             return {}
-        
-    def parse(
-            self, 
-            data: Union[List, Dict],
-            fields_to_extract: Optional[Union[list, dict]],
-            **kwargs
-        ) -> Union[List, Dict]:
-        
+
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
+
         if not data:
             return {}
 
@@ -141,15 +128,18 @@ class PrideInterface(BaseAPIInterface):
         elif isinstance(data, dict):
             data = data
         else:
-            log.error("Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object.")
+            log.error(
+                "Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object."
+            )
             return {}
 
         return self._extract_fields(data, fields_to_extract, **kwargs)
 
-    def fetch_single(self, query: Union[str, dict], parse: bool = False, *args, **kwargs) -> Union[List, Dict, pd.DataFrame]:
+    def fetch_single(
+        self, query: str | dict, parse: bool = False, *args, **kwargs
+    ) -> list | dict | pd.DataFrame:
         option = kwargs.pop("option", "default")
         return super().fetch_single(query=query, parse=parse, option=option, *args, **kwargs)
-    
+
     def query_usage(self) -> str:
         return "Use PRIDE methods with supported project, protein, peptide, or assay query parameters."
-    

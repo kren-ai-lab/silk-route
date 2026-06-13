@@ -1,23 +1,22 @@
-import os, json, logging
+import json
+import os
+from urllib.parse import quote
+
 from requests import Request
 from requests.exceptions import RequestException
 from requests.models import Response
-from urllib.parse import quote
 
-from typing import Union, List, Dict, Set, Optional
-
-import pandas as pd
+from bioseq_dl.constants.databases import CHEBI
+from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
+from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
-from ...constants.databases import CHEBI
-from ..utils.base_auxiliary_methods import validate_parameters
-
-from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.interfaces.chebi")
 
 # Definition of methods for ChEBI API
 # Each paramether is a tuple with (type, default_value, primary_key)
+
 
 class ChEBIInterface(BaseAPIInterface):
     API_NAME = "ChEBI"
@@ -28,10 +27,10 @@ class ChEBIInterface(BaseAPIInterface):
             "parameters": {
                 "chebi_id": (str, None, True),
                 "only_ontology_parents": (bool, False, False),
-                "only_ontology_children": (bool, False, False)
+                "only_ontology_children": (bool, False, False),
             },
             "group_queries": [None],
-            "separator": None
+            "separator": None,
         },
         "compounds": {
             "http_method": "GET",
@@ -40,7 +39,7 @@ class ChEBIInterface(BaseAPIInterface):
                 "chebi_ids": (list, None, True),
             },
             "group_queries": [None],
-            "separator": ","
+            "separator": ",",
         },
         "es_search": {
             "http_method": "GET",
@@ -51,7 +50,7 @@ class ChEBIInterface(BaseAPIInterface):
                 "size": (int, 15, False),
             },
             "group_queries": [None],
-            "separator": None
+            "separator": None,
         },
         "ontology-children": {
             "http_method": "GET",
@@ -60,7 +59,7 @@ class ChEBIInterface(BaseAPIInterface):
                 "chebi_id": (str, None, True),
             },
             "group_queries": [None],
-            "separator": None
+            "separator": None,
         },
         "ontology-parents": {
             "http_method": "GET",
@@ -69,7 +68,7 @@ class ChEBIInterface(BaseAPIInterface):
                 "chebi_id": (str, None, True),
             },
             "group_queries": [None],
-            "separator": None
+            "separator": None,
         },
         # Not implemented yet, requires pagination handling
         # "structure_search": {
@@ -86,12 +85,8 @@ class ChEBIInterface(BaseAPIInterface):
         #     }
         # }
     }
-    def __init__(
-            self,  
-            cache_dir: Optional[str] = None,
-            config_dir: Optional[str] = None,
-            **kwargs
-        ):
+
+    def __init__(self, cache_dir: str | None = None, config_dir: str | None = None, **kwargs):
 
         if cache_dir:
             cache_dir = os.path.abspath(cache_dir)
@@ -103,18 +98,14 @@ class ChEBIInterface(BaseAPIInterface):
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
 
-    def fetch(
-            self, 
-            query: Union[str, dict, list], 
-            *, 
-            method: str = "compound", 
-            **kwargs
-        ):
+    def fetch(self, query: str | dict | list, *, method: str = "compound", **kwargs):
         if method not in self.METHODS.keys():
             log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
             return {}
 
-        http_method, path_param, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, **kwargs)
+        http_method, path_param, parameters, inputs = self.initialize_method_parameters(
+            query, method, self.METHODS, **kwargs
+        )
 
         try:
             validated_params = validate_parameters(inputs, parameters)
@@ -135,7 +126,6 @@ class ChEBIInterface(BaseAPIInterface):
                 return {}
 
             validated_params[id_key] = ",".join(id for id in chebi_ids)
-        
 
         # Make URL
         url = f"{CHEBI.API_URL}{method.replace('-', '/')}/"
@@ -144,7 +134,7 @@ class ChEBIInterface(BaseAPIInterface):
             if path_param == "chebi_id":
                 path_value = quote(path_value, safe="")
             url += f"{path_value}"
-        
+
         req = Request(http_method, url, params=validated_params)
         prepared = self.session.prepare_request(req)
 
@@ -156,7 +146,9 @@ class ChEBIInterface(BaseAPIInterface):
             try:
                 response = json.loads(response.text)
             except json.JSONDecodeError:
-                log.error(f"Failed to decode JSON response for method '{method}' with query '{query}'. Response text: {response.text}")
+                log.error(
+                    f"Failed to decode JSON response for method '{method}' with query '{query}'. Response text: {response.text}"
+                )
                 return {}
 
             # If the keys are the same of the query, return the response directly
@@ -171,13 +163,8 @@ class ChEBIInterface(BaseAPIInterface):
         except RequestException as e:
             log.error(f"Error fetching {query} for method '{method}': {e}")
             return {}
-        
-    def parse(
-            self, 
-            data: Union[List, Dict],
-            fields_to_extract: Optional[Union[list, dict]],
-            **kwargs
-        ) -> Union[List, Dict]:
+
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
         if not data:
             log.warning("Tried to parse data but the data is empty or None.")
             return {}
@@ -187,10 +174,12 @@ class ChEBIInterface(BaseAPIInterface):
         elif isinstance(data, dict):
             data = data
         else:
-            log.error("Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object.")
+            log.error(
+                "Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object."
+            )
             return {}
-        
+
         return self._extract_fields(data, fields_to_extract)
-    
+
     def query_usage(self) -> str:
         return "Query usage information for ChEBI API"

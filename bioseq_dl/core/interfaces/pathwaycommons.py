@@ -1,18 +1,16 @@
-import os
 import json
-from typing import Union, List, Dict, Optional
+import os
+
 from requests import Request, Response
 from requests.exceptions import RequestException
 
-import pandas as pd
+# Add the import for your database in constants
+from bioseq_dl.constants.databases import PATHWAYCOMMONS
+from bioseq_dl.constants.pathwaycommons import OUTPUT_FORMATS, PATTERNS
+from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
+from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
-# Add the import for your database in constants
-from ...constants.databases import PATHWAYCOMMONS
-from ..utils.base_auxiliary_methods import validate_parameters
-from ...constants.pathwaycommons import OUTPUT_FORMATS, PATTERNS
-
-from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.interfaces.pathwaycommons")
 
@@ -30,7 +28,7 @@ class PathwayCommonsInterface(BaseAPIInterface):
                 "subpw": (bool, False, True),
             },
             "group_queries": [None],
-            "separator": None
+            "separator": None,
         },
         "top_pathways": {
             "http_method": "POST",
@@ -41,7 +39,7 @@ class PathwayCommonsInterface(BaseAPIInterface):
                 "datasource": (list, None, True),
             },
             "group_queries": [None],
-            "separator": None
+            "separator": None,
         },
         "neighborhood": {
             "http_method": "POST",
@@ -57,16 +55,11 @@ class PathwayCommonsInterface(BaseAPIInterface):
                 "direction": (str, "undirected", True),
             },
             "group_queries": [None],
-            "separator": None
-        }
+            "separator": None,
+        },
     }
 
-    def __init__(
-            self,  
-            cache_dir: Optional[str] = None,
-            config_dir: Optional[str] = None,
-            **kwargs
-        ):
+    def __init__(self, cache_dir: str | None = None, config_dir: str | None = None, **kwargs):
 
         if cache_dir:
             cache_dir = os.path.abspath(cache_dir)
@@ -78,27 +71,23 @@ class PathwayCommonsInterface(BaseAPIInterface):
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
 
-    def fetch(
-            self, 
-            query: Union[str, dict, list], 
-            *, 
-            method: str = "SOME_DEFAULT", 
-            **kwargs
-        ):
+    def fetch(self, query: str | dict | list, *, method: str = "SOME_DEFAULT", **kwargs):
         if method not in self.METHODS:
             log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
             return {}
         if method == "fetch" and "uri" not in query:
             log.error("The 'uri' parameter is required for the 'fetch' method.")
             return {}
-        elif method == "top_pathways" and "q" not in query:
+        if method == "top_pathways" and "q" not in query:
             log.error("The 'q' parameter is required for the 'top_pathways' method.")
             return {}
-        elif method == "neighborhood" and "source" not in query:
+        if method == "neighborhood" and "source" not in query:
             log.error("The 'source' parameter is required for the 'neighborhood' method.")
             return {}
 
-        http_method, path_param, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, **kwargs)
+        http_method, path_param, parameters, inputs = self.initialize_method_parameters(
+            query, method, self.METHODS, **kwargs
+        )
 
         # Validate and clean parameters
         try:
@@ -106,7 +95,7 @@ class PathwayCommonsInterface(BaseAPIInterface):
         except ValueError as e:
             log.error(f"Invalid parameters for method '{method}': {e}")
             return {}
-        
+
         if "format" in validated_params and validated_params["format"] not in OUTPUT_FORMATS:
             log.error(f"Invalid format '{validated_params['format']}'. Allowed formats: {OUTPUT_FORMATS}")
             return {}
@@ -116,11 +105,8 @@ class PathwayCommonsInterface(BaseAPIInterface):
 
         url = f"{PATHWAYCOMMONS.API_URL}{method}"
 
-        headers = {
-            "accept": "*/*",
-            "Content-Type": "application/json"
-        }
- 
+        headers = {"accept": "*/*", "Content-Type": "application/json"}
+
         response = Request(
             url=url,
             headers=headers,
@@ -150,14 +136,7 @@ class PathwayCommonsInterface(BaseAPIInterface):
             log.error(f"Error fetching data from {url}: {e}")
             return {}
 
-
-
-    def parse(
-            self, 
-            data: Union[List, Dict],
-            fields_to_extract: Optional[Union[list, dict]],
-            **kwargs
-        ) -> Union[List, Dict]:
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
         if not data:
             return {}
 
@@ -166,11 +145,12 @@ class PathwayCommonsInterface(BaseAPIInterface):
         elif isinstance(data, dict):
             data = data
         else:
-            log.error("Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object.")
+            log.error(
+                "Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object."
+            )
             return {}
 
         return self._extract_fields(data, fields_to_extract, **kwargs)
 
     def query_usage(self) -> str:
         return "Use Pathway Commons methods with supported pathway identifiers and graph query parameters."
-    

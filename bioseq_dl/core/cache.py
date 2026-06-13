@@ -1,5 +1,4 @@
-"""
-Cache registry and clear utility.
+"""Cache registry and clear utility.
 
 This module provides a single, well-documented API to register cache locations
 across the project and to clear them in a safe, flexible way. The goal is to
@@ -40,27 +39,28 @@ Example:
     clear_cache()
 
 """
+
 from __future__ import annotations
 
+import glob
 import logging
 import shutil
 import time
-import glob
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Optional, Union
+from typing import Union
 
 from bioseq_dl.constants import databases as db_consts
 
 _logger = logging.getLogger(__name__)
 
-CacheProvider = Union[str, Path, Callable[[], Iterable[Union[str, Path]]], object]
+CacheProvider = Union[str, Path, Callable[[], Iterable[str | Path]], object]
 
-_CACHE_REGISTRY: Dict[str, CacheProvider] = {}
+_CACHE_REGISTRY: dict[str, CacheProvider] = {}
 
 
 def register_cache(name: str, provider: CacheProvider) -> None:
-    """
-    Register a cache provider under `name`.
+    """Register a cache provider under `name`.
 
     The provider may be:
       - a path string or Path object
@@ -72,26 +72,24 @@ def register_cache(name: str, provider: CacheProvider) -> None:
     _CACHE_REGISTRY[name] = provider
 
 
-def list_caches() -> Dict[str, CacheProvider]:
+def list_caches() -> dict[str, CacheProvider]:
     """Return a shallow copy of the cache registry."""
     return dict(_CACHE_REGISTRY)
 
 
-def _resolver_provider_paths(provider: CacheProvider) -> List[Path]:
-    """
-    Resolve a provider into a list of Path objects.
-    """
+def _resolver_provider_paths(provider: CacheProvider) -> list[Path]:
+    """Resolve a provider into a list of Path objects."""
     if provider is None:
         return []
     # DBConfig-like object with CACHE_DIR attribute
     if hasattr(provider, "CACHE_DIR"):
-        c = getattr(provider, "CACHE_DIR")
+        c = provider.CACHE_DIR
         if c:
             return [Path(c)]
         return []
     # callable
     if callable(provider):
-        out: List[Path] = []
+        out: list[Path] = []
         try:
             for p in provider():
                 if p is None:
@@ -112,7 +110,7 @@ def _resolver_provider_paths(provider: CacheProvider) -> List[Path]:
     return [Path(provider)]
 
 
-def _is_within_allowed_bases(path: Path, allowed_bases: List[Path]) -> bool:
+def _is_within_allowed_bases(path: Path, allowed_bases: list[Path]) -> bool:
     """Return True if path is inside any of the allowed base directories."""
     try:
         p_res = path.resolve()
@@ -130,8 +128,7 @@ def _is_within_allowed_bases(path: Path, allowed_bases: List[Path]) -> bool:
 
 
 def _is_empty_file(file_path: Path) -> bool:
-    """
-    Check if a file is considered empty.
+    """Check if a file is considered empty.
     Empty means:
     - File size is 0
     - File contains only whitespace
@@ -141,38 +138,38 @@ def _is_empty_file(file_path: Path) -> bool:
         # Check file size
         if file_path.stat().st_size == 0:
             return True
-        
+
         # Read file content
         try:
-            content = file_path.read_text(encoding='utf-8').strip()
+            content = file_path.read_text(encoding="utf-8").strip()
         except (UnicodeDecodeError, Exception):
             # If can't read as text, check by bytes
             content = file_path.read_bytes().strip()
             if not content:
                 return True
             return False
-        
+
         # Check if content is empty, [], or {}
-        if not content or content == '[]' or content == '{}':
+        if not content or content == "[]" or content == "{}":
             return True
-        
+
         return False
     except Exception:
         _logger.exception("Error checking if file is empty: %s", file_path)
         return False
 
+
 def clear_cache(
-    selected_names: Optional[List[str]] = None,
+    selected_names: list[str] | None = None,
     *,
     dry_run: bool = False,
     force: bool = False,
-    older_than_days: Optional[int] = None,
+    older_than_days: int | None = None,
     empty: bool = False,
-    pattern: Optional[str] = None,
-    allowed_bases: Optional[List[Union[str, Path]]] = None,
-) -> Dict[str, List[str]]:
-    """
-    Clear registered cache entries.
+    pattern: str | None = None,
+    allowed_bases: list[str | Path] | None = None,
+) -> dict[str, list[str]]:
+    """Clear registered cache entries.
 
     Args:
         selected_names: optional list of registered cache names to clear. If None, all
@@ -191,10 +188,11 @@ def clear_cache(
 
     Returns:
         Dict[name, list_of_paths_actually_deleted_or_matched]
+
     """
     # Build default allowed_bases from constants and registered CACHE_DIRs
     if allowed_bases is None:
-        allowed_bases_list: List[Path] = []
+        allowed_bases_list: list[Path] = []
         # try to pick BASE_CACHE_DIR from constants if present
         try:
             base_cache = getattr(db_consts, "BASE_CACHE_DIR", None)
@@ -205,7 +203,7 @@ def clear_cache(
         # also add any explicitly configured CACHE_DIRs in constants module
         for v in vars(db_consts).values():
             if hasattr(v, "CACHE_DIR"):
-                cd = getattr(v, "CACHE_DIR")
+                cd = v.CACHE_DIR
                 if cd:
                     allowed_bases_list.append(Path(cd))
         # and any cache dirs already registered
@@ -227,7 +225,7 @@ def clear_cache(
     if older_than_days is not None:
         age_cutoff = now - older_than_days * 86400
 
-    report: Dict[str, List[str]] = {}
+    report: dict[str, list[str]] = {}
 
     for name in _names_selected:
         provider = _CACHE_REGISTRY.get(name)
@@ -235,7 +233,7 @@ def clear_cache(
             _logger.warning("Cache name '%s' not registered; skipping", name)
             continue
 
-        resolved_paths: List[Path] = []
+        resolved_paths: list[Path] = []
         for p in _resolver_provider_paths(provider):
             if not p:
                 continue
@@ -249,7 +247,7 @@ def clear_cache(
             else:
                 resolved_paths.append(p)
 
-        removed_paths: List[str] = []
+        removed_paths: list[str] = []
         for path in resolved_paths:
             try:
                 if not path.exists():
@@ -269,7 +267,7 @@ def clear_cache(
                     if path.is_dir():
                         # collect only empty files within directory
                         empty_files = []
-                        for file_path in path.rglob('*'):
+                        for file_path in path.rglob("*"):
                             if file_path.is_file() and _is_empty_file(file_path):
                                 empty_files.append(file_path)
                         # if no empty files found, skip this directory
@@ -282,11 +280,10 @@ def clear_cache(
                             for f in empty_files:
                                 f.unlink()
                         continue
-                    else:
-                        # check if file is empty
-                        if not _is_empty_file(path):
-                            _logger.debug("Skipping non-empty file %s", path)
-                            continue
+                    # check if file is empty
+                    if not _is_empty_file(path):
+                        _logger.debug("Skipping non-empty file %s", path)
+                        continue
 
                 removed_paths.append(str(path))
                 if not dry_run:
@@ -309,7 +306,7 @@ def _init_defaults() -> None:
             continue
         # pick up objects that expose CACHE_DIR
         if hasattr(v, "CACHE_DIR"):
-            cd = getattr(v, "CACHE_DIR")
+            cd = v.CACHE_DIR
             if cd:
                 register_cache(k.lower(), v)
 

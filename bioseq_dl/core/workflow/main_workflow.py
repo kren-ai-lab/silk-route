@@ -1,29 +1,25 @@
 from __future__ import annotations
 
-import os
-import json
 import inspect
 import logging
 import time
-from typing import Any, Callable, Iterable, List, Optional, Tuple, Union, cast, Literal
-
+from collections.abc import Iterable
+from typing import Any, Literal, cast
 from xml.etree.ElementTree import ElementTree as ET
 
 import pandas as pd
 
-from bioseq_dl import UniprotInterface, ChEMBLInterface, BioGRIDInterface
+from bioseq_dl import ChEMBLInterface, UniprotInterface
+from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
 from bioseq_dl.core.export import normalize_parse_format
 from bioseq_dl.core.utils.crossref_enrichment import normalize_crossref_fields, run_crossref_enrichment
-from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
-from bioseq_dl.constants.uniprot import XREF_MAPPING
+from bioseq_dl.logging import get_logger
 
 from .query_interpreter import (
-    build_default_uniprot_interpreter, 
     UniProtQueryInterpreter,
     build_default_chembl_interpreter,
+    build_default_uniprot_interpreter,
 )
-
-from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.core.workflow.main")
 
@@ -93,9 +89,9 @@ def activity_filter_metadata(activity_filter: dict) -> dict:
     return metadata
 
 
-def filter_chembl_activity_dataframe(df: pd.DataFrame, activity_filter: dict) -> Tuple[pd.DataFrame, dict]:
+def filter_chembl_activity_dataframe(df: pd.DataFrame, activity_filter: dict) -> tuple[pd.DataFrame, dict]:
     """Apply a defensive ChEMBL activity filter to a DataFrame without changing column types."""
-    initial_rows = int(len(df))
+    initial_rows = len(df)
     if df.empty:
         return df.copy(), {
             "applied": True,
@@ -136,7 +132,7 @@ def filter_chembl_activity_dataframe(df: pd.DataFrame, activity_filter: dict) ->
                 value_mask &= values < max_value
 
     filtered = df.loc[type_mask & value_mask].copy()
-    filtered_rows = int(len(filtered))
+    filtered_rows = len(filtered)
     return filtered, {
         "applied": True,
         "initial_rows": initial_rows,
@@ -145,7 +141,7 @@ def filter_chembl_activity_dataframe(df: pd.DataFrame, activity_filter: dict) ->
     }
 
 
-def filter_chembl_activity_result(result: Any, activity_filter: Optional[dict]) -> Tuple[Any, dict]:
+def filter_chembl_activity_result(result: Any, activity_filter: dict | None) -> tuple[Any, dict]:
     """Apply a defensive ChEMBL activity filter to supported workflow result shapes."""
     if not activity_filter:
         return result, {"applied": False}
@@ -171,7 +167,7 @@ def filter_chembl_activity_result(result: Any, activity_filter: Optional[dict]) 
     }
 
 
-def normalize_chembl_pages_to_fetch(value: Optional[int]) -> int:
+def normalize_chembl_pages_to_fetch(value: int | None) -> int:
     """Normalize a ChEMBL workflow page cap."""
     if value is None:
         return -1
@@ -186,7 +182,7 @@ def normalize_chembl_pages_to_fetch(value: Optional[int]) -> int:
     return pages_to_fetch
 
 
-def merge_enrichment_data(existing: List[Any], new: Any) -> List[Any]:
+def merge_enrichment_data(existing: list[Any], new: Any) -> list[Any]:
     """Merge query-composition enrichment result parts by endpoint label."""
     if isinstance(new, dict):
         for db_ep, db_data in new.items():
@@ -214,8 +210,7 @@ def merge_enrichment_data(existing: List[Any], new: Any) -> List[Any]:
 
 
 class MainWorkflow:
-    """
-    High-level workflow orchestrator for biological modalities and workflow modes:
+    """High-level workflow orchestrator for biological modalities and workflow modes:
       - query_first(query, ...): interpret user-friendly queries, fetch from UniProt, optional enrichment
       - query_composition(queries_with_labels, ...): run multiple queries and tag results with labels
 
@@ -227,11 +222,11 @@ class MainWorkflow:
 
     def __init__(
         self,
-        interpreter: Optional[UniProtQueryInterpreter] = None,
-        uniprot_interface: Optional[UniprotInterface] = None,
-        enricher: Optional[CrossRefEnricher] = None,
+        interpreter: UniProtQueryInterpreter | None = None,
+        uniprot_interface: UniprotInterface | None = None,
+        enricher: CrossRefEnricher | None = None,
         default_export_format: str = "csv",
-        logger: Optional[logging.Logger] = None,
+        logger: logging.Logger | None = None,
     ) -> None:
         # Instantiate sensible defaults if not provided
         self.interpreter = interpreter or build_default_uniprot_interpreter()
@@ -265,24 +260,24 @@ class MainWorkflow:
 
     # Public run entry that routes by workflow mode.
     def run(
-            self,
-            modality: str,
-            mode: str = "query_first",
-            **kwargs,
-        ) -> Tuple[Any, dict]:
-        """
-        Primary public entry. modality is mandatory and selects the declarative
+        self,
+        modality: str,
+        mode: str = "query_first",
+        **kwargs,
+    ) -> tuple[Any, dict]:
+        """Primary public entry. modality is mandatory and selects the declarative
         pipeline to use (e.g. 'protein', 'compound', 'interaction'). mode selects
         the workflow execution strategy.
 
         Examples:
           run(modality='protein', mode='query_first', query='...')
           run(modality='interaction', mode='query_composition', queries_with_labels=[...])
-        
+
         Args:
             modality: The modality to run ('protein', 'compound', 'interaction').
             mode: The workflow mode to run ('query_first', 'query_composition').
             **kwargs: Additional arguments passed to the selected mode handler.
+
         """
         if not modality:
             raise ValueError("`modality` is required for MainWorkflow.run")
@@ -301,7 +296,6 @@ class MainWorkflow:
         if workflow_mode == "query_composition":
             return self.query_composition(modality=modality, **kwargs)
         raise ValueError(f"Unknown workflow mode: {workflow_mode}")
-
 
     # ---- Pipeline step implementations ----
     def _step_interpret(self, context: dict) -> None:
@@ -337,18 +331,24 @@ class MainWorkflow:
 
     def _step_fetch_uniprot(self, context: dict) -> None:
         args = context.get("searches", {}).get("uniprot", {}) or context.get("args", {})
-        interpreted = context.get("searches", {}).get("uniprot", {}).get("interpreted_query") or args.get("query")
+        interpreted = context.get("searches", {}).get("uniprot", {}).get("interpreted_query") or args.get(
+            "query"
+        )
         # Defensive: do not call Uniprot with None/empty query
         if not interpreted:
-            self.log.debug("Pipeline: empty/uninterpreted query provided to _step_fetch_uniprot; skipping fetch")
+            self.log.debug(
+                "Pipeline: empty/uninterpreted query provided to _step_fetch_uniprot; skipping fetch"
+            )
             context["response"] = []
-            context.setdefault("metadata", {}).setdefault("fetch", {}).update({"uniprot": {"skipped_empty_query": True}})
+            context.setdefault("metadata", {}).setdefault("fetch", {}).update(
+                {"uniprot": {"skipped_empty_query": True}}
+            )
             return
         fields = args.get("fields", "") or ""
         sort = args.get("sort", "accession asc")
         include_isoform = args.get("include_isoform", False)
         uniprot_timeout = args.get("uniprot_timeout")
-        
+
         if isinstance(interpreted, list):
             # Multiple queries: fetch each and combine results
             combined_response = {}
@@ -377,7 +377,9 @@ class MainWorkflow:
                         search_process.get("response_size_bytes"),
                         search_process.get("total_results"),
                     )
-                combined_response["results"] = combined_response.get("results", []) + (resp.get("results", []) if isinstance(resp, dict) else [])
+                combined_response["results"] = combined_response.get("results", []) + (
+                    resp.get("results", []) if isinstance(resp, dict) else []
+                )
                 combined_fetch_meta[q] = fetch_meta if isinstance(fetch_meta, dict) else {}
             response = combined_response
             fetch_meta = combined_fetch_meta
@@ -407,7 +409,9 @@ class MainWorkflow:
                 )
         # Always store the latest response under context['data']['uniprot'] (setdefault would not overwrite existing value)
         context.setdefault("data", {})["uniprot"] = response
-        context.setdefault("metadata", {}).setdefault("uniprot", {}).update({"fetch": fetch_meta if isinstance(fetch_meta, dict) else {}})
+        context.setdefault("metadata", {}).setdefault("uniprot", {}).update(
+            {"fetch": fetch_meta if isinstance(fetch_meta, dict) else {}}
+        )
         self.log.debug("Pipeline UniProt fetch metadata: %s", fetch_meta)
 
     def _step_parse_uniprot(self, context: dict) -> None:
@@ -420,12 +424,12 @@ class MainWorkflow:
         parse_started = time.time()
         try:
             self.log.info("Pipeline: parsing UniProt results format=%s", parse_format)
-            data, parse_meta = self.uniprot.parse(results=response, extract_fields=None, format=cast(Any, parse_format))
+            data, parse_meta = self.uniprot.parse(
+                results=response, extract_fields=None, format=cast("Any", parse_format)
+            )
             parse_elapsed = time.time() - parse_started
             parsed_count = None
-            if isinstance(data, pd.DataFrame):
-                parsed_count = len(data)
-            elif isinstance(data, list):
+            if isinstance(data, pd.DataFrame) or isinstance(data, list):
                 parsed_count = len(data)
             elif isinstance(data, dict):
                 parsed_count = len(data.get("results", []))
@@ -433,7 +437,9 @@ class MainWorkflow:
             if isinstance(parse_meta, dict):
                 parse_meta["elapsed_seconds"] = parse_elapsed
                 parse_meta["parsed_count"] = parsed_count
-            context.setdefault("metadata", {}).setdefault("uniprot", {}).setdefault("parsing", parse_meta if isinstance(parse_meta, dict) else {})
+            context.setdefault("metadata", {}).setdefault("uniprot", {}).setdefault(
+                "parsing", parse_meta if isinstance(parse_meta, dict) else {}
+            )
             self.log.debug("Pipeline UniProt parse metadata: %s", parse_meta)
             self.log.info(
                 "Pipeline: UniProt parse completed (elapsed=%.2fs parsed=%s output_type=%s)",
@@ -447,9 +453,13 @@ class MainWorkflow:
             # (e.g., `if results:`) which raises ValueError("The truth value of a DataFrame is ambiguous").
             # Catch any parse error, record it and continue with an empty DataFrame so the
             # workflow can proceed without crashing.
-            self.log.warning("_step_parse: parser failed after %.2fs: %s; setting empty DataFrame", parse_elapsed, e)
+            self.log.warning(
+                "_step_parse: parser failed after %.2fs: %s; setting empty DataFrame", parse_elapsed, e
+            )
             context["data"]["uniprot"] = pd.DataFrame()
-            context.setdefault("metadata", {}).setdefault("uniprot", {}).setdefault("parsing", {"error": str(e)})
+            context.setdefault("metadata", {}).setdefault("uniprot", {}).setdefault(
+                "parsing", {"error": str(e)}
+            )
             return
 
     def _step_crossref_enrich(self, context: dict, **kwargs) -> None:
@@ -467,7 +477,9 @@ class MainWorkflow:
             return
 
         if not cross_ref_fields:
-            self.log.info("Pipeline: Skipping CrossRef enrichment because no cross-reference fields were requested.")
+            self.log.info(
+                "Pipeline: Skipping CrossRef enrichment because no cross-reference fields were requested."
+            )
             context.setdefault("metadata", {})["uniprot_enrichment"] = {
                 "skipped": True,
                 "reason": "no_crossref_fields",
@@ -479,9 +491,9 @@ class MainWorkflow:
         enriched, enriched_meta = run_crossref_enrichment(
             data=input_data if input_data is not None else pd.DataFrame(),
             crossref_fields=cross_ref_fields,
-            format=cast(Literal["json", "dataframe", "xml"], parse_format),
+            format=cast("Literal['json', 'dataframe', 'xml']", parse_format),
             max_workers=max_workers,
-            total_retries=total_retries
+            total_retries=total_retries,
         )
         enrich_elapsed = time.time() - enrich_started
         context["data"].setdefault("uniprot_enrichment", enriched)
@@ -489,10 +501,8 @@ class MainWorkflow:
         self.log.debug("Pipeline enrichment metadata: %s", enriched_meta)
         self.log.info("Pipeline: CrossRef enrichment completed (elapsed=%.2fs)", enrich_elapsed)
 
-    def _step_fetch_chembl(self, context: dict, search_type: Optional[str] = "activity") -> None:
-        '''
-        Searches ChEMBL for queries found in context['searches']['chembl'].
-        '''
+    def _step_fetch_chembl(self, context: dict, search_type: str | None = "activity") -> None:
+        """Searches ChEMBL for queries found in context['searches']['chembl']."""
         chembl_search = context.get("searches", {}).get("chembl", {})
         query = chembl_search.get("interpreted_query") or chembl_search.get("query")
         export_format = chembl_search.get("export_format") or self.default_export_format
@@ -506,21 +516,17 @@ class MainWorkflow:
             context["chembl_result"] = pd.DataFrame()
             context.setdefault("metadata", {}).setdefault("chembl", {"skipped_empty_query": True})
             return
-        
+
         self.log.info("Pipeline: fetching ChEMBL for query=%s search_type=%s", query, search_type)
         instance = ChEMBLInterface()
-        activity_filter = (
-            instance.extract_ic50_activity_filter(query)
-            if search_type == "activity"
-            else None
-        )
+        activity_filter = instance.extract_ic50_activity_filter(query) if search_type == "activity" else None
         result, meta = instance.fetch_single(
             query=query,
             method=f"{search_type}-search" or "activity-search",
             parse=True,
-            format=cast(Any, parse_format),
+            format=cast("Any", parse_format),
             pages_to_fetch=pages_to_fetch,
-            limit=limit
+            limit=limit,
         )
         if isinstance(meta, dict):
             meta["pagination"] = {
@@ -549,13 +555,16 @@ class MainWorkflow:
                 else:
                     result_df = pd.DataFrame()
                 meta["data_info"] = {
-                    "total_entries": int(len(result_df)),
+                    "total_entries": len(result_df),
                     "data_type": type(result),
-                    "columns": [{
-                        "name": col,
-                        "dtype": str(result_df[col].dtype),
-                        "n_missing": int(result_df[col].isna().sum())
-                    } for col in result_df.columns]
+                    "columns": [
+                        {
+                            "name": col,
+                            "dtype": str(result_df[col].dtype),
+                            "n_missing": int(result_df[col].isna().sum()),
+                        }
+                        for col in result_df.columns
+                    ],
                 }
         context["data"].setdefault("chembl", result)
         context["metadata"].setdefault("chembl", meta)
@@ -586,14 +595,20 @@ class MainWorkflow:
             self.log.debug("Pipeline: no ChEMBL IDs found; leaving interpreted_query untouched")
             return
         if len(ids) > 100:
-            self.log.warning("Pipeline: large number of ChEMBL IDs (%s); UniProt query may be too long", len(ids))
+            self.log.warning(
+                "Pipeline: large number of ChEMBL IDs (%s); UniProt query may be too long", len(ids)
+            )
             self.log.info("Searches will be divided into chunks of 100 IDs")
             output_list = []
             for i in range(0, len(ids), 100):
-                chunk_ids = ids[i:i+100]
+                chunk_ids = ids[i : i + 100]
                 chunk_query = "(" + " OR ".join([f"xref:chembl-{i}" for i in chunk_ids]) + ")"
                 # attatch or extend existing interpreted_query for each chunk
-                prev = context.get("searches", {}).get("uniprot", {}).get("query") if keep_original_query else None
+                prev = (
+                    context.get("searches", {}).get("uniprot", {}).get("query")
+                    if keep_original_query
+                    else None
+                )
                 if prev:
                     new_query = f"{prev} AND {chunk_query}"
                 else:
@@ -604,7 +619,7 @@ class MainWorkflow:
         else:
             out = "(" + " OR ".join([f"xref:chembl-{i}" for i in ids]) + ")"
             # attach or extend existing interpreted_query
-            prev = context.get("searches", {}).get("uniprot", {}).get("query") 
+            prev = context.get("searches", {}).get("uniprot", {}).get("query")
             if prev and keep_original_query:
                 new_query = f"{prev} AND {out}"
             else:
@@ -631,17 +646,17 @@ class MainWorkflow:
     # ---- Core modality handlers ----
     def run_protein(
         self,
-        query: Optional[str] = None,
-        fields: Optional[str] = None,
+        query: str | None = None,
+        fields: str | None = None,
         sort: str = "accession asc",
         include_isoform: bool = False,
-        export_format: Optional[str] = None,
+        export_format: str | None = None,
         enrich: bool = False,
-        uniprot_timeout: Optional[float] = None,
-        crossref_endpoint_specs: Optional[List[EndpointSpec]] = None,
-        context: Optional[dict] = None,
+        uniprot_timeout: float | None = None,
+        crossref_endpoint_specs: list[EndpointSpec] | None = None,
+        context: dict | None = None,
         **kwargs,
-    ) -> Tuple[dict, dict]:
+    ) -> tuple[dict, dict]:
         """Run the protein modality.
         The most basic form of query is a UniProt query string, e.g. "organism:9606 AND reviewed:true".
 
@@ -675,8 +690,10 @@ class MainWorkflow:
                 "data": {"uniprot": {}},
                 "metadata": {"mode": "query_first", "modality": "protein", "origin": "query"},
             }
-            context["searches"]["uniprot"]["interpreted_query"] = uniprot_interpreter.interpret(query=args.get("query", ""))
-           
+            context["searches"]["uniprot"]["interpreted_query"] = uniprot_interpreter.interpret(
+                query=args.get("query", "")
+            )
+
         extracted_crossref_fields = uniprot_interpreter.extract_databases(
             query=context["searches"]["uniprot"].get("query", "")
         )
@@ -692,27 +709,35 @@ class MainWorkflow:
         self._step_parse_uniprot(context)
         self._step_crossref_enrich(context, **kwargs)
 
-        context["metadata"].update({
-            "time_taken_seconds": sum([
-                context.get("metadata", {}).get("uniprot", {}).get("fetch", {}).get("search_process", {}).get("time_taken_seconds", 0),
-                calculate_enrichment_execution_time(context.get("metadata", {}).get("uniprot_enrichment", {}))
-            ])
-            
-        })
-        
+        context["metadata"].update(
+            {
+                "time_taken_seconds": sum(
+                    [
+                        context.get("metadata", {})
+                        .get("uniprot", {})
+                        .get("fetch", {})
+                        .get("search_process", {})
+                        .get("time_taken_seconds", 0),
+                        calculate_enrichment_execution_time(
+                            context.get("metadata", {}).get("uniprot_enrichment", {})
+                        ),
+                    ]
+                )
+            }
+        )
+
         return context.get("data", {}), context.get("metadata", {})
 
     def run_compound(
         self,
         query: str,
-        search_type: Optional[str] = "activity",
-        export_format: Optional[str] = None,
-        chembl_pages_to_fetch: Optional[int] = None,
-        context: Optional[dict] = None,
+        search_type: str | None = "activity",
+        export_format: str | None = None,
+        chembl_pages_to_fetch: int | None = None,
+        context: dict | None = None,
         **kwargs,
-    ) -> Tuple[dict, dict]:
-        """
-        Run the compound modality. Query path goes through ChEMBL -> UniProt.
+    ) -> tuple[dict, dict]:
+        """Run the compound modality. Query path goes through ChEMBL -> UniProt.
         Some queries can include just ChEMBL searches or ChEMBL + UniProt searches.
         For example we can search:
         - By target: "Proteases" or "dopamine D2 receptor"
@@ -726,6 +751,7 @@ class MainWorkflow:
             context: Optional context dictionary to carry state between steps.
 
             Returns (data, metadata).
+
         """
         chembl_interpreter = build_default_chembl_interpreter()
         uniprot_interpreter = build_default_uniprot_interpreter()
@@ -746,7 +772,7 @@ class MainWorkflow:
                     "chembl": args,
                     "uniprot": {
                         "query": None,
-                    }
+                    },
                 },
                 "data": {},
                 "metadata": {"mode": "query_first", "modality": "compound", "origin": "query"},
@@ -760,9 +786,10 @@ class MainWorkflow:
             merged = {**existing_searches, **override}
             context["searches"] = merged
 
-
         # Interpret original compound query
-        context["searches"]["chembl"]["interpreted_query"] = chembl_interpreter.interpret(query=args.get("query", ""))
+        context["searches"]["chembl"]["interpreted_query"] = chembl_interpreter.interpret(
+            query=args.get("query", "")
+        )
 
         # Fetch ChEMBL results
         self._step_fetch_chembl(context, search_type=search_type)
@@ -773,13 +800,13 @@ class MainWorkflow:
         if not uniprot_query:
             self.log.debug("Pipeline: no UniProt query generated from ChEMBL IDs")
             return context.get("data", {}), context.get("metadata", {})
-        
+
         # Interpret UniProt query and append to ChEMBL IDs search
         chembl_ids_query = context["searches"]["uniprot"]["query"]
         # We extract the UniProt part of the original query
         interpreted_uniprot_query = uniprot_interpreter.interpret(query=query)
 
-        combined_queries: str | List[str] = []
+        combined_queries: str | list[str] = []
         if chembl_ids_query and isinstance(chembl_ids_query, list):
             for chembl_query in chembl_ids_query:
                 if interpreted_uniprot_query:
@@ -788,8 +815,12 @@ class MainWorkflow:
                     combined_query = chembl_query
                 combined_queries.append(combined_query)
         else:
-            combined_queries = f"({interpreted_uniprot_query}) AND {chembl_ids_query}" if interpreted_uniprot_query else chembl_ids_query
-            
+            combined_queries = (
+                f"({interpreted_uniprot_query}) AND {chembl_ids_query}"
+                if interpreted_uniprot_query
+                else chembl_ids_query
+            )
+
         # Combine both queries
         context["searches"]["uniprot"] = {
             "query": query,
@@ -798,37 +829,33 @@ class MainWorkflow:
         }
 
         run_protein_sig = inspect.signature(self.run_protein)
-        run_protein_args = {
-            k: v for k, v in kwargs.items() if k in run_protein_sig.parameters
-        }
+        run_protein_args = {k: v for k, v in kwargs.items() if k in run_protein_sig.parameters}
 
         return self.run_protein(context=context, **run_protein_args)
 
     def run_interaction(
         self,
         query: str,
-        interaction_type: Optional[Literal["protein-protein", "protein-ligand"]] = None,
-        export_format: Optional[str] = None,
+        interaction_type: Literal["protein-protein", "protein-ligand"] | None = None,
+        export_format: str | None = None,
         **kwargs,
-    ) -> Tuple[dict, dict]:
-        """
-        Run the interaction modality. If query provided, fetch interaction candidates (BioGRID/ChEMBL) 
+    ) -> tuple[dict, dict]:
+        """Run the interaction modality. If query provided, fetch interaction candidates (BioGRID/ChEMBL)
         and build interactions dataset.
         This will do more than 1 search if needed (e.g., ChEMBL + UniProt).
         For example:
-        - "pli:'Proteases' AND {uniprot_filter_query}" 
-        Will search in ChEMBL using the query "target:'Proteases' AND {uniprot_filter_query}", 
+        - "pli:'Proteases' AND {uniprot_filter_query}"
+        Will search in ChEMBL using the query "target:'Proteases' AND {uniprot_filter_query}",
           extract the ChEMBL IDs, then search UniProt for those IDs.
           A new request will be made to UniProt, merging the uniprot_filter_query and the IDs from ChEMBL.
         - "ppi: 'disease:cancer' AND {uniprot_filter_query}"
         Will search in UniProt for the PPI query, additional BioGRID search will be made to fetch interactions.
           In this specific example all the query will be sent to UniProt since it supports disease and all
           the necessary filters. From BioGRID only interactions will be fetched for the resulting accessions.
-        
+
 
         Returns (data, metadata).
         """
-
         # ====== Short PPI search explanation ======
         # After searching UniProt with a desired query (e.g., "disease:cancer AND reviewed:true"),
         # We get a list of columns that we can use to retrieve data from different databases.
@@ -845,7 +872,7 @@ class MainWorkflow:
 
         uniprot_interpreter = build_default_uniprot_interpreter()
         chembl_interpreter = build_default_chembl_interpreter()
-        
+
         args = {
             "query": query,
             "export_format": export_format,
@@ -863,11 +890,12 @@ class MainWorkflow:
             "metadata": {"mode": "query_first", "modality": "interaction", "origin": "query"},
         }
 
-
         # Fetch interaction candidates
         if interaction_type == "protein-protein":
             # Interpret original interaction query
-            context["searches"]["uniprot"]["interpreted_query"] = uniprot_interpreter.interpret(query=args.get("query", ""))
+            context["searches"]["uniprot"]["interpreted_query"] = uniprot_interpreter.interpret(
+                query=args.get("query", "")
+            )
             # For PPI, we first search UniProt to get accessions matching the query,
             # then use those accessions to fetch interactions from BioGRID and StringDB.
             self._step_fetch_uniprot(context)
@@ -876,7 +904,7 @@ class MainWorkflow:
             self._step_fetch_additional_ppi_interaction_sources(context, **kwargs)
 
             return context.get("data", {}), context.get("metadata", {})
-        elif interaction_type == "protein-ligand":
+        if interaction_type == "protein-ligand":
             context["searches"]["chembl"] = {
                 "query": query,
                 "export_format": export_format,
@@ -884,7 +912,9 @@ class MainWorkflow:
                 "pages_to_fetch": chembl_pages_to_fetch,
             }
             # Interpret original interaction query
-            context["searches"]["chembl"]["interpreted_query"] = chembl_interpreter.interpret(query=args.get("query", ""))
+            context["searches"]["chembl"]["interpreted_query"] = chembl_interpreter.interpret(
+                query=args.get("query", "")
+            )
             # For PLI, we first search ChEMBL to get compounds/targets matching the query,
             self._step_fetch_chembl(context, search_type="target")
             # then use those targets to fetch UniProt details.
@@ -909,71 +939,116 @@ class MainWorkflow:
         self,
         modality: str,
         query: str,
-        fields: Optional[str] = None,
+        fields: str | None = None,
         sort: str = "accession asc",
         include_isoform: bool = False,
-        export_format: Optional[str] = None,
+        export_format: str | None = None,
         enrich: bool = False,
-        crossref_endpoint_specs: Optional[List[EndpointSpec]] = None,
-        search_type: Optional[str] = "activity",
-        interaction_type: Optional[str] = None,
+        crossref_endpoint_specs: list[EndpointSpec] | None = None,
+        search_type: str | None = "activity",
+        interaction_type: str | None = None,
         **kwargs,
-    ) -> Tuple[dict, dict]:
+    ) -> tuple[dict, dict]:
         """Interpret `query` and route to the modality-specific handler. Returns (data, metadata)."""
         modality = (modality or "").lower()
         if modality == "protein":
-            return self.run_protein(query=query, fields=fields, sort=sort, include_isoform=include_isoform, export_format=export_format, enrich=enrich, crossref_endpoint_specs=crossref_endpoint_specs, **kwargs)
+            return self.run_protein(
+                query=query,
+                fields=fields,
+                sort=sort,
+                include_isoform=include_isoform,
+                export_format=export_format,
+                enrich=enrich,
+                crossref_endpoint_specs=crossref_endpoint_specs,
+                **kwargs,
+            )
         if modality == "compound":
-            return self.run_compound(query=query, fields=fields, export_format=export_format, enrich=enrich, crossref_endpoint_specs=crossref_endpoint_specs, search_type=search_type, **kwargs)
+            return self.run_compound(
+                query=query,
+                fields=fields,
+                export_format=export_format,
+                enrich=enrich,
+                crossref_endpoint_specs=crossref_endpoint_specs,
+                search_type=search_type,
+                **kwargs,
+            )
         if modality == "interaction":
-            return self.run_interaction(query=query, modality_type=None, export_format=export_format, enrich=enrich, crossref_endpoint_specs=crossref_endpoint_specs, interaction_type=interaction_type, **kwargs)
+            return self.run_interaction(
+                query=query,
+                modality_type=None,
+                export_format=export_format,
+                enrich=enrich,
+                crossref_endpoint_specs=crossref_endpoint_specs,
+                interaction_type=interaction_type,
+                **kwargs,
+            )
         raise ValueError(f"Unknown modality: {modality}")
 
     def import_first(
         self,
         modality: str,
-        dataset: Union[pd.DataFrame, str],
-        dataset_format: Optional[str] = None,
+        dataset: pd.DataFrame | str,
+        dataset_format: str | None = None,
         enrich: bool = False,
-        crossref_endpoint_specs: Optional[List[EndpointSpec]] = None,
+        crossref_endpoint_specs: list[EndpointSpec] | None = None,
         **kwargs,
-    ) -> Tuple[dict, dict]:
+    ) -> tuple[dict, dict]:
         """Load a dataset and route to the modality-specific handler. Returns (data, metadata)."""
         raise NotImplementedError("Import first not implemented yet.")
 
     def query_composition(
         self,
         modality: str,
-        queries_with_labels: Iterable[Tuple[str, str]],
-        fields: Optional[str] = None,
-        export_format: Optional[str] = None,
+        queries_with_labels: Iterable[tuple[str, str]],
+        fields: str | None = None,
+        export_format: str | None = None,
         enrich: bool = False,
-        crossref_endpoint_specs: Optional[List[EndpointSpec]] = None,
-        search_type: Optional[str] = "activity",
+        crossref_endpoint_specs: list[EndpointSpec] | None = None,
+        search_type: str | None = "activity",
         **kwargs,
-    ) -> Tuple[dict, dict]:
-        """
-        Run several queries and tag every row with the provided label. 
+    ) -> tuple[dict, dict]:
+        """Run several queries and tag every row with the provided label.
         This requires a more complex query composition, for example:
             queries_with_labels = [
                 ("Proteases AND reviewed:true", "protease_reviewed"),
                 ("Kinases AND reviewed:false", "kinase_unreviewed"),
             ]
         Basically it runs several query_first calls and attach the label to every row.
-    
+
         Returns (data, metadata).
         """
-        combined_rows: List[Any] = []
-        combined_enrichment: List[Any] = []
+        combined_rows: list[Any] = []
+        combined_enrichment: list[Any] = []
         metadata: dict = {"mode": "query_composition", "modality": modality, "origin": "query", "parts": []}
 
         for query, label in queries_with_labels:
             if modality == "protein":
-                part_data, part_meta = self.run_protein(query=query, fields=fields, export_format=export_format, enrich=enrich, crossref_endpoint_specs=crossref_endpoint_specs, **kwargs)
+                part_data, part_meta = self.run_protein(
+                    query=query,
+                    fields=fields,
+                    export_format=export_format,
+                    enrich=enrich,
+                    crossref_endpoint_specs=crossref_endpoint_specs,
+                    **kwargs,
+                )
             elif modality == "compound":
-                part_data, part_meta = self.run_compound(query=query, fields=fields, export_format=export_format, enrich=enrich, crossref_endpoint_specs=crossref_endpoint_specs, search_type=search_type, **kwargs)
+                part_data, part_meta = self.run_compound(
+                    query=query,
+                    fields=fields,
+                    export_format=export_format,
+                    enrich=enrich,
+                    crossref_endpoint_specs=crossref_endpoint_specs,
+                    search_type=search_type,
+                    **kwargs,
+                )
             elif modality == "interaction":
-                part_data, part_meta = self.run_interaction(query=query, export_format=export_format, enrich=enrich, crossref_endpoint_specs=crossref_endpoint_specs, **kwargs)
+                part_data, part_meta = self.run_interaction(
+                    query=query,
+                    export_format=export_format,
+                    enrich=enrich,
+                    crossref_endpoint_specs=crossref_endpoint_specs,
+                    **kwargs,
+                )
             else:
                 raise ValueError(f"Unknown modality: {modality}")
 
@@ -982,7 +1057,7 @@ class MainWorkflow:
             #  {"chembl": pd.DataFrame(...), "uniprot": pd.DataFrame(...), "uniprot_enrichment": {...}} for compound modality
             # On the other hand, part_meta should contain the metadata for that specific run
             #  {"mode": "query_first", "modality": "protein", "origin": "query", "uniprot": {...}, "uniprot_enrichment": {...}} for protein modality,
-            #  {"mode": "query_first", "modality": "compound", "origin": "query", "chembl": {...}, "uniprot": {...}, "uniprot_enrichment": {...}} for compound modality 
+            #  {"mode": "query_first", "modality": "compound", "origin": "query", "chembl": {...}, "uniprot": {...}, "uniprot_enrichment": {...}} for compound modality
 
             labeled_part = attach_label_to_part(part_data, label, modality)
             if isinstance(labeled_part, dict):
@@ -991,11 +1066,9 @@ class MainWorkflow:
             enrichment_data = part_data.get("uniprot_enrichment") if isinstance(part_data, dict) else None
             if enrichment_data:
                 combined_enrichment = merge_enrichment_data(combined_enrichment, enrichment_data)
-                
+
             metadata["parts"].append({"query": query, "label": label, "meta": part_meta})
 
-
-        
         # Combined_rows now contains only the labeled data parts in a list.
         # For example
         # { "uniprot": [...], "chembl": [...] }
@@ -1024,9 +1097,9 @@ class MainWorkflow:
                     elif isinstance(existing_value, list) and isinstance(value, list):
                         existing_value.extend(value)
                         final_main[key] = existing_value
-                    elif isinstance(existing_value, dict) and isinstance(value, dict):
-                        final_main[key] = [existing_value, value]
-                    elif isinstance(existing_value, ET.Element) and isinstance(value, ET.Element):
+                    elif (isinstance(existing_value, dict) and isinstance(value, dict)) or (
+                        isinstance(existing_value, ET.Element) and isinstance(value, ET.Element)
+                    ):
                         final_main[key] = [existing_value, value]
                     else:
                         final_main[key] = [existing_value, value]
@@ -1049,7 +1122,7 @@ class MainWorkflow:
                         else:
                             enrichment_final[db_ep] = [existing_data, db_data]
             final_main["uniprot_enrichment"] = enrichment_final
-        
+
         return final_main, metadata
 
     # ---- Helpers ----
@@ -1068,33 +1141,21 @@ class MainWorkflow:
         # Fetch BioGRID interactions
         # Check if Biogrid IDs are present in the input data
         if "biogrid_ids" in input_data.columns:
-            specs.append(
-                EndpointSpec(
-                    database="biogrid",
-                    endpoint="interactions"
-                )
-            )
+            specs.append(EndpointSpec(database="biogrid", endpoint="interactions"))
         else:
             self.log.debug("No biogrid_ids column found in input data; skipping BioGRID interaction fetch")
         # Fetch StringDB interactions
         if "string_ids" in input_data.columns:
-            specs.append(
-                EndpointSpec(
-                    database="string",
-                    endpoint="interaction_partners"
-                )
-            )
+            specs.append(EndpointSpec(database="string", endpoint="interaction_partners"))
         else:
             self.log.debug("No string_ids column found in input data; skipping StringDB interaction fetch")
-        
+
         crossref_enricher = CrossRefEnricher(
-            endpoint_specs=specs,
-            max_workers=max_workers,
-            total_retries=total_retries
+            endpoint_specs=specs, max_workers=max_workers, total_retries=total_retries
         )
         enriched, enriched_meta = crossref_enricher.enrich(
             data=input_data if input_data is not None else pd.DataFrame(),
-            format=cast(Literal["json", "dataframe", "xml"], export_format)
+            format=cast("Literal['json', 'dataframe', 'xml']", export_format),
         )
 
         context["data"].setdefault("uniprot_enrichment", enriched)

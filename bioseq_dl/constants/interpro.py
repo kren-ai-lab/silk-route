@@ -9,10 +9,10 @@ entry_integration_types = ["all", "integrated", "unintegrated"]
 # Constants for search
 filter_types = data_types[1:]  # Exclude 'entry' from filter types
 db_types = {
-    "entry": ["InterPro", "antifam", "pfam", "ncbifam"], # More can be added
+    "entry": ["InterPro", "antifam", "pfam", "ncbifam"],  # More can be added
     "protein": ["reviewed", "unreviewed", "UniProt"],
     "structure": ["pdb"],
     "taxonomy": ["uniprot"],
     "proteome": ["uniprot"],
-    "set": ["cdd", "pfam", "pirsf"]
+    "set": ["cdd", "pfam", "pirsf"],
 }

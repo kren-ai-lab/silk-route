@@ -5,7 +5,6 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import Any, Optional, Tuple
 
 import pandas as pd
 import typer
@@ -20,7 +19,6 @@ from bioseq_dl.core.export import (
 from bioseq_dl.core.interfaces.uniprot import UniprotInterface
 from bioseq_dl.core.workflow.main_workflow import MainWorkflow
 from bioseq_dl.logging import configure_logging, get_logger
-
 
 app = typer.Typer(name="workflow", help="Run predefined data collection workflows.")
 log = get_logger("bioseq_dl.cli.workflows")
@@ -198,7 +196,7 @@ def validate_allowed_section_keys(
     section_name: str,
     section: dict,
     allowed_keys: set[str],
-    special_errors: Optional[dict[str, str]] = None,
+    special_errors: dict[str, str] | None = None,
 ) -> None:
     """Validate known keys for a descriptor section."""
     for key in section:
@@ -208,7 +206,7 @@ def validate_allowed_section_keys(
             raise ValueError(f"Unknown {section_name} YAML key '{key}'.")
 
 
-def get_rejected_mode_key_message(key: str) -> Optional[str]:
+def get_rejected_mode_key_message(key: str) -> str | None:
     """Return the validation message for removed workflow mode keys."""
     for message in OLD_MODE_KEY_ERROR_MESSAGES:
         if key == message.split("'")[1]:
@@ -226,7 +224,9 @@ def validate_descriptor_section_names(workflow_descriptor: dict) -> None:
         if key in OLD_ROOT_KEY_ERRORS:
             raise ValueError(OLD_ROOT_KEY_ERRORS[key])
         if key not in KNOWN_DESCRIPTOR_SECTIONS:
-            raise ValueError(f"Unknown workflow YAML section '{key}'. Allowed sections are: {allowed_sections}.")
+            raise ValueError(
+                f"Unknown workflow YAML section '{key}'. Allowed sections are: {allowed_sections}."
+            )
 
 
 def validate_required_section_keys(section_name: str, section: dict, required_keys: set[str]) -> None:
@@ -234,7 +234,9 @@ def validate_required_section_keys(section_name: str, section: dict, required_ke
     missing = sorted(key for key in required_keys if key not in section or section[key] is None)
     if missing:
         missing_text = ", ".join(missing)
-        raise ValueError(f"Workflow YAML section '{section_name}' is missing required key(s): {missing_text}.")
+        raise ValueError(
+            f"Workflow YAML section '{section_name}' is missing required key(s): {missing_text}."
+        )
 
 
 def validate_optional_string(section_name: str, key: str, value: object) -> None:
@@ -274,7 +276,7 @@ def validate_string_list(section_name: str, key: str, value: object) -> None:
         raise ValueError(f"Workflow YAML key '{section_name}.{key}' must be a list of strings.")
 
 
-def normalize_optional_field_list(section_name: str, key: str, value: object) -> Optional[str]:
+def normalize_optional_field_list(section_name: str, key: str, value: object) -> str | None:
     """Normalize null, comma-separated string, or string-list fields for workflow calls."""
     if value is None:
         return None
@@ -283,7 +285,9 @@ def normalize_optional_field_list(section_name: str, key: str, value: object) ->
     if isinstance(value, list) and all(isinstance(item, str) for item in value):
         cleaned = [item.strip() for item in value if item.strip()]
         return ",".join(cleaned) if cleaned else None
-    raise ValueError(f"Workflow YAML key '{section_name}.{key}' must be null, a string, or a list of strings.")
+    raise ValueError(
+        f"Workflow YAML key '{section_name}.{key}' must be null, a string, or a list of strings."
+    )
 
 
 def is_reporting_value_allowed(value: object) -> bool:
@@ -312,7 +316,9 @@ def validate_dataset_section(dataset: dict, export_section: dict) -> dict:
     modality = dataset.get("modality")
     mode = dataset.get("mode")
     if modality not in MODALITIES:
-        raise ValueError(f"Unsupported dataset.modality '{modality}'. Supported modalities are: {', '.join(MODALITIES)}.")
+        raise ValueError(
+            f"Unsupported dataset.modality '{modality}'. Supported modalities are: {', '.join(MODALITIES)}."
+        )
     if mode not in MODES:
         raise ValueError(f"Unsupported dataset.mode '{mode}'. Supported modes are: {', '.join(MODES)}.")
 
@@ -324,7 +330,7 @@ def validate_dataset_section(dataset: dict, export_section: dict) -> dict:
     return dict(dataset)
 
 
-def validate_query_section(query_section: dict) -> tuple[dict, Optional[str], Optional[str]]:
+def validate_query_section(query_section: dict) -> tuple[dict, str | None, str | None]:
     """Validate and return the query descriptor section plus executable field options."""
     validate_allowed_section_keys("query", query_section, QUERY_KEYS, special_errors=QUERY_KEY_ERRORS)
     validate_required_section_keys("query", query_section, {"value"})
@@ -339,7 +345,9 @@ def validate_query_section(query_section: dict) -> tuple[dict, Optional[str], Op
         validate_bool("query", "include_isoform", query_section["include_isoform"])
 
     fields = normalize_optional_field_list("query", "fields", query_section.get("fields"))
-    crossref_fields = normalize_optional_field_list("query", "crossref_fields", query_section.get("crossref_fields"))
+    crossref_fields = normalize_optional_field_list(
+        "query", "crossref_fields", query_section.get("crossref_fields")
+    )
     return dict(query_section), fields, crossref_fields
 
 
@@ -392,7 +400,9 @@ def validate_export_section(export_section: dict) -> dict:
     export_format = normalize_user_export_format(export_section.get("format", "csv"))
     if export_format is None:
         raw_format = export_section.get("format", "csv")
-        raise ValueError(f"Unsupported export format '{raw_format}'. Supported formats are: {', '.join(FORMATS)}.")
+        raise ValueError(
+            f"Unsupported export format '{raw_format}'. Supported formats are: {', '.join(FORMATS)}."
+        )
 
     for key in ("include_metadata", "include_summary"):
         if key in export_section:
@@ -509,7 +519,9 @@ def validate_workflow_recipe(recipe: dict) -> dict:
         raise ValueError(f"Workflow YAML is missing required top-level section(s): {missing}.")
 
     export_section = validate_export_section(require_mapping("export", workflow_descriptor["export"]))
-    dataset = validate_dataset_section(require_mapping("dataset", workflow_descriptor["dataset"]), export_section)
+    dataset = validate_dataset_section(
+        require_mapping("dataset", workflow_descriptor["dataset"]), export_section
+    )
     query_descriptor, fields, crossref_fields = validate_query_section(
         require_mapping("query", workflow_descriptor["query"])
     )
@@ -531,9 +543,7 @@ def validate_workflow_recipe(recipe: dict) -> dict:
         validate_reporting_section(reporting)
 
     extra_descriptor_sections = {
-        key: value
-        for key, value in workflow_descriptor.items()
-        if key in DESCRIPTIVE_DESCRIPTOR_SECTIONS
+        key: value for key, value in workflow_descriptor.items() if key in DESCRIPTIVE_DESCRIPTOR_SECTIONS
     }
 
     output_dir = export_section.get("output_dir")
@@ -591,21 +601,21 @@ def merge_workflow_recipe(cli_values: dict, recipe_values: dict) -> dict:
 
 
 def collect_cli_workflow_values(
-    output: Optional[str],
-    modality: Optional[str],
-    mode: Optional[str],
-    query: Optional[str],
-    fields: Optional[str],
-    crossref_fields: Optional[str],
-    export_format: Optional[str],
-    enrich: Optional[bool],
-    max_workers: Optional[int],
-    total_retries: Optional[int],
-    uniprot_timeout: Optional[float],
-    debug: Optional[bool],
-    include_isoform: Optional[bool],
-    interaction_type: Optional[str],
-    chembl_pages_to_fetch: Optional[int] = None,
+    output: str | None,
+    modality: str | None,
+    mode: str | None,
+    query: str | None,
+    fields: str | None,
+    crossref_fields: str | None,
+    export_format: str | None,
+    enrich: bool | None,
+    max_workers: int | None,
+    total_retries: int | None,
+    uniprot_timeout: float | None,
+    debug: bool | None,
+    include_isoform: bool | None,
+    interaction_type: str | None,
+    chembl_pages_to_fetch: int | None = None,
 ) -> dict:
     """Return workflow values explicitly provided through CLI options."""
     return {
@@ -632,7 +642,9 @@ def validate_merged_workflow_values(values: dict) -> None:
     missing_keys = [key for key in ("output", "query", "modality", "mode") if not values.get(key)]
     if missing_keys:
         missing = ", ".join(missing_keys)
-        raise ValueError(f"Missing required workflow value(s): {missing}. Provide them with CLI options or --config.")
+        raise ValueError(
+            f"Missing required workflow value(s): {missing}. Provide them with CLI options or --config."
+        )
 
     if values["modality"] not in MODALITIES:
         raise ValueError(
@@ -640,7 +652,9 @@ def validate_merged_workflow_values(values: dict) -> None:
         )
 
     if values["mode"] not in MODES:
-        raise ValueError(f"Unsupported workflow mode '{values['mode']}'. Supported modes are: {', '.join(MODES)}.")
+        raise ValueError(
+            f"Unsupported workflow mode '{values['mode']}'. Supported modes are: {', '.join(MODES)}."
+        )
 
     chembl_pages_to_fetch = values.get("chembl_pages_to_fetch", -1)
     if not isinstance(chembl_pages_to_fetch, int) or isinstance(chembl_pages_to_fetch, bool):
@@ -681,7 +695,7 @@ def is_empty_export_content(content: object) -> bool:
     return False
 
 
-def add_id_column_for_export(df: pd.DataFrame, result_label: str, id_column: Optional[str]) -> pd.DataFrame:
+def add_id_column_for_export(df: pd.DataFrame, result_label: str, id_column: str | None) -> pd.DataFrame:
     """Return a DataFrame copy with deterministic IDs when requested."""
     if not id_column or id_column in df.columns:
         return df
@@ -753,12 +767,10 @@ def build_output_info(
         "category": output_category,
     }
     if isinstance(exported_content, pd.DataFrame):
-        info["rows"] = int(len(exported_content))
-        info["columns"] = int(len(exported_content.columns))
+        info["rows"] = len(exported_content)
+        info["columns"] = len(exported_content.columns)
         info["column_names"] = [str(column) for column in exported_content.columns]
-    elif isinstance(content, list):
-        info["records"] = len(content)
-    elif isinstance(content, dict):
+    elif isinstance(content, list) or isinstance(content, dict):
         info["records"] = len(content)
     return info
 
@@ -768,9 +780,9 @@ def export_single_result(
     content: object,
     output_dir: Path,
     export_format: str,
-    id_column: Optional[str],
+    id_column: str | None,
     suffix_results: bool,
-) -> Optional[dict]:
+) -> dict | None:
     """Export one workflow result and return output metadata."""
     if not is_valid_export_label(label) or is_empty_export_content(content):
         return None
@@ -806,7 +818,7 @@ def export_workflow_outputs(
     data: object,
     output_dir: Path,
     export_format: str,
-    id_column: Optional[str],
+    id_column: str | None,
 ) -> list[dict]:
     """Export workflow outputs and return output-file metadata."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -824,14 +836,16 @@ def export_workflow_outputs(
     enrichment_data = data.get("uniprot_enrichment")
     if isinstance(enrichment_data, dict):
         for label, content in enrichment_data.items():
-            info = export_single_result(label, content, output_dir, export_format, id_column, suffix_results=False)
+            info = export_single_result(
+                label, content, output_dir, export_format, id_column, suffix_results=False
+            )
             if info:
                 output_infos.append(info)
 
     return output_infos
 
 
-def count_unique_sequences(data: object, sequence_column: Optional[str]) -> Optional[int]:
+def count_unique_sequences(data: object, sequence_column: str | None) -> int | None:
     """Return the unique sequence count across tabular outputs when available."""
     if not sequence_column or not isinstance(data, dict):
         return None
@@ -904,9 +918,7 @@ def count_query_composition_labels(
     if not exported_result_labels:
         return {}
 
-    expected_label_counts = {
-        label: 0 for label in get_expected_query_composition_labels(workflow_values)
-    }
+    expected_label_counts = dict.fromkeys(get_expected_query_composition_labels(workflow_values), 0)
     primary_label = PRIMARY_RESULT_LABELS.get(str(workflow_values.get("modality")))
     label_order = [primary_label] if primary_label else []
     label_order.extend(label for label in data if label != primary_label)
@@ -938,10 +950,7 @@ def fill_nested_label_reporting(reporting: dict, label_counts: dict[str, int]) -
             continue
         if not label_names.intersection(str(label_key) for label_key in value):
             continue
-        filled_reporting[key] = {
-            label_key: int(label_counts.get(str(label_key), 0))
-            for label_key in value
-        }
+        filled_reporting[key] = {label_key: int(label_counts.get(str(label_key), 0)) for label_key in value}
     return filled_reporting
 
 
@@ -956,9 +965,7 @@ def calculate_reporting_metrics(
     reporting["workflow_execution_time_seconds"] = round(duration_seconds, 3)
 
     primary_rows = [
-        info["rows"]
-        for info in output_infos
-        if "rows" in info and info.get("category") == "result"
+        info["rows"] for info in output_infos if "rows" in info and info.get("category") == "result"
     ]
     if primary_rows:
         reporting["retrieved_records"] = int(sum(primary_rows))
@@ -997,7 +1004,7 @@ def is_enrichment_error(error_info: dict) -> bool:
     return "enrichment" in path
 
 
-def find_primary_fetch_error(workflow_metadata: object) -> Optional[str]:
+def find_primary_fetch_error(workflow_metadata: object) -> str | None:
     """Return the first primary fetch error message, if metadata contains one."""
     for error_info in collect_metadata_errors(workflow_metadata):
         path = str(error_info.get("path", "")).lower()
@@ -1011,7 +1018,7 @@ def has_primary_output(output_infos: list[dict]) -> bool:
     return any(info.get("category") == "result" for info in output_infos)
 
 
-def determine_execution_status(workflow_metadata: object, output_infos: list[dict]) -> tuple[str, Optional[str]]:
+def determine_execution_status(workflow_metadata: object, output_infos: list[dict]) -> tuple[str, str | None]:
     """Determine the execution status from exported outputs and metadata errors."""
     primary_fetch_error = find_primary_fetch_error(workflow_metadata)
     primary_output_exists = has_primary_output(output_infos)
@@ -1063,7 +1070,7 @@ def build_metadata_document(
     finished_at: str,
     duration_seconds: float,
     status: str = "success",
-    error: Optional[str] = None,
+    error: str | None = None,
 ) -> dict:
     """Build the detailed workflow metadata document."""
     execution = {
@@ -1077,7 +1084,8 @@ def build_metadata_document(
 
     return {
         "workflow_metadata": workflow_metadata,
-        "original_descriptor": workflow_values.get("original_descriptor") or collect_descriptor_sections(workflow_values),
+        "original_descriptor": workflow_values.get("original_descriptor")
+        or collect_descriptor_sections(workflow_values),
         "normalized_descriptor": collect_descriptor_sections(workflow_values),
         "normalized_workflow_values": build_normalized_workflow_metadata(workflow_values),
         "execution": execution,
@@ -1110,10 +1118,10 @@ def build_summary_document(
     started_at: str,
     finished_at: str,
     duration_seconds: float,
-    metadata_path: Optional[Path],
+    metadata_path: Path | None,
     summary_path: Path,
     status: str = "success",
-    error: Optional[str] = None,
+    error: str | None = None,
 ) -> dict:
     """Build the compact YAML run summary."""
     query_descriptor = dict(workflow_values.get("query_descriptor") or {})
@@ -1217,7 +1225,7 @@ def write_failure_reports(
         write_yaml_file(summary_path, summary_document)
 
 
-def split_pair(s: str) -> Tuple[str, str]:
+def split_pair(s: str) -> tuple[str, str]:
     if "=" in s:
         q, label = s.split("=", 1)
     elif "|" in s:
@@ -1229,89 +1237,89 @@ def split_pair(s: str) -> Tuple[str, str]:
 
 @app.command(name="run")
 def run_workflow(
-    config: Optional[Path] = typer.Option(
+    config: Path | None = typer.Option(
         None,
         "--config",
         help="Path to a YAML workflow descriptor.",
     ),
-    output: Optional[str] = typer.Option(
+    output: str | None = typer.Option(
         None,
         "-o",
         "--output",
         help="Output directory for results.",
     ),
-    modality: Optional[str] = typer.Option(
+    modality: str | None = typer.Option(
         None,
         "--modality",
         "-m",
         help="Biological modality to run: protein, compound, or interaction.",
     ),
-    mode: Optional[str] = typer.Option(
+    mode: str | None = typer.Option(
         None,
         "--mode",
         "-d",
         help="Workflow execution mode: query_first or query_composition.",
     ),
-    query: Optional[str] = typer.Option(
+    query: str | None = typer.Option(
         None,
         "--query",
         "-q",
         help="Executable query string. For query_composition, provide labeled pairs such as query1=label1,query2=label2.",
     ),
-    fields: Optional[str] = typer.Option(
+    fields: str | None = typer.Option(
         None,
         "--fields",
         help="Comma-separated UniProt fields to fetch. Default is empty (UniProt API defaults).",
     ),
-    crossref_fields: Optional[str] = typer.Option(
+    crossref_fields: str | None = typer.Option(
         None,
         "--crossref-fields",
         help="Comma-separated cross-reference fields for enrichment.",
     ),
-    export_format: Optional[str] = typer.Option(
+    export_format: str | None = typer.Option(
         None,
         "--export-format",
         "-e",
         help="Format to export the results. Options: csv, json, xml, parquet. Default is csv.",
     ),
-    enrich: Optional[bool] = typer.Option(
+    enrich: bool | None = typer.Option(
         None,
         "--enrich/--no-enrich",
         help="Whether to perform data enrichment.",
     ),
-    max_workers: Optional[int] = typer.Option(
+    max_workers: int | None = typer.Option(
         None,
         "--max-workers",
         "-w",
         help="Maximum number of worker threads to use for API calls.",
     ),
-    total_retries: Optional[int] = typer.Option(
+    total_retries: int | None = typer.Option(
         None,
         "--total-retries",
         "-r",
         help="Total number of retries for failed API calls.",
     ),
-    chembl_pages_to_fetch: Optional[int] = typer.Option(
+    chembl_pages_to_fetch: int | None = typer.Option(
         None,
         "--chembl-pages-to-fetch",
         help="ChEMBL pages to fetch. Use -1 for all pages; positive values cap pages. Limit remains records per page.",
     ),
-    uniprot_timeout: Optional[float] = typer.Option(
+    uniprot_timeout: float | None = typer.Option(
         None,
         "--uniprot-timeout",
         help="Timeout in seconds for UniProt API requests.",
     ),
-    debug: Optional[bool] = typer.Option(
+    debug: bool | None = typer.Option(
         None,
         "--debug/--no-debug",
         help="Enable debug logging.",
     ),
-    include_isoform: Optional[bool] = typer.Option(
+    include_isoform: bool | None = typer.Option(
         None,
         "--include-isoform/--no-include-isoform",
         help="Include isoforms in UniProt results.",
     ),
-    interaction_type: Optional[str] = typer.Option(
+    interaction_type: str | None = typer.Option(
         None,
         "--interaction-type",
         help="Interaction workflow type, when modality is interaction.",

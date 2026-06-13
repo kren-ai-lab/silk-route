@@ -15,8 +15,8 @@ VALID_FIELDS = [
     "ph_dependence",
     "cc_interaction",
     "ft_variant",
-    #"ft_active_site", # Dont work properly in the uniprot api
-    #"ft_binding_site", # Dont work properly in the uniprot api
+    # "ft_active_site", # Dont work properly in the uniprot api
+    # "ft_binding_site", # Dont work properly in the uniprot api
     "ft_site",
     "ft_domain",
     "ft_motif",
@@ -61,7 +61,7 @@ XREF_MAPPING = {
     "PubChem": (None, "pubchem"),
     "Reactome": ("xref_reactome", "reactome"),
     "Rhea": ("rhea", "rhea"),
-    #"PFAM": ("xref_pfam", None),
+    # "PFAM": ("xref_pfam", None),
     "RefSeq": ("xref_refseq", "refseq"),
     "SABIO-RK": ("xref_sabio-rk", "sabio-rk"),
     "StringDB": ("xref_string", "string"),

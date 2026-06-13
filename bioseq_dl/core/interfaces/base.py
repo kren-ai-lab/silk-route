@@ -1,27 +1,31 @@
-import time, random, os, hashlib, json, re, ast
-import requests
+import ast
+import hashlib
 import itertools
-import yaml
-from collections import defaultdict
-from typing import Any, Set, Dict, List, Tuple, Union, ClassVar, Literal, Optional
-from requests.models import Response, Request
-from requests.adapters import HTTPAdapter, Retry
-from requests.exceptions import RequestException
-import pandas as pd
+import json
+import os
+import random
+import re
+import time
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
-from typing import Union, List, Dict, Optional
 from itertools import permutations
+from typing import Any, ClassVar, Literal
+
+import pandas as pd
+import requests
+import yaml
 from dicttoxml import dicttoxml
+from requests.adapters import HTTPAdapter, Retry
+from requests.exceptions import RequestException
+from requests.models import Request, Response
 
-from ..utils.base_auxiliary_methods import get_nested, get_primary_keys, validate_parameters
-
+from bioseq_dl.core.utils.base_auxiliary_methods import get_nested, get_primary_keys, validate_parameters
 from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.interfaces.base")
 
 
-def _normalize_matching_tokens(value: Any) -> List[str]:
+def _normalize_matching_tokens(value: Any) -> list[str]:
     """Split and lowercase input values for loose token matching."""
     if not value:
         return []
@@ -38,7 +42,7 @@ def _normalize_matching_tokens(value: Any) -> List[str]:
     return [token.lower() for token in re.split(r"[\s:\-/|]", str(value)) if token]
 
 
-def _extract_nested_values(value: Any) -> List[str]:
+def _extract_nested_values(value: Any) -> list[str]:
     """Recursively extract string-like values from a nested structure."""
     result = []
     if isinstance(value, dict):
@@ -54,26 +58,33 @@ def _extract_nested_values(value: Any) -> List[str]:
 
 class BaseAPIInterface(ABC):
     API_NAME: ClassVar[str] = "BaseAPI"
-    METHODS: ClassVar[Dict[str, Any]] = {}
+    METHODS: ClassVar[dict[str, Any]] = {}
 
-    cache_key_ignore_args: Set[str] = {
-        "parse", "to_dataframe", "fields_to_extract", "config_key", "pages_to_fetch", "outfmt", "format", "download"}
-    subquery_match_keys: Set[str] = set()
+    cache_key_ignore_args: set[str] = {
+        "parse",
+        "to_dataframe",
+        "fields_to_extract",
+        "config_key",
+        "pages_to_fetch",
+        "outfmt",
+        "format",
+        "download",
+    }
+    subquery_match_keys: set[str] = set()
 
     def __init__(
         self,
         cache_dir: str = "./cache",
-        config_dir: Optional[str] = None,
+        config_dir: str | None = None,
         max_workers: int = 5,
         min_wait: float = 1.0,
         max_wait: float = 2.0,
         total_retries: int = 5,
-        headers: Optional[Dict] = None,
-        use_config: bool = True
+        headers: dict | None = None,
+        use_config: bool = True,
     ):
-        """
-        Initialize the BaseAPIInterface class.
-        
+        """Initialize the BaseAPIInterface class.
+
         Args:
             cache_dir (str): Directory to store cached data.
             config_dir (Optional[str]): Directory to load configuration files.
@@ -83,6 +94,7 @@ class BaseAPIInterface(ABC):
             total_retries (int): Total number of retries for requests.
             headers (Dict, optional): Headers to include in requests.
             use_config (bool): Whether to use a configuration file for initialization.
+
         """
         self.cache_dir = os.path.abspath(cache_dir)
         self.config_dir = config_dir
@@ -93,8 +105,8 @@ class BaseAPIInterface(ABC):
         self.headers = headers or {}
         self.use_config = use_config
 
-        self.configs: Dict[str, dict] = {}
-        self.fields_config: Dict[str, dict] = {}
+        self.configs: dict[str, dict] = {}
+        self.fields_config: dict[str, dict] = {}
 
         if self.use_config and self.config_dir:
             self._load_all_configs(self.config_dir)
@@ -107,33 +119,29 @@ class BaseAPIInterface(ABC):
 
         # Init session
         self.session = requests.Session()
-        retrues = Retry(
-            total=self.total_retries,
-            backoff_factor=0.25,
-            status_forcelist=[500, 502, 503, 504]
-        )
-        adapter = HTTPAdapter(max_retries=retrues)
-        self.session.mount('https://', adapter)
-        self.session.mount('http://', adapter)
+        retries = Retry(total=self.total_retries, backoff_factor=0.25, status_forcelist=[500, 502, 503, 504])
+        adapter = HTTPAdapter(max_retries=retries)
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
         self.session.headers.update(self.headers or {"Content-Type": "application/json"})
 
     def _load_all_configs(self, config_dir: str) -> None:
-        """
-        Load all configuration files from the specified directory.
-        
+        """Load all configuration files from the specified directory.
+
         Args:
             config_dir (str): Directory containing configuration files.
+
         """
         if not os.path.exists(config_dir):
             raise FileNotFoundError(f"Configuration directory not found: {config_dir}")
-        
+
         self.configs = {}
 
         for fname in os.listdir(config_dir):
             path = os.path.join(config_dir, fname)
             if os.path.isfile(path):
                 name, ext = os.path.splitext(fname)
-                with open(path, "r") as f:
+                with open(path) as f:
                     try:
                         if ext == ".json":
                             self.configs[name] = json.load(f)
@@ -143,40 +151,40 @@ class BaseAPIInterface(ABC):
                         log.error(f"Error loading config {fname}: {e}")
 
     def _delay(self):
-        """
-        Introduce a random delay between min_wait and max_wait.
-        """
+        """Introduce a random delay between min_wait and max_wait."""
         time.sleep(random.uniform(self.min_wait, self.max_wait))
 
-    def get_cache_ignore_keys(self) -> Set[str]:
-        """
-        Get the set of keys to ignore when generating cache keys.
-        
+    def get_cache_ignore_keys(self) -> set[str]:
+        """Get the set of keys to ignore when generating cache keys.
+
         Returns:
             Set[str]: Set of keys to ignore.
+
         """
         return self.cache_key_ignore_args
-    
+
     # Higly Encouraged to override this method in subclasses that can handle
     # multiple queries at once, such as BioGRID or KEGG.
-    def get_subquery_match_keys(self) -> Set[str]:
-        """
-        Get the set of keys used for matching queries.
+    def get_subquery_match_keys(self) -> set[str]:
+        """Get the set of keys used for matching queries.
         This is used to determine which keys in the query should be used for generating subqueries.
+
         Returns:
             Set[str]: Set of keys used for matching queries.
+
         """
         return self.subquery_match_keys
-    
+
     def _filter_dict_keys(self, input_dict: dict, sort_lists: bool = True) -> dict:
-        """
-        Filters out keys from a dictionary based on `get_cache_ignore_keys()`.
+        """Filters out keys from a dictionary based on `get_cache_ignore_keys()`.
 
         Args:
             input_dict (dict): The dictionary to filter.
             sort_lists (bool): If True, sort values that are lists.
+
         Returns:
             dict: Filtered and optionally transformed dictionary.
+
         """
         result = {}
         for k, v in sorted(input_dict.items()):
@@ -188,14 +196,8 @@ class BaseAPIInterface(ABC):
                     v = sorted(v)
             result[k] = v
         return result
-        # result = {
-        #     k: sorted(v) if sort_lists and isinstance(v, list) else v
-        #     for k, v in sorted(input_dict.items())
-        #     if k not in self.get_cache_ignore_keys()
-        # }
-        # return result
-    
-    def _make_cache_key(self, input_obj: Union[str, dict], **kwargs) -> str:
+
+    def _make_cache_key(self, input_obj: str | dict, **kwargs) -> str:
         """Generate a string key from the input object."""
         # Serialize input_obj based on its type
         if isinstance(input_obj, dict):
@@ -211,54 +213,44 @@ class BaseAPIInterface(ABC):
 
         # Include relevant kwargs (like 'operation') in the cache key
         if relevant_kwargs:
-            #extra = json.dumps(relevant_kwargs, sort_keys=True)
+            # extra = json.dumps(relevant_kwargs, sort_keys=True)
             extra = "_".join(f"{v}" for _, v in relevant_kwargs.items())
-        
+
         if base and extra:
-            #log.debug(f"Cache_key: {base}_{extra}")
+            # log.debug(f"Cache_key: {base}_{extra}")
             return f"{base}_{extra}"
-        elif base:
-            #log.debug(f"Cache_key: {base}")
+        if base:
+            # log.debug(f"Cache_key: {base}")
             return base
         # A rarer case where input_obj is empty or None
-        else:
-            return extra
-            
+        return extra
 
     def _hash_key(self, key: str) -> str:
         # TODO change it to hash
         return hashlib.md5(key.encode("utf-8")).hexdigest()
-        #return key
-    
+        # return key
+
     def _get_cache_path(self, identifier: str) -> str:
-        """
-        Generate a cache file path based on the identifier.
-        """
+        """Generate a cache file path based on the identifier."""
         hashed_key = self._hash_key(identifier)
         return os.path.join(self.cache_dir, f"{hashed_key}.json")
-    
+
     def has_results(self, identifier: str) -> bool:
-        """
-        Check if results for a given identifier are cached.
-        """
+        """Check if results for a given identifier are cached."""
         cache_path = self._get_cache_path(identifier)
         return os.path.exists(cache_path)
-    
-    def _load_file(self, path: str) -> Union[Dict, pd.DataFrame]:
-        """
-        Load a file from the cache path.
+
+    def _load_file(self, path: str) -> dict | pd.DataFrame:
+        """Load a file from the cache path.
         Supports both JSON and CSV formats.
         """
-        if path.endswith('.csv'):
+        if path.endswith(".csv"):
             return pd.read_csv(path)
-        else:
-            with open(path, 'r') as f:
-                return json.load(f)
-    
-    def load_cache(self, identifier: str) -> Optional[Dict|pd.DataFrame]:
-        """
-        Load cached results for a given identifier.
-        """
+        with open(path) as f:
+            return json.load(f)
+
+    def load_cache(self, identifier: str) -> dict | pd.DataFrame | None:
+        """Load cached results for a given identifier."""
         # Try directly loading from the cache
         cache_path = self._get_cache_path(identifier)
         if os.path.exists(cache_path):
@@ -266,30 +258,26 @@ class BaseAPIInterface(ABC):
 
         return None
 
-    def save_cache(self, identifier: str, data: Union[List, Dict, pd.DataFrame, str]) -> None:
+    def save_cache(self, identifier: str, data: list | dict | pd.DataFrame | str) -> None:
         """Save results to cache."""
         path = self._get_cache_path(identifier)
 
         if isinstance(data, pd.DataFrame):
             data.to_csv(path, index=False)
         elif isinstance(data, str):
-            with open(path, 'w') as f:
+            with open(path, "w") as f:
                 f.write(data)
         else:
-            with open(path, 'w') as f:
+            with open(path, "w") as f:
                 json.dump(data, f)
 
-    
     def get_config(self, key: str) -> dict:
-        """
-        Return the configuration dictionary for a given key (config filename without extension).
-        """
+        """Return the configuration dictionary for a given key (config filename without extension)."""
         return self.configs.get(key, {})
 
-    #def _resolve_fields_from_kwargs(self, include_defaults_from=None, **kwargs) -> Optional[Dict]:
-    def _resolve_fields_from_kwargs(self, **kwargs) -> Optional[Dict]:
-        """
-        Resolve fields_to_extract by matching kwargs against keys in fields.yml.
+    # def _resolve_fields_from_kwargs(self, include_defaults_from=None, **kwargs) -> Optional[Dict]:
+    def _resolve_fields_from_kwargs(self, **kwargs) -> dict | None:
+        """Resolve fields_to_extract by matching kwargs against keys in fields.yml.
 
         Automatically checks if any value in kwargs or combination like f"{value}_{mode}" matches a known config key.
         """
@@ -307,107 +295,104 @@ class BaseAPIInterface(ABC):
 
         # 1. Check if any value in kwargs matches a known key
         for v in values:
-            #print(f"Trying to resolve fields from kwargs: {v}")
-            #print(f"Known keys: {known_keys}")
             if v in known_keys:
                 return fields_config[v]
-    
+
         # 2. Check combinations of values in kwargs
         for v1, v2 in permutations(values, 2):
             composite = f"{v1}_{v2}"
             if composite in known_keys:
                 return fields_config[composite]
-        
+
         return None
 
     def _maybe_parse(
-            self, 
-            data, parse: bool, 
-            format: Literal["dataframe", "json", "xml"], 
-            **kwargs
-        ) -> Union[List, Dict, pd.DataFrame, bytes, str]:
+        self, data, parse: bool, format: Literal["dataframe", "json", "xml"], **kwargs
+    ) -> list | dict | pd.DataFrame | bytes | str:
         config_key = kwargs.pop("config_key", None)
         fields_to_extract = kwargs.pop("fields_to_extract", None)
 
-        log.debug("_maybe_parse called with parse={}, format={}, config_key={}, fields_to_extract={}".format(
-            parse, format, config_key, fields_to_extract
-        ))
+        log.debug(
+            f"_maybe_parse called with parse={parse}, format={format}, config_key={config_key}, fields_to_extract={fields_to_extract}"
+        )
         if parse:
             if not fields_to_extract and self.use_config:
                 log.debug("No fields_to_extract provided, trying to resolve from kwargs.")
                 # 1. Try to resolve fields from kwargs
-                #fields_to_extract = self._resolve_fields_from_kwargs(include_defaults_from=self.fetch, **kwargs)
+                # fields_to_extract = self._resolve_fields_from_kwargs(include_defaults_from=self.fetch, **kwargs)
                 fields_to_extract = self._resolve_fields_from_kwargs(**kwargs)
 
                 # 2. If not found, try to get from config
                 if not fields_to_extract and config_key:
                     log.debug(f"No fields_to_extract resolved from kwargs, trying config_key: {config_key}")
                     fields_to_extract = self.get_config(config_key) or None
-                
+
             if isinstance(data, list):
                 log.debug("Data is a list, parsing each item")
                 result = [self.parse(data=d, fields_to_extract=fields_to_extract, **kwargs) for d in data]
             elif isinstance(data, (dict, str)):
                 log.debug("Data is a dict or str, parsing directly")
                 # str is the case of KEGG API, which returns a string, parse method should handle it
-                result =  self.parse(data=data, fields_to_extract=fields_to_extract, **kwargs)
+                result = self.parse(data=data, fields_to_extract=fields_to_extract, **kwargs)
             elif data is None:
                 log.debug("Data is None, returning empty list")
                 result = []
             else:
                 log.error("Could not parse data. Data must be a list, dictionary, or string.")
-                raise ValueError("Data must be a list, dictionary, or string for parsing. Received: {}".format(type(data)))
+                raise ValueError(
+                    f"Data must be a list, dictionary, or string for parsing. Received: {type(data)}"
+                )
         else:
             result = data
-        
+
         # Convert to DataFrame if requested
         if format == "dataframe":
             log.debug("Converting result to DataFrame")
             # TODO: Make sure parse method returns a consistent structure
             if isinstance(result, list):
                 return pd.DataFrame(result)
-            elif isinstance(result, dict):
-                return pd.DataFrame([result])
-            elif result is None or result == []:
-                return pd.DataFrame()
-            else:
-                log.error(f"Cannot convert to DataFrame, unsupported type.")
-                raise ValueError(f"Cannot convert to DataFrame: unsupported type {type(result)}")
-        elif format == "xml":
-            log.debug(f"Converting result to XML")
             if isinstance(result, dict):
-                xml_bytes = dicttoxml(result, custom_root='results', item_func=lambda x: 'entry', attr_type=False)
+                return pd.DataFrame([result])
+            if result is None or result == []:
+                return pd.DataFrame()
+            log.error("Cannot convert to DataFrame, unsupported type.")
+            raise ValueError(f"Cannot convert to DataFrame: unsupported type {type(result)}")
+        if format == "xml":
+            log.debug("Converting result to XML")
+            if isinstance(result, dict):
+                xml_bytes = dicttoxml(
+                    result, custom_root="results", item_func=lambda x: "entry", attr_type=False
+                )
                 return xml_bytes
-            elif isinstance(result, list):
-                xml_bytes = dicttoxml({"item": result}, custom_root='results', item_func=lambda x: 'entry', attr_type=False)
+            if isinstance(result, list):
+                xml_bytes = dicttoxml(
+                    {"item": result}, custom_root="results", item_func=lambda x: "entry", attr_type=False
+                )
                 return xml_bytes
-            else:
-                log.error(f"Cannot convert to XML, unsupported type.")
-                raise ValueError(f"Cannot convert to XML: unsupported type {type(result)}")
-        elif format == "json":
+            log.error("Cannot convert to XML, unsupported type.")
+            raise ValueError(f"Cannot convert to XML: unsupported type {type(result)}")
+        if format == "json":
             log.debug("Returning result as JSON")
             return result
 
         return result
-    
+
     ##################
     # Methods to handle complex queries and making subqueries using METHODS
     ##################
 
-    def _get_method_spec(self, **kwargs) -> Dict[str, Any]:
-        method = kwargs.get("method", None)
+    def _get_method_spec(self, **kwargs) -> dict[str, Any]:
+        method = kwargs.get("method")
         if method not in self.METHODS:
             raise ValueError(f"Unknown method '{method}'")
-        option = kwargs.get("option", None)
+        option = kwargs.get("option")
 
         if option:
-            return self.METHODS[method].get(option, {}) 
-        else:
-            return self.METHODS[method]
+            return self.METHODS[method].get(option, {})
+        return self.METHODS[method]
 
     def _prepare_params(self, query, spec, **overrides) -> dict:
-        """
-        - Validates types and defaults from spec["parameters"]
+        """- Validates types and defaults from spec["parameters"]
         - If value is a list and name is in spec["group_queries"], joins with spec["separator"]
         """
         params = {}
@@ -437,8 +422,7 @@ class BaseAPIInterface(ABC):
         return params
 
     def _make_identifier(self, query, spec) -> str:
-        """
-        Construye un identificador único a partir de las keys is_id=True,
+        """Construye un identificador único a partir de las keys is_id=True,
         usado para nombrar el cache key.
         """
         keys = [k for k, (_, _, is_id) in spec["parameters"].items() if is_id]
@@ -452,21 +436,27 @@ class BaseAPIInterface(ABC):
             parts.append(str(query))
         return "_".join(parts)
 
-    def initialize_method_parameters(self, query: Union[str, dict, list], method: str, method_definition: dict, **kwargs):
+    def initialize_method_parameters(
+        self, query: str | dict | list, method: str, method_definition: dict, **kwargs
+    ):
         if method not in method_definition:
-            raise ValueError(f"Method '{method}' is not defined in the method definition. Available methods: {list(method_definition.keys())}")
-       
+            raise ValueError(
+                f"Method '{method}' is not defined in the method definition. Available methods: {list(method_definition.keys())}"
+            )
+
         option = kwargs.get("option") if "option" in kwargs else None
 
         method_info = method_definition.get(method, {})
 
         if option and option not in method_info.keys():
-            raise ValueError(f"Option '{option}' is not valid for method '{method}'. Allowed options: {method_info.keys()}")
+            raise ValueError(
+                f"Option '{option}' is not valid for method '{method}'. Allowed options: {method_info.keys()}"
+            )
 
         method_info = method_info.get(option, {}) if option else method_info
 
         # Redundant
-        #if not all(k in method_info.keys() for k in ["http_method", "path_param", "parameters", "group_queries", "separator"]):
+        # if not all(k in method_info.keys() for k in ["http_method", "path_param", "parameters", "group_queries", "separator"]):
         #    raise ValueError(f"Method '{method}' with option '{option}' is not defined correctly in the method definition. Defined method: {method_info.keys()}")
         http_method = method_info["http_method"]
         path_param = method_info["path_param"]
@@ -475,18 +465,22 @@ class BaseAPIInterface(ABC):
         separator = method_info.get("separator", ",")
 
         primary_keys = get_primary_keys(parameters)
-        
+
         if not primary_keys:
-            raise ValueError(f"No primary keys defined for method '{method}'. Please check the method definition.")
-        
+            raise ValueError(
+                f"No primary keys defined for method '{method}'. Please check the method definition."
+            )
+
         if len(primary_keys) > 1:
             if not isinstance(query, dict):
-                raise ValueError(f"Query must be a dictionary when multiple primary keys are defined for method '{method}'. "
-                             f"Received: {type(query)} with value {query}")
+                raise ValueError(
+                    f"Query must be a dictionary when multiple primary keys are defined for method '{method}'. "
+                    f"Received: {type(query)} with value {query}"
+                )
             # if not all(key in query.keys() for key in primary_keys):
             #     raise ValueError(f"Query must contain primary keys {primary_keys} for method '{method}'. "
             #                  f"Received: {query.keys()} with value {query}")
-        
+
         inputs = {}
 
         if isinstance(query, (dict)):
@@ -494,7 +488,7 @@ class BaseAPIInterface(ABC):
                 for key in group_queries:
                     if key in query and isinstance(query[key], list):
                         inputs[key] = separator.join(query[key])
-                        print(f"Joined {key} with separator '{separator}': {inputs[key]}")
+                        log.debug(f"Joined {key} with separator '{separator}': {inputs[key]}")
                     # TODO Changed else for elif, check
                     elif key in query:
                         inputs[key] = query.get(key, "")
@@ -511,13 +505,13 @@ class BaseAPIInterface(ABC):
             inputs[primary_keys[0]] = query
         else:
             raise ValueError(f"Unsupported query type: {type(query)}. Expected str, dict, or list.")
-        
-        # Probably this line is not needed. All inputs should be in the query 
+
+        # Probably this line is not needed. All inputs should be in the query
         # TODO TRY IF IN OTHER APIS THIS CHANGE MAKE ERRORS
         # inputs.update([(k, v) for k, v in kwargs.items() if k not in self.get_cache_ignore_keys()])
 
         return http_method, path_param, parameters, inputs
-    
+
     ##################
     # These 3 methods, decompose_query, get_matching_values, and split_results_by_subquery
     # are used to handle complex queries that can be decomposed into subqueries.
@@ -530,27 +524,29 @@ class BaseAPIInterface(ABC):
     ##################
 
     def multiple_queries_supported(self, method: str, method_definition: dict) -> bool:
-        """
-        Check if the API method supports multiple queries based on the method definition.
-        """
+        """Check if the API method supports multiple queries based on the method definition."""
         if method not in method_definition:
             return False
 
         if method_definition[method].get("group_queries"):
             return True
-        else:
-            return False
+        return False
 
-    def decompose_query(self, query: dict, method: str, option: Union[str, None]) -> Optional[List[Tuple[str, dict]]]:
-        """
-        Decompose a query into multiple subqueries if any of the identity keys contain lists.
+    def decompose_query(self, query: dict, method: str, option: str | None) -> list[tuple[str, dict]] | None:
+        """Decompose a query into multiple subqueries if any of the identity keys contain lists.
+
         Returns:
             List of (identifier, subquery) tuples or None if no decomposition is needed.
+
         """
         if method not in self.METHODS:
-            raise ValueError(f"Method '{method}' is not supported. Available methods: {list(self.METHODS.keys())}")
+            raise ValueError(
+                f"Method '{method}' is not supported. Available methods: {list(self.METHODS.keys())}"
+            )
         if option and option not in self.METHODS[method]:
-            raise ValueError(f"Option '{option}' is not valid for method '{method}'. Allowed options: {self.METHODS[method].keys()}")
+            raise ValueError(
+                f"Option '{option}' is not valid for method '{method}'. Allowed options: {self.METHODS[method].keys()}"
+            )
 
         method_spec = self.METHODS[method].get(option, self.METHODS[method])
         param_spec = method_spec.get("parameters", {})
@@ -558,13 +554,15 @@ class BaseAPIInterface(ABC):
 
         # Identify ID keys
         keys = [k for k, (_, _, is_id) in param_spec.items() if is_id and k in query]
-        
+
         # If no keys are found in group_queries, return None
         if not any(k in group_queries for k in keys):
-            return [] # No decomposition needed
-        
+            return []  # No decomposition needed
+
         # Collect values for product
-        value_combinations = list(itertools.product(*(query[k] for k in group_queries if k in query and isinstance(query[k], list))))
+        value_combinations = list(
+            itertools.product(*(query[k] for k in group_queries if k in query and isinstance(query[k], list)))
+        )
 
         subqueries = []
         for combo in value_combinations:
@@ -585,10 +583,9 @@ class BaseAPIInterface(ABC):
             subqueries.append((identifier, subquery))
 
         return subqueries
-            
-    def get_matching_values(self, query: dict) -> List[str]:
-        """
-        Extract values from the subquery that will be used for matching items
+
+    def get_matching_values(self, query: dict) -> list[str]:
+        """Extract values from the subquery that will be used for matching items
         in the full result. Relies on self.subquery_match_keys defined in subclass.
         """
         keys = self.get_subquery_match_keys()
@@ -596,15 +593,12 @@ class BaseAPIInterface(ABC):
         if not keys:
             keys = [k for k in query if k not in self.get_cache_ignore_keys()]
 
-        return [
-            str(query[k]).lower() for k in keys if k in query and query[k] is not None
-        ]
+        return [str(query[k]).lower() for k in keys if k in query and query[k] is not None]
 
     def split_results_by_subquery(
-        self, full_result: Any, subqueries: List[Tuple[str, dict]]
-    ) -> Dict[str, List[dict]]:
-        """
-        Generic implementation: for each result, check if any subquery's values appear in the result
+        self, full_result: Any, subqueries: list[tuple[str, dict]]
+    ) -> dict[str, list[dict]]:
+        """Generic implementation: for each result, check if any subquery's values appear in the result
         using token-based partial matching.
 
         Returns a mapping {id_: [results]}.
@@ -613,7 +607,6 @@ class BaseAPIInterface(ABC):
             full_result = [full_result]
         elif not isinstance(full_result, list):
             raise ValueError("Expected full_result to be a list of dicts")
-        
 
         mapping = {identifier: [] for identifier, _ in subqueries}
 
@@ -633,31 +626,31 @@ class BaseAPIInterface(ABC):
                     mapping[identifier].append(item)
 
         return mapping
-    
+
     def merge_dicts(self, dicts):
         merged = {}
         for d in dicts:
             for k, v in d.items():
                 if k not in merged:
                     merged[k] = v
-                else:
-                    # Si ya hay una lista, añade solo si es distinto
-                    if isinstance(merged[k], list):
-                        if v not in merged[k]:
-                            merged[k].append(v)
-                    else:
-                        if merged[k] != v:
-                            merged[k] = [merged[k], v]
+                # Si ya hay una lista, añade solo si es distinto
+                elif isinstance(merged[k], list):
+                    if v not in merged[k]:
+                        merged[k].append(v)
+                elif merged[k] != v:
+                    merged[k] = [merged[k], v]
         return merged
+
     ###################
     # General-purpose fetch methods
     # These methods are used to fetch data from the API, either for a single query or
     # a batch of queries. They handle caching, parsing, and optional DataFrame conversion.
     ###################
-    
-    def fetch_single(self, query: Union[str, dict], parse: bool = False, *args, **kwargs) -> Tuple[Union[List, Dict, pd.DataFrame, bytes, str], Dict]:
-        """
-        General-purpose fetch method with optional parsing and cache handling.
+
+    def fetch_single(
+        self, query: str | dict, parse: bool = False, *args, **kwargs
+    ) -> tuple[list | dict | pd.DataFrame | bytes | str, dict]:
+        """General-purpose fetch method with optional parsing and cache handling.
 
         Args:
             query (Union[str, dict]): Query to fetch data for.
@@ -666,8 +659,10 @@ class BaseAPIInterface(ABC):
             config_key (str): Key to use for configuration settings.
             fields_to_extract (Optional[Union[list, dict]]): Fields to extract from the fetched data.
             format (Literal["dataframe", "json", "xml"]): Format of the output data.
+
         Returns:
             Tuple[Union[List, Dict, pd.DataFrame], Dict]: Fetched (and optionally parsed) data and metadata.
+
         """
         metadata = {
             "cached_ids": [],
@@ -680,20 +675,20 @@ class BaseAPIInterface(ABC):
             "execution_time": 0.0,
             "api_name": "",
             "method": "",
-            "option": ""
+            "option": "",
         }
         # Extract flags and avoid passing twice to _maybe_parse
-        format       = kwargs.pop("format", "json")
-        method       = kwargs.get("method", "NOT_GIVEN")
-        option       = kwargs.get("option", None)
-        
+        format = kwargs.pop("format", "json")
+        method = kwargs.get("method", "NOT_GIVEN")
+        option = kwargs.get("option")
+
         # Get method specification
         spec = self._get_method_spec(**kwargs)
         if spec is None:
             log.error(f"Method '{method}' is not supported")
             raise ValueError(f"Method '{method}' is not supported. Available: {list(self.METHODS)}")
         log.debug("Checking if multiple queries are supported")
-        group_key = spec.get('group_queries', [None])[0] 
+        group_key = spec.get("group_queries", [None])[0]
 
         # If group_key is present and value is list: check cache per element
         t0 = time.time()
@@ -718,7 +713,7 @@ class BaseAPIInterface(ABC):
                     results[identifier] = parsed
                 else:
                     log.debug(f"No cache found for identifier: {identifier}, will fetch.")
-                    remaining.append((identifier, subq)) 
+                    remaining.append((identifier, subq))
 
             # If some remain, fetch them together
             if remaining:
@@ -735,7 +730,9 @@ class BaseAPIInterface(ABC):
                         log.debug(f"No results found for identifier {identifier}. Skipping.")
                         metadata["failed_ids"] = metadata.get("failed_ids", []) + [identifier]
                         continue
-                    log.debug(f"Fetched {len(partial_result)} items for identifier {identifier}. Caching result.")
+                    log.debug(
+                        f"Fetched {len(partial_result)} items for identifier {identifier}. Caching result."
+                    )
                     cache_key = self._make_cache_key(identifier, **kwargs)
                     self.save_cache(cache_key, partial_result)
                     parsed = self._maybe_parse(data=partial_result, parse=parse, format=format, **kwargs)
@@ -755,11 +752,14 @@ class BaseAPIInterface(ABC):
                     metadata["data_info"] = {
                         "total_entries": len(export_df),
                         "data_type": type(export_df),
-                        "columns": [{
-                            "name": col,
-                            "dtype": str(export_df[col].dtype),
-                            "n_missing": int(export_df[col].isna().sum())
-                        } for col in export_df.columns]
+                        "columns": [
+                            {
+                                "name": col,
+                                "dtype": str(export_df[col].dtype),
+                                "n_missing": int(export_df[col].isna().sum()),
+                            }
+                            for col in export_df.columns
+                        ],
                     }
                     metadata["execution_time"] = time.time() - t0
                     metadata["api_name"] = self.API_NAME
@@ -767,9 +767,8 @@ class BaseAPIInterface(ABC):
                     metadata["option"] = option
 
                     return export_df, metadata
-                else:
-                    return pd.DataFrame(), metadata
-            elif format == "xml":
+                return pd.DataFrame(), metadata
+            if format == "xml":
                 log.debug("Converting results to XML format")
                 combined_results = []
                 for data in results.values():
@@ -777,7 +776,12 @@ class BaseAPIInterface(ABC):
                         combined_results.extend(data)
                     else:
                         combined_results.append(data)
-                xml_bytes = dicttoxml({"item": combined_results}, custom_root='results', item_func=lambda x: 'entry', attr_type=False)
+                xml_bytes = dicttoxml(
+                    {"item": combined_results},
+                    custom_root="results",
+                    item_func=lambda x: "entry",
+                    attr_type=False,
+                )
                 metadata["fetched_length"] = len(combined_results)
                 metadata["execution_time"] = time.time() - t0
                 metadata["api_name"] = self.API_NAME
@@ -785,78 +789,66 @@ class BaseAPIInterface(ABC):
                 metadata["option"] = option
 
                 return xml_bytes, metadata
-            
+
             metadata["fetched_length"] = sum(len(v) for v in results.values() if isinstance(v, list))
-            
+
             export_data = list(results.values())
-            
+
             if len(export_data) == 1:
                 export_data = export_data[0]
-            
+
             return export_data, metadata
+        log.debug("Single query detected, proceeding with fetch.")
+        params = self._prepare_params(query, spec, **kwargs)
+        identifier = self._make_identifier(query, spec)
+        cache_key = self._make_cache_key(identifier, **kwargs)
+        if self.has_results(cache_key):
+            log.debug(f"Cache hit for identifier: {identifier}, loading from cache.")
+            metadata["cached_ids"] = [identifier]
+            metadata["cached_subqueries"] = [query]
+            raw = self.load_cache(cache_key)
         else:
-            log.debug("Single query detected, proceeding with fetch.")
-            params     = self._prepare_params(query, spec, **kwargs)
-            identifier = self._make_identifier(query, spec)
-            cache_key  = self._make_cache_key(identifier, **kwargs)
-            if self.has_results(cache_key):
-                log.debug(f"Cache hit for identifier: {identifier}, loading from cache.")
-                metadata["cached_ids"] = [identifier]
-                metadata["cached_subqueries"] = [query]
-                raw = self.load_cache(cache_key)
-            else:
-                # TODO Probably is necesary to give the user the option to not save empty results, check if it is a problem in some APIs
-                log.debug(f"No cache found for identifier: {identifier}, fetching from API.")
-                raw = self.fetch(query=params, *args, **kwargs)
-                # Save to cache even if empty, to avoid refetching known empty results
-                metadata["fetched_ids"] = [identifier]
-                metadata["fetched_subqueries"] = [query]
-                metadata["fetched_length"] = len(raw) if isinstance(raw, list) else 1
-                self.save_cache(cache_key, raw)
-                if not raw:
-                    metadata["failed_ids"] = [identifier]
-                # if raw:  # only save non-empty
-                #     metadata["fetched_ids"] = [identifier]
-                #     metadata["fetched_subqueries"] = [query]
-                #     metadata["fetched_length"] = len(raw) if isinstance(raw, list) else 1
-                #     self.save_cache(cache_key, raw)
-                # else:
-                #     metadata["failed_ids"] = [identifier]
-            
-            parsed = self._maybe_parse(data=raw, parse=parse, format=format, **kwargs)
-            tmp_df = pd.DataFrame()
+            # TODO Probably is necesary to give the user the option to not save empty results, check if it is a problem in some APIs
+            log.debug(f"No cache found for identifier: {identifier}, fetching from API.")
+            raw = self.fetch(query=params, *args, **kwargs)
+            # Save to cache even if empty, to avoid refetching known empty results
+            metadata["fetched_ids"] = [identifier]
+            metadata["fetched_subqueries"] = [query]
+            metadata["fetched_length"] = len(raw) if isinstance(raw, list) else 1
+            self.save_cache(cache_key, raw)
+            if not raw:
+                metadata["failed_ids"] = [identifier]
 
-            if isinstance(parsed, list):
-                tmp_df = pd.DataFrame(parsed) if parsed else pd.DataFrame()
-            elif isinstance(parsed, pd.DataFrame):
-                tmp_df = parsed
-            else:
-                tmp_df = pd.DataFrame([parsed]) if parsed else pd.DataFrame()
+        parsed = self._maybe_parse(data=raw, parse=parse, format=format, **kwargs)
+        tmp_df = pd.DataFrame()
 
-            metadata["data_info"] = {
-                "total_entries": len(tmp_df),
-                "data_type": type(parsed),
-                "columns": [{
-                    "name": col,
-                    "dtype": str(tmp_df[col].dtype),
-                    "n_missing": int(tmp_df[col].isna().sum())
-                } for col in tmp_df.columns]
-            }
-            metadata["execution_time"] = time.time() - t0
-            metadata["api_name"] = self.API_NAME
-            metadata["method"] = method
-            metadata["option"] = option
+        if isinstance(parsed, list):
+            tmp_df = pd.DataFrame(parsed) if parsed else pd.DataFrame()
+        elif isinstance(parsed, pd.DataFrame):
+            tmp_df = parsed
+        else:
+            tmp_df = pd.DataFrame([parsed]) if parsed else pd.DataFrame()
 
-            return parsed, metadata
+        metadata["data_info"] = {
+            "total_entries": len(tmp_df),
+            "data_type": type(parsed),
+            "columns": [
+                {"name": col, "dtype": str(tmp_df[col].dtype), "n_missing": int(tmp_df[col].isna().sum())}
+                for col in tmp_df.columns
+            ],
+        }
+        metadata["execution_time"] = time.time() - t0
+        metadata["api_name"] = self.API_NAME
+        metadata["method"] = method
+        metadata["option"] = option
+
+        return parsed, metadata
 
     def fetch_batch(
-            self, 
-            queries: List[Union[str, dict]], 
-            parse: bool = False, 
-            *args, **kwargs
-        ) -> Tuple[Union[List, pd.DataFrame, bytes, str], Dict]:
-        """
-        Fetch data in parallel for a batch of queries.
+        self, queries: list[str | dict], parse: bool = False, *args, **kwargs
+    ) -> tuple[list | pd.DataFrame | bytes | str, dict]:
+        """Fetch data in parallel for a batch of queries.
+
         Args:
             queries (List[Union[str, dict, list[str]]]): List of queries to fetch data for.
             parse (bool): Whether to parse the fetched data.
@@ -865,8 +857,10 @@ class BaseAPIInterface(ABC):
             config_key (str): Key to use for configuration settings.
             fields_to_extract (Optional[Union[list, dict]]): Fields to extract from the fetched data.
             format (Literal["dataframe", "json", "xml"]): Format of the output data.
+
         Returns:
             Tuple[Union[List, pd.DataFrame, bytes, str], Dict]: Fetched (and optionally parsed) data and metadata.
+
         """
         metadata = {
             "cached_ids": [],
@@ -879,12 +873,12 @@ class BaseAPIInterface(ABC):
             "execution_time": 0.0,
             "api_name": "",
             "method": "",
-            "option": ""
+            "option": "",
         }
-        method       = kwargs.get("method", "NOT_GIVEN")
-        format       = kwargs.pop("format", "json")
-        option       = kwargs.get("option", None)
-        results: List[Any] = []
+        method = kwargs.get("method", "NOT_GIVEN")
+        format = kwargs.pop("format", "json")
+        option = kwargs.get("option")
+        results: list[Any] = []
 
         # Separate queries in cache and not in cache
         index_query_map = {}
@@ -908,7 +902,9 @@ class BaseAPIInterface(ABC):
                         metadata["cached_ids"] = metadata.get("cached_ids", []) + [identifier]
                         metadata["cached_subqueries"] = metadata.get("cached_subqueries", []) + [subquery]
                         cached = self.load_cache(cache_key)
-                        result = cached.to_dict(orient='records') if isinstance(cached, pd.DataFrame) else cached
+                        result = (
+                            cached.to_dict(orient="records") if isinstance(cached, pd.DataFrame) else cached
+                        )
                         results.append(self._maybe_parse(data=result, parse=parse, format=format, **kwargs))
                     else:
                         log.debug(f"No cache found for subquery identifier: {identifier}, will fetch.")
@@ -922,7 +918,7 @@ class BaseAPIInterface(ABC):
                     metadata["cached_ids"] = metadata.get("cached_ids", []) + [cache_key]
                     metadata["cached_subqueries"] = metadata.get("cached_subqueries", []) + [query]
                     cached = self.load_cache(cache_key)
-                    result = cached.to_dict(orient='records') if isinstance(cached, pd.DataFrame) else cached
+                    result = cached.to_dict(orient="records") if isinstance(cached, pd.DataFrame) else cached
                     results.append(self._maybe_parse(data=result, parse=parse, format=format, **kwargs))
                 else:
                     log.debug(f"No cache found for query at index {i}, will fetch.")
@@ -945,11 +941,13 @@ class BaseAPIInterface(ABC):
             for future in future_to_index:
                 log.debug(f"Waiting for future result for query at index {future_to_index[future]}")
                 metadata["fetched_ids"] = metadata.get("fetched_ids", []) + [future_to_index[future]]
-                metadata["fetched_subqueries"] = metadata.get("fetched_subqueries", []) + [index_query_map[future_to_index[future]]]
+                metadata["fetched_subqueries"] = metadata.get("fetched_subqueries", []) + [
+                    index_query_map[future_to_index[future]]
+                ]
                 i = future_to_index[future]
                 try:
                     result = future.result()
-                    
+
                     if isinstance(result, tuple) and len(result) == 2:
                         data, _ = result
                         results.append(data)
@@ -960,33 +958,37 @@ class BaseAPIInterface(ABC):
                     log.error(f"Error fetching query at index {i} ({queries[i]}): {e}")
                 self._delay()
         metadata["execution_time"] = time.time() - t0
-        metadata["fetched_length"] = sum(
-            len(r) if isinstance(r, list) else 1 for r in results
-        )
-        
+        metadata["fetched_length"] = sum(len(r) if isinstance(r, list) else 1 for r in results)
+
         # Patch solution. Make sure that it works as intended
         # If it's a list of dataframes, concatenate them
         columns_info = []
         if all(isinstance(r, pd.DataFrame) for r in results) and len(results) > 0:
             batch_data = pd.concat(results, ignore_index=True)
-            columns_info = [{
-                "name": col,
-                "dtype": str(batch_data[col].dtype),
-                "n_missing": int(batch_data[col].isnull().sum())
-            } for col in batch_data.columns]
+            columns_info = [
+                {
+                    "name": col,
+                    "dtype": str(batch_data[col].dtype),
+                    "n_missing": int(batch_data[col].isnull().sum()),
+                }
+                for col in batch_data.columns
+            ]
         else:
             batch_data = results
             tmp_df = pd.DataFrame(batch_data)
-            columns_info = [{
-                "name": col,
-                "dtype": str(type(batch_data)),
-                "n_missing": int(tmp_df[col].isnull().sum())
-            } for col in tmp_df.columns]
+            columns_info = [
+                {"name": col, "dtype": str(type(batch_data)), "n_missing": int(tmp_df[col].isnull().sum())}
+                for col in tmp_df.columns
+            ]
 
         metadata["data_info"] = {
-            "total_entries": len(batch_data) if isinstance(batch_data, list) else batch_data.shape[0] if isinstance(batch_data, pd.DataFrame) else 0,
+            "total_entries": len(batch_data)
+            if isinstance(batch_data, list)
+            else batch_data.shape[0]
+            if isinstance(batch_data, pd.DataFrame)
+            else 0,
             "data_type": type(batch_data).__name__,
-            "columns": columns_info
+            "columns": columns_info,
         }
         metadata["source_api"] = self.API_NAME
         metadata["method"] = method
@@ -998,67 +1000,72 @@ class BaseAPIInterface(ABC):
     # Auxiliary methods
     ###################
 
-    def _extract_fields(self, data: Union[dict, list], fields_to_extract: Optional[Union[list, dict]] = None, **kwargs) -> Union[dict, list]:
-        """
-        Extract specified fields from the data.
-        
+    def _extract_fields(
+        self, data: dict | list, fields_to_extract: list | dict | None = None, **kwargs
+    ) -> dict | list:
+        """Extract specified fields from the data.
+
         Args:
             data (Union[List, Dict]): Data to parse.
             fields_to_extract (List|Dict): Fields to keep from the original response.
                 - If List: Keep those keys.
                 - If Dict: Maps {desired_name: real_field_name}.
+
         Returns:
             Union[dict, list]: Data with only the specified fields.
+
         """
         option = kwargs.get("option", "default")
 
         if option and isinstance(fields_to_extract, dict) and option in fields_to_extract.keys():
             fields_to_extract = fields_to_extract[option]
-        
+
         parsed = {}
-        if isinstance(fields_to_extract, List):
-            if isinstance(data, List):
-                parsed = [
-                    {key: get_nested(item, key) for key in fields_to_extract}
-                    for item in data
-                ]
-            elif isinstance(data, Dict):
+        if isinstance(fields_to_extract, list):
+            if isinstance(data, list):
+                parsed = [{key: get_nested(item, key) for key in fields_to_extract} for item in data]
+            elif isinstance(data, dict):
                 parsed = {key: get_nested(data, key) for key in fields_to_extract}
-        elif isinstance(fields_to_extract, Dict):
-            if isinstance(data, List):
+        elif isinstance(fields_to_extract, dict):
+            if isinstance(data, list):
                 parsed = [
                     {new_key: get_nested(item, path) for new_key, path in fields_to_extract.items()}
                     for item in data
                 ]
-            elif isinstance(data, Dict):
+            elif isinstance(data, dict):
                 parsed = {new_key: get_nested(data, path) for new_key, path in fields_to_extract.items()}
         # If no fields to extract, return the entire structure
-        elif fields_to_extract is None and isinstance(data, List):
+        elif fields_to_extract is None and isinstance(data, list):
             parsed = [get_nested(item, "") for item in data]
-        elif fields_to_extract is None and isinstance(data, Dict):
+        elif fields_to_extract is None and isinstance(data, dict):
             parsed = get_nested(data, "")
-        
+
         return parsed
 
-    def _do_request(self, query: Union[str, dict, list], *, method: str, **kwargs) -> Union[dict, list, Response]:
-        """
-        Fetch data from the API based on the provided query and method.
+    def _do_request(self, query: str | dict | list, *, method: str, **kwargs) -> dict | list | Response:
+        """Fetch data from the API based on the provided query and method.
+
         Args:
             query (Union[str, dict, list]): Query to fetch data for.
             method (str): Method to use for fetching data.
         kwargs:
             api_url (str): API URL to use for the request.
+
         Returns:
             dict: Fetched data from the API.
+
         Raises:
             ValueError: If the method is not defined in the METHODS.
-            RequestException: If there is an error during the HTTP request. 
+            RequestException: If there is an error during the HTTP request.
+
         """
         api_url = kwargs.pop("api_url", None)
 
         if not api_url:
             raise ValueError("API URL must be provided in kwargs.")
-        http_method, path_param, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, **kwargs)
+        http_method, path_param, parameters, inputs = self.initialize_method_parameters(
+            query, method, self.METHODS, **kwargs
+        )
 
         try:
             validated_params = validate_parameters(inputs, parameters)
@@ -1070,12 +1077,8 @@ class BaseAPIInterface(ABC):
         if path_param:
             path_value = validated_params.pop(path_param)
             url += f"{path_value}"
-        
-        req = Request(
-            method=http_method,
-            url=url,
-            params=validated_params
-        )
+
+        req = Request(method=http_method, url=url, params=validated_params)
         prepared = self.session.prepare_request(req)
         log.debug(f"Prepared request: {prepared.url}")
 
@@ -1088,15 +1091,15 @@ class BaseAPIInterface(ABC):
         except RequestException as e:
             log.error(f"Error fetching {query} for method '{method}': {e}")
             return {}
-    
+
     @abstractmethod
-    def fetch(self, query: Union[str, dict, list], *, method: str, **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str, **kwargs):
         raise NotImplementedError
-    
+
     @abstractmethod
     def query_usage(self) -> str:
         raise NotImplementedError
-    
+
     @abstractmethod
-    def parse(self, data: Any, fields_to_extract: Optional[Union[list, dict]], **kwargs):
-        raise NotImplementedError     
+    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs):
+        raise NotImplementedError

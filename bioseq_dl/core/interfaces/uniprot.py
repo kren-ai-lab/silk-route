@@ -1,48 +1,48 @@
-import requests, re, zlib, json, time
-from typing import List, Dict, Optional, Tuple, Literal
+import json
+import re
+import time
 import xml.etree.ElementTree as ET
-import pandas as pd
-import logging
-from tqdm import tqdm
-from requests.adapters import HTTPAdapter, Retry
-from xml.etree import ElementTree
+import zlib
 from datetime import datetime
-from dicttoxml import dicttoxml
+from typing import Literal
+from urllib.parse import parse_qs, urlencode, urlparse
+from xml.etree import ElementTree
 
-from urllib.parse import urlparse, parse_qs, urlencode
-
-from ..utils.uniprot_auxiliary_methods import (
-    extract_simple,
-    extract_ec_numbers,
-    extract_gene_names,
-    extract_database_terms,
-    extract_references,
-    extract_domains,
-    extract_active_sites,
-    extract_variants,
-    extract_diseases,
-    extract_keywords,
-    extract_interactions,
-    extract_temperature,
-    extract_ph,
-)
+import pandas as pd
+import requests
+from requests.adapters import HTTPAdapter, Retry
+from tqdm import tqdm
 
 from bioseq_dl.constants.databases import DATABASES
+from bioseq_dl.core.utils.uniprot_auxiliary_methods import (
+    extract_active_sites,
+    extract_database_terms,
+    extract_diseases,
+    extract_domains,
+    extract_ec_numbers,
+    extract_gene_names,
+    extract_interactions,
+    extract_keywords,
+    extract_ph,
+    extract_references,
+    extract_simple,
+    extract_temperature,
+    extract_variants,
+)
 from bioseq_dl.core.utils.xmlhandler import dict_to_elementtree
-
-
 from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.interfaces.uniprot")
 
 API_URL = "https://rest.uniprot.org"
-POLLING_INTERVAL = 3 
+POLLING_INTERVAL = 3
 
-class UniprotBase():
+
+class UniprotBase:
     def __init__(self, total_retries=5, timeout: float = 60):
         self.retries = Retry(total=total_retries, backoff_factor=0.25, status_forcelist=[500, 502, 503, 504])
         self.session = requests.Session()
-        self.session.mount('https://', HTTPAdapter(max_retries=self.retries))
+        self.session.mount("https://", HTTPAdapter(max_retries=self.retries))
         self.timeout = timeout
 
     def check_response(self, response):
@@ -56,12 +56,12 @@ class UniprotBase():
     def submit_id_mapping(self, from_db: str, to_db: str, ids: list):
         request = requests.post(
             f"{API_URL}/idmapping/run",
-        data={"from": from_db, "to": to_db, "ids": ",".join(ids)},
-        timeout=self.timeout,
+            data={"from": from_db, "to": to_db, "ids": ",".join(ids)},
+            timeout=self.timeout,
         )
         self.check_response(request)
         return request.json()["jobId"]
-    
+
     def print_progress_batches(self, batch_index, size, total):
         n_fetched = min((batch_index + 1) * size, total)
         log.info(f"Fetched: {n_fetched} / {total}")
@@ -69,7 +69,7 @@ class UniprotBase():
     def combine_batches(self, all_results, batch_results, file_format):
         if file_format == "json":
             for key in ("results", "failedIds"):
-                if key in batch_results and batch_results[key]:
+                if batch_results.get(key):
                     all_results[key] += batch_results[key]
         elif file_format == "tsv":
             return all_results + batch_results[1:]
@@ -83,21 +83,20 @@ class UniprotBase():
             if file_format == "json":
                 j = json.loads(decompressed.decode("utf-8"))
                 return j
-            elif file_format == "tsv":
+            if file_format == "tsv":
                 return [line for line in decompressed.decode("utf-8").split("\n") if line]
-            elif file_format == "xlsx":
+            if file_format == "xlsx":
                 return [decompressed]
-            elif file_format == "xml":
+            if file_format == "xml":
                 return [decompressed.decode("utf-8")]
-            else:
-                return decompressed.decode("utf-8")
-        elif file_format == "json":
+            return decompressed.decode("utf-8")
+        if file_format == "json":
             return response.json()
-        elif file_format == "tsv":
+        if file_format == "tsv":
             return [line for line in response.text.split("\n") if line]
-        elif file_format == "xlsx":
+        if file_format == "xlsx":
             return [response.content]
-        elif file_format == "xml":
+        if file_format == "xml":
             return [response.text]
         return response.text
 
@@ -123,9 +122,7 @@ class UniprotBase():
         else:
             size = 500
             query["size"] = size
-        compressed = (
-            query["compressed"][0].lower() == "true" if "compressed" in query else False
-        )
+        compressed = query["compressed"][0].lower() == "true" if "compressed" in query else False
         parsed = parsed._replace(query=urlencode(query, doseq=True))
         url = parsed.geturl()
         request = self.session.get(url, timeout=self.timeout)
@@ -182,18 +179,16 @@ class UniprotInterface(UniprotBase):
     def __init__(self, total_retries=5, timeout: float = 60):
         super().__init__(total_retries=total_retries, timeout=timeout)
         self.db_config = {
-            'uniprot': {
-                'patterns': [r'^[A-N,R-Z][0-9][A-Z][A-Z, 0-9][A-Z, 0-9][0-9]$',
-                            r'^[A-N,R-Z][0-9][A-Z][A-Z, 0-9][A-Z, 0-9][0-9][A-Z][A-Z, 0-9][A-Z, 0-9][0-9]$',
-                            r'^[OPQ][0-9][A-Z0-9][A-Z0-9][A-Z0-9][0-9]$'],
-                'from_db': 'UniProtKB_AC-ID',
-                'to_db': 'UniProtKB'
+            "uniprot": {
+                "patterns": [
+                    r"^[A-N,R-Z][0-9][A-Z][A-Z, 0-9][A-Z, 0-9][0-9]$",
+                    r"^[A-N,R-Z][0-9][A-Z][A-Z, 0-9][A-Z, 0-9][0-9][A-Z][A-Z, 0-9][A-Z, 0-9][0-9]$",
+                    r"^[OPQ][0-9][A-Z0-9][A-Z0-9][A-Z0-9][0-9]$",
+                ],
+                "from_db": "UniProtKB_AC-ID",
+                "to_db": "UniProtKB",
             },
-            'pdb': {
-                'patterns': [r'^[0-9][A-Z0-9]{3}$'],
-                'from_db': 'PDB',
-                'to_db': 'UniProtKB'
-            }
+            "pdb": {"patterns": [r"^[0-9][A-Z0-9]{3}$"], "from_db": "PDB", "to_db": "UniProtKB"},
         }
 
         # Base field map for parsing UniProt results
@@ -202,84 +197,83 @@ class UniprotInterface(UniprotBase):
         # The extractor function should take the data and return the desired value.
         # See utils.py for available extractor functions.
         self.field_map_base = {
-            'accession': ('primaryAccession', extract_simple),
-            'protein_name': ('proteinDescription.recommendedName.fullName.value', extract_simple),
-            'ec': ('proteinDescription.recommendedName.ecNumbers', extract_ec_numbers),
-            'organism': ('organism.scientificName', extract_simple),
-            'gene_primary': ('genes', extract_gene_names),
-            'organism_id': ('organism.taxonId', extract_simple),
-            'lineage': ('organism.lineage', extract_simple),
-            'sequence': ('sequence.value', extract_simple),
-            'length': ('sequence.length', extract_simple),
-            'alphafold_ids': ('uniProtKBCrossReferences', extract_database_terms),
-            'biogrid_ids': ('uniProtKBCrossReferences', extract_database_terms),
-            'brenda_ids': ('uniProtKBCrossReferences', extract_database_terms),
-            'chebi_ids': ('comments', extract_database_terms),
-            'chembl_ids': ('uniProtKBCrossReferences', extract_database_terms),
-            'go_terms': ('uniProtKBCrossReferences', extract_database_terms),
-            'interpro_ids': ('uniProtKBCrossReferences', extract_database_terms),
-            'kegg_ids': ('uniProtKBCrossReferences', extract_database_terms),
-            'panther_ids': ('uniProtKBCrossReferences', extract_database_terms),
-            'pathwaycommons_ids': ('uniProtKBCrossReferences', extract_database_terms),
-            'pdb_ids': ('uniProtKBCrossReferences', extract_database_terms),
-            'pfam_ids': ('uniProtKBCrossReferences', extract_database_terms),
-            'pride_ids': ('uniProtKBCrossReferences', extract_database_terms),
-            'reactome_ids': ('uniProtKBCrossReferences', extract_database_terms),
-            'refseq_ids': ('uniProtKBCrossReferences', extract_database_terms),
-            'rhea_ids': ('comments', extract_database_terms),
-            'sabiork_ids': ('uniProtKBCrossReferences', extract_database_terms),
-            'string_ids': ('uniProtKBCrossReferences', extract_database_terms),
-            'references': ('references', extract_references),
-            'diseases': ('comments', extract_diseases),
-            'active_sites': ('features', extract_active_sites),
-            'temperature': ('comments', extract_temperature),
-            'ph': ('comments', extract_ph),
-            'domains': ('features', extract_domains),
-            'variants': ('features', extract_variants),
-            'interactions': ("comments", extract_interactions),
-            'keyword': ('keywords', extract_keywords),
+            "accession": ("primaryAccession", extract_simple),
+            "protein_name": ("proteinDescription.recommendedName.fullName.value", extract_simple),
+            "ec": ("proteinDescription.recommendedName.ecNumbers", extract_ec_numbers),
+            "organism": ("organism.scientificName", extract_simple),
+            "gene_primary": ("genes", extract_gene_names),
+            "organism_id": ("organism.taxonId", extract_simple),
+            "lineage": ("organism.lineage", extract_simple),
+            "sequence": ("sequence.value", extract_simple),
+            "length": ("sequence.length", extract_simple),
+            "alphafold_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "biogrid_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "brenda_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "chebi_ids": ("comments", extract_database_terms),
+            "chembl_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "go_terms": ("uniProtKBCrossReferences", extract_database_terms),
+            "interpro_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "kegg_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "panther_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "pathwaycommons_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "pdb_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "pfam_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "pride_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "reactome_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "refseq_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "rhea_ids": ("comments", extract_database_terms),
+            "sabiork_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "string_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "references": ("references", extract_references),
+            "diseases": ("comments", extract_diseases),
+            "active_sites": ("features", extract_active_sites),
+            "temperature": ("comments", extract_temperature),
+            "ph": ("comments", extract_ph),
+            "domains": ("features", extract_domains),
+            "variants": ("features", extract_variants),
+            "interactions": ("comments", extract_interactions),
+            "keyword": ("keywords", extract_keywords),
         }
-    
+
     def identify_id_type(self, id_str: str) -> str:
         """Identifica el tipo de ID basado en patrones regex"""
         if not isinstance(id_str, str):
             return ""
-            
+
         for db_type, config in self.db_config.items():
-            for pattern in config['patterns']:
+            for pattern in config["patterns"]:
                 if re.fullmatch(pattern, id_str):
                     return db_type
-                
+
                 return ""
 
-    def group_ids_by_type(self, ids: List[str]) -> Dict[str, List[str]]:
+    def group_ids_by_type(self, ids: list[str]) -> dict[str, list[str]]:
         """Agrupa IDs por su tipo detectado"""
         grouped = {db_type: [] for db_type in self.db_config}
-        grouped['unknown'] = []
-        
+        grouped["unknown"] = []
+
         for id_str in ids:
             if not isinstance(id_str, str):
                 continue
-                
+
             id_type = self.identify_id_type(id_str)
             if id_type in grouped:
                 grouped[id_type].append(id_str)
             else:
-                grouped['unknown'].append(id_str)
+                grouped["unknown"].append(id_str)
         return grouped
 
-
     def download_batch(
-            self,
-            dataset: pd.DataFrame, 
-            column_ids: str, 
-            auto_db: bool = False, 
-            from_db: str = "UniProtKB_AC-ID", 
-            to_db: str = "UniProtKB", 
-            batch_size: int = 5000
-            ) -> Tuple[List[Dict], Dict]:
-        """
-        Download data from UniProt in batches based on a DataFrame of IDs.
+        self,
+        dataset: pd.DataFrame,
+        column_ids: str,
+        auto_db: bool = False,
+        from_db: str = "UniProtKB_AC-ID",
+        to_db: str = "UniProtKB",
+        batch_size: int = 5000,
+    ) -> tuple[list[dict], dict]:
+        """Download data from UniProt in batches based on a DataFrame of IDs.
+
         Args:
             dataset (pd.DataFrame): DataFrame containing the IDs.
             column_ids (str): Column name in the DataFrame with the IDs.
@@ -287,6 +281,7 @@ class UniprotInterface(UniprotBase):
             from_db (str): Database to convert from (used if auto_db is False).
             to_db (str): Database to convert to (used if auto_db is False).
             batch_size (int): Number of IDs to process in each batch.
+
         """
         ids = dataset[column_ids].dropna().unique().tolist()
 
@@ -297,55 +292,48 @@ class UniprotInterface(UniprotBase):
         if auto_db:
             # Automatically detect and group IDs
             id_groups = self.group_ids_by_type(ids)
-            
-            log.debug(f"Auto db has identified the following ID groups: { {k: len(v) for k, v in id_groups.items()} }")
+
+            log.debug(
+                f"Auto db has identified the following ID groups: { {k: len(v) for k, v in id_groups.items()} }"
+            )
             for db_type, id_list in id_groups.items():
-                if not id_list or db_type == 'unknown':
+                if not id_list or db_type == "unknown":
                     continue
-                    
+
                 config = self.db_config[db_type]
                 results, batch_metadata = self.process_id_batch(
                     ids=id_list,
-                    from_db=config['from_db'],
-                    to_db=config['to_db'],
+                    from_db=config["from_db"],
+                    to_db=config["to_db"],
                     batch_size=batch_size,
-                    db_type=db_type
+                    db_type=db_type,
                 )
         else:
             # Manually use the provided from_db/to_db parameters
             results, batch_metadata = self.process_id_batch(
-                ids=ids,
-                from_db=from_db,
-                to_db=to_db,
-                batch_size=batch_size,
-                db_type='manual'
+                ids=ids, from_db=from_db, to_db=to_db, batch_size=batch_size, db_type="manual"
             )
 
         metadata["search_process"] = batch_metadata
         metadata["search_params"] = {
-            'query': {
+            "query": {
                 "type": type(pd.DataFrame()),
                 "value": dataset[column_ids].tolist(),
                 "total_rows": len(dataset),
                 "columns": dataset.columns.tolist(),
-                "id_column": column_ids
+                "id_column": column_ids,
             },
-            'from_db': from_db,
-            'to_db': to_db,
-            'auto_db': auto_db,
-            'batch_size': batch_size
+            "from_db": from_db,
+            "to_db": to_db,
+            "auto_db": auto_db,
+            "batch_size": batch_size,
         }
 
         return results, metadata
 
     def process_id_batch(
-            self,
-            ids: List[str], 
-            from_db: str, 
-            to_db: str, 
-            batch_size: int, 
-            db_type: str
-        ) -> Tuple[List[Dict], Dict]:
+        self, ids: list[str], from_db: str, to_db: str, batch_size: int, db_type: str
+    ) -> tuple[list[dict], dict]:
         """Procesa un lote de IDs de un tipo específico"""
         downloader = UniprotInterface()
         metadata = {}
@@ -353,65 +341,62 @@ class UniprotInterface(UniprotBase):
         job_id = None
         results = []
         progress_bar = tqdm(
-            range(0, len(ids)), 
-            desc=f"Processing {db_type} IDs", 
+            range(len(ids)),
+            desc=f"Processing {db_type} IDs",
             total=len(ids),
             dynamic_ncols=True,
             ncols=0,
-            bar_format="{l_bar}{bar} {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}] {desc}"
+            bar_format="{l_bar}{bar} {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}] {desc}",
         )
-        
+
         for start in range(0, len(ids), batch_size):
-            batch = ids[start:start+batch_size]
+            batch = ids[start : start + batch_size]
             job_id = downloader.submit_id_mapping(from_db, to_db, batch)
-            
+
             if downloader.check_id_mapping_results_ready(job_id):
                 link = downloader.get_id_mapping_results_link(job_id)
                 search = downloader.get_id_mapping_results_search(link)
-                
+
                 # Add information about the source to the results
                 if isinstance(search, dict):
-                    for result in search.get('results', []):
-                        result['source_db'] = db_type
+                    for result in search.get("results", []):
+                        result["source_db"] = db_type
                     results.append(search)
-                    
+
             progress_bar.update(len(batch))
-        
-        metadata['time_taken_seconds'] = time.time() - time_started
+
+        metadata["time_taken_seconds"] = time.time() - time_started
         metadata["started_at"] = datetime.fromtimestamp(time_started).isoformat()
         metadata["batch_size"] = batch_size
         metadata["num_batches"] = (len(ids) + batch_size - 1) // batch_size
-        metadata["failed_ids_count"] = sum(len(res.get('failedIds', [])) for res in results)
-        metadata["failed_ids"] = [fid for res in results for fid in res.get('failedIds', [])]
+        metadata["failed_ids_count"] = sum(len(res.get("failedIds", [])) for res in results)
+        metadata["failed_ids"] = [fid for res in results for fid in res.get("failedIds", [])]
 
         return results, metadata
 
-    def show_results(
-            self,
-            results: List[Dict],
-            raw=False
-        ):
+    def show_results(self, results: list[dict], raw=False):
+        # Deliberate stdout helper for interactive inspection of fetched results.
         if results:
             if raw:
                 for result in results:
-                    print(result)
+                    print(result)  # noqa: T201
             else:
-                print(f"{len(results)} results to show")
+                print(f"{len(results)} results to show")  # noqa: T201
         else:
-            print("No results to show")
+            print("No results to show")  # noqa: T201
 
     def submit_stream(
-            self, 
-            query: str, 
-            fields: str, 
-            sort: str, 
-            include_isoform: Optional[bool] = False, 
-            download: Optional[bool] = False,
-            method: str = "uniprotkb",
-            timeout: Optional[float] = None,
-            ) -> Tuple[Dict, Dict]:
-        """
-        Submit a query to the Uniprot stream API.
+        self,
+        query: str,
+        fields: str,
+        sort: str,
+        include_isoform: bool | None = False,
+        download: bool | None = False,
+        method: str = "uniprotkb",
+        timeout: float | None = None,
+    ) -> tuple[dict, dict]:
+        """Submit a query to the Uniprot stream API.
+
         Args:
             query (str): The query string.
             fields (str): The fields to include in the response.
@@ -420,8 +405,10 @@ class UniprotInterface(UniprotBase):
             download (bool, optional): Whether to download the results. Defaults to False.
             timeout (float, optional): Request timeout in seconds. Defaults to the interface timeout.
             format (str, optional): The format of the response. Defaults to "json".
+
         Returns:
             requests.Response: The response object.
+
         """
         parameters = {
             "query": query,
@@ -464,7 +451,9 @@ class UniprotInterface(UniprotBase):
                 finished_at = datetime.fromtimestamp(time_finished).isoformat()
                 elapsed_seconds = time_finished - time_started
                 size_header = response.headers.get("Content-Length")
-                response_size_bytes = int(size_header) if size_header and size_header.isdigit() else len(response.content)
+                response_size_bytes = (
+                    int(size_header) if size_header and size_header.isdigit() else len(response.content)
+                )
                 payload = response.json()
                 results_count = 0
                 if isinstance(payload, dict):
@@ -530,8 +519,8 @@ class UniprotInterface(UniprotBase):
                     message = f"UniProt request failed after all retry attempts: {e}"
                     log.error(message)
                     raise RuntimeError(message) from e
-    
-    def adapt_field_map(self, field_map: Dict[str, tuple], use_prefix=False):
+
+    def adapt_field_map(self, field_map: dict[str, tuple], use_prefix=False):
         """Adapt the field map to include a prefix if needed"""
         if not use_prefix:
             return field_map
@@ -542,24 +531,24 @@ class UniprotInterface(UniprotBase):
             adapted_map[key] = (new_path, extractor)
         return adapted_map
 
-    def _parse_result(self, result: Dict, extract_fields: Optional[List[str]]) -> Tuple[Dict, Dict]:
+    def _parse_result(self, result: dict, extract_fields: list[str] | None) -> tuple[dict, dict]:
         """Parse a single UniProt result"""
         parsed = {}
         field_map = {}
         metadata = {}
 
         # Change field_map if 'from' and 'to' keys are present
-        if 'from' in result and 'to' in result:
+        if "from" in result and "to" in result:
             field_map = self.adapt_field_map(self.field_map_base, use_prefix=True)
         else:
             field_map = self.field_map_base
-        
+
         log.debug(f"Parsing result with field map: {field_map.keys()}")
         for field, (path, extractor) in field_map.items():
             try:
                 # Navigate through the path (e.g. 'to.proteinDescription...')
                 data = result
-                for key in path.split('.'):
+                for key in path.split("."):
                     if key.isdigit():  # For array indices
                         key = int(key)
                     data = data.get(key, {})
@@ -571,7 +560,7 @@ class UniprotInterface(UniprotBase):
                     parsed[field] = extractor(data) if data else None
             except (KeyError, AttributeError, IndexError):
                 parsed[field] = None
-        
+
         # Apply filtering
         if extract_fields is not None:
             parsed = {k: v for k, v in parsed.items() if k in extract_fields}
@@ -584,62 +573,59 @@ class UniprotInterface(UniprotBase):
 
     # TODO eliminar bytes y str cuando ET este asegurado
     def parse(
-            self, 
-            results: Dict | List[Dict], 
-            extract_fields: Optional[List[str]], 
-            format: Literal["json", "dataframe", "xml"] = "json"
-        ) -> Tuple[(pd.DataFrame | List[Dict] | bytes | str | ET.ElementTree), Dict | List[Dict]]:
-        """
-        Parse UniProt JSON results into a DataFrame
+        self,
+        results: dict | list[dict],
+        extract_fields: list[str] | None,
+        format: Literal["json", "dataframe", "xml"] = "json",
+    ) -> tuple[(pd.DataFrame | list[dict] | bytes | str | ET.ElementTree), dict | list[dict]]:
+        """Parse UniProt JSON results into a DataFrame
 
         Args:
             results (Dict): The JSON results from UniProt.
             extract_fields (Optional[List[str]]): List of fields to extract.
             format (Literal["json", "dataframe", "xml"]): The output format.
+
         """
         parsed = []
         metadata = []
-        
+
         # Process successful results
-        if isinstance(results, Dict):
-            for result in results.get('results', []):
+        if isinstance(results, dict):
+            for result in results.get("results", []):
                 p, m = self._parse_result(result, extract_fields)
                 parsed.append(p)
                 metadata.append(m)
 
             # Process failed IDs
-            for failed_id in results.get('failedIds', []):
-                parsed.append({
-                    'uniprot_id': failed_id,
-                    'status': 'failed'
-                })
+            for failed_id in results.get("failedIds", []):
+                parsed.append({"uniprot_id": failed_id, "status": "failed"})
                 metadata.append({})
-        elif isinstance(results, List):
+        elif isinstance(results, list):
             for res in results:
-                if isinstance(res, Dict):
-                    for result in res.get('results', []):
+                if isinstance(res, dict):
+                    for result in res.get("results", []):
                         p, m = self._parse_result(result, extract_fields)
                         parsed.append(p)
                         metadata.append(m)
 
                     # Process failed IDs
-                    for failed_id in res.get('failedIds', []):
-                        parsed.append({
-                            'uniprot_id': failed_id,
-                            'status': 'failed'
-                        })
+                    for failed_id in res.get("failedIds", []):
+                        parsed.append({"uniprot_id": failed_id, "status": "failed"})
                         metadata.append({})
                 else:
                     log.warning(f"Tried to parse non-dict result: {type(res)}, skipping.")
                     continue
 
         if format == "dataframe":
-            return pd.DataFrame(parsed).dropna(axis=1, how='all'), metadata[0] if len(metadata) > 0 else metadata
-        elif format == "xml":
-            #xml_bytes = dicttoxml(parsed, custom_root='results', attr_type=False)
-            #return xml_bytes, metadata[0] if len(metadata) > 0 else metadata
-            
-            return dict_to_elementtree(parsed, root_tag="results"), metadata[0] if len(metadata) > 0 else metadata
+            return pd.DataFrame(parsed).dropna(axis=1, how="all"), metadata[0] if len(
+                metadata
+            ) > 0 else metadata
+        if format == "xml":
+            # xml_bytes = dicttoxml(parsed, custom_root='results', attr_type=False)
+            # return xml_bytes, metadata[0] if len(metadata) > 0 else metadata
 
-        else:
-            return parsed, metadata[0] if len(metadata) > 0 else metadata
+            return dict_to_elementtree(parsed, root_tag="results"), metadata[0] if len(
+                metadata
+            ) > 0 else metadata
+
+        return parsed, metadata[0] if len(metadata) > 0 else metadata

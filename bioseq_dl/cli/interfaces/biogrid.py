@@ -1,5 +1,5 @@
-import typer
 import pandas as pd
+import typer
 
 from bioseq_dl import BioGRIDInterface
 
@@ -9,21 +9,20 @@ app = typer.Typer(help="Fetch data from BioGRID database.")
 @app.command("interactions")
 def run_interactions(
     gene_list: str = typer.Option(
-        None, "--gene-list", "-gl",
-        help="Comma-separated list of gene symbols to fetch interactions for."
+        None, "--gene-list", "-gl", help="Comma-separated list of gene symbols to fetch interactions for."
     ),
     taxon_id: str = typer.Option(
-        None, "--taxon_id", "-t",
-        help="NCBI Taxonomy ID to filter results by organism."
+        None, "--taxon_id", "-t", help="NCBI Taxonomy ID to filter results by organism."
     ),
     access_key: str = typer.Option(
-        None, "--access_key", "-ak",
-        help="BioGRID API key to make authenticated requests"
+        None, "--access_key", "-ak", help="BioGRID API key to make authenticated requests"
     ),
     output: str = typer.Option(
-        None, "--output", "-out",
+        None,
+        "--output",
+        "-out",
         help="Output file to save the fetched data.",
-    )
+    ),
 ):
     """Fetch interaction data from BioGRID database."""
     instance = BioGRIDInterface(api_key=access_key)
@@ -35,12 +34,9 @@ def run_interactions(
     if taxon_id:
         query["taxId"] = taxon_id
 
-    df = pd.DataFrame(instance.fetch_single(
-        query=query,
-        method="interactions",
-        parse=True,
-        format="dataframe"
-    ))
+    df = pd.DataFrame(
+        instance.fetch_single(query=query, method="interactions", parse=True, format="dataframe")
+    )
 
     if output:
         df.to_csv(output, index=False)

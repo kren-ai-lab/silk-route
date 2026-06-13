@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Optional, Sequence
 
 from dotenv import load_dotenv
 
@@ -19,9 +19,8 @@ PLACEHOLDER_VALUES = {
 }
 
 
-def load_environment_files(config_dir: Optional[str] = None) -> None:
-    """
-    Load environment variables from supported .env locations.
+def load_environment_files(config_dir: str | None = None) -> None:
+    """Load environment variables from supported .env locations.
 
     This function never overrides already-set system environment variables.
     """
@@ -54,10 +53,8 @@ def load_environment_files(config_dir: Optional[str] = None) -> None:
             load_dotenv(dotenv_path=resolved, override=False)
 
 
-def get_env_value(names: Sequence[str]) -> Optional[str]:
-    """
-    Return the first non-empty environment value from a list of variable names.
-    """
+def get_env_value(names: Sequence[str]) -> str | None:
+    """Return the first non-empty environment value from a list of variable names."""
     for name in names:
         value = _normalize_value(os.getenv(name))
         if value is not None:
@@ -65,10 +62,8 @@ def get_env_value(names: Sequence[str]) -> Optional[str]:
     return None
 
 
-def is_valid_secret(value: Optional[str]) -> bool:
-    """
-    Check whether a secret value is present and not a placeholder.
-    """
+def is_valid_secret(value: str | None) -> bool:
+    """Check whether a secret value is present and not a placeholder."""
     normalized = _normalize_value(value)
     if normalized is None:
         return False
@@ -76,12 +71,10 @@ def is_valid_secret(value: Optional[str]) -> bool:
 
 
 def resolve_secret(
-    explicit_value: Optional[str],
+    explicit_value: str | None,
     env_names: Sequence[str],
-) -> Optional[str]:
-    """
-    Resolve a secret value with priority: explicit > environment.
-    """
+) -> str | None:
+    """Resolve a secret value with priority: explicit > environment."""
     explicit_normalized = _normalize_value(explicit_value)
     if is_valid_secret(explicit_normalized):
         return explicit_normalized
@@ -93,8 +86,8 @@ def resolve_secret(
     return None
 
 
-def _normalize_value(value: Optional[str]) -> Optional[str]:
+def _normalize_value(value: str | None) -> str | None:
     if value is None:
         return None
     normalized = value.strip()
-    return normalized if normalized else None
+    return normalized or None

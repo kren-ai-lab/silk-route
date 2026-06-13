@@ -1,22 +1,21 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Any, Tuple, Literal
-from xml.etree.ElementTree import ElementTree, Element
+from typing import Any, Literal
+from xml.etree.ElementTree import Element, ElementTree
+
 import pandas as pd
 
-from bioseq_dl.core.utils.query_builders import QUERY_BUILDERS, INTERFACE_CLASSES
-from bioseq_dl.constants.databases import BASE_CONFIG_DIR
-
+from bioseq_dl.core.utils.query_builders import INTERFACE_CLASSES, QUERY_BUILDERS
 from bioseq_dl.core.utils.xmlhandler import elementtree_to_dataframe
-
 from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.interfaces.crossref_enricher")
 
+
 @dataclass
 class EndpointSpec:
-    """
-    Declarative specification for a single endpoint.
+    """Declarative specification for a single endpoint.
     - database: database key as used in INTERFACE_CLASSES (e.g., "uniprot", "brenda", "biogrid").
     - endpoint: method name to call within the interface (e.g., "search", "getKmValue", "xrefs").
     - option: optional modifier some interfaces support (e.g., GeneOntology categories).
@@ -24,15 +23,16 @@ class EndpointSpec:
     - required_columns: optional list of column names this endpoint expects to find in the input row,
       used only for early validation / diagnostics. Query builders still receive the full row.
     """
+
     database: str
     endpoint: str
-    option: Optional[str] = None
-    params: Optional[Dict[str, Any]] = None
-    required_columns: Optional[List[str]] = None
+    option: str | None = None
+    params: dict[str, Any] | None = None
+    required_columns: list[str] | None = None
 
-class CrossRefEnricher():
-    """
-    A reusable, high-level orchestrator to enrich a dataframe of sequences/IDs with
+
+class CrossRefEnricher:
+    """A reusable, high-level orchestrator to enrich a dataframe of sequences/IDs with
     cross-references fetched from multiple biological APIs.
 
     Key features:
@@ -43,30 +43,24 @@ class CrossRefEnricher():
     """
 
     def __init__(
-            self, 
-            endpoint_specs: List[EndpointSpec] = [],
-            config_path: Optional[str] = None,
-            max_workers: int = 4,
-            total_retries: int = 3
-        ) -> None:
-        """
-        Initialize with a single endpoint specification.
-        """
+        self,
+        endpoint_specs: list[EndpointSpec] = [],
+        config_path: str | None = None,
+        max_workers: int = 4,
+        total_retries: int = 3,
+    ) -> None:
+        """Initialize with a single endpoint specification."""
         self.endpoint_specs = endpoint_specs
         self.config_path = config_path
         self.max_workers = max_workers
         self.total_retries = total_retries
 
     def _check_interface_availability(self, database: str) -> bool:
-        """
-        Check if the interface class for the given database is available.
-        """
+        """Check if the interface class for the given database is available."""
         return database in INTERFACE_CLASSES
-    
+
     def _check_required_columns(self, df: pd.DataFrame, spec: EndpointSpec) -> None:
-        """
-        Optional check to warn/raise if declared required columns are missing.
-        """
+        """Optional check to warn/raise if declared required columns are missing."""
         if not spec.required_columns:
             return
         missing = [c for c in spec.required_columns if c not in df.columns]
@@ -75,32 +69,26 @@ class CrossRefEnricher():
                 f"Missing required columns for {spec.database}:{spec.endpoint}"
                 f"{'[' + spec.option + ']' if spec.option else ''}: {missing}"
             )
-    
-    def _prepare_params(self, spec: EndpointSpec) -> Dict[str, Any]:
-        """
-        Prepare base params for an endpoint, including auth and 'option' if provided.
-        """
+
+    def _prepare_params(self, spec: EndpointSpec) -> dict[str, Any]:
+        """Prepare base params for an endpoint, including auth and 'option' if provided."""
         params = dict(spec.params or {})
         if spec.option is not None:
             params["option"] = spec.option
 
         return params
-    
+
     def _build_interface(self, database_name: str):
-        """
-        Create the correct interface instance with configured max_workers and total_retries.
-        """
+        """Create the correct interface instance with configured max_workers and total_retries."""
         if database_name not in INTERFACE_CLASSES:
             raise ValueError(f"Unsupported database: {database_name}")
 
         return INTERFACE_CLASSES[database_name](
-            max_workers=self.max_workers,
-            total_retries=self.total_retries
+            max_workers=self.max_workers, total_retries=self.total_retries
         )
-    
+
     def _query_builder_key(self, spec: EndpointSpec) -> str:
-        """
-        English docs:
+        """English docs:
         Compute the registry key for QUERY_BUILDERS like 'db_endpoint_option' or 'db_endpoint'.
         """
         if spec.option:
@@ -108,8 +96,7 @@ class CrossRefEnricher():
         return f"{spec.database}_{spec.endpoint}"
 
     def _resolve_query_builder(self, spec: EndpointSpec):
-        """
-        English docs:
+        """English docs:
         Find the query builder callable from QUERY_BUILDERS registry.
         """
         key = self._query_builder_key(spec)
@@ -123,12 +110,11 @@ class CrossRefEnricher():
         row: pd.Series,
         instance: Any,
         spec: EndpointSpec,
-        params: Dict[str, Any],
-        #concat_results: bool = True,
-        format: Literal["dataframe", "json", "xml"] = "dataframe"
-    ) -> Tuple[pd.DataFrame|List[Dict[str, Any]], Dict]:
-        """
-        Build query from row using the registered query-builder, perform fetch_single or fetch_batch,
+        params: dict[str, Any],
+        # concat_results: bool = True,
+        format: Literal["dataframe", "json", "xml"] = "dataframe",
+    ) -> tuple[pd.DataFrame | list[dict[str, Any]], dict]:
+        """Build query from row using the registered query-builder, perform fetch_single or fetch_batch,
         and merge the API result with the original row (row-expanded).
         """
         metadata = {}
@@ -137,36 +123,26 @@ class CrossRefEnricher():
 
         query_params = qb(row, params)
 
-        method_params = {
-            "method": spec.endpoint,
-            "parse": True,
-            "format": format
-        }
+        method_params = {"method": spec.endpoint, "parse": True, "format": format}
 
         if spec.option:
             method_params["option"] = spec.option
 
-        if isinstance(query_params, dict) \
-            or ( isinstance(query_params, list) and len(query_params) == 1 ):
+        if isinstance(query_params, dict) or (isinstance(query_params, list) and len(query_params) == 1):
             # If is a single elemnt dict, use the dict itself
             query_params = query_params[0] if isinstance(query_params, list) else query_params
-            result, metadata = instance.fetch_single(
-                query=query_params,
-                **method_params
-            )
+            result, metadata = instance.fetch_single(query=query_params, **method_params)
         elif isinstance(query_params, list) and len(query_params) > 1:
             # If is a list of dicts, use batch
-            log.debug(f"Batch querying {spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''} with {len(query_params)} queries and method_params: {method_params}")
-            result, metadata = instance.fetch_batch(
-                queries=query_params,
-                **method_params
+            log.debug(
+                f"Batch querying {spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''} with {len(query_params)} queries and method_params: {method_params}"
             )
+            result, metadata = instance.fetch_batch(queries=query_params, **method_params)
+        # Handle unexpected query_params format
+        elif format == "dataframe":
+            result = pd.DataFrame()
         else:
-            # Handle unexpected query_params format
-            if format == "dataframe":
-                result = pd.DataFrame()
-            else:
-                result = []
+            result = []
 
         if format == "dataframe":
             # Merge result with original row
@@ -185,22 +161,19 @@ class CrossRefEnricher():
             #     return row_expanded, metadata
             # else:
             return result, metadata
-        else:
-            # if concat_results:
-            #     # Merge each dict in result with original row dict
-            #     if not isinstance(result, list) or not result:
-            #         return [row.to_dict()], metadata  # Return original row as single dict in list
-            #     merged_results = [
-            #         {**row.to_dict(), **res} for res in result
-            #     ]
-            #     return merged_results, metadata
-            # else:
-            return result, metadata
-    
-    def _merge_metadata(self, meta1: Dict, meta2: Dict) -> Dict:
-        """
-        Merge two metadata dicts, concatenating lists and summing counts where appropriate.
-        """
+        # if concat_results:
+        #     # Merge each dict in result with original row dict
+        #     if not isinstance(result, list) or not result:
+        #         return [row.to_dict()], metadata  # Return original row as single dict in list
+        #     merged_results = [
+        #         {**row.to_dict(), **res} for res in result
+        #     ]
+        #     return merged_results, metadata
+        # else:
+        return result, metadata
+
+    def _merge_metadata(self, meta1: dict, meta2: dict) -> dict:
+        """Merge two metadata dicts, concatenating lists and summing counts where appropriate."""
         merged = dict(meta1)  # Start with a copy of the first metadata
 
         if not isinstance(meta2, dict):
@@ -232,17 +205,15 @@ class CrossRefEnricher():
         return merged
 
     def _process_dataframe(
-            self,
-            df: pd.DataFrame,
-            instance: Any,
-            spec: EndpointSpec,
-            params: Dict[str, Any],
-            #concat_results: bool = True,
-            format: Literal["dataframe", "json", "xml"] = "dataframe"
-    ) -> Tuple[pd.DataFrame|List[Dict[str, Any]]|ElementTree[Element[str] | None], Dict]:
-        """
-        Apply search-then-merge for every row and vertically concatenate all row-expansions.
-        """
+        self,
+        df: pd.DataFrame,
+        instance: Any,
+        spec: EndpointSpec,
+        params: dict[str, Any],
+        # concat_results: bool = True,
+        format: Literal["dataframe", "json", "xml"] = "dataframe",
+    ) -> tuple[pd.DataFrame | list[dict[str, Any]] | ElementTree[Element[str] | None], dict]:
+        """Apply search-then-merge for every row and vertically concatenate all row-expansions."""
         # Apply row-wise; collect per-row DataFrames
         all_metadata = {}
         all_results = []
@@ -316,7 +287,7 @@ class CrossRefEnricher():
                 return pd.DataFrame(), all_metadata
 
             return pd.concat(cleaned_results, ignore_index=True, sort=False), all_metadata
-        elif format == "json":
+        if format == "json":
             cleaned_results = []
             for result in all_results:
                 if isinstance(result, tuple):
@@ -324,9 +295,10 @@ class CrossRefEnricher():
                 if isinstance(result, list):
                     cleaned_results.extend(result)
             return cleaned_results, all_metadata
-        elif format == "xml":
+        if format == "xml":
             # TODO check if this code is correct, i did a lot of changes recently regarding XML exporting
             import xml.etree.ElementTree as ET
+
             # Make final root
             merged_root = ET.Element("results")
 
@@ -339,17 +311,14 @@ class CrossRefEnricher():
                     merged_root.append(item)
 
             return ET.ElementTree(merged_root), all_metadata
-        else:
-            raise ValueError(f"Unsupported format: {format}")
+        raise ValueError(f"Unsupported format: {format}")
 
     def enrich(
-            self,
-            data: pd.DataFrame|List[Dict[str, Any]]|Dict[str, Any] | ElementTree | str  ,
-            format: Literal["dataframe", "json", "xml"] = "dataframe"
+        self,
+        data: pd.DataFrame | list[dict[str, Any]] | dict[str, Any] | ElementTree | str,
+        format: Literal["dataframe", "json", "xml"] = "dataframe",
     ):
-        """
-        Enrich the input DataFrame with cross-references from specified endpoints.
-        """
+        """Enrich the input DataFrame with cross-references from specified endpoints."""
         # For an easier handling, convert input data to DataFrame if needed
         if isinstance(data, list) or isinstance(data, dict):
             df = pd.DataFrame(data)
@@ -361,27 +330,30 @@ class CrossRefEnricher():
             df = pd.read_json(data)
         else:
             raise ValueError("Input data must be a pandas DataFrame, list of dicts, or dict.")
-        
 
         results = {}
         metadata = {}
         for spec in self.endpoint_specs:
-            log.debug(f"Processing {spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''}...")
+            log.debug(
+                f"Processing {spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''}..."
+            )
             log.info(f"Checking availability for interface: {spec.database}")
             self._check_interface_availability(spec.database)
-            log.info(f"Checking required columns for {spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''}...")
+            log.info(
+                f"Checking required columns for {spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''}..."
+            )
             self._check_required_columns(df, spec)
 
             log.info(f"Building interface for {spec.database}...")
             instance = self._build_interface(spec.database)
             params = self._prepare_params(spec)
-            log.info(f"Prepared params for {spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''}: {params}")
+            log.info(
+                f"Prepared params for {spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''}: {params}"
+            )
 
             processed_data, processed_metadata = self._process_dataframe(df, instance, spec, params, format)
             results.update(
-                {
-                    f"{spec.database}_{spec.endpoint}{'_' + spec.option if spec.option else ''}": processed_data
-                }
+                {f"{spec.database}_{spec.endpoint}{'_' + spec.option if spec.option else ''}": processed_data}
             )
             metadata.update(
                 {
@@ -394,7 +366,8 @@ class CrossRefEnricher():
             for df in results.values():
                 # 1) Flatten MultiIndex columns (if any)
                 if isinstance(df.columns, pd.MultiIndex):
-                    df = df.copy(); df.columns = ['__'.join(map(str, c)) for c in df.columns]
+                    df = df.copy()
+                    df.columns = ["__".join(map(str, c)) for c in df.columns]
                 # 2) Drop duplicate column names and reset index to avoid reindex issues on concat
                 frames.append(df.loc[:, ~pd.Index(df.columns).duplicated()].reset_index(drop=True))
 
@@ -406,7 +379,7 @@ class CrossRefEnricher():
             #         return pd.DataFrame(), metadata
             # else:
             return results, metadata
-        elif format in ["json", "xml"]:
+        if format in ["json", "xml"]:
             # if concat_results:
             #     # Flatten all dict lists into a single list
             #     combined_results = []
@@ -414,5 +387,4 @@ class CrossRefEnricher():
             #         combined_results.extend(lst)
             #     return combined_results, metadata
             return results, metadata
-        else:
-            raise ValueError(f"Unsupported format: {format}")
+        raise ValueError(f"Unsupported format: {format}")

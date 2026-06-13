@@ -1,13 +1,15 @@
-import requests, time, random, re, os, logging
-from typing import Optional, Union, List, Dict, Any, Set
-import pandas as pd
+import os
+import re
+from typing import Any
+
+import requests
+
+from bioseq_dl.constants.databases import KEGG
+from bioseq_dl.constants.kegg import DATABASES, METHOD_OPTIONS
+from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
+from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
-from ...constants.databases import KEGG
-from ..utils.base_auxiliary_methods import get_nested, validate_parameters
-from ...constants.kegg import DATABASES, METHOD_OPTIONS
-
-from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.interfaces.kegg")
 
@@ -22,6 +24,7 @@ log = get_logger("bioseq_dl.interfaces.kegg")
 # TODO Should I make the method query for multiple entries or do one entry at a time?
 # Doing multiple entries at a time is more efficient, but it requires more complex coding.
 
+
 class KEGGInterface(BaseAPIInterface):
     API_NAME = "KEGG"
     # TODO add more methods from KEGG API. DDI and Link should be added.
@@ -32,7 +35,7 @@ class KEGGInterface(BaseAPIInterface):
             "parameters": {
                 "entries": (str, None, True),
                 "db": (str, None, False),
-                "option": (str, None, False)
+                "option": (str, None, False),
             },
             "group_queries": ["entries"],
             "separator": "+",
@@ -40,35 +43,26 @@ class KEGGInterface(BaseAPIInterface):
         "link": {
             "http_method": "GET",
             "path_param": DATABASES,
-            "parameters": {
-                "entries": (str, None, True),
-                "db": (str, None, False)
-            },
+            "parameters": {"entries": (str, None, True), "db": (str, None, False)},
             "group_queries": ["entries"],
             "separator": "+",
         },
         "pathways": {
             "http_method": "GET",
             "path_param": [],
-            "parameters": {
-                "entries": (str, None, True)
-            },
+            "parameters": {"entries": (str, None, True)},
             "group_queries": ["entries"],
             "separator": "+",
         },
     }
 
-    def __init__(
-            self,
-            cache_dir: Optional[str] = None,
-            config_dir: Optional[str] = None,
-            **kwargs
-            ):
-        """
-        Initialize the KEGGInterface class.
+    def __init__(self, cache_dir: str | None = None, config_dir: str | None = None, **kwargs):
+        """Initialize the KEGGInterface class.
+
         Args:
             fields_to_extract (list or dict): Fields to extract from the response.
             output_dir (str): Directory to save the output files. If None, uses the cache directory.
+
         """
         if cache_dir:
             cache_dir = os.path.abspath(cache_dir)
@@ -79,41 +73,47 @@ class KEGGInterface(BaseAPIInterface):
             config_dir = KEGG.CONFIG_DIR if KEGG.CONFIG_DIR is not None else ""
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
-    
-    def get_subquery_match_keys(self) -> Set[str]:
+
+    def get_subquery_match_keys(self) -> set[str]:
         return super().get_subquery_match_keys().union({"entries"})
 
+    def validate_query(self, method: str, query: dict):
+        """Validate the query parameters.
 
-    def validate_query(self, method: str, query: Dict):
-        """
-        Validate the query parameters.
         Args:
             method (str): The method to validate against.
             query (Union[str, tuple, dict]): The query parameters to validate.
+
         Raises:
             ValueError: If the query parameters are invalid.
+
         """
         rules = {
-            'entries': lambda v: isinstance(v, (str, list)),
-            'db': lambda v: v in DATABASES,
+            "entries": lambda v: isinstance(v, (str, list)),
+            "db": lambda v: v in DATABASES,
             #'todb' : lambda v: v in DATABASES,
-            'option': lambda v: v in METHOD_OPTIONS.get(method, []),
+            "option": lambda v: v in METHOD_OPTIONS.get(method, []),
         }
 
         for key, check in rules.items():
             if key in query and not check(query[key]):
-                if key == 'entries':
+                if key == "entries":
                     log.error(f"Invalid entries: {query['entries']}. Must be a string or a list of strings.")
                     return {}
-                elif key == 'db':
-                    log.error(f"Invalid database type: {query['db']}. Valid types are: {', '.join(DATABASES)}.")
+                if key == "db":
+                    log.error(
+                        f"Invalid database type: {query['db']}. Valid types are: {', '.join(DATABASES)}."
+                    )
                     return {}
-                elif key == 'option':
-                    log.error(f"Invalid option: {query['option']} for method {method}. Supported options are: {', '.join(METHOD_OPTIONS.get(method, []))}.")
+                if key == "option":
+                    log.error(
+                        f"Invalid option: {query['option']} for method {method}. Supported options are: {', '.join(METHOD_OPTIONS.get(method, []))}."
+                    )
                     return {}
-    def fetch(self, query: Union[str, dict, list], *, method: str = "get", **kwargs):
-        """
-        Fetch data from the KEGG API.
+
+    def fetch(self, query: str | dict | list, *, method: str = "get", **kwargs):
+        """Fetch data from the KEGG API.
+
         Args:
             query (str): Query string to search for.
             method (str): Method to use for the request. Used methods are
@@ -126,10 +126,13 @@ class KEGGInterface(BaseAPIInterface):
             - `option`: Additional options for the request. Used options are
                 'aaseq', 'ntseq', 'mol', 'kcf', 'image', 'conf', 'kml', 'json'
                 for method 'get' and 'turtle', 'n-triple' for method 'link'.
+
         Raises:
             ValueError: If the method or option is not supported.
+
         Returns:
             any: Response from the API.
+
         """
         if not method:
             log.error("Method must be specified. Supported methods are: " + ", ".join(self.METHODS.keys()))
@@ -143,25 +146,25 @@ class KEGGInterface(BaseAPIInterface):
             log.error(f"Invalid parameters for method '{method}': {e}")
             return {}
 
-        
-        
         if method == "pathways":
             url = f"{KEGG.API_URL}/link"
-            url += f"/pathway"
-            if 'entries' in validated_params.keys() and validated_params['entries']:
-                q = str(validated_params['entries'])
+            url += "/pathway"
+            if "entries" in validated_params.keys() and validated_params["entries"]:
+                q = str(validated_params["entries"])
                 url += f"/{q}"
         else:
             url = f"{KEGG.API_URL}{method}"
-            if 'db' in validated_params.keys() and validated_params['db']:
+            if "db" in validated_params.keys() and validated_params["db"]:
                 url += f"/{validated_params['db']}"
-            if 'entries' in validated_params.keys() and validated_params['entries']:
-                q = str(validated_params['entries'])
+            if "entries" in validated_params.keys() and validated_params["entries"]:
+                q = str(validated_params["entries"])
                 url += f"/{q}"
 
-            if 'option' in validated_params.keys() and validated_params['option']:
-                if method not in METHOD_OPTIONS or validated_params['option'] not in METHOD_OPTIONS[method]:
-                    log.error(f"Option {validated_params['option']} is not supported for method {method}. Supported options are: {', '.join(METHOD_OPTIONS.get(method, []))}.")
+            if "option" in validated_params.keys() and validated_params["option"]:
+                if method not in METHOD_OPTIONS or validated_params["option"] not in METHOD_OPTIONS[method]:
+                    log.error(
+                        f"Option {validated_params['option']} is not supported for method {method}. Supported options are: {', '.join(METHOD_OPTIONS.get(method, []))}."
+                    )
                     return {}
                 url += f"/{validated_params['option']}"
 
@@ -170,7 +173,7 @@ class KEGGInterface(BaseAPIInterface):
             response = self.session.get(url)
             self._delay()
             response.raise_for_status()
-            if not response or not hasattr(response, 'text'):
+            if not response or not hasattr(response, "text"):
                 log.warning(f"No response or invalid response for query {query} with method {method}.")
                 return {}
 
@@ -184,10 +187,11 @@ class KEGGInterface(BaseAPIInterface):
                     r = r.split("\n")
             elif method == "link":
                 r = response.text
-                r = [{
-                    "from": line.split("\t")[0],
-                    validated_params['db']: line.split("\t")[1]
-                } for line in r.split("\n") if line]
+                r = [
+                    {"from": line.split("\t")[0], validated_params["db"]: line.split("\t")[1]}
+                    for line in r.split("\n")
+                    if line
+                ]
             elif method == "pathways":
                 link_response = response.text
                 link_response = [line.split("\t")[1] for line in link_response.split("\n") if line]
@@ -196,46 +200,43 @@ class KEGGInterface(BaseAPIInterface):
                     method="get",
                 )
 
-            return r # TODO check if for other functions we need to return json or text
+            return r  # TODO check if for other functions we need to return json or text
         except requests.exceptions.RequestException as e:
             log.error(f"Error fetching data for {query} with method {method}: {e}")
             return {}
-    
-    def parse(
-            self,
-            data: Any,
-            fields_to_extract: Optional[Union[List, Dict]] = None,
-            **kwargs
-    ) -> Union[Dict, List]:
-        """
-        Parse the response from the KEGG API.
+
+    def parse(self, data: Any, fields_to_extract: list | dict | None = None, **kwargs) -> dict | list:
+        """Parse the response from the KEGG API.
+
         Args:
             data (Any): Raw data from the API response.
             fields_to_extract (list or dict): Fields to extract from the response.
                 - If list: Keep those keys.
                 - If dict: Maps {desired_name: real_field_name}.
-                
+
             **kwargs: Additional parameters for parsing.
             - `type_response`: Type of data to parse. It can be "table" or "entry".
             - `columns`: List of column names to use for parsing.
             - `delimiter`: Delimiter used in the response. Default is tab ("\t").
             - `header`: Whether the first line contains headers. Default is True.
+
         Raises:
             ValueError: If the type_response is not supported.
+
         Returns:
             list: Parsed data as a list of dictionaries.
+
         """
         method = kwargs.get("method", "get")
         if not data:
             log.warning("Tried to parse data but the data is empty or None.")
             return {}
 
-
         if method == "get" or method == "pathways":
-            #d = data.strip().split("///")[:-1]  # Split entries by "///" and remove the last empty entry
+            # d = data.strip().split("///")[:-1]  # Split entries by "///" and remove the last empty entry
 
-            #key_val_pattern = re.compile(r"^(\w+)(?:\s{2,}|\t+)(.+)$")
-            #key_val_pattern = re.compile(r"^(\w+)\s+(.+)$")
+            # key_val_pattern = re.compile(r"^(\w+)(?:\s{2,}|\t+)(.+)$")
+            # key_val_pattern = re.compile(r"^(\w+)\s+(.+)$")
 
             # Primary field: no indentation, KEGG key + value
             primary_key_val_pattern = re.compile(r"^(\w+)\s+(.+)$")
@@ -248,10 +249,9 @@ class KEGGInterface(BaseAPIInterface):
             parsed_entry = {}
 
             # State variables
-            current_main_key = None     # Last top-level key (no indentation)
-            current_subkey = None       # Last secondary key under current_main_key
-            current_key = None          # Last key where we attach continuations
-
+            current_main_key = None  # Last top-level key (no indentation)
+            current_subkey = None  # Last secondary key under current_main_key
+            current_key = None  # Last key where we attach continuations
 
             for line in data.strip().split("\n"):
                 if not line.strip():
@@ -282,50 +282,49 @@ class KEGGInterface(BaseAPIInterface):
                                 parsed_entry[key] = [existing, value]
 
                             continue
-                    else:
-                        # Proper secondary key (nested)
-                        if current_main_key is None:
-                            # Fallback: no main key yet, treat as primary
-                            prim_match = primary_key_val_pattern.match(line)
-                            if prim_match:
-                                key, value = prim_match.groups()
-                                current_main_key = key
-                                current_subkey = None
-                                current_key = key
+                    # Proper secondary key (nested)
+                    elif current_main_key is None:
+                        # Fallback: no main key yet, treat as primary
+                        prim_match = primary_key_val_pattern.match(line)
+                        if prim_match:
+                            key, value = prim_match.groups()
+                            current_main_key = key
+                            current_subkey = None
+                            current_key = key
 
-                                existing = parsed_entry.get(key)
-                                if existing is None:
-                                    parsed_entry[key] = value
-                                elif isinstance(existing, list):
-                                    existing.append(value)
-                                else:
-                                    parsed_entry[key] = [existing, value]
-
-                                continue
-                        else:
-                            # Nested under current_main_key
-                            parent_value = parsed_entry.get(current_main_key)
-
-                            # If parent is not a dict, convert its current value into "_value"
-                            if not isinstance(parent_value, dict):
-                                parent_dict = {"_value": parent_value}
-                                parsed_entry[current_main_key] = parent_dict
-                            else:
-                                parent_dict = parent_value
-
-                            # For secondary keys (like ELEMENT), we store as list by default,
-                            # because they usually appear multiple times.
-                            existing = parent_dict.get(key)
+                            existing = parsed_entry.get(key)
                             if existing is None:
-                                parent_dict[key] = [value]
+                                parsed_entry[key] = value
                             elif isinstance(existing, list):
                                 existing.append(value)
                             else:
-                                parent_dict[key] = [existing, value]
+                                parsed_entry[key] = [existing, value]
 
-                            current_subkey = key
-                            current_key = key
                             continue
+                    else:
+                        # Nested under current_main_key
+                        parent_value = parsed_entry.get(current_main_key)
+
+                        # If parent is not a dict, convert its current value into "_value"
+                        if not isinstance(parent_value, dict):
+                            parent_dict = {"_value": parent_value}
+                            parsed_entry[current_main_key] = parent_dict
+                        else:
+                            parent_dict = parent_value
+
+                        # For secondary keys (like ELEMENT), we store as list by default,
+                        # because they usually appear multiple times.
+                        existing = parent_dict.get(key)
+                        if existing is None:
+                            parent_dict[key] = [value]
+                        elif isinstance(existing, list):
+                            existing.append(value)
+                        else:
+                            parent_dict[key] = [existing, value]
+
+                        current_subkey = key
+                        current_key = key
+                        continue
 
                 # 2) Try primary (non-indented key) if not matched as secondary
                 prim_match = primary_key_val_pattern.match(line)
@@ -395,12 +394,11 @@ class KEGGInterface(BaseAPIInterface):
                 parsed_entry["NTSEQ"] = "".join(ntseq_tokens[1:])
 
             return self._extract_fields(parsed_entry, fields_to_extract)
-                
-        elif method == "link":
+
+        if method == "link":
             return data
-        else:
-            log.error(f"Parsing method '{method}' is not supported.")
-            return {}
+        log.error(f"Parsing method '{method}' is not supported.")
+        return {}
 
     def query_usage(self) -> str:
         return (
@@ -417,4 +415,3 @@ class KEGGInterface(BaseAPIInterface):
             "    print(response)\n"
             "For more information, visit: https://www.kegg.jp/kegg/rest/keggapi.html"
         )
-    

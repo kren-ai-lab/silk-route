@@ -3,13 +3,13 @@
 OPTIONS = {
     "pug/protein": ["summary", "aids", "concise", "pwaccs", ""],
     "pug/compound": ["default", "record", "synonyms", "sids", "cids", "aids", "assaysummary", "description"],
-    "pug/gene": ["summary","aids","concise","pwaccs"],
+    "pug/gene": ["summary", "aids", "concise", "pwaccs"],
     "autocomplete": ["default"],
     "pug_view/protein": ["default"],
     "pug_view/compound": ["default"],
     "pug_view/gene": ["default"],
     "pug_view/pathway": ["default"],
-    "pug_view/taxonomy": ["default"]
+    "pug_view/taxonomy": ["default"],
 }
 
 COMPOUND_TEMPLATE = {
@@ -24,7 +24,7 @@ COMPOUND_TEMPLATE = {
         "name_type": (str, "complete", True),
     },
     "group_queries": ["cid", "property"],
-    "separator": ","
+    "separator": ",",
 }
 
 PROTEIN_TEMPLATE = {
@@ -34,7 +34,7 @@ PROTEIN_TEMPLATE = {
         "accession": (str, None, True),
     },
     "group_queries": [None],
-    "separator": None 
+    "separator": None,
 }
 
 GENE_TEMPLATE = {
@@ -47,5 +47,5 @@ GENE_TEMPLATE = {
         "taxid": (str, None, True),
     },
     "group_queries": ["genesymbol"],
-    "separator": ","
+    "separator": ",",
 }
