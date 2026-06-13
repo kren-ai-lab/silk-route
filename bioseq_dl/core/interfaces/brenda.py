@@ -1,5 +1,4 @@
 import hashlib
-import os
 from typing import Any
 
 from zeep import Client
@@ -28,6 +27,7 @@ BRENDA_PASSWORD_ENV_VARS = (
 # For aditional implementations see: https://www.brenda-enzymes.org/soap.php
 class BrendaInterface(BaseAPIInterface):
     API_NAME = "BRENDA"
+    DB_CONFIG = BRENDA
     METHODS = BRENDA_METHODS
 
     def __init__(
@@ -48,17 +48,9 @@ class BrendaInterface(BaseAPIInterface):
             output_dir (str): Directory to save output files.
 
         """
-        if cache_dir:
-            cache_dir = os.path.abspath(cache_dir)
-        else:
-            cache_dir = BRENDA.CACHE_DIR if BRENDA.CACHE_DIR is not None else ""
-
-        if config_dir is None:
-            config_dir = BRENDA.CONFIG_DIR if BRENDA.CONFIG_DIR is not None else ""
-
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs, min_wait=2.0, max_wait=5.0)
 
-        load_environment_files(config_dir=config_dir)
+        load_environment_files(config_dir=self.config_dir)
 
         self.email = resolve_secret(email, BRENDA_EMAIL_ENV_VARS)
         raw_password = resolve_secret(password, BRENDA_PASSWORD_ENV_VARS)

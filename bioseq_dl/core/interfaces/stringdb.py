@@ -1,4 +1,3 @@
-import os
 from typing import Any
 
 from requests import Request
@@ -18,6 +17,7 @@ log = get_logger("bioseq_dl.interfaces.stringdb")
 
 class StringInterface(BaseAPIInterface):
     API_NAME = "STRING"
+    DB_CONFIG = STRING
     METHODS = {
         "get_string_ids": {
             "http_method": "GET",
@@ -46,25 +46,6 @@ class StringInterface(BaseAPIInterface):
         },
         # Add other methods as needed
     }
-
-    def __init__(self, cache_dir: str | None = None, config_dir: str | None = None, **kwargs):
-        """Initialize the StringInterface class.
-
-        Args:
-            cache_dir (str): Directory to cache API responses. If None, defaults to the cache directory defined in constants.
-            config_dir (str): Directory for configuration files. If None, defaults to the config directory defined in constants.
-            output_dir (str): Directory to save downloaded files. If None, defaults to the cache directory.
-
-        """
-        if cache_dir:
-            cache_dir = os.path.abspath(cache_dir)
-        else:
-            cache_dir = STRING.CACHE_DIR if STRING.CACHE_DIR is not None else ""
-
-        if config_dir is None:
-            config_dir = STRING.CONFIG_DIR if STRING.CONFIG_DIR is not None else ""
-
-        super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
 
     # def get_subquery_match_keys(self) -> Set[str]:
     #     return super().get_subquery_match_keys().union({"identifiers", "species"})

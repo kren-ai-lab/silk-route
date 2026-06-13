@@ -1,4 +1,3 @@
-import os
 import re
 from typing import Any
 
@@ -27,6 +26,7 @@ log = get_logger("bioseq_dl.interfaces.kegg")
 
 class KEGGInterface(BaseAPIInterface):
     API_NAME = "KEGG"
+    DB_CONFIG = KEGG
     # TODO add more methods from KEGG API. DDI and Link should be added.
     METHODS = {
         "get": {
@@ -55,24 +55,6 @@ class KEGGInterface(BaseAPIInterface):
             "separator": "+",
         },
     }
-
-    def __init__(self, cache_dir: str | None = None, config_dir: str | None = None, **kwargs):
-        """Initialize the KEGGInterface class.
-
-        Args:
-            fields_to_extract (list or dict): Fields to extract from the response.
-            output_dir (str): Directory to save the output files. If None, uses the cache directory.
-
-        """
-        if cache_dir:
-            cache_dir = os.path.abspath(cache_dir)
-        else:
-            cache_dir = KEGG.CACHE_DIR if KEGG.CACHE_DIR is not None else ""
-
-        if config_dir is None:
-            config_dir = KEGG.CONFIG_DIR if KEGG.CONFIG_DIR is not None else ""
-
-        super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
 
     def get_subquery_match_keys(self) -> set[str]:
         return super().get_subquery_match_keys().union({"entries"})

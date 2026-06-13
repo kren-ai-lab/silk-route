@@ -10,10 +10,9 @@ from xml.etree import ElementTree
 
 import pandas as pd
 import requests
-from requests.adapters import HTTPAdapter, Retry
-from tqdm import tqdm
 
-from bioseq_dl.constants.databases import DATABASES
+from bioseq_dl.constants.databases import DATABASES, UNIPROT
+from bioseq_dl.core.interfaces.base import BaseAPIInterface
 from bioseq_dl.core.utils.uniprot_auxiliary_methods import (
     extract_active_sites,
     extract_database_terms,
@@ -38,12 +37,84 @@ API_URL = "https://rest.uniprot.org"
 POLLING_INTERVAL = 3
 
 
-class UniprotBase:
-    def __init__(self, total_retries=5, timeout: float = 60):
-        self.retries = Retry(total=total_retries, backoff_factor=0.25, status_forcelist=[500, 502, 503, 504])
-        self.session = requests.Session()
-        self.session.mount("https://", HTTPAdapter(max_retries=self.retries))
+class UniprotInterface(BaseAPIInterface):
+    API_NAME = "UniProt"
+    DB_CONFIG = UNIPROT
+
+    def __init__(
+        self,
+        total_retries: int = 5,
+        timeout: float = 60,
+        cache_dir: str | None = None,
+        config_dir: str | None = None,
+        **kwargs,
+    ):
+        """Initialize the UniProt interface.
+
+        UniProt uses a bespoke id-mapping / stream flow rather than the generic
+        ``fetch`` machinery, but inherits ``BaseAPIInterface`` for shared session,
+        cache, and directory handling. ``use_config`` defaults to ``False`` since
+        UniProt ships no per-database YAML config.
+        """
+        kwargs.setdefault("use_config", False)
+        super().__init__(cache_dir=cache_dir, config_dir=config_dir, total_retries=total_retries, **kwargs)
         self.timeout = timeout
+        self.db_config = {
+            "uniprot": {
+                "patterns": [
+                    r"^[A-N,R-Z][0-9][A-Z][A-Z, 0-9][A-Z, 0-9][0-9]$",
+                    r"^[A-N,R-Z][0-9][A-Z][A-Z, 0-9][A-Z, 0-9][0-9][A-Z][A-Z, 0-9][A-Z, 0-9][0-9]$",
+                    r"^[OPQ][0-9][A-Z0-9][A-Z0-9][A-Z0-9][0-9]$",
+                ],
+                "from_db": "UniProtKB_AC-ID",
+                "to_db": "UniProtKB",
+            },
+            "pdb": {"patterns": [r"^[0-9][A-Z0-9]{3}$"], "from_db": "PDB", "to_db": "UniProtKB"},
+        }
+
+        # Base field map for parsing UniProt results
+        # To add more possible fields, just add them to this map.
+        # Remember to add the extractor function if needed.
+        # The extractor function should take the data and return the desired value.
+        # See utils.py for available extractor functions.
+        self.field_map_base = {
+            "accession": ("primaryAccession", extract_simple),
+            "protein_name": ("proteinDescription.recommendedName.fullName.value", extract_simple),
+            "ec": ("proteinDescription.recommendedName.ecNumbers", extract_ec_numbers),
+            "organism": ("organism.scientificName", extract_simple),
+            "gene_primary": ("genes", extract_gene_names),
+            "organism_id": ("organism.taxonId", extract_simple),
+            "lineage": ("organism.lineage", extract_simple),
+            "sequence": ("sequence.value", extract_simple),
+            "length": ("sequence.length", extract_simple),
+            "alphafold_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "biogrid_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "brenda_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "chebi_ids": ("comments", extract_database_terms),
+            "chembl_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "go_terms": ("uniProtKBCrossReferences", extract_database_terms),
+            "interpro_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "kegg_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "panther_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "pathwaycommons_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "pdb_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "pfam_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "pride_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "reactome_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "refseq_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "rhea_ids": ("comments", extract_database_terms),
+            "sabiork_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "string_ids": ("uniProtKBCrossReferences", extract_database_terms),
+            "references": ("references", extract_references),
+            "diseases": ("comments", extract_diseases),
+            "active_sites": ("features", extract_active_sites),
+            "temperature": ("comments", extract_temperature),
+            "ph": ("comments", extract_ph),
+            "domains": ("features", extract_domains),
+            "variants": ("features", extract_variants),
+            "interactions": ("comments", extract_interactions),
+            "keyword": ("keywords", extract_keywords),
+        }
 
     def check_response(self, response):
         try:
@@ -174,67 +245,6 @@ class UniprotBase:
             else:
                 return bool(j["results"] or j["failedIds"])
 
-
-class UniprotInterface(UniprotBase):
-    def __init__(self, total_retries=5, timeout: float = 60):
-        super().__init__(total_retries=total_retries, timeout=timeout)
-        self.db_config = {
-            "uniprot": {
-                "patterns": [
-                    r"^[A-N,R-Z][0-9][A-Z][A-Z, 0-9][A-Z, 0-9][0-9]$",
-                    r"^[A-N,R-Z][0-9][A-Z][A-Z, 0-9][A-Z, 0-9][0-9][A-Z][A-Z, 0-9][A-Z, 0-9][0-9]$",
-                    r"^[OPQ][0-9][A-Z0-9][A-Z0-9][A-Z0-9][0-9]$",
-                ],
-                "from_db": "UniProtKB_AC-ID",
-                "to_db": "UniProtKB",
-            },
-            "pdb": {"patterns": [r"^[0-9][A-Z0-9]{3}$"], "from_db": "PDB", "to_db": "UniProtKB"},
-        }
-
-        # Base field map for parsing UniProt results
-        # To add more possible fields, just add them to this map.
-        # Remember to add the extractor function if needed.
-        # The extractor function should take the data and return the desired value.
-        # See utils.py for available extractor functions.
-        self.field_map_base = {
-            "accession": ("primaryAccession", extract_simple),
-            "protein_name": ("proteinDescription.recommendedName.fullName.value", extract_simple),
-            "ec": ("proteinDescription.recommendedName.ecNumbers", extract_ec_numbers),
-            "organism": ("organism.scientificName", extract_simple),
-            "gene_primary": ("genes", extract_gene_names),
-            "organism_id": ("organism.taxonId", extract_simple),
-            "lineage": ("organism.lineage", extract_simple),
-            "sequence": ("sequence.value", extract_simple),
-            "length": ("sequence.length", extract_simple),
-            "alphafold_ids": ("uniProtKBCrossReferences", extract_database_terms),
-            "biogrid_ids": ("uniProtKBCrossReferences", extract_database_terms),
-            "brenda_ids": ("uniProtKBCrossReferences", extract_database_terms),
-            "chebi_ids": ("comments", extract_database_terms),
-            "chembl_ids": ("uniProtKBCrossReferences", extract_database_terms),
-            "go_terms": ("uniProtKBCrossReferences", extract_database_terms),
-            "interpro_ids": ("uniProtKBCrossReferences", extract_database_terms),
-            "kegg_ids": ("uniProtKBCrossReferences", extract_database_terms),
-            "panther_ids": ("uniProtKBCrossReferences", extract_database_terms),
-            "pathwaycommons_ids": ("uniProtKBCrossReferences", extract_database_terms),
-            "pdb_ids": ("uniProtKBCrossReferences", extract_database_terms),
-            "pfam_ids": ("uniProtKBCrossReferences", extract_database_terms),
-            "pride_ids": ("uniProtKBCrossReferences", extract_database_terms),
-            "reactome_ids": ("uniProtKBCrossReferences", extract_database_terms),
-            "refseq_ids": ("uniProtKBCrossReferences", extract_database_terms),
-            "rhea_ids": ("comments", extract_database_terms),
-            "sabiork_ids": ("uniProtKBCrossReferences", extract_database_terms),
-            "string_ids": ("uniProtKBCrossReferences", extract_database_terms),
-            "references": ("references", extract_references),
-            "diseases": ("comments", extract_diseases),
-            "active_sites": ("features", extract_active_sites),
-            "temperature": ("comments", extract_temperature),
-            "ph": ("comments", extract_ph),
-            "domains": ("features", extract_domains),
-            "variants": ("features", extract_variants),
-            "interactions": ("comments", extract_interactions),
-            "keyword": ("keywords", extract_keywords),
-        }
-
     def identify_id_type(self, id_str: str) -> str:
         """Identifica el tipo de ID basado en patrones regex"""
         if not isinstance(id_str, str):
@@ -340,16 +350,10 @@ class UniprotInterface(UniprotBase):
         time_started = time.time()
         job_id = None
         results = []
-        progress_bar = tqdm(
-            range(len(ids)),
-            desc=f"Processing {db_type} IDs",
-            total=len(ids),
-            dynamic_ncols=True,
-            ncols=0,
-            bar_format="{l_bar}{bar} {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}] {desc}",
-        )
+        total = len(ids)
+        log.info(f"Processing {total} {db_type} IDs in batches of {batch_size}")
 
-        for start in range(0, len(ids), batch_size):
+        for batch_index, start in enumerate(range(0, total, batch_size)):
             batch = ids[start : start + batch_size]
             job_id = downloader.submit_id_mapping(from_db, to_db, batch)
 
@@ -363,7 +367,7 @@ class UniprotInterface(UniprotBase):
                         result["source_db"] = db_type
                     results.append(search)
 
-            progress_bar.update(len(batch))
+            self.print_progress_batches(batch_index, batch_size, total)
 
         metadata["time_taken_seconds"] = time.time() - time_started
         metadata["started_at"] = datetime.fromtimestamp(time_started).isoformat()
@@ -426,7 +430,7 @@ class UniprotInterface(UniprotBase):
         effective_timeout = self.timeout if timeout is None else timeout
         endpoint_path = f"/{method}/stream"
 
-        for attempt in range(self.retries.total):
+        for attempt in range(self.total_retries):
             try:
                 time_started = time.time()
                 started_at = datetime.fromtimestamp(time_started).isoformat()
@@ -495,12 +499,12 @@ class UniprotInterface(UniprotBase):
 
                 return payload, metadata
             except requests.exceptions.Timeout as e:
-                if attempt < self.retries.total - 1:
+                if attempt < self.total_retries - 1:
                     log.warning(
                         "UniProt stream request timed out after %ss on attempt %s/%s. Retrying...",
                         effective_timeout,
                         attempt + 1,
-                        self.retries.total,
+                        self.total_retries,
                     )
                     time.sleep(POLLING_INTERVAL)
                 else:
@@ -512,7 +516,7 @@ class UniprotInterface(UniprotBase):
                     log.error(message)
                     raise TimeoutError(message) from e
             except requests.exceptions.RequestException as e:
-                if attempt < self.retries.total - 1:
+                if attempt < self.total_retries - 1:
                     log.info(f"Attempt {attempt + 1} failed: {e}. Retrying...")
                     time.sleep(POLLING_INTERVAL)
                 else:
@@ -629,3 +633,23 @@ class UniprotInterface(UniprotBase):
             ) > 0 else metadata
 
         return parsed, metadata[0] if len(metadata) > 0 else metadata
+
+    def fetch(self, query: str | dict | list, *, method: str = "uniprotkb", **kwargs):
+        """UniProt does not use the generic fetch machinery.
+
+        Data is retrieved through the dedicated flows instead:
+        ``submit_stream`` (query search) and ``download_batch`` /
+        ``submit_id_mapping`` (id mapping). ``parse`` then shapes the results.
+        """
+        raise NotImplementedError(
+            "UniprotInterface does not implement generic fetch(); use submit_stream() "
+            "for query search or download_batch()/submit_id_mapping() for id mapping."
+        )
+
+    def query_usage(self) -> str:
+        return (
+            "UniProt interface. Retrieve data via submit_stream(query, fields, sort) for "
+            "query/field search, or download_batch(dataframe, column_ids) / submit_id_mapping("
+            "from_db, to_db, ids) for id mapping. Use parse(results, extract_fields, format) "
+            "to shape results into json / dataframe / xml."
+        )

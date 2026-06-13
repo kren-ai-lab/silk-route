@@ -28,15 +28,14 @@ classifiers = [
 dependencies = [
     "pandas",
     "pyarrow",
-    "tqdm",
     "requests",
     "biopython",
     "zeep",
     "python-dotenv",
     "pyyaml",
-    "beautifulsoup4",
     "typer",
     "dicttoxml",
+    "platformdirs>=4.0,<5.0",
 ]
 
 [project.optional-dependencies]
@@ -54,7 +53,6 @@ tests = [
 
 [project.scripts]
 bioseq-dl = "bioseq_dl.cli.main:app"
-bioseq-dl-init = "bioseq_dl.init_config:main_init"
 
 [project.urls]
 Homepage = "https://github.com/ProteinEngineering-PESB2/BioSeqDownloader"

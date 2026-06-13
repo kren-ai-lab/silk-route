@@ -13,12 +13,13 @@ from typing import Any, ClassVar, Literal
 
 import pandas as pd
 import requests
-import yaml
 from dicttoxml import dicttoxml
 from requests.adapters import HTTPAdapter, Retry
 from requests.exceptions import RequestException
 from requests.models import Request, Response
 
+from bioseq_dl.core.dbconfig import DBConfig
+from bioseq_dl.core.interfacesconfig import load_packaged_config, read_config_file
 from bioseq_dl.core.utils.base_auxiliary_methods import get_nested, get_primary_keys, validate_parameters
 from bioseq_dl.logging import get_logger
 
@@ -59,6 +60,7 @@ def _extract_nested_values(value: Any) -> list[str]:
 class BaseAPIInterface(ABC):
     API_NAME: ClassVar[str] = "BaseAPI"
     METHODS: ClassVar[dict[str, Any]] = {}
+    DB_CONFIG: ClassVar[DBConfig | None] = None
 
     cache_key_ignore_args: set[str] = {
         "parse",
@@ -72,9 +74,34 @@ class BaseAPIInterface(ABC):
     }
     subquery_match_keys: set[str] = set()
 
+    @classmethod
+    def _resolve_dirs(cls, cache_dir: str | None, config_dir: str | None) -> tuple[str, str | None]:
+        """Resolve cache_dir/config_dir, falling back to the class ``DB_CONFIG``.
+
+        An explicit ``cache_dir`` is made absolute; otherwise the value from
+        ``DB_CONFIG.CACHE_DIR`` is used (already absolute), falling back to
+        ``"./cache"``. ``config_dir`` defaults to ``DB_CONFIG.CONFIG_DIR`` when
+        not given. Subclasses that need the resolved dirs before ``super().__init__``
+        (e.g. to read an ``init`` config) can call this directly.
+        """
+        db = cls.DB_CONFIG
+        if not cache_dir:
+            if db is not None and db.CACHE_DIR is not None:
+                cache_dir = db.CACHE_DIR
+            else:
+                cache_dir = "./cache"
+        # Always normalize to an absolute path so caches don't land relative to
+        # the current working directory (DB_CONFIG/env values may be relative).
+        cache_dir = os.path.abspath(cache_dir)
+
+        if config_dir is None and db is not None:
+            config_dir = db.CONFIG_DIR
+
+        return cache_dir, config_dir
+
     def __init__(
         self,
-        cache_dir: str = "./cache",
+        cache_dir: str | None = None,
         config_dir: str | None = None,
         max_workers: int = 5,
         min_wait: float = 1.0,
@@ -96,7 +123,8 @@ class BaseAPIInterface(ABC):
             use_config (bool): Whether to use a configuration file for initialization.
 
         """
-        self.cache_dir = os.path.abspath(cache_dir)
+        cache_dir, config_dir = self._resolve_dirs(cache_dir, config_dir)
+        self.cache_dir = cache_dir
         self.config_dir = config_dir
         self.max_workers = max_workers
         self.min_wait = min_wait
@@ -108,8 +136,15 @@ class BaseAPIInterface(ABC):
         self.configs: dict[str, dict] = {}
         self.fields_config: dict[str, dict] = {}
 
-        if self.use_config and self.config_dir:
-            self._load_all_configs(self.config_dir)
+        if self.use_config:
+            # Optional user-provided extra configs (never required).
+            if self.config_dir:
+                self._load_all_configs(self.config_dir)
+            # Field-extraction maps are library internals: always load the
+            # packaged version, which overrides any user copy (no overrides).
+            packaged_fields = self._load_packaged_fields()
+            if packaged_fields:
+                self.configs["fields"] = packaged_fields
 
         log.debug(f"Parent class BaseAPIInterface initialized. {self.__class__.__name__}")
         log.debug(f"Cache directory set to: {self.cache_dir}")
@@ -125,34 +160,72 @@ class BaseAPIInterface(ABC):
         self.session.mount("http://", adapter)
         self.session.headers.update(self.headers or {"Content-Type": "application/json"})
 
+    def _load_packaged_fields(self) -> dict:
+        """Load the packaged ``fields.yml`` for this interface from package resources.
+
+        Field maps are library internals, not user config: the bundled version is
+        authoritative and always in sync with the parse code. The package subdir is
+        derived from ``DB_CONFIG.CONFIG_DIR`` (e.g. ``.../go`` -> ``go``).
+        """
+        db = self.DB_CONFIG
+        if db is None or not db.CONFIG_DIR:
+            return {}
+        subdir = os.path.basename(os.path.normpath(db.CONFIG_DIR))
+        return load_packaged_config(subdir, "fields.yml") or {}
+
     def _load_all_configs(self, config_dir: str) -> None:
-        """Load all configuration files from the specified directory.
+        """Load optional user-provided configuration files from a directory.
+
+        A missing directory is not an error: the library falls back to packaged
+        defaults, so interfaces work on a clean machine without ``bioseq-dl-init``.
 
         Args:
             config_dir (str): Directory containing configuration files.
 
         """
         if not os.path.exists(config_dir):
-            raise FileNotFoundError(f"Configuration directory not found: {config_dir}")
-
-        self.configs = {}
+            log.debug(f"Config directory not found, using packaged defaults only: {config_dir}")
+            return
 
         for fname in os.listdir(config_dir):
             path = os.path.join(config_dir, fname)
             if os.path.isfile(path):
                 name, ext = os.path.splitext(fname)
-                with open(path) as f:
-                    try:
-                        if ext == ".json":
-                            self.configs[name] = json.load(f)
-                        elif ext in [".yaml", ".yml"]:
-                            self.configs[name] = yaml.safe_load(f)
-                    except Exception as e:
-                        log.error(f"Error loading config {fname}: {e}")
+                if ext.lower() not in (".json", ".yaml", ".yml"):
+                    continue
+                try:
+                    self.configs[name] = read_config_file(path)
+                except Exception as e:
+                    log.error(f"Error loading config {fname}: {e}")
 
     def _delay(self):
         """Introduce a random delay between min_wait and max_wait."""
         time.sleep(random.uniform(self.min_wait, self.max_wait))
+
+    @staticmethod
+    def _empty_metadata() -> dict[str, Any]:
+        """Return a fresh metadata skeleton shared by fetch_single/fetch_batch."""
+        return {
+            "cached_ids": [],
+            "cached_subqueries": [],
+            "fetched_ids": [],
+            "fetched_subqueries": [],
+            "failed_ids": [],
+            "fetched_length": 0,
+            "data_info": {},
+            "execution_time": 0.0,
+            "api_name": "",
+            "method": "",
+            "option": "",
+        }
+
+    @staticmethod
+    def _build_columns_info(df: pd.DataFrame) -> list[dict]:
+        """Build the per-column ``data_info`` block (name / dtype / n_missing)."""
+        return [
+            {"name": col, "dtype": str(df[col].dtype), "n_missing": int(df[col].isna().sum())}
+            for col in df.columns
+        ]
 
     def get_cache_ignore_keys(self) -> set[str]:
         """Get the set of keys to ignore when generating cache keys.
@@ -664,19 +737,7 @@ class BaseAPIInterface(ABC):
             Tuple[Union[List, Dict, pd.DataFrame], Dict]: Fetched (and optionally parsed) data and metadata.
 
         """
-        metadata = {
-            "cached_ids": [],
-            "cached_subqueries": [],
-            "fetched_ids": [],
-            "fetched_subqueries": [],
-            "failed_ids": [],
-            "fetched_length": 0,
-            "data_info": {},
-            "execution_time": 0.0,
-            "api_name": "",
-            "method": "",
-            "option": "",
-        }
+        metadata = self._empty_metadata()
         # Extract flags and avoid passing twice to _maybe_parse
         format = kwargs.pop("format", "json")
         method = kwargs.get("method", "NOT_GIVEN")
@@ -752,14 +813,7 @@ class BaseAPIInterface(ABC):
                     metadata["data_info"] = {
                         "total_entries": len(export_df),
                         "data_type": type(export_df),
-                        "columns": [
-                            {
-                                "name": col,
-                                "dtype": str(export_df[col].dtype),
-                                "n_missing": int(export_df[col].isna().sum()),
-                            }
-                            for col in export_df.columns
-                        ],
+                        "columns": self._build_columns_info(export_df),
                     }
                     metadata["execution_time"] = time.time() - t0
                     metadata["api_name"] = self.API_NAME
@@ -832,10 +886,7 @@ class BaseAPIInterface(ABC):
         metadata["data_info"] = {
             "total_entries": len(tmp_df),
             "data_type": type(parsed),
-            "columns": [
-                {"name": col, "dtype": str(tmp_df[col].dtype), "n_missing": int(tmp_df[col].isna().sum())}
-                for col in tmp_df.columns
-            ],
+            "columns": self._build_columns_info(tmp_df),
         }
         metadata["execution_time"] = time.time() - t0
         metadata["api_name"] = self.API_NAME
@@ -862,19 +913,7 @@ class BaseAPIInterface(ABC):
             Tuple[Union[List, pd.DataFrame, bytes, str], Dict]: Fetched (and optionally parsed) data and metadata.
 
         """
-        metadata = {
-            "cached_ids": [],
-            "cached_subqueries": [],
-            "fetched_ids": [],
-            "fetched_subqueries": [],
-            "failed_ids": [],
-            "fetched_length": 0,
-            "data_info": {},
-            "execution_time": 0.0,
-            "api_name": "",
-            "method": "",
-            "option": "",
-        }
+        metadata = self._empty_metadata()
         method = kwargs.get("method", "NOT_GIVEN")
         format = kwargs.pop("format", "json")
         option = kwargs.get("option")
@@ -980,14 +1019,7 @@ class BaseAPIInterface(ABC):
         columns_info = []
         if all(isinstance(r, pd.DataFrame) for r in results) and len(results) > 0:
             batch_data = pd.concat(results, ignore_index=True)
-            columns_info = [
-                {
-                    "name": col,
-                    "dtype": str(batch_data[col].dtype),
-                    "n_missing": int(batch_data[col].isnull().sum()),
-                }
-                for col in batch_data.columns
-            ]
+            columns_info = self._build_columns_info(batch_data)
         else:
             batch_data = results
             tmp_df = pd.DataFrame(batch_data)

@@ -1,4 +1,3 @@
-import os
 import re
 from typing import Any
 from urllib.parse import urlencode
@@ -29,6 +28,7 @@ log = get_logger("bioseq_dl.interfaces.chembl")
 # of similarity searches an additional identity cut-off is needed.
 class ChEMBLInterface(BaseAPIInterface):
     API_NAME = "ChEMBL"
+    DB_CONFIG = CHEMBL
     METHODS = {
         "target": {
             "http_method": "GET",
@@ -133,25 +133,6 @@ class ChEMBLInterface(BaseAPIInterface):
             "separator": None,
         },
     }
-
-    def __init__(self, cache_dir: str | None = None, config_dir: str | None = None, **kwargs):
-        """Initialize the ChEMBLInterface class.
-
-        Args:
-            cache_dir (str): Directory to cache results.
-            config_dir (str): Directory for configuration files.
-            output_dir (str): Directory to save output files.
-
-        """
-        if cache_dir:
-            cache_dir = os.path.abspath(cache_dir)
-        else:
-            cache_dir = CHEMBL.CACHE_DIR if CHEMBL.CACHE_DIR is not None else ""
-
-        if config_dir is None:
-            config_dir = CHEMBL.CONFIG_DIR if CHEMBL.CONFIG_DIR is not None else ""
-
-        super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
 
     def get_cache_ignore_keys(self) -> set[str]:
         """Return ChEMBL cache-ignore keys while preserving pagination in cache keys."""

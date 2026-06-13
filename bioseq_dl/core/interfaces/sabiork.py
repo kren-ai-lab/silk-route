@@ -13,6 +13,7 @@ log = get_logger("bioseq_dl.interfaces.sabiork")
 
 class SabiorkInterface(BaseAPIInterface):
     API_NAME = "Sabio-RK"
+    DB_CONFIG = SABIORK
     METHODS = {
         "kineticlaws": {
             "http_method": "POST",
@@ -35,16 +36,8 @@ class SabiorkInterface(BaseAPIInterface):
         **kwargs,
     ):
 
-        if cache_dir:
-            cache_dir = os.path.abspath(cache_dir)
-        else:
-            cache_dir = SABIORK.CACHE_DIR if SABIORK.CACHE_DIR is not None else ""
-
-        if config_dir is None:
-            config_dir = SABIORK.CONFIG_DIR if SABIORK.CONFIG_DIR is not None else ""
-
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
-        self.output_dir = output_dir or cache_dir
+        self.output_dir = output_dir or self.cache_dir
         os.makedirs(self.output_dir, exist_ok=True)
 
     def fetch(self, query: str | dict | list, *, method: str = "kineticlaws", **kwargs):

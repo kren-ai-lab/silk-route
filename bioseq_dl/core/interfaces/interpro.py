@@ -1,4 +1,3 @@
-import os
 from typing import Any
 
 import requests
@@ -19,6 +18,7 @@ log = get_logger("bioseq_dl.interfaces.interpro")
 
 class InterproInterface(BaseAPIInterface):
     API_NAME = "InterPro"
+    DB_CONFIG = INTERPRO
     METHODS = {
         "entry": {
             "http_method": "GET",
@@ -37,26 +37,6 @@ class InterproInterface(BaseAPIInterface):
             "separator": None,
         }
     }
-
-    def __init__(self, cache_dir: str | None = None, config_dir: str | None = None, **kwargs):
-        """Initialize the InterproInstance.
-
-        Args:
-            cache_dir (str): Directory to cache results.
-            config_dir (str): Directory for configuration files.
-            output_dir (str): Directory to save output files.
-            **kwargs: Additional keyword arguments.
-
-        """
-        if cache_dir:
-            cache_dir = os.path.abspath(cache_dir)
-        else:
-            cache_dir = INTERPRO.CACHE_DIR if INTERPRO.CACHE_DIR is not None else ""
-
-        if config_dir is None:
-            config_dir = INTERPRO.CONFIG_DIR if INTERPRO.CONFIG_DIR is not None else ""
-
-        super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
 
     def validate_query(self, method: str, query: dict):
         """Validate the query parameters.

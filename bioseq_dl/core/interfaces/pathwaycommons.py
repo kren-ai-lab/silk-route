@@ -1,5 +1,4 @@
 import json
-import os
 
 from requests import Request, Response
 from requests.exceptions import RequestException
@@ -17,6 +16,7 @@ log = get_logger("bioseq_dl.interfaces.pathwaycommons")
 
 class PathwayCommonsInterface(BaseAPIInterface):
     API_NAME = "PathwayCommons"
+    DB_CONFIG = PATHWAYCOMMONS
     METHODS = {
         "fetch": {
             "http_method": "POST",
@@ -58,18 +58,6 @@ class PathwayCommonsInterface(BaseAPIInterface):
             "separator": None,
         },
     }
-
-    def __init__(self, cache_dir: str | None = None, config_dir: str | None = None, **kwargs):
-
-        if cache_dir:
-            cache_dir = os.path.abspath(cache_dir)
-        else:
-            cache_dir = PATHWAYCOMMONS.CACHE_DIR if PATHWAYCOMMONS.CACHE_DIR is not None else ""
-
-        if config_dir is None:
-            config_dir = PATHWAYCOMMONS.CONFIG_DIR if PATHWAYCOMMONS.CONFIG_DIR is not None else ""
-
-        super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
 
     def fetch(self, query: str | dict | list, *, method: str = "SOME_DEFAULT", **kwargs):
         if method not in self.METHODS:
