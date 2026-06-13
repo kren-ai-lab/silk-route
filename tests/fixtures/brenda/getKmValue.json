@@ -1,0 +1,12 @@
+[
+  {
+    "ecNumber": "1.1.1.1",
+    "kmValue": "0.13",
+    "kmValueMaximum": "0.13",
+    "substrate": "ethanol",
+    "commentary": "pH 7.0, 25C",
+    "organism": "Homo sapiens",
+    "ligandStructureId": "6",
+    "literature": "12345"
+  }
+]

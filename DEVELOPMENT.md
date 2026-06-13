@@ -89,6 +89,52 @@ The test suite is designed to run offline.
 - Test layout mirrors the source layout.
 - New features should ship with focused unit tests and CLI coverage when applicable.
 
+### Offline interface suite and fixtures
+
+Every API interface has an offline test module under
+`tests/core/interfaces/test_<api>.py`. Each one replays a frozen API response
+from `tests/fixtures/<api>/<case>.json` and asserts three things:
+
+- **fetch** builds the right URL/params and unwraps the body as expected;
+- **parse** returns the expected keys/shape (not exact values);
+- **fetch_single** round-trips through the cache (1 request on the first call,
+  0 on the second).
+
+Non-HTTP / credentialed clients are mocked at the client boundary instead of via
+`responses`: BRENDA (zeep SOAP `Client`), RefSeq (`Bio.Entrez`), BioGRID (API key
+supplied explicitly), and the standalone UniProt id-mapping flow
+(submit → status → details → results).
+
+Fixtures are loaded with the helpers in `tests/_helpers.py`
+(`load_fixture` / `load_fixture_text`). They are committed despite the global
+`*.json` gitignore rule thanks to the `!tests/**/*.json` exception.
+
+### Regenerating fixtures (network-gated)
+
+`tests/_capture/capture.py` regenerates the fixtures from the real APIs. It is
+**never** run by the test suite or CI and refuses to do anything unless
+`BIOSEQ_CAPTURE=1` is set:
+
+```bash
+BIOSEQ_CAPTURE=1 uv run python -m tests._capture.capture          # all APIs
+BIOSEQ_CAPTURE=1 uv run python -m tests._capture.capture rhea chebi
+```
+
+Each capture drives the real interface, so the request (URL, params, method,
+body) matches production exactly, and records the raw HTTP body the interface
+receives — the same payload the offline tests register with `responses`.
+
+Credentialed / non-HTTP APIs are captured only when their env vars are present
+(`BIOSEQ_DL_BIOGRID_API_KEY`, `BIOSEQ_DL_REFSEQ_EMAIL`,
+`BIOSEQ_DL_BRENDA_EMAIL`/`BIOSEQ_DL_BRENDA_PASSWORD`); otherwise they are skipped
+with a log line. `panther` and `pathwaycommons` currently keep small crafted
+fixtures because their public endpoints did not return capturable responses at
+capture time; re-running the script replaces them once the endpoints cooperate.
+
+Because fixtures are real bodies, re-capturing can change response shape and
+require updating the affected test assertions — that is expected and the point:
+the tests then reflect what the APIs actually return.
+
 ## Additional Context
 
 For more architecture detail, see [AGENTS.md](AGENTS.md).

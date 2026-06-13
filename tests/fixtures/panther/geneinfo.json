@@ -1,0 +1,13 @@
+{
+  "search": {
+    "mapped_genes": {
+      "gene": [
+        {
+          "accession": "HUMAN|HGNC=11998|UniProtKB=P04637",
+          "name": "Cellular tumor antigen p53",
+          "taxon_id": "9606"
+        }
+      ]
+    }
+  }
+}

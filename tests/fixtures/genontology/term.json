@@ -1,0 +1,31 @@
+{
+  "goid": "GO:0008150",
+  "label": "biological_process",
+  "definition": "A biological process is the execution of a genetically-encoded biological module or program. It consists of all the steps required to achieve the specific biological objective of the module. A biological process is accomplished by a particular set of molecular functions carried out by specific gene products (or macromolecular complexes), often in a highly regulated manner and in a particular temporal sequence.",
+  "synonyms": [
+    "biological process",
+    "physiological process",
+    "single organism process",
+    "single-organism process"
+  ],
+  "relatedSynonyms": [],
+  "alternativeIds": [
+    "GO:0007582",
+    "GO:0044699",
+    "GO:0000004"
+  ],
+  "xrefs": [
+    "GOC:pdt"
+  ],
+  "subsets": [
+    "goslim_metagenomics",
+    "goslim_chembl",
+    "goslim_plant",
+    "goslim_yeast",
+    "goslim_candida",
+    "goslim_pir",
+    "goslim_pombe"
+  ],
+  "comment": "",
+  "creation_date": ""
+}

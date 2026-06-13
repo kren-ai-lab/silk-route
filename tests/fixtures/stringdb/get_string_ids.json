@@ -1,0 +1,11 @@
+[
+  {
+    "queryIndex": 0,
+    "queryItem": "TP53",
+    "stringId": "9606.ENSP00000269305",
+    "ncbiTaxonId": 9606,
+    "taxonName": "Homo sapiens",
+    "preferredName": "TP53",
+    "annotation": "Cellular tumor antigen p53; Acts as a tumor suppressor in many tumor types; induces growth arrest or apoptosis depending on the physiological circumstances and cell type. Involved in cell cycle regulation as a trans-activator that acts to negatively regulate cell division by controlling a set of genes required for this process. One of the activated genes is an inhibitor of cyclin-dependent kinases. Apoptosis induction seems to be mediated either by stimulation of BAX and FAS antigen expression, or by repression of Bcl-2 expression. Its pro-apoptotic activity is activated via its intera [...] "
+  }
+]

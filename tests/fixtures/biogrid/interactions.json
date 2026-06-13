@@ -1,0 +1,13 @@
+{
+  "100": {
+    "BIOGRID_INTERACTION_ID": 100,
+    "ENTREZ_GENE_A": "7157",
+    "ENTREZ_GENE_B": "472",
+    "OFFICIAL_SYMBOL_A": "TP53",
+    "OFFICIAL_SYMBOL_B": "ATM",
+    "EXPERIMENTAL_SYSTEM": "Two-hybrid",
+    "PUBMED_ID": 9988274,
+    "ORGANISM_A": 9606,
+    "ORGANISM_B": 9606
+  }
+}

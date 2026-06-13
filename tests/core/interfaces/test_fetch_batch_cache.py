@@ -1,8 +1,8 @@
 """Regression test for fetch_batch partial-cache handling.
 
-Bug 2.5: when a batch query decomposes into several subqueries and only some
-are cached, the whole query was marked for refetch *and* the cached subqueries
-were appended separately, duplicating them in the output.
+When a batch query decomposes into several subqueries and only some are cached,
+the whole query was marked for refetch *and* the cached subqueries were appended
+separately, duplicating them in the output.
 """
 
 from __future__ import annotations

@@ -1,0 +1,9 @@
+{
+  "@graph": [
+    {
+      "@id": "http://pathwaycommons.org/pc2/Catalysis_1",
+      "@type": "Catalysis",
+      "displayName": "example interaction"
+    }
+  ]
+}
