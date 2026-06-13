@@ -43,7 +43,7 @@ def test_parse_extracts_requested_fields(interface):
     interaction = next(iter(body.values()))
     parsed = interface.parse(interaction, fields_to_extract=["OFFICIAL_SYMBOL_A", "OFFICIAL_SYMBOL_B"])
 
-    assert parsed == {"OFFICIAL_SYMBOL_A": "TP53", "OFFICIAL_SYMBOL_B": "ATM"}
+    assert parsed == {k: interaction[k] for k in ("OFFICIAL_SYMBOL_A", "OFFICIAL_SYMBOL_B")}
 
 
 def test_fetch_single_round_trips_through_cache(interface, mocked_responses):

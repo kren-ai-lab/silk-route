@@ -223,7 +223,7 @@ def capture_pathwaycommons() -> None:
         "pathwaycommons",
         "fetch",
         PathwayCommonsInterface(**_tmp_kwargs()),
-        query={"uri": ["http://identifiers.org/uniprot/P04637"]},
+        query={"uri": ["uniprot:P04637"]},
         method="fetch",
     )
 
@@ -291,7 +291,7 @@ def capture_refseq() -> None:
     from bioseq_dl.core.interfaces.refseq import RefSeqInterface
 
     iface = RefSeqInterface(email=email, **_tmp_kwargs())
-    data = iface.fetch("NP_001301717", method="protein")
+    data = iface.fetch("NP_000537", method="protein")
     _save("refseq", "protein", json.loads(json.dumps(data, default=str)))
 
 
@@ -303,8 +303,17 @@ def capture_brenda() -> None:
         return
     from bioseq_dl.core.interfaces.brenda import BrendaInterface
 
-    iface = BrendaInterface(email=email, password=password)
+    # BrendaInterface hardcodes min_wait/max_wait, so don't pass them via _tmp_kwargs.
+    iface = BrendaInterface(
+        email=email,
+        password=password,
+        cache_dir=tempfile.mkdtemp(prefix="bioseq-capture-"),
+        config_dir=tempfile.mkdtemp(prefix="bioseq-capture-cfg-"),
+        use_config=False,
+    )
     data = iface.fetch({"ecNumber": "1.1.1.1", "organism": "Homo sapiens"}, method="getKmValue")
+    if not data:
+        raise RuntimeError("brenda returned no data (check credentials)")
     _save("brenda", "getKmValue", data)
 
 
@@ -336,6 +345,12 @@ def main(argv: list[str]) -> int:
     if os.getenv("BIOSEQ_DL_CAPTURE") != "1":
         print("Refusing to run: set BIOSEQ_DL_CAPTURE=1 to capture fixtures from the network.")  # noqa: T201
         return 1
+
+    # Load credentials from .env (BIOSEQ_DL_BIOGRID_API_KEY, BIOSEQ_DL_REFSEQ_EMAIL, ...)
+    # so the credentialed captures can find them.
+    from bioseq_dl.core.credentials import load_environment_files
+
+    load_environment_files()
 
     selected = argv or list(CAPTURES)
     unknown = [name for name in selected if name not in CAPTURES]

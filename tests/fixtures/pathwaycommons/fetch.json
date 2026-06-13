@@ -1,9 +1,31 @@
 {
   "@graph": [
     {
-      "@id": "http://pathwaycommons.org/pc2/Catalysis_1",
-      "@type": "Catalysis",
-      "displayName": "example interaction"
+      "@id": "pc14:",
+      "@type": "owl:Ontology",
+      "imports": "http://www.biopax.org/release/biopax-level3.owl#"
+    },
+    {
+      "@id": "uniprot:P04637",
+      "@type": "bp:UnificationXref",
+      "db": "uniprot",
+      "id": "P04637"
     }
-  ]
+  ],
+  "@context": {
+    "imports": {
+      "@id": "http://www.w3.org/2002/07/owl#imports",
+      "@type": "@id"
+    },
+    "db": {
+      "@id": "http://www.biopax.org/release/biopax-level3.owl#db"
+    },
+    "id": {
+      "@id": "http://www.biopax.org/release/biopax-level3.owl#id"
+    },
+    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    "owl": "http://www.w3.org/2002/07/owl#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "bp": "http://www.biopax.org/release/biopax-level3.owl#"
+  }
 }

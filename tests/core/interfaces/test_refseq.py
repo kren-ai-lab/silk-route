@@ -46,22 +46,22 @@ def interface(tmp_path, monkeypatch):
 
 
 def test_fetch_returns_native_records(interface):
-    result = interface.fetch("NP_001301717", method="protein")
+    result = interface.fetch("NP_000537", method="protein")
 
     assert isinstance(result, list)
-    assert result[0]["GBSeq_locus"] == "NP_001301717"
+    assert result[0]["GBSeq_locus"] == "NP_000537"
 
 
 def test_parse_extracts_requested_fields(interface):
     records = load_fixture("refseq", "protein")
     parsed = interface.parse(records[0], fields_to_extract=["GBSeq_locus", "GBSeq_organism"])
 
-    assert parsed == {"GBSeq_locus": "NP_001301717", "GBSeq_organism": "Homo sapiens"}
+    assert parsed == {"GBSeq_locus": "NP_000537", "GBSeq_organism": "Homo sapiens"}
 
 
 def test_fetch_single_round_trips_through_cache(interface):
-    first, _ = interface.fetch_single("NP_001301717", method="protein")
-    second, _ = interface.fetch_single("NP_001301717", method="protein")
+    first, _ = interface.fetch_single("NP_000537", method="protein")
+    second, _ = interface.fetch_single("NP_000537", method="protein")
 
     # Second call served from cache: Entrez.read is only invoked once.
     assert interface._read_state["reads"] == 1

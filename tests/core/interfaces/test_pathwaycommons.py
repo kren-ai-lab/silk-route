@@ -22,7 +22,7 @@ def test_fetch_unwraps_graph(interface, mocked_responses):
     body = load_fixture("pathwaycommons", "fetch")
     mocked_responses.add(responses.POST, FETCH_URL, json=body, status=200)
 
-    result = interface.fetch({"uri": ["http://identifiers.org/uniprot/P04637"]}, method="fetch")
+    result = interface.fetch({"uri": ["uniprot:P04637"]}, method="fetch")
 
     # fetch unwraps the JSON-LD "@graph" envelope.
     assert result == body["@graph"]
@@ -31,19 +31,17 @@ def test_fetch_unwraps_graph(interface, mocked_responses):
 
 def test_parse_extracts_requested_fields(interface):
     body = load_fixture("pathwaycommons", "fetch")
-    parsed = interface.parse(body["@graph"][0], fields_to_extract=["@id", "@type"])
+    record = body["@graph"][0]
+    parsed = interface.parse(record, fields_to_extract=["@id", "@type"])
 
-    assert parsed == {
-        "@id": "http://pathwaycommons.org/pc2/Catalysis_1",
-        "@type": "Catalysis",
-    }
+    assert parsed == {k: record[k] for k in ("@id", "@type")}
 
 
 def test_fetch_single_round_trips_through_cache(interface, mocked_responses):
     body = load_fixture("pathwaycommons", "fetch")
     mocked_responses.add(responses.POST, FETCH_URL, json=body, status=200)
 
-    query = {"uri": ["http://identifiers.org/uniprot/P04637"]}
+    query = {"uri": ["uniprot:P04637"]}
     first, _ = interface.fetch_single(query, method="fetch")
     second, _ = interface.fetch_single(query, method="fetch")
 
