@@ -27,7 +27,7 @@ def dict_to_element(data: Any, parent: ET.Element, *, list_item_tag: str = "item
 
 
 def dict_to_elementtree(
-    data: dict,
+    data: Any,
     root_tag: str = "results",
     list_item_tag: str = "item",
 ) -> ET.ElementTree:

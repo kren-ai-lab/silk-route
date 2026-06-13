@@ -1,0 +1,161 @@
+"""Unit tests for the shared transform/engine logic in BaseAPIInterface.
+
+These exercise the format conversion, field extraction, query decomposition,
+result splitting, cache-key building, and parameter preparation that every
+interface relies on — independent of any single API.
+"""
+
+from __future__ import annotations
+
+import pandas as pd
+import pytest
+
+from bioseq_dl.core.interfaces.base import BaseAPIInterface
+
+
+class FakeInterface(BaseAPIInterface):
+    API_NAME = "Fake"
+    METHODS = {
+        "get": {
+            "http_method": "GET",
+            "path_param": None,
+            "parameters": {"id": (str, None, True), "db": (str, None, False)},
+            "group_queries": ["id"],
+            "separator": ",",
+        },
+        "single": {
+            "http_method": "GET",
+            "path_param": None,
+            "parameters": {"id": (str, None, True)},
+            "group_queries": [None],
+            "separator": None,
+        },
+    }
+
+    def fetch(self, query, *, method="get", **kwargs):
+        return query
+
+    def parse(self, data, fields_to_extract, **kwargs):
+        return self._extract_fields(data, fields_to_extract, **kwargs)
+
+    def query_usage(self) -> str:
+        return "usage"
+
+
+@pytest.fixture
+def iface(tmp_path):
+    return FakeInterface(cache_dir=str(tmp_path), use_config=False)
+
+
+# --- _maybe_parse: format conversion --------------------------------------
+
+
+def test_maybe_parse_to_dataframe(iface):
+    out = iface._maybe_parse([{"a": 1}, {"a": 2}], parse=False, format="dataframe")
+    assert isinstance(out, pd.DataFrame)
+    assert list(out["a"]) == [1, 2]
+
+
+def test_maybe_parse_dict_to_dataframe_single_row(iface):
+    out = iface._maybe_parse({"a": 1}, parse=False, format="dataframe")
+    assert isinstance(out, pd.DataFrame)
+    assert out.shape == (1, 1)
+
+
+def test_maybe_parse_to_xml_bytes(iface):
+    out = iface._maybe_parse({"a": "x"}, parse=False, format="xml")
+    assert isinstance(out, bytes)
+    assert b"<a>x</a>" in out
+
+
+def test_maybe_parse_with_parse_extracts_fields(iface):
+    out = iface._maybe_parse(
+        {"a": 1, "b": 2}, parse=True, format="json", fields_to_extract=["a"]
+    )
+    assert out == {"a": 1}
+
+
+# --- _extract_fields -------------------------------------------------------
+
+
+def test_extract_fields_list_of_keys_on_dict(iface):
+    assert iface._extract_fields({"a": 1, "b": 2}, ["a"]) == {"a": 1}
+
+
+def test_extract_fields_mapping_renames(iface):
+    out = iface._extract_fields({"x": {"y": 5}}, {"val": "x.y"})
+    assert out == {"val": 5}
+
+
+def test_extract_fields_list_data(iface):
+    out = iface._extract_fields([{"a": 1}, {"a": 2}], ["a"])
+    assert out == [{"a": 1}, {"a": 2}]
+
+
+def test_extract_fields_none_returns_whole(iface):
+    assert iface._extract_fields({"a": 1}, None) == {"a": 1}
+
+
+# --- decompose_query / split_results_by_subquery / merge_dicts -------------
+
+
+def test_decompose_query_expands_list(iface):
+    subs = iface.decompose_query({"id": ["a", "b"]}, "get", None)
+    identifiers = [identifier for identifier, _ in subs]
+    assert identifiers == ["a", "b"]
+    assert subs[0][1]["id"] == "a"
+
+
+def test_decompose_query_no_group_query_returns_empty(iface):
+    # 'single' has no group_query key, so there is nothing to decompose.
+    assert iface.decompose_query({"id": "a"}, "single", None) == []
+
+
+def test_split_results_by_subquery_matches_tokens(iface):
+    full = [{"id": "a", "v": 1}, {"id": "b", "v": 2}]
+    subs = [("a", {"id": "a"}), ("b", {"id": "b"})]
+    mapping = iface.split_results_by_subquery(full, subs)
+    assert mapping["a"] == [{"id": "a", "v": 1}]
+    assert mapping["b"] == [{"id": "b", "v": 2}]
+
+
+def test_merge_dicts_collects_distinct_values(iface):
+    assert iface.merge_dicts([{"id": "a"}, {"id": "b"}]) == {"id": ["a", "b"]}
+
+
+def test_merge_dicts_keeps_single(iface):
+    assert iface.merge_dicts([{"id": "a"}, {"id": "a"}]) == {"id": "a"}
+
+
+# --- cache key building ----------------------------------------------------
+
+
+def test_filter_dict_keys_drops_ignored_and_sorts(iface):
+    out = iface._filter_dict_keys({"b": 2, "a": 1, "parse": True})
+    assert list(out.keys()) == ["a", "b"]
+    assert "parse" not in out
+
+
+def test_filter_dict_keys_sorts_lists(iface):
+    out = iface._filter_dict_keys({"ids": ["c", "a", "b"]})
+    assert out["ids"] == ["a", "b", "c"]
+
+
+def test_make_cache_key_dict_is_deterministic(iface):
+    k1 = iface._make_cache_key({"b": 2, "a": 1})
+    k2 = iface._make_cache_key({"a": 1, "b": 2})
+    assert k1 == k2
+
+
+# --- _prepare_params / _make_identifier ------------------------------------
+
+
+def test_prepare_params_joins_group_query_list(iface):
+    spec = FakeInterface.METHODS["get"]
+    params = iface._prepare_params({"id": ["a", "b"], "db": "x"}, spec)
+    assert params == {"id": "a,b", "db": "x"}
+
+
+def test_make_identifier_uses_primary_keys(iface):
+    spec = FakeInterface.METHODS["get"]
+    assert iface._make_identifier({"id": "a", "db": "x"}, spec) == "a"
