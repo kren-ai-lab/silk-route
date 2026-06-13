@@ -1,6 +1,7 @@
 import typer
 
 from bioseq_dl import PrideInterface
+from bioseq_dl.cli._shared import save_or_print
 
 app = typer.Typer(help="Collect data from PRIDE database.")
 
@@ -29,11 +30,7 @@ def run_search_projects(
         method="search", option="projects", query=query, parse=True, format="dataframe"
     )
 
-    if output_file:
-        results.to_csv(output_file, index=False)
-        typer.echo(f"Results saved to {output_file}")
-    else:
-        typer.echo(results)
+    save_or_print(results, output_file)
 
 
 @app.command("projects")
@@ -48,11 +45,7 @@ def run_projects(
         method="projects", option="default", query=query, parse=True, format="dataframe"
     )
 
-    if output_file:
-        results.to_csv(output_file, index=False)
-        typer.echo(f"Results saved to {output_file}")
-    else:
-        typer.echo(results)
+    save_or_print(results, output_file)
 
 
 @app.command("similar_projects")
@@ -69,8 +62,4 @@ def run_similar_projects(
         method="projects", option="similarProjects", query=query, parse=True, format="dataframe"
     )
 
-    if output_file:
-        results.to_csv(output_file, index=False)
-        typer.echo(f"Results saved to {output_file}")
-    else:
-        typer.echo(results)
+    save_or_print(results, output_file)

@@ -1,6 +1,7 @@
 import typer
 
 from bioseq_dl import InterproInterface
+from bioseq_dl.cli._shared import save_or_print
 
 app = typer.Typer(help="Fetch data from InterPro database.")
 
@@ -42,7 +43,4 @@ def run_entry(
 
     df = instance.fetch_single(query=query, method="entry", parse=True, format="dataframe")
 
-    if output:
-        df.to_csv(output, index=False)
-    else:
-        typer.echo(df.head(5))
+    save_or_print(df, output)

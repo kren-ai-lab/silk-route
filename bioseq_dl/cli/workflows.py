@@ -1350,7 +1350,7 @@ def run_workflow(
         validate_merged_workflow_values(workflow_values)
     except ValueError as e:
         typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
 
     try:
         if workflow_values["debug"]:
@@ -1410,13 +1410,13 @@ def run_workflow(
         logger.error(error_message)
         write_failure_reports(workflow_values, error_message, started_at, start_time)
         typer.echo(f"Error: {error_message}", err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
     except Exception as e:
         error_message = str(e)
         logger.exception("Workflow execution failed")
         write_failure_reports(workflow_values, error_message, started_at, start_time)
         typer.echo(f"Error: {error_message}", err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
 
     output_dir = Path(workflow_values["output"])
     logger.info("Exporting workflow results to %s", output_dir)

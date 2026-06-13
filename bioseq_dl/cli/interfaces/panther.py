@@ -1,6 +1,7 @@
 import typer
 
 from bioseq_dl import PantherInterface
+from bioseq_dl.cli._shared import save_or_print
 
 app = typer.Typer(help="Fetch data from PANTHER database.")
 
@@ -28,10 +29,7 @@ def run_geneinfo(
 
     result = interface.fetch_single(query=query, method="geneinfo", parse=True, format="dataframe")
 
-    if output:
-        result.to_csv(output, index=False)
-    else:
-        typer.echo(result.head(5))
+    save_or_print(result, output)
 
 
 @app.command("familyortholog")
@@ -56,10 +54,7 @@ def run_familyortholog(
 
     result = interface.fetch_single(query=query, method="familyortholog", parse=True, format="dataframe")
 
-    if output:
-        result.to_csv(output, index=False)
-    else:
-        typer.echo(result.head(5))
+    save_or_print(result, output)
 
 
 @app.command("familymsa")
@@ -84,7 +79,4 @@ def run_familymsa(
 
     result = interface.fetch_single(query=query, method="familymsa", parse=True, format="dataframe")
 
-    if output:
-        result.to_csv(output, index=False)
-    else:
-        typer.echo(result.head(5))
+    save_or_print(result, output)

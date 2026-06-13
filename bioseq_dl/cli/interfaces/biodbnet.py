@@ -2,6 +2,7 @@ import pandas as pd
 import typer
 
 from bioseq_dl import BioDBNetInterface
+from bioseq_dl.cli._shared import save_or_print
 from bioseq_dl.constants.biodbnet import inputs as biodbnet_inputs
 from bioseq_dl.constants.biodbnet import outputs as biodbnet_outputs
 
@@ -35,19 +36,16 @@ def run_db2db(
     """Fetch interaction data from BioGRID database."""
     instance = BioDBNetInterface()
 
-    df = pd.DataFrame(
-        instance.fetch_single(
-            query={"input": input, "inputValues": value.split(","), "outputs": outputs, "taxonId": taxon_id},
-            method="db2db",
-            parse=True,
-            format="dataframe",
-        )
-    ).dropna(axis=1, how="all")
+    df, _ = instance.fetch_single(
+        query={"input": input, "inputValues": value.split(","), "outputs": outputs, "taxonId": taxon_id},
+        method="db2db",
+        parse=True,
+        format="dataframe",
+    )
+    if isinstance(df, pd.DataFrame):
+        df = df.dropna(axis=1, how="all")
 
-    if output:
-        df.to_csv(output, index=False)
-    else:
-        print(df.head(5))
+    save_or_print(df, output)
 
 
 @app.command("pathways")
@@ -68,16 +66,13 @@ def run_pathways(
     """Fetch interaction data from BioGRID database."""
     instance = BioDBNetInterface()
 
-    df = pd.DataFrame(
-        instance.fetch_single(
-            query={"input": input, "pathways": pathways, "taxonId": taxon_id},
-            method="getpathways",
-            parse=True,
-            format="dataframe",
-        )
-    ).dropna(axis=1, how="all")
+    df, _ = instance.fetch_single(
+        query={"input": input, "pathways": pathways, "taxonId": taxon_id},
+        method="getpathways",
+        parse=True,
+        format="dataframe",
+    )
+    if isinstance(df, pd.DataFrame):
+        df = df.dropna(axis=1, how="all")
 
-    if output:
-        df.to_csv(output, index=False)
-    else:
-        print(df.head(5))
+    save_or_print(df, output)

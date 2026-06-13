@@ -1,6 +1,7 @@
 import typer
 
 from bioseq_dl import PathwayCommonsInterface
+from bioseq_dl.cli._shared import save_or_print
 
 app = typer.Typer(help="Fetch data from Pathway Commons.")
 
@@ -38,10 +39,7 @@ def run_top_pathways(
 
     df = instance.fetch_single(query=query_params, method="top_pathways", parse=True, format="dataframe")
 
-    if output:
-        df.to_csv(output, index=False)
-    else:
-        typer.echo(df.head(5))
+    save_or_print(df, output)
 
 
 @app.command("fetch")
@@ -73,10 +71,7 @@ def run_fetch(
         format="dataframe",
     )
 
-    if output:
-        data.to_csv(output, index=False)
-    else:
-        typer.echo(data.head(5))
+    save_or_print(data, output)
 
 
 @app.command("neighborhood")
@@ -126,7 +121,4 @@ def run_neighborhood(
 
     df = instance.fetch_single(query=query_params, method="neighborhood", parse=True, format="dataframe")
 
-    if output:
-        df.to_csv(output, index=False)
-    else:
-        typer.echo(df.head(5))
+    save_or_print(df, output)

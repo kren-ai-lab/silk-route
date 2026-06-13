@@ -1,7 +1,7 @@
-import pandas as pd
 import typer
 
 from bioseq_dl import AlphafoldInterface
+from bioseq_dl.cli._shared import save_or_print
 
 app = typer.Typer(help="Fetch data from AlphaFold database.")
 
@@ -30,15 +30,8 @@ def run_prediction(
 
     if len(id.split(",")) > 1:
         ids: list[str] = id.split(",")
-        df = pd.DataFrame(
-            instance.fetch_batch(queries=ids, method="prediction", parse=True, format="dataframe")
-        )
+        df = instance.fetch_batch(queries=ids, method="prediction", parse=True, format="dataframe")
     else:
-        df = pd.DataFrame(
-            instance.fetch_single(query=id, method="prediction", parse=True, format="dataframe")
-        )
+        df = instance.fetch_single(query=id, method="prediction", parse=True, format="dataframe")
 
-    if output:
-        df.to_csv(output, index=False)
-    else:
-        print(df.head(5))
+    save_or_print(df, output)

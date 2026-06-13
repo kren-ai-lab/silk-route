@@ -1,6 +1,7 @@
 import typer
 
 from bioseq_dl import RefSeqInterface
+from bioseq_dl.cli._shared import save_or_print
 
 app = typer.Typer(help="Collect data from RefSeq database.")
 
@@ -15,11 +16,7 @@ def run_protein(
 
     result = interface.fetch_single(query=id.split(","), method="protein", parse=True, format="dataframe")
 
-    if output_file:
-        result.to_csv(output_file, index=False)
-        typer.echo(f"Results saved to {output_file}")
-    else:
-        typer.echo(result.head(5))
+    save_or_print(result, output_file)
 
 
 @app.command("gene")
@@ -32,11 +29,7 @@ def run_gene(
 
     result = interface.fetch_single(query=id.split(","), method="gene", parse=True, format="dataframe")
 
-    if output_file:
-        result.to_csv(output_file, index=False)
-        typer.echo(f"Results saved to {output_file}")
-    else:
-        typer.echo(result.head(5))
+    save_or_print(result, output_file)
 
 
 @app.command("popset")
@@ -49,8 +42,4 @@ def run_popset(
 
     result = interface.fetch_single(query=id.split(","), method="popset", parse=True, format="dataframe")
 
-    if output_file:
-        result.to_csv(output_file, index=False)
-        typer.echo(f"Results saved to {output_file}")
-    else:
-        typer.echo(result.head(5))
+    save_or_print(result, output_file)

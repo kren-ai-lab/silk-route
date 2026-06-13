@@ -1,7 +1,7 @@
-import pandas as pd
 import typer
 
 from bioseq_dl import BioGRIDInterface
+from bioseq_dl.cli._shared import save_or_print
 
 app = typer.Typer(help="Fetch data from BioGRID database.")
 
@@ -34,11 +34,6 @@ def run_interactions(
     if taxon_id:
         query["taxId"] = taxon_id
 
-    df = pd.DataFrame(
-        instance.fetch_single(query=query, method="interactions", parse=True, format="dataframe")
-    )
+    df = instance.fetch_single(query=query, method="interactions", parse=True, format="dataframe")
 
-    if output:
-        df.to_csv(output, index=False)
-    else:
-        print(df.head(5))
+    save_or_print(df, output)

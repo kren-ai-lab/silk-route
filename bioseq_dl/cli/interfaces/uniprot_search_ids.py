@@ -68,7 +68,7 @@ def run(
             )
     except ValueError as e:
         typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
 
     try:
         if debug:

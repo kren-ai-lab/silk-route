@@ -722,7 +722,7 @@ class BaseAPIInterface(ABC):
                 metadata["fetched_subqueries"] = [subq for _, subq in remaining]
                 combined = self.merge_dicts([subq for _, subq in remaining])
                 params = self._prepare_params(combined, spec, **kwargs)
-                full = self.fetch(query=params, *args, **kwargs)
+                full = self.fetch(params, *args, **kwargs)
                 mapping = self.split_results_by_subquery(full, remaining)
                 for identifier, _ in remaining:
                     partial_result = mapping.get(identifier, [])
@@ -810,7 +810,7 @@ class BaseAPIInterface(ABC):
         else:
             # TODO Probably is necesary to give the user the option to not save empty results, check if it is a problem in some APIs
             log.debug(f"No cache found for identifier: {identifier}, fetching from API.")
-            raw = self.fetch(query=params, *args, **kwargs)
+            raw = self.fetch(params, *args, **kwargs)
             # Save to cache even if empty, to avoid refetching known empty results
             metadata["fetched_ids"] = [identifier]
             metadata["fetched_subqueries"] = [query]
@@ -895,20 +895,35 @@ class BaseAPIInterface(ABC):
             else:
                 subqueries = None
             if subqueries:
-                for identifier, subquery in subqueries:
+                # Only use the cache for this query if *every* subquery is cached.
+                # If any subquery is missing we delegate the whole query to
+                # fetch_single, which loads the cached subqueries and fetches only
+                # the missing ones. Appending the cached subqueries here as well
+                # would duplicate them (fetch_single returns them too).
+                cached_subquery_results = []
+                missing = False
+                for identifier, _ in subqueries:
                     cache_key = self._make_cache_key(identifier, **kwargs)
                     if self.has_results(cache_key):
-                        log.debug(f"Cache hit for subquery identifier: {identifier}, loading from cache.")
-                        metadata["cached_ids"] = metadata.get("cached_ids", []) + [identifier]
-                        metadata["cached_subqueries"] = metadata.get("cached_subqueries", []) + [subquery]
                         cached = self.load_cache(cache_key)
                         result = (
                             cached.to_dict(orient="records") if isinstance(cached, pd.DataFrame) else cached
                         )
-                        results.append(self._maybe_parse(data=result, parse=parse, format=format, **kwargs))
+                        cached_subquery_results.append((identifier, result))
                     else:
                         log.debug(f"No cache found for subquery identifier: {identifier}, will fetch.")
-                        index_query_map[i] = query
+                        missing = True
+                        break
+
+                if missing:
+                    index_query_map[i] = query
+                else:
+                    for identifier, subquery in subqueries:
+                        metadata["cached_ids"] = metadata.get("cached_ids", []) + [identifier]
+                        metadata["cached_subqueries"] = metadata.get("cached_subqueries", []) + [subquery]
+                    for _identifier, result in cached_subquery_results:
+                        log.debug(f"Cache hit for subquery identifier: {_identifier}, loading from cache.")
+                        results.append(self._maybe_parse(data=result, parse=parse, format=format, **kwargs))
 
             else:
                 # No subqueries, use the classic key
@@ -1070,7 +1085,7 @@ class BaseAPIInterface(ABC):
         try:
             validated_params = validate_parameters(inputs, parameters)
         except ValueError as e:
-            raise ValueError(f"Invalid parameters for method '{method}': {e}")
+            raise ValueError(f"Invalid parameters for method '{method}': {e}") from e
 
         url = f"{api_url}{method}"
 

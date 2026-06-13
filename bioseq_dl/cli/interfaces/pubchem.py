@@ -1,6 +1,7 @@
 import typer
 
 from bioseq_dl import PubChemInterface
+from bioseq_dl.cli._shared import save_or_print
 from bioseq_dl.constants.pubchem import OPTIONS
 
 app = typer.Typer(
@@ -40,11 +41,7 @@ def run_compound(
 
     result = interface.fetch_single(query, method="compound", option=option, parse=True, format="dataframe")
 
-    if output_file:
-        result.to_csv(output_file, index=False)
-        typer.echo(f"Results saved to {output_file}")
-    else:
-        typer.echo(result.head(5))
+    save_or_print(result, output_file)
 
 
 @app.command("pug-protein")
@@ -69,11 +66,7 @@ def run_protein(
             accession, method="protein", option=option, parse=True, format="dataframe"
         )
 
-    if output_file:
-        result.to_csv(output_file, index=False)
-        typer.echo(f"Results saved to {output_file}")
-    else:
-        typer.echo(result.head(5))
+    save_or_print(result, output_file)
 
 
 @app.command("pug-gene")
@@ -101,11 +94,7 @@ def run_gene(
 
     result = interface.fetch_single(query, method="gene", option=option, parse=True, format="dataframe")
 
-    if output_file:
-        result.to_csv(output_file, index=False)
-        typer.echo(f"Results saved to {output_file}")
-    else:
-        typer.echo(result.head(5))
+    save_or_print(result, output_file)
 
 
 @app.command("pug_view-compound")
@@ -128,11 +117,7 @@ def run_compound_view(
             cid.strip(), method="pug_view/compound", parse=True, format="dataframe"
         )
 
-    if output_file:
-        result.to_csv(output_file, index=False)
-        typer.echo(f"Results saved to {output_file}")
-    else:
-        typer.echo(result.head(5))
+    save_or_print(result, output_file)
 
 
 @app.command("pug_view-protein")
@@ -153,11 +138,7 @@ def run_protein_view(
     else:
         result = interface.fetch_single(accession, method="pug_view/protein", parse=True, format="dataframe")
 
-    if output_file:
-        result.to_csv(output_file, index=False)
-        typer.echo(f"Results saved to {output_file}")
-    else:
-        typer.echo(result.head(5))
+    save_or_print(result, output_file)
 
 
 @app.command("pug_view-gene")
@@ -180,11 +161,7 @@ def run_gene_view(
             geneid.strip(), method="pug_view/gene", parse=True, format="dataframe"
         )
 
-    if output_file:
-        result.to_csv(output_file, index=False)
-        typer.echo(f"Results saved to {output_file}")
-    else:
-        typer.echo(result.head(5))
+    save_or_print(result, output_file)
 
 
 @app.command("pug_view-pathway")
@@ -211,11 +188,7 @@ def run_pathway_view(
             format="dataframe",
         )
 
-    if output_file:
-        result.to_csv(output_file, index=False)
-        typer.echo(f"Results saved to {output_file}")
-    else:
-        typer.echo(result.head(5))
+    save_or_print(result, output_file)
 
 
 @app.command("pug_view-taxonomy")
@@ -238,8 +211,4 @@ def run_taxonomy_view(
             taxid.strip(), method="pug_view/taxonomy", parse=True, format="dataframe"
         )
 
-    if output_file:
-        result.to_csv(output_file, index=False)
-        typer.echo(f"Results saved to {output_file}")
-    else:
-        typer.echo(result.head(5))
+    save_or_print(result, output_file)

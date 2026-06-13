@@ -4,6 +4,7 @@ import requests
 
 from bioseq_dl.constants.databases import REACTOME
 from bioseq_dl.constants.reactome import methods
+from bioseq_dl.core.exceptions import ConfigError
 from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
@@ -54,28 +55,29 @@ class ReactomeInterface(BaseAPIInterface):
             query (dict): The query parameters to validate.
 
         Raises:
-            ValueError: If the query parameters are invalid.
+            ConfigError: If the query parameters are invalid.
 
         """
         rules = {
-            "id": lambda v: isinstance(v, str) and v.strip() != "",
-            "species": lambda v: isinstance(v, str) and v.strip() != "",
-            "onlyDiagrammed": lambda v: isinstance(v, bool),
+            "id": (
+                lambda v: isinstance(v, str) and v.strip() != "",
+                "Invalid ID: {value}. It should be a non-empty string.",
+            ),
+            "species": (
+                lambda v: isinstance(v, str) and v.strip() != "",
+                "Invalid species: {value}. It should be a non-empty string.",
+            ),
+            "onlyDiagrammed": (
+                lambda v: isinstance(v, bool),
+                "Invalid onlyDiagrammed: {value}. It should be a boolean value.",
+            ),
         }
 
-        for key, check in rules.items():
+        for key, (check, message) in rules.items():
             if key in query and not check(query[key]):
-                if key == "id":
-                    log.error(f"Invalid ID: {query['id']}. It should be a non-empty string.")
-                    return {}
-                if key == "species":
-                    log.error(f"Invalid species: {query['species']}. It should be a non-empty string.")
-                    return {}
-                if key == "onlyDiagrammed":
-                    log.error(
-                        f"Invalid onlyDiagrammed: {query['onlyDiagrammed']}. It should be a boolean value."
-                    )
-                    return {}
+                msg = message.format(value=query[key])
+                log.error(msg)
+                raise ConfigError(msg)
 
     def fetch(self, query: str | dict | list, *, method: str = "data", **kwargs):
         """Download pathways from a given Reactome pathway ID.

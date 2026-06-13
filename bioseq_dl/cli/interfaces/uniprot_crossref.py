@@ -64,7 +64,7 @@ def run(
         try:
             df = pd.read_csv(input)
         except Exception as e:
-            raise ValueError(f"Error reading input file {input}: {e}")
+            raise ValueError(f"Error reading input file {input}: {e}") from e
 
         config = ConfigLoader(config_dir=str(BASE_CONFIG_DIR) + "/uniprot_crossref")
         config.load_config("config_endpoints")
@@ -132,7 +132,7 @@ def run(
 
     except typer.BadParameter as e:
         typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=2)
+        raise typer.Exit(code=2) from None
     except Exception as e:
         typer.secho(f"Unexpected error: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None

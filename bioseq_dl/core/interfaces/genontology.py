@@ -205,14 +205,14 @@ class GenOntologyInterface(BaseAPIInterface):
         self, query: str | dict, parse: bool = False, *args, **kwargs
     ) -> list | dict | pd.DataFrame:
         option = kwargs.pop("option", "default")
-        return super().fetch_single(query=query, parse=parse, option=option, *args, **kwargs)
+        return super().fetch_single(*args, query=query, parse=parse, option=option, **kwargs)
 
     # Patch Solution
     def fetch_batch(
         self, queries: list[str | dict], parse: bool = False, *args, **kwargs
     ) -> list | pd.DataFrame:
         option = kwargs.pop("option", "default")
-        return super().fetch_batch(queries=queries, parse=parse, option=option, *args, **kwargs)
+        return super().fetch_batch(*args, queries=queries, parse=parse, option=option, **kwargs)
 
     def query_usage(self) -> str:
         return (

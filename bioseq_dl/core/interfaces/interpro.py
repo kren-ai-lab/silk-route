@@ -4,7 +4,8 @@ from typing import Any
 import requests
 
 from bioseq_dl.constants.databases import INTERPRO
-from bioseq_dl.constants.interpro import db_types, entry_integration_types, filter_types
+from bioseq_dl.constants.interpro import data_types, db_types, entry_integration_types, filter_types
+from bioseq_dl.core.exceptions import ConfigError
 from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
@@ -65,7 +66,7 @@ class InterproInterface(BaseAPIInterface):
             query (dict): The query parameters to validate.
 
         Raises:
-            ValueError: If the query parameters are invalid.
+            ConfigError: If the query parameters are invalid.
 
         """
         rules = {
@@ -96,27 +97,29 @@ class InterproInterface(BaseAPIInterface):
         for key, check in rules.items():
             if key in query and not check(query[key]):
                 if key == "id":
-                    log.error(f"Invalid ID: {query['id']}. It should be a non-empty string.")
-                    return {}
-                if key == "filters":
+                    msg = f"Invalid ID: {query['id']}. It should be a non-empty string."
+                elif key == "filters":
                     valid = [ftype for ftype in filter_types if ftype != method]
-                    log.error(f"Invalid filter type: {query[key].get('type')}. Valid types are: {valid}")
-                    return {}
-                if key == "db":
-                    log.error(
-                        f"Invalid database type: {query['db']} for method {method}. Valid types are: {db_types[method]}"
+                    msg = f"Invalid filter type: {query[key]}. Valid types are: {valid}"
+                elif key == "db":
+                    msg = (
+                        f"Invalid database type: {query['db']} for method {method}. "
+                        f"Valid types are: {db_types[method]}"
                     )
-                    return {}
-                if key == "entry_integration":
-                    log.error(
-                        f"Invalid entry integration type: {query['entry_integration']}. Valid types are: {entry_integration_types}"
+                elif key == "entry_integration":
+                    msg = (
+                        f"Invalid entry integration type: {query['entry_integration']}. "
+                        f"Valid types are: {entry_integration_types}"
                     )
-                    return {}
-                if key == "modifiers":
-                    log.error(
-                        f"Invalid modifiers type: {type(query['modifiers'])}. Modifiers should be a dictionary."
+                elif key == "modifiers":
+                    msg = (
+                        f"Invalid modifiers type: {type(query['modifiers'])}. "
+                        "Modifiers should be a dictionary."
                     )
-                    return {}
+                else:
+                    msg = f"Invalid value for '{key}': {query[key]}."
+                log.error(msg)
+                raise ConfigError(msg)
 
     def fetch_pages(self, next_url: str, method: str, pages_to_fetch: int = 1):
         """Fetch the next page of results from the InterPro API.

@@ -1,6 +1,7 @@
 import typer
 
 from bioseq_dl import PDBInterface
+from bioseq_dl.cli._shared import save_or_print
 
 app = typer.Typer(help="Collect data from Protein Data Bank (PDB).")
 
@@ -26,8 +27,4 @@ def run_fetch_entry(
     else:
         results = interface.fetch_single(query=pdb_id, method="entry", parse=True, format="dataframe")
 
-    if output_file:
-        results.to_csv(output_file, index=False)
-        typer.echo(f"Results saved to {output_file}")
-    else:
-        typer.echo(results.head(5))
+    save_or_print(results, output_file)

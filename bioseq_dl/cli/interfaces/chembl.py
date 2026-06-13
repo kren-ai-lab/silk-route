@@ -1,6 +1,7 @@
 import typer
 
 from bioseq_dl import ChEMBLInterface
+from bioseq_dl.cli._shared import save_or_print
 
 app = typer.Typer(help="Collect data from the ChEMBL database.")
 
@@ -24,10 +25,7 @@ def run_activity(
         method="activity", query=query, pages_to_fetch=1, parse=True, format="dataframe"
     )
 
-    if output:
-        result.to_csv(output, index=False)
-    else:
-        typer.echo(result)
+    save_or_print(result, output)
 
 
 @app.command("binding_site")
@@ -44,7 +42,4 @@ def run_binding_site(
         method="binding_site", query=query, pages_to_fetch=1, parse=True, format="dataframe"
     )
 
-    if output:
-        result.to_csv(output, index=False)
-    else:
-        typer.echo(result.head(5))
+    save_or_print(result, output)

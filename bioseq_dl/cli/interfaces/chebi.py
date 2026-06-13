@@ -1,6 +1,7 @@
 import typer
 
 from bioseq_dl import ChEBIInterface
+from bioseq_dl.cli._shared import save_or_print
 
 app = typer.Typer(help="Collect data from the ChEBI database.")
 
@@ -26,10 +27,7 @@ def run_compound(
     query["only_ontology_children"] = only_ontology_children
     result = interface.fetch_single(method="compound", query=query, parse=True, format="dataframe")
 
-    if output:
-        result.to_csv(output, index=False)
-    else:
-        typer.echo(result)
+    save_or_print(result, output)
 
 
 @app.command("compounds")
@@ -51,10 +49,7 @@ def run_compounds(
         method="compounds", queries=ids_list, query=query, parse=True, format="dataframe"
     )
 
-    if output:
-        result.to_csv(output, index=False)
-    else:
-        typer.echo(result)
+    save_or_print(result, output)
 
 
 @app.command("es_search")
@@ -74,10 +69,7 @@ def run_es_search(
 
     result = interface.fetch_single(method="es_search", query=query, parse=True, format="dataframe")
 
-    if output:
-        result.to_csv(output, index=False)
-    else:
-        typer.echo(result)
+    save_or_print(result, output)
 
 
 @app.command("ontology-children")
@@ -93,10 +85,7 @@ def run_ontology_children(
 
     result = interface.fetch_single(method="ontology-children", query=query, parse=True, format="dataframe")
 
-    if output:
-        result.to_csv(output, index=False)
-    else:
-        typer.echo(result)
+    save_or_print(result, output)
 
 
 @app.command("ontology-parents")
@@ -112,7 +101,4 @@ def run_ontology_parents(
 
     result = interface.fetch_single(method="ontology-parents", query=query, parse=True, format="dataframe")
 
-    if output:
-        result.to_csv(output, index=False)
-    else:
-        typer.echo(result)
+    save_or_print(result, output)

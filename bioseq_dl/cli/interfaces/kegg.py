@@ -1,6 +1,7 @@
 import typer
 
 from bioseq_dl import KEGGInterface
+from bioseq_dl.cli._shared import save_or_print
 
 app = typer.Typer(help="Fetch data from KEGG database.")
 
@@ -37,7 +38,4 @@ def run_get(
 
     df = instance.fetch_single(query=query, method="get", parse=True, format="dataframe")
 
-    if output:
-        df.to_csv(output, index=False)
-    else:
-        typer.echo(df.head(5))
+    save_or_print(df, output)

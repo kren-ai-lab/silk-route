@@ -1,7 +1,7 @@
-import pandas as pd
 import typer
 
 from bioseq_dl import BrendaInterface
+from bioseq_dl.cli._shared import save_or_print
 
 app = typer.Typer(help="Fetch data from BRENDA database.")
 
@@ -39,12 +39,9 @@ def run_km_values(
     if km_value_max:
         query["kmValueMaximum"] = km_value_max
 
-    df = pd.DataFrame(instance.fetch_single(query=query, method="getKmValue", parse=True, format="dataframe"))
+    df = instance.fetch_single(query=query, method="getKmValue", parse=True, format="dataframe")
 
-    if output:
-        df.to_csv(output, index=False)
-    else:
-        print(df.head(5))
+    save_or_print(df, output)
 
 
 @app.command("Ic50Values")
@@ -72,13 +69,8 @@ def run_ic50_values(
     if organism:
         query["organism"] = organism
 
-    df = pd.DataFrame(
-        instance.fetch_single(query=query, method="getIc50Value", parse=True, format="dataframe")
-    )
-    if output:
-        df.to_csv(output, index=False)
-    else:
-        print(df.head(5))
+    df = instance.fetch_single(query=query, method="getIc50Value", parse=True, format="dataframe")
+    save_or_print(df, output)
 
 
 # ========= getKcatKmValue → KcatKmValues =========
@@ -107,13 +99,8 @@ def run_kcat_km_values(
     if organism:
         query["organism"] = organism
 
-    df = pd.DataFrame(
-        instance.fetch_single(query=query, method="getKcatKmValue", parse=True, format="dataframe")
-    )
-    if output:
-        df.to_csv(output, index=False)
-    else:
-        print(df.head(5))
+    df = instance.fetch_single(query=query, method="getKcatKmValue", parse=True, format="dataframe")
+    save_or_print(df, output)
 
 
 # ========= getKiValue → KiValues =========
@@ -140,11 +127,8 @@ def run_ki_values(
     if organism:
         query["organism"] = organism
 
-    df = pd.DataFrame(instance.fetch_single(query=query, method="getKiValue", parse=True, format="dataframe"))
-    if output:
-        df.to_csv(output, index=False)
-    else:
-        print(df.head(5))
+    df = instance.fetch_single(query=query, method="getKiValue", parse=True, format="dataframe")
+    save_or_print(df, output)
 
 
 @app.command("PhRange")
@@ -170,11 +154,8 @@ def run_ph_range(
     if organism:
         query["organism"] = organism
 
-    df = pd.DataFrame(instance.fetch_single(query=query, method="getPhRange", parse=True, format="dataframe"))
-    if output:
-        df.to_csv(output, index=False)
-    else:
-        print(df.head(5))
+    df = instance.fetch_single(query=query, method="getPhRange", parse=True, format="dataframe")
+    save_or_print(df, output)
 
 
 # ========= getPhOptimum → PhOptimum =========
@@ -203,13 +184,8 @@ def run_ph_optimum(
     if organism:
         query["organism"] = organism
 
-    df = pd.DataFrame(
-        instance.fetch_single(query=query, method="getPhOptimum", parse=True, format="dataframe")
-    )
-    if output:
-        df.to_csv(output, index=False)
-    else:
-        print(df.head(5))
+    df = instance.fetch_single(query=query, method="getPhOptimum", parse=True, format="dataframe")
+    save_or_print(df, output)
 
 
 @app.command("PhStability")
@@ -237,13 +213,8 @@ def run_ph_stability(
     if organism:
         query["organism"] = organism
 
-    df = pd.DataFrame(
-        instance.fetch_single(query=query, method="getPhStability", parse=True, format="dataframe")
-    )
-    if output:
-        df.to_csv(output, index=False)
-    else:
-        print(df.head(5))
+    df = instance.fetch_single(query=query, method="getPhStability", parse=True, format="dataframe")
+    save_or_print(df, output)
 
 
 @app.command("Cofactor")
@@ -263,13 +234,8 @@ def run_cofactor(
     if organism:
         query["organism"] = organism
 
-    df = pd.DataFrame(
-        instance.fetch_single(query=query, method="getCofactor", parse=True, format="dataframe")
-    )
-    if output:
-        df.to_csv(output, index=False)
-    else:
-        print(df.head(5))
+    df = instance.fetch_single(query=query, method="getCofactor", parse=True, format="dataframe")
+    save_or_print(df, output)
 
 
 @app.command("TemperatureOptimum")
@@ -299,13 +265,8 @@ def run_temperature_optimum(
     if organism:
         query["organism"] = organism
 
-    df = pd.DataFrame(
-        instance.fetch_single(query=query, method="getTemperatureOptimum", parse=True, format="dataframe")
-    )
-    if output:
-        df.to_csv(output, index=False)
-    else:
-        print(df.head(5))
+    df = instance.fetch_single(query=query, method="getTemperatureOptimum", parse=True, format="dataframe")
+    save_or_print(df, output)
 
 
 @app.command("TemperatureStability")
@@ -335,13 +296,8 @@ def run_temperature_stability(
     if organism:
         query["organism"] = organism
 
-    df = pd.DataFrame(
-        instance.fetch_single(query=query, method="getTemperatureStability", parse=True, format="dataframe")
-    )
-    if output:
-        df.to_csv(output, index=False)
-    else:
-        print(df.head(5))
+    df = instance.fetch_single(query=query, method="getTemperatureStability", parse=True, format="dataframe")
+    save_or_print(df, output)
 
 
 @app.command("TemperatureRange")
@@ -371,10 +327,5 @@ def run_temperature_range(
     if organism:
         query["organism"] = organism
 
-    df = pd.DataFrame(
-        instance.fetch_single(query=query, method="getTemperatureRange", parse=True, format="dataframe")
-    )
-    if output:
-        df.to_csv(output, index=False)
-    else:
-        print(df.head(5))
+    df = instance.fetch_single(query=query, method="getTemperatureRange", parse=True, format="dataframe")
+    save_or_print(df, output)

@@ -75,9 +75,8 @@ class AlphafoldInterface(BaseAPIInterface):
             log.error("Query must be a string representing a AlphaFold ID.")
             return {}
 
-        result, metadata = super().fetch_single(query, parse=parse, *args, **kwargs)
+        result, metadata = super().fetch_single(query, parse, *args, **kwargs)
 
-        new_result = {}
         if self.structures:
             if isinstance(result, list):
                 for res in result:
@@ -98,7 +97,7 @@ class AlphafoldInterface(BaseAPIInterface):
             log.error("Queries must be a list of strings representing AlphaFold IDs.")
             return [], {}
 
-        results, metadata = super().fetch_batch(queries, parse=parse, *args, **kwargs)
+        results, metadata = super().fetch_batch(queries, parse, *args, **kwargs)
 
         new_results = []
         if self.structures:
@@ -114,7 +113,7 @@ class AlphafoldInterface(BaseAPIInterface):
                     new_results = [self.download_structures(result)]
 
         if new_results:
-            return new_results
+            return new_results, metadata
         return results, metadata
 
     def fetch(self, query: str | dict | list, *, method: str = "prediction", **kwargs):

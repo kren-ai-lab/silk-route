@@ -32,20 +32,22 @@ def get_nested(data: dict, path: str, sep: str = ".") -> Any:
     if not path:
         return data
 
-    try:
-        search_key = path.split(".", maxsplit=1)[0]
-    except AttributeError:
+    if not isinstance(path, str):
         raise ValueError(f"Path must be a string, got {type(path).__name__} instead. Value: {path}")
+
+    if not isinstance(data, dict):
+        return None
+
+    parts = path.split(sep, maxsplit=1)
+    search_key = parts[0]
+    rest = parts[1] if len(parts) > 1 else ""
 
     for key, value in data.items():
         if key == search_key:
             if isinstance(value, dict):
-                return get_nested(value, ".".join(path.split(".")[1:]))
+                return get_nested(value, rest, sep)
             if isinstance(value, list):
-                lst = [get_nested(item, ".".join(path.split(".")[1:])) for item in value]
-                if len(lst) == 1:
-                    return lst[0]
-                return lst
+                return [get_nested(item, rest, sep) for item in value]
             return value
 
     return None
