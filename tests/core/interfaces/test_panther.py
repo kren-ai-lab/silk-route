@@ -31,13 +31,11 @@ def test_fetch_unwraps_mapped_genes(interface, mocked_responses):
 
 def test_parse_extracts_requested_fields(interface):
     body = load_fixture("panther", "geneinfo")
-    gene = body["search"]["mapped_genes"]["gene"][0]
-    parsed = interface.parse(gene, fields_to_extract=["accession", "name"])
+    # For a single input gene, PANTHER returns one gene object (a dict).
+    gene = body["search"]["mapped_genes"]["gene"]
+    parsed = interface.parse(gene, fields_to_extract=["accession", "family_id"])
 
-    assert parsed == {
-        "accession": "HUMAN|HGNC=11998|UniProtKB=P04637",
-        "name": "Cellular tumor antigen p53",
-    }
+    assert parsed == {k: gene[k] for k in ("accession", "family_id")}
 
 
 def test_fetch_single_round_trips_through_cache(interface, mocked_responses):

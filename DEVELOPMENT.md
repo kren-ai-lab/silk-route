@@ -127,9 +127,8 @@ receives — the same payload the offline tests register with `responses`.
 Credentialed / non-HTTP APIs are captured only when their env vars are present
 (`BIOSEQ_DL_BIOGRID_API_KEY`, `BIOSEQ_DL_REFSEQ_EMAIL`,
 `BIOSEQ_DL_BRENDA_EMAIL`/`BIOSEQ_DL_BRENDA_PASSWORD`); otherwise they are skipped
-with a log line. `panther` and `pathwaycommons` currently keep small crafted
-fixtures because their public endpoints did not return capturable responses at
-capture time; re-running the script replaces them once the endpoints cooperate.
+with a log line. These read from a gitignored `.env` at the repo root, loaded
+automatically by the capture script.
 
 Because fixtures are real bodies, re-capturing can change response shape and
 require updating the affected test assertions — that is expected and the point:
