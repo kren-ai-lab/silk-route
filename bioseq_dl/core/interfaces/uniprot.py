@@ -10,7 +10,6 @@ from xml.etree import ElementTree
 
 import pandas as pd
 import requests
-from tqdm import tqdm
 
 from bioseq_dl.constants.databases import DATABASES, UNIPROT
 from bioseq_dl.core.interfaces.base import BaseAPIInterface
@@ -351,16 +350,10 @@ class UniprotInterface(BaseAPIInterface):
         time_started = time.time()
         job_id = None
         results = []
-        progress_bar = tqdm(
-            range(len(ids)),
-            desc=f"Processing {db_type} IDs",
-            total=len(ids),
-            dynamic_ncols=True,
-            ncols=0,
-            bar_format="{l_bar}{bar} {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}] {desc}",
-        )
+        total = len(ids)
+        log.info(f"Processing {total} {db_type} IDs in batches of {batch_size}")
 
-        for start in range(0, len(ids), batch_size):
+        for batch_index, start in enumerate(range(0, total, batch_size)):
             batch = ids[start : start + batch_size]
             job_id = downloader.submit_id_mapping(from_db, to_db, batch)
 
@@ -374,7 +367,7 @@ class UniprotInterface(BaseAPIInterface):
                         result["source_db"] = db_type
                     results.append(search)
 
-            progress_bar.update(len(batch))
+            self.print_progress_batches(batch_index, batch_size, total)
 
         metadata["time_taken_seconds"] = time.time() - time_started
         metadata["started_at"] = datetime.fromtimestamp(time_started).isoformat()

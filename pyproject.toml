@@ -28,13 +28,11 @@ classifiers = [
 dependencies = [
     "pandas",
     "pyarrow",
-    "tqdm",
     "requests",
     "biopython",
     "zeep",
     "python-dotenv",
     "pyyaml",
-    "beautifulsoup4",
     "typer",
     "dicttoxml",
     "platformdirs>=4.0,<5.0",
