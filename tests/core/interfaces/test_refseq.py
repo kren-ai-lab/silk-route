@@ -41,7 +41,7 @@ def interface(tmp_path, monkeypatch):
         max_wait=0,
         use_config=False,
     )
-    iface._read_state = state
+    iface._read_state = state  # ty: ignore[unresolved-attribute]  # test injects fake state
     return iface
 
 

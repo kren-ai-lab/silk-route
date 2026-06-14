@@ -43,7 +43,7 @@ def run_entry(
     if filter_taxonomy:
         if "filters" not in query:
             query["filters"] = []
-        query["filters"].append({"type": "taxonomy", "db": "uniprot", "value": int(filter_taxonomy)})
+        query["filters"].append({"type": "taxonomy", "db": "uniprot", "value": str(int(filter_taxonomy))})
 
     df = instance.fetch_single(query=query, method="entry", parse=True, format="dataframe")
 

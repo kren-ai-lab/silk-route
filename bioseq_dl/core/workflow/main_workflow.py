@@ -414,7 +414,7 @@ class MainWorkflow:
             if isinstance(data, (pd.DataFrame, list)):
                 parsed_count = len(data)
             elif isinstance(data, dict):
-                parsed_count = len(data.get("results", []))
+                parsed_count = len(cast("list", data.get("results", [])))
             context["data"]["uniprot"] = data
             if isinstance(parse_meta, dict):
                 parse_meta["elapsed_seconds"] = parse_elapsed
@@ -652,7 +652,7 @@ class MainWorkflow:
         self._step_parse_uniprot(context)
         self._step_crossref_enrich(context, **kwargs)
 
-        context["metadata"].update(
+        cast("dict", context["metadata"]).update(
             {
                 "time_taken_seconds": sum(
                     [
@@ -759,7 +759,7 @@ class MainWorkflow:
             combined_queries = (
                 f"({interpreted_uniprot_query}) AND {chembl_ids_query}"
                 if interpreted_uniprot_query
-                else chembl_ids_query
+                else cast("str", chembl_ids_query)
             )
 
         # Combine both queries

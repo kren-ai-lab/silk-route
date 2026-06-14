@@ -126,7 +126,7 @@ def run(
     results = parse_blast_results("tmp/blast_results.txt")
 
     # Convert to DataFrame
-    sequences_df = pd.DataFrame(sequences, columns=[seq_column])
+    sequences_df = pd.DataFrame(sequences, columns=[seq_column])  # ty: ignore[invalid-argument-type]  # pandas stub overload
     sequences_df["id"] = sequences_df.index
 
     df_blast = pd.DataFrame(results)

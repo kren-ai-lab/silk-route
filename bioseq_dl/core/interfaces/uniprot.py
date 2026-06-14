@@ -603,7 +603,7 @@ class UniprotInterface(BaseAPIInterface):
         return parsed, metadata
 
     # TODO(diego): eliminar bytes y str cuando ET este asegurado
-    def parse(
+    def parse(  # ty: ignore[invalid-method-override]  # richer signature: results/extract_fields/fmt
         self,
         results: dict | list[dict],
         extract_fields: list[str] | None,

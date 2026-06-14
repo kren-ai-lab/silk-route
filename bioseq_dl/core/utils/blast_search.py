@@ -38,7 +38,7 @@ def download_uniprot_database(
     if not db_path.exists():
         DB_DIR.mkdir(parents=True, exist_ok=True)
         url = f"{BASE_URL}/{DATABASES[db_name]}.{extension}.gz"
-        os.system(f"wget {url} -O {db_path}.gz")  # noqa: S605  # trusted NCBI URL, dev tooling
+        os.system(f"wget {url} -O {db_path}.gz")  # noqa: S605  # trusted NCBI URL, dev tooling  # ty: ignore[deprecated]
         log.info("Unzipping %s...", db_path)
         subprocess.run(["gunzip", db_path], check=True)  # noqa: S603, S607  # trusted local tool, dev tooling
     else:
