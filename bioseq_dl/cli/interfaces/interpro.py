@@ -10,7 +10,7 @@ app = typer.Typer(help="Fetch data from InterPro database.")
 
 @app.command("entry")
 def run_entry(
-    id: str = typer.Option(None, "--id", "-id", help="InterPro entry ID to fetch."),
+    identifier: str = typer.Option(None, "--id", "-id", help="InterPro entry ID to fetch."),
     db: str = typer.Option(
         None, "--db", "-db", help="Specific database within InterPro to query (e.g., InterPro)."
     ),
@@ -32,8 +32,8 @@ def run_entry(
 
     query = {}
 
-    if id:
-        query["id"] = id
+    if identifier:
+        query["id"] = identifier
     if db:
         query["db"] = db
     if filter_uniprot_accession:

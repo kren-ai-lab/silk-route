@@ -142,13 +142,13 @@ class InterproInterface(BaseAPIInterface):
             else:
                 responses.append(data)
 
-            next = None
+            next_page = None
             if data.get("next"):
-                next = (
+                next_page = (
                     self.fetch_pages(data["next"], method, pages_to_fetch - 1) if pages_to_fetch > 1 else None
                 )
-                if next:
-                    responses.extend(next)
+                if next_page:
+                    responses.extend(next_page)
 
         except requests.exceptions.RequestException:
             log.exception(f"Error fetching next page for method {method}")

@@ -97,7 +97,7 @@ ignore = [
     # TODO formatting / presence
     "TD002", "TD003", "TD004", "FIX002",
     # Misc legacy style
-    "A001", "A002", "E501", "SLF001",
+    "E501", "SLF001",
     "S110",
     # Complexity / size (deferred to Phase 3 refactor)
     "PLR0911", "PLR0915",

@@ -10,7 +10,7 @@ app = typer.Typer(help="Collect data from Reactome database.")
 
 @app.command("discover")
 def run_discover(
-    id: str = typer.Argument(
+    identifier: str = typer.Argument(
         ..., help="Identifier to discover (comma-separated for several), e.g., R-DME-1834941"
     ),
     output_file: str = typer.Option(None, help="Output file to save results"),
@@ -18,7 +18,7 @@ def run_discover(
     """Discover data in Reactome using one or more identifiers."""
     interface = ReactomeInterface()
 
-    ids = [i.strip() for i in id.split(",") if i.strip()]
+    ids = [i.strip() for i in identifier.split(",") if i.strip()]
     if not ids:
         msg = "No valid identifier provided."
         raise typer.BadParameter(msg)

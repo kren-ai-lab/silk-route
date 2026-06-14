@@ -107,7 +107,7 @@ def run(
     export_data, parsed_metadata = instance.parse(
         results=response,
         extract_fields=None,
-        format=cast("Literal['json', 'dataframe', 'xml']", parse_format),
+        fmt=cast("Literal['json', 'dataframe', 'xml']", parse_format),
     )
     metadata["parsing"] = parsed_metadata
 
@@ -117,7 +117,7 @@ def run(
         enriched_data, enriched_metadata = run_crossref_enrichment(
             export_data,
             crossref_fields.split(","),
-            format=cast("Literal['json', 'dataframe', 'xml']", parse_format),
+            fmt=cast("Literal['json', 'dataframe', 'xml']", parse_format),
         )
         metadata["enrichment"] = enriched_metadata
 

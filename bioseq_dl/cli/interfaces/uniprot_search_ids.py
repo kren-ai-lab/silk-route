@@ -27,7 +27,7 @@ log = get_logger("bioseq_dl.cli.uniprot_search_ids")
 
 @app.command()
 def run(
-    input: str = typer.Option(..., "-i", "--input", help="CSV file with UniProt IDs"),
+    input_file: str = typer.Option(..., "-i", "--input", help="CSV file with UniProt IDs"),
     column: str = typer.Option("accession", "-c", "--column", help="Column name with UniProt IDs"),
     output: str = typer.Option(..., "-o", "--output", help="Output file"),
     from_db: str = typer.Option(
@@ -80,7 +80,7 @@ def run(
     except Exception as e:
         logger.warning(f"Could not configure logging: {e}")
 
-    df = pd.read_csv(input)
+    df = pd.read_csv(input_file)
 
     # Filter by identity if present
     if min_identity is not None and "identity" in df.columns:
@@ -108,7 +108,7 @@ def run(
     export_data, parsed_metadata = instance.parse(
         results=response,
         extract_fields=None,
-        format=cast("Literal['json', 'dataframe', 'xml']", parse_format),
+        fmt=cast("Literal['json', 'dataframe', 'xml']", parse_format),
     )
     print(f"type of export_data: {type(export_data)}")
     metadata["parsing"] = parsed_metadata
@@ -119,7 +119,7 @@ def run(
         enriched_data, enriched_metadata = run_crossref_enrichment(
             export_data,
             crossref_fields.split(","),
-            format=cast("Literal['json', 'dataframe', 'xml']", parse_format),
+            fmt=cast("Literal['json', 'dataframe', 'xml']", parse_format),
         )
         metadata["enrichment"] = enriched_metadata
 

@@ -51,25 +51,25 @@ def iface(tmp_path):
 
 
 def test_maybe_parse_to_dataframe(iface):
-    out = iface._maybe_parse([{"a": 1}, {"a": 2}], parse=False, format="dataframe")
+    out = iface._maybe_parse([{"a": 1}, {"a": 2}], parse=False, fmt="dataframe")
     assert isinstance(out, pd.DataFrame)
     assert list(out["a"]) == [1, 2]
 
 
 def test_maybe_parse_dict_to_dataframe_single_row(iface):
-    out = iface._maybe_parse({"a": 1}, parse=False, format="dataframe")
+    out = iface._maybe_parse({"a": 1}, parse=False, fmt="dataframe")
     assert isinstance(out, pd.DataFrame)
     assert out.shape == (1, 1)
 
 
 def test_maybe_parse_to_xml_bytes(iface):
-    out = iface._maybe_parse({"a": "x"}, parse=False, format="xml")
+    out = iface._maybe_parse({"a": "x"}, parse=False, fmt="xml")
     assert isinstance(out, bytes)
     assert b"<a>x</a>" in out
 
 
 def test_maybe_parse_with_parse_extracts_fields(iface):
-    out = iface._maybe_parse({"a": 1, "b": 2}, parse=True, format="json", fields_to_extract=["a"])
+    out = iface._maybe_parse({"a": 1, "b": 2}, parse=True, fmt="json", fields_to_extract=["a"])
     assert out == {"a": 1}
 
 

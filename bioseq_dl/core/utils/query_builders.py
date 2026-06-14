@@ -391,7 +391,7 @@ def build_query_rhea(row: pd.Series, params: dict) -> list:
     """Build Rhea queries from 'rhea_ids' column."""
     ids_raw = to_str_list(row.get("rhea_ids"))
     if ids_raw:
-        return [{"query": id, **params} for id in ids_raw]
+        return [{"query": rhea_id, **params} for rhea_id in ids_raw]
     return []
 
 

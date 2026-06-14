@@ -67,7 +67,7 @@ def has_enrichment_result_value(value: Any) -> bool:
 def run_crossref_enrichment(
     data: pd.DataFrame | list[dict] | bytes | str | dict,
     crossref_fields: list,
-    format: Literal["dataframe", "json", "xml"] = "json",
+    fmt: Literal["dataframe", "json", "xml"] = "json",
     max_workers: int = 4,
     total_retries: int = 3,
 ) -> tuple[Any, dict | list[dict]]:
@@ -175,7 +175,7 @@ def run_crossref_enrichment(
     enricher = CrossRefEnricher(
         endpoint_specs=endpoint_specs, max_workers=max_workers, total_retries=total_retries
     )
-    enriched_data, enriched_metadata = enricher.enrich(data, format=format)
+    enriched_data, enriched_metadata = enricher.enrich(data, fmt=fmt)
 
     # Normalize metadata to a dict to satisfy the annotated return type
     if enriched_metadata is None:

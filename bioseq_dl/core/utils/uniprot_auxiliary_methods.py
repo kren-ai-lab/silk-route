@@ -75,7 +75,7 @@ def extract_variants(features: list) -> list[dict]:
     for feature in features if isinstance(features, list) else []:
         if feature.get("type") in VARIANTS_NAMES:
             vtype = feature.get("type")
-            id = feature.get("featureId", "")
+            feature_id = feature.get("featureId", "")
             variant_start_pos = feature.get("location", "").get("start", "").get("value")
             variant_end_pos = feature.get("location", "").get("end", "").get("value")
             if variant_start_pos and variant_end_pos:
@@ -92,7 +92,7 @@ def extract_variants(features: list) -> list[dict]:
             extracted.append(
                 {
                     "type": vtype,
-                    "id": id,
+                    "id": feature_id,
                     "location": location,
                     "originalSequence": original_seq,
                     "alternativeSequences": alt_seqs,

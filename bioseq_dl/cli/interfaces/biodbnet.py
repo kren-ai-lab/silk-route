@@ -13,7 +13,7 @@ app = typer.Typer(help="Fetch data from BioDBNet database.")
 
 @app.command("db2db")
 def run_db2db(
-    input: str = typer.Option(
+    input_type: str = typer.Option(
         "genesymbol", "--input", "-i", help=f"Type of input identifier. Options: {', '.join(biodbnet_inputs)}"
     ),
     value: str = typer.Option(
@@ -39,7 +39,7 @@ def run_db2db(
     instance = BioDBNetInterface()
 
     df, _ = instance.fetch_single(
-        query={"input": input, "inputValues": value.split(","), "outputs": outputs, "taxonId": taxon_id},
+        query={"input": input_type, "inputValues": value.split(","), "outputs": outputs, "taxonId": taxon_id},
         method="db2db",
         parse=True,
         format="dataframe",

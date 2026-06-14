@@ -115,7 +115,7 @@ class CrossRefEnricher:
         instance: Any,
         spec: EndpointSpec,
         params: dict[str, Any],
-        format: Literal["dataframe", "json", "xml"] = "dataframe",
+        fmt: Literal["dataframe", "json", "xml"] = "dataframe",
     ) -> tuple[pd.DataFrame | list[dict[str, Any]], dict]:
         """Build query from row using the registered query-builder.
 
@@ -127,7 +127,7 @@ class CrossRefEnricher:
 
         query_params = qb(row, params)
 
-        method_params = {"method": spec.endpoint, "parse": True, "format": format}
+        method_params = {"method": spec.endpoint, "parse": True, "format": fmt}
 
         if spec.option:
             method_params["option"] = spec.option
@@ -143,7 +143,7 @@ class CrossRefEnricher:
             )
             result, metadata = instance.fetch_batch(queries=query_params, **method_params)
         # Handle unexpected query_params format
-        elif format == "dataframe":
+        elif fmt == "dataframe":
             result = pd.DataFrame()
         else:
             result = []
@@ -190,7 +190,7 @@ class CrossRefEnricher:
         instance: Any,
         spec: EndpointSpec,
         params: dict[str, Any],
-        format: Literal["dataframe", "json", "xml"] = "dataframe",
+        fmt: Literal["dataframe", "json", "xml"] = "dataframe",
     ) -> tuple[pd.DataFrame | list[dict[str, Any]] | ElementTree[Element[str] | None], dict]:
         """Apply search-then-merge for every row and vertically concatenate all row-expansions."""
         # Apply row-wise; collect per-row DataFrames
@@ -198,12 +198,12 @@ class CrossRefEnricher:
         all_results = []
 
         for _, row in df.iterrows():
-            result, metadata = self._search_and_merge(row, instance, spec, params, format)
+            result, metadata = self._search_and_merge(row, instance, spec, params, fmt)
             all_results.append(result)
             all_metadata = self._merge_metadata(all_metadata, metadata)
 
         # TODO comprobar si este cambio no es problematico
-        if format == "dataframe":
+        if fmt == "dataframe":
             # Unpack (df, metadata) tuples; metadata currently unused
             dfs = [res[0] if isinstance(res, tuple) else res for res in all_results]
 
@@ -266,14 +266,14 @@ class CrossRefEnricher:
                 return pd.DataFrame(), all_metadata
 
             return pd.concat(cleaned_results, ignore_index=True, sort=False), all_metadata
-        if format == "json":
+        if fmt == "json":
             cleaned_results = []
             for raw in all_results:
                 item = raw[0] if isinstance(raw, tuple) else raw
                 if isinstance(item, list):
                     cleaned_results.extend(item)
             return cleaned_results, all_metadata
-        if format == "xml":
+        if fmt == "xml":
             # TODO check if this code is correct, i did a lot of changes recently regarding XML exporting
             # Make final root
             merged_root = Element("results")
@@ -287,13 +287,13 @@ class CrossRefEnricher:
                     merged_root.append(item)
 
             return ElementTree(merged_root), all_metadata
-        msg = f"Unsupported format: {format}"
+        msg = f"Unsupported format: {fmt}"
         raise ValueError(msg)
 
     def enrich(
         self,
         data: pd.DataFrame | list[dict[str, Any]] | dict[str, Any] | ElementTree | str,
-        format: Literal["dataframe", "json", "xml"] = "dataframe",
+        fmt: Literal["dataframe", "json", "xml"] = "dataframe",
     ) -> tuple[dict, dict]:
         """Enrich the input DataFrame with cross-references from specified endpoints."""
         # For an easier handling, convert input data to DataFrame if needed
@@ -329,7 +329,7 @@ class CrossRefEnricher:
                 f"Prepared params for {spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''}: {params}"
             )
 
-            processed_data, processed_metadata = self._process_dataframe(df, instance, spec, params, format)
+            processed_data, processed_metadata = self._process_dataframe(df, instance, spec, params, fmt)
             results.update(
                 {f"{spec.database}_{spec.endpoint}{'_' + spec.option if spec.option else ''}": processed_data}
             )
@@ -339,9 +339,9 @@ class CrossRefEnricher:
                 }
             )
 
-        if format == "dataframe":
+        if fmt == "dataframe":
             return results, metadata
-        if format in ["json", "xml"]:
+        if fmt in ["json", "xml"]:
             return results, metadata
-        msg = f"Unsupported format: {format}"
+        msg = f"Unsupported format: {fmt}"
         raise ValueError(msg)

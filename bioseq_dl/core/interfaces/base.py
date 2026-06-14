@@ -400,13 +400,13 @@ class BaseAPIInterface(ABC):
         return None
 
     def _maybe_parse(
-        self, data: Any, parse: bool, format: Literal["dataframe", "json", "xml"], **kwargs: Any
+        self, data: Any, parse: bool, fmt: Literal["dataframe", "json", "xml"], **kwargs: Any
     ) -> list | dict | pd.DataFrame | bytes | str:
         config_key = kwargs.pop("config_key", None)
         fields_to_extract = kwargs.pop("fields_to_extract", None)
 
         log.debug(
-            f"_maybe_parse called with parse={parse}, format={format}, config_key={config_key}, fields_to_extract={fields_to_extract}"
+            f"_maybe_parse called with parse={parse}, format={fmt}, config_key={config_key}, fields_to_extract={fields_to_extract}"
         )
         if parse:
             if not fields_to_extract and self.use_config:
@@ -437,7 +437,7 @@ class BaseAPIInterface(ABC):
             result = data
 
         # Convert to DataFrame if requested
-        if format == "dataframe":
+        if fmt == "dataframe":
             log.debug("Converting result to DataFrame")
             # TODO: Make sure parse method returns a consistent structure
             if isinstance(result, list):
@@ -449,7 +449,7 @@ class BaseAPIInterface(ABC):
             log.error("Cannot convert to DataFrame, unsupported type.")
             msg = f"Cannot convert to DataFrame: unsupported type {type(result)}"
             raise ValueError(msg)
-        if format == "xml":
+        if fmt == "xml":
             log.debug("Converting result to XML")
             if isinstance(result, dict):
                 return dicttoxml(result, custom_root="results", item_func=lambda x: "entry", attr_type=False)
@@ -460,7 +460,7 @@ class BaseAPIInterface(ABC):
             log.error("Cannot convert to XML, unsupported type.")
             msg = f"Cannot convert to XML: unsupported type {type(result)}"
             raise ValueError(msg)
-        if format == "json":
+        if fmt == "json":
             log.debug("Returning result as JSON")
             return result
 
@@ -731,7 +731,7 @@ class BaseAPIInterface(ABC):
         """
         metadata = self._empty_metadata()
         # Extract flags and avoid passing twice to _maybe_parse
-        format = kwargs.pop("format", "json")
+        fmt = kwargs.pop("format", "json")
         method = kwargs.get("method", "NOT_GIVEN")
         option = kwargs.get("option")
 
@@ -762,7 +762,7 @@ class BaseAPIInterface(ABC):
                     metadata["cached_ids"] = [*metadata.get("cached_ids", []), identifier]
                     metadata["cached_subqueries"] = [*metadata.get("cached_subqueries", []), subq]
                     raw = self.load_cache(cache_key)
-                    parsed = self._maybe_parse(data=raw, parse=parse, format=format, **kwargs)
+                    parsed = self._maybe_parse(data=raw, parse=parse, fmt=fmt, **kwargs)
                     results[identifier] = parsed
                 else:
                     log.debug(f"No cache found for identifier: {identifier}, will fetch.")
@@ -788,12 +788,12 @@ class BaseAPIInterface(ABC):
                     )
                     cache_key = self._make_cache_key(identifier, **kwargs)
                     self.save_cache(cache_key, partial_result)
-                    parsed = self._maybe_parse(data=partial_result, parse=parse, format=format, **kwargs)
+                    parsed = self._maybe_parse(data=partial_result, parse=parse, fmt=fmt, **kwargs)
                     results[identifier] = parsed
 
             # Additional check and convert needed. If many subqueries are brought,
             # the result should be concatenated into a single DataFrame if format="dataframe"
-            if format == "dataframe":
+            if fmt == "dataframe":
                 dfs = []
                 log.debug("Converting results to DataFrames")
                 for data in results.values():
@@ -810,7 +810,7 @@ class BaseAPIInterface(ABC):
 
                     return export_df, metadata
                 return pd.DataFrame(), metadata
-            if format == "xml":
+            if fmt == "xml":
                 log.debug("Converting results to XML format")
                 combined_results = []
                 for data in results.values():
@@ -861,7 +861,7 @@ class BaseAPIInterface(ABC):
             if not raw:
                 metadata["failed_ids"] = [identifier]
 
-        parsed = self._maybe_parse(data=raw, parse=parse, format=format, **kwargs)
+        parsed = self._maybe_parse(data=raw, parse=parse, fmt=fmt, **kwargs)
 
         metadata["data_info"] = self._build_data_info(parsed)
         metadata["execution_time"] = time.time() - t0
@@ -888,7 +888,7 @@ class BaseAPIInterface(ABC):
         """
         metadata = self._empty_metadata()
         method = kwargs.get("method", "NOT_GIVEN")
-        format = kwargs.pop("format", "json")
+        fmt = kwargs.pop("format", "json")
         option = kwargs.get("option")
         results: list[Any] = []
 
@@ -935,7 +935,7 @@ class BaseAPIInterface(ABC):
                         metadata["cached_subqueries"] = [*metadata.get("cached_subqueries", []), subquery]
                     for _identifier, result in cached_subquery_results:
                         log.debug(f"Cache hit for subquery identifier: {_identifier}, loading from cache.")
-                        results.append(self._maybe_parse(data=result, parse=parse, format=format, **kwargs))
+                        results.append(self._maybe_parse(data=result, parse=parse, fmt=fmt, **kwargs))
 
             else:
                 # No subqueries, use the classic key
@@ -946,7 +946,7 @@ class BaseAPIInterface(ABC):
                     metadata["cached_subqueries"] = [*metadata.get("cached_subqueries", []), query]
                     cached = self.load_cache(cache_key)
                     result = cached.to_dict(orient="records") if isinstance(cached, pd.DataFrame) else cached
-                    results.append(self._maybe_parse(data=result, parse=parse, format=format, **kwargs))
+                    results.append(self._maybe_parse(data=result, parse=parse, fmt=fmt, **kwargs))
                 else:
                     log.debug(f"No cache found for query at index {i}, will fetch.")
                     index_query_map[i] = query

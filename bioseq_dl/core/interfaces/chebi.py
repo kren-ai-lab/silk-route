@@ -105,7 +105,7 @@ class ChEBIInterface(BaseAPIInterface):
                 log.error(f"Expected '{id_key}' to be str or list, got {type(chebi_ids)}")
                 return {}
 
-            validated_params[id_key] = ",".join(id for id in chebi_ids)
+            validated_params[id_key] = ",".join(chebi_id for chebi_id in chebi_ids)
 
         # Make URL
         url = f"{CHEBI.API_URL}{method.replace('-', '/')}/"

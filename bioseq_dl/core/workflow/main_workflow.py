@@ -405,7 +405,7 @@ class MainWorkflow:
         try:
             self.log.info("Pipeline: parsing UniProt results format=%s", parse_format)
             data, parse_meta = self.uniprot.parse(
-                results=response, extract_fields=None, format=cast("Any", parse_format)
+                results=response, extract_fields=None, fmt=cast("Any", parse_format)
             )
             parse_elapsed = time.time() - parse_started
             parsed_count = None
@@ -471,7 +471,7 @@ class MainWorkflow:
         enriched, enriched_meta = run_crossref_enrichment(
             data=input_data if input_data is not None else pd.DataFrame(),
             crossref_fields=cross_ref_fields,
-            format=cast("Literal['json', 'dataframe', 'xml']", parse_format),
+            fmt=cast("Literal['json', 'dataframe', 'xml']", parse_format),
             max_workers=max_workers,
             total_retries=total_retries,
         )
@@ -1078,7 +1078,7 @@ class MainWorkflow:
         )
         enriched, enriched_meta = crossref_enricher.enrich(
             data=input_data if input_data is not None else pd.DataFrame(),
-            format=cast("Literal['json', 'dataframe', 'xml']", export_format),
+            fmt=cast("Literal['json', 'dataframe', 'xml']", export_format),
         )
 
         context["data"].setdefault("uniprot_enrichment", enriched)

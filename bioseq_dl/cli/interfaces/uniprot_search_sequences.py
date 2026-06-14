@@ -46,7 +46,7 @@ def run(
     extension: str = typer.Option(
         "fasta", "--extension", "-e", help="File extension of the database. Default is 'fasta'."
     ),
-    input: str = typer.Option(..., "--input", "-i", help="File with sequences to run BLAST on."),
+    input_file: str = typer.Option(..., "--input", "-i", help="File with sequences to run BLAST on."),
     seq_column: str = typer.Option("sequences", "--seq-column", "-c", help="Column name with sequences."),
     output: str = typer.Option(..., "-o", "--output", help="Output directory for results"),
     evalue: float = typer.Option(0.001, "--evalue", "-v", help="E-value threshold for BLAST search."),
@@ -102,7 +102,7 @@ def run(
     except Exception as e:
         logger.warning(f"Could not configure logging: {e}")
 
-    df = pd.read_csv(input)
+    df = pd.read_csv(input_file)
 
     if seq_column not in df.columns:
         msg = f"Column '{seq_column}' not found in input file."
@@ -182,7 +182,7 @@ def run(
         export_data, parsed_metadata = instance.parse(
             results=response,
             extract_fields=None,
-            format=cast("Literal['json', 'dataframe', 'xml']", parse_format),
+            fmt=cast("Literal['json', 'dataframe', 'xml']", parse_format),
         )
         metadata["parsing"] = parsed_metadata
 
@@ -192,7 +192,7 @@ def run(
             enriched_data, enriched_metadata = run_crossref_enrichment(
                 export_data,
                 crossref_fields.split(","),
-                format=cast("Literal['json', 'dataframe', 'xml']", parse_format),
+                fmt=cast("Literal['json', 'dataframe', 'xml']", parse_format),
             )
             metadata["enrichment"] = enriched_metadata
 

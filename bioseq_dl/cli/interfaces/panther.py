@@ -36,7 +36,7 @@ def run_geneinfo(
 
 @app.command("familyortholog")
 def run_familyortholog(
-    id: str = typer.Argument(..., help="PANTHER ID (e.g., 'PTHR10000')."),
+    panther_id: str = typer.Argument(..., help="PANTHER ID (e.g., 'PTHR10000')."),
     taxon_filter: str = typer.Option(
         None,
         "--taxon-filter",
@@ -53,7 +53,7 @@ def run_familyortholog(
     """Run PANTHER family ortholog lookup."""
     interface = PantherInterface()
 
-    query = {"family": id, "taxonFltr": taxon_filter}
+    query = {"family": panther_id, "taxonFltr": taxon_filter}
 
     result = interface.fetch_single(query=query, method="familyortholog", parse=True, format="dataframe")
 
@@ -62,7 +62,7 @@ def run_familyortholog(
 
 @app.command("familymsa")
 def run_familymsa(
-    id: str = typer.Argument(..., help="PANTHER ID (e.g., 'PTHR10000')."),
+    panther_id: str = typer.Argument(..., help="PANTHER ID (e.g., 'PTHR10000')."),
     taxon_filter: str = typer.Option(
         ...,
         "--taxon-filter",
@@ -79,7 +79,7 @@ def run_familymsa(
     """Run PANTHER family MSA lookup."""
     interface = PantherInterface()
 
-    query = {"family": id, "taxonFltr": taxon_filter}
+    query = {"family": panther_id, "taxonFltr": taxon_filter}
 
     result = interface.fetch_single(query=query, method="familymsa", parse=True, format="dataframe")
 

@@ -36,7 +36,7 @@ def save_to_file(
 
 @app.command(name="")
 def run(
-    input: str = typer.Option(
+    input_file: str = typer.Option(
         ...,
         "--input",
         "-i",
@@ -62,15 +62,15 @@ def run(
     """Run UniProt cross-reference name mapping."""
     try:
         # Check if input file exists
-        if not Path(input).exists():
-            msg = f"Input file {input} does not exist."
+        if not Path(input_file).exists():
+            msg = f"Input file {input_file} does not exist."
             raise FileNotFoundError(msg)
 
         # Load input file into a DataFrame
         try:
-            df = pd.read_csv(input)
+            df = pd.read_csv(input_file)
         except Exception as e:
-            msg = f"Error reading input file {input}: {e}"
+            msg = f"Error reading input file {input_file}: {e}"
             raise ValueError(msg) from e
 
         endpoints_config = load_packaged_config("uniprot_crossref", "config_endpoints.yml") or {}
@@ -114,7 +114,7 @@ def run(
             Path(out_dir).mkdir(parents=True)
 
         if isinstance(enriched_data, pd.DataFrame) and not enriched_data.empty:
-            filename = Path(input).stem
+            filename = Path(input_file).stem
             results_path = Path(out_dir) / f"{filename}_results.csv"
             enriched_data.to_csv(results_path, index=False)
             log.info(f"Results saved to {results_path}")

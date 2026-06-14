@@ -11,7 +11,7 @@ app = typer.Typer(help="Collect data from PRIDE database.")
 @app.command("search_projects")
 def run_search_projects(
     keyword: str = typer.Argument(..., help="Keyword to search for."),
-    filter: str | None = typer.Option(None, "--filter", help="Filter for the search."),
+    filter_value: str | None = typer.Option(None, "--filter", help="Filter for the search."),
     page: int = typer.Option(0, "--page", help="Page number for pagination."),
     dateGap: str | None = typer.Option(None, "--dateGap", help="Date gap filter."),
     sortDirection: str = typer.Option("DESC", "--sortDirection", help="Sort direction (ASC or DESC)."),
@@ -22,7 +22,7 @@ def run_search_projects(
     interface = PrideInterface()
     query = {
         "keyword": keyword,
-        "filter": filter,
+        "filter": filter_value,
         "page": page,
         "dateGap": dateGap,
         "sortDirection": sortDirection,
