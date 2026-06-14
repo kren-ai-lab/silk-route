@@ -84,13 +84,14 @@ def run(
     logger = log
     raw_export_format = export_format
     try:
-        export_format = normalize_user_export_format(export_format)
-        if export_format is None:
+        normalized_format = normalize_user_export_format(export_format)
+        if normalized_format is None:
             msg = (
                 f"Unsupported export format '{raw_export_format}'. Supported formats are: "
                 f"{', '.join(USER_EXPORT_FORMATS)}."
             )
             raise ValueError(msg)  # noqa: TRY301  # validate-then-Exit CLI idiom
+        export_format = normalized_format
     except ValueError as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=1) from None

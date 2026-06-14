@@ -5,7 +5,7 @@ from typing import Any
 ### Useful functions ###
 
 
-def get_nested(data: dict, path: str, sep: str = ".") -> Any:
+def get_nested(data: dict | list, path: str, sep: str = ".") -> Any:
     """Get a nested value from a dictionary or list given a specific path.
 
     Args:
