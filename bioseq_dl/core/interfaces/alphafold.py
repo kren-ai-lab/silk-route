@@ -235,33 +235,6 @@ class AlphafoldInterface(BaseAPIInterface):
 
         return self._extract_fields(data, fields_to_extract)
 
-    def query_usage(self):
-        """Get usage information for the Alphafold API.
-
-        Returns:
-            str: Usage information.
-
-        """
-        usage = """Usage: To fetch predictions, use the UniProt ID as the query.
-        Example:
-            - fetch_single("P02666", parse=True)
-            - fetch_batch(["P02666", "P12345"])
-
-        Also you can download structures by setting the `structures` parameter in the constructor.
-        Example:
-            - alphafold = AlphafoldInterface(structures=["pdb", "cif"])
-            - prediction = alphafold.fetch_single("P02666")
-
-        Available structures to download:
-            - pdb: Protein Data Bank format
-            - cif: Crystallographic Information File format
-            - bcif: Binary Crystallographic Information File format
-
-        Common response fields include entry identifiers, model confidence scores,
-        and structure download URLs when structures are requested.
-        """
-        return usage
-
     def save(self, data: list | dict, filename: str, extension: str = "csv"):
         """Save the parsed data to a file.
 

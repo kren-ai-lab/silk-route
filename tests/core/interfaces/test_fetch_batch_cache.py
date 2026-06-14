@@ -37,9 +37,6 @@ class FakeInterface(BaseAPIInterface):
     def parse(self, data, fields_to_extract, **kwargs):
         return data
 
-    def query_usage(self) -> str:
-        return "usage"
-
 
 @pytest.fixture
 def interface(tmp_path):

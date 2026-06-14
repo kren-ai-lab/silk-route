@@ -1,11 +1,7 @@
 from requests import Request
 from requests.exceptions import RequestException
 
-# Add the import for your database in constants
 from bioseq_dl.constants.databases import BIODBNET
-
-# Some deprecated imports, you can remove them if not needed
-# from ...constants.biodbnet import inputs, outputs
 from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
@@ -87,15 +83,10 @@ class BioDBNetInterface(BaseAPIInterface):
             log.warning("Tried to parse data but the data is empty or None.")
             return {}
 
-        if isinstance(data, (dict, list)):
-            data = data
-        else:
+        if not isinstance(data, (dict, list)):
             log.error(
                 "Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object."
             )
             return {}
 
         return self._extract_fields(data, fields_to_extract)
-
-    def query_usage(self) -> str:
-        return "Use BioDBNet methods such as db2db and getpathways with their supported identifier mapping parameters."

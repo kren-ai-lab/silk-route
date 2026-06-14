@@ -137,13 +137,3 @@ class RefSeqInterface(BaseAPIInterface):
             return {}
 
         return self._extract_fields(data, fields_to_extract)
-
-    def query_usage(self) -> str:
-        return (
-            "RefSeq Interface allows you to fetch and parse data from the NCBI RefSeq database. "
-            "You can specify fields to extract from the fetched records, and it supports both single "
-            "and batch queries. The results can be saved in a specified output directory."
-            "Example usage:\n"
-            "refseq_instance.fetch_single('NP_001301717')\n"
-            "This will return the parsed data for the specified RefSeq ID."
-        )

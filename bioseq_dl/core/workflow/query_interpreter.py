@@ -24,7 +24,6 @@ class MultiModeFieldConfig:
         field: The target/native field name used by the downstream service.
         value_map: Optional mapping from user tokens to native tokens.
         supports_range: Whether the field accepts numeric ranges (low-high).
-        quote_phrases: Whether multi-word phrases should be quoted when formatted.
         resolver_kind: Optional resolver hint for custom resolution logic in subclasses.
 
     """
@@ -32,7 +31,6 @@ class MultiModeFieldConfig:
     field: str
     value_map: dict[str, str]
     supports_range: bool
-    quote_phrases: bool
     resolver_kind: str | None
 
 
@@ -128,24 +126,13 @@ class BaseQueryInterpreter:
         """Format a field prefix based on the field configuration."""
         return cfg.field
 
-    def _format_value_for_field(self, value: str, cfg: MultiModeFieldConfig) -> str | None:
-        """Format a value for a given field configuration, applying mapping,
-        range parsing, and quoting as needed.
-        """
-        # Check for numeric range
+    def _format_value_for_field(self, value: str, cfg: MultiModeFieldConfig) -> str:
+        """Format a value for a field configuration, applying numeric-range parsing."""
         if cfg.supports_range:
             low, high = self._parse_numeric_range(value)
             if low is not None and high is not None:
                 return f"{low}-{high}"
-
-        # Quote if needed
-        if cfg.quote_phrases and self._needs_quotes(value):
-            # Deprecated: Not compatible with some python versions
-            # if not (value.startswith("'") and value.endswith("'")):
-            #     value = f"'{value.strip('\"')}'"
-            if not (value.startswith("'") and value.endswith("'")):
-                clean_value = value.strip('"')
-                value = f"'{clean_value}'"
+        return value
 
     def _cleanup_whitespace(self, text: str) -> str:
         """Normalize whitespace to a single space and trim edges."""
@@ -221,13 +208,6 @@ class BaseQueryInterpreter:
                 tokens.append(tok)
         return tokens
 
-        # Captura AND/OR/NOT, pares key:'value' (value puede tener espacios entre comillas) o cualquier otra palabra
-        # pattern = re.compile(r"(\bAND\b|\bOR\b|\bNOT\b)|([^\s:]+:(?:'[^']*'|\"[^\"]*\"|[^\s]+))|(\S+)", re.IGNORECASE)
-        # tokens = []
-        # for m in pattern.finditer(text):
-        #     tokens.append(m.group(1) or m.group(2) or m.group(3))
-        # return tokens
-
     def _parse_numeric_range(self, value: str) -> tuple[str | None, str | None]:
         """Parse a numeric range expressed as 'low-high'. If invalid return (None, None)."""
         if not value or "-" not in value:
@@ -248,10 +228,6 @@ class BaseQueryInterpreter:
             return True
         except (ValueError, TypeError):
             return False
-
-    def _needs_quotes(self, value: str) -> bool:
-        """Return True if a value contains whitespace and should be quoted."""
-        return bool(re.search(r"\s", value or ""))
 
     def _expand_field_aliases(self, text: str) -> str:
         """Replace simple prefix aliases like 'taxon:' -> 'taxonomy_id:' based on
@@ -342,56 +318,33 @@ class UniProtQueryInterpreter(BaseQueryInterpreter):
         """Check if a string matches a 7-digit GO numeric ID."""
         return bool(re.fullmatch(r"\d{7}", text.strip()))
 
+    # Resolver kinds whose only job is a friendly-name -> native-id lookup in the
+    # field's own ``value_map`` (after stripping any surrounding quotes).
+    _MAP_RESOLVERS = frozenset({"go_name_map", "keyword_map", "organism_map", "database_map", "function_map"})
+
     def _resolve_item(self, prefix: str, value: str, cfg: Any) -> tuple[str, str]:
-        """Resolve an item value based on the field configuration.
+        """Resolve a single ``prefix:value`` item against its field configuration.
 
-        Args:
-            item: The user-provided item value.
-            cfg: The UniProtInterpreterConfig field configuration.
-
-        Returns:
-            The resolved item value.
-
+        Map-based resolvers translate a friendly value to its native id via
+        ``cfg.value_map``; ``length_transform`` rewrites a numeric range to UniProt
+        ``[low TO high]`` syntax. Values that are already native ids pass through.
         """
-        if cfg.resolver_kind == "go_name_map":
-            if self._looks_like_go_id(value):
-                return prefix, value
-            # Asumes is a quoted phrase; remove quotes if present
-            value = value.strip("'\"")
-            go_id = self.config.fields["go"].value_map.get(value.lower(), None)
-            if go_id:
-                return prefix, go_id
+        # Already-native ids pass through untouched.
+        if cfg.resolver_kind == "go_name_map" and self._looks_like_go_id(value):
+            return prefix, value
+        if cfg.resolver_kind == "keyword_map" and "KW-" in value:
+            return prefix, value
 
-        elif cfg.resolver_kind == "keyword_map":
-            if "KW-" in value:
-                return prefix, value
-            # Asumes is a quoted phrase; remove quotes if present
-            value = value.strip("'\"")
-            keyword_id = self.config.fields["keywords"].value_map.get(value.lower(), None)
-            if keyword_id:
-                return prefix, keyword_id
-
-        elif cfg.resolver_kind == "organism_map":
-            # Asumes is a quoted phrase; remove quotes if present
-            value = value.strip("'\"")
-            tax_id = self.config.fields["organism"].value_map.get(value.lower(), None)
-            if tax_id:
-                return prefix, tax_id
-
-        elif cfg.resolver_kind == "database_map":
-            db_id = self.config.fields["databases"].value_map.get(value.lower(), None)
-            if db_id:
-                return prefix, db_id
-
-        elif cfg.resolver_kind == "function_map":
-            func_id = self.config.fields["ec"].value_map.get(value.lower(), None)
-            if func_id:
-                return prefix, func_id
-
-        elif cfg.resolver_kind == "length_transform":
+        if cfg.resolver_kind == "length_transform":
             low, high = self._parse_numeric_range(value)
             if low is not None and high is not None:
                 return prefix, f"[{low} TO {high}]"
+            return prefix, value
+
+        if cfg.resolver_kind in self._MAP_RESOLVERS:
+            mapped = cfg.value_map.get(value.strip("'\"").lower())
+            if mapped:
+                return prefix, mapped
 
         return prefix, value
 
@@ -418,9 +371,6 @@ class UniProtQueryInterpreter(BaseQueryInterpreter):
         endpoints "getTemperatureOptimum", "getTemperatureStability", "getTemperatureRange"
         This method should be used before interpreting the query to extract such databases.
         """
-        processed_query = self._expand_field_aliases(query)
-        processed_query = self._cleanup_whitespace(processed_query)
-
         databases: list[str] = []
         tokens = self._tokenize_query(query)
         for tok in tokens:
@@ -449,31 +399,6 @@ class UniProtQueryInterpreter(BaseQueryInterpreter):
                 )
 
         return databases
-
-    def extract_additional_searches(self, query: str) -> dict[str, Any]:
-        """Extract additional searches implied by certain fields in the query.
-        For example, 'temperature' implies a brenda search.
-        Returns a dictionary mapping search names to parameters.
-        """
-        processed_query = self._expand_field_aliases(query)
-        processed_query = self._cleanup_whitespace(processed_query)
-
-        additional_searches: dict[str, Any] = {}
-        tokens = self._tokenize_query(query)
-        for tok in tokens:
-            if ":" not in tok:
-                continue
-            prefix, value = tok.split(":", 1)
-            # Ignore _any/_all/_not suffixes for this purpose
-            if "_" in prefix:
-                prefix = prefix.rsplit("_", 1)[0]
-
-            if prefix == "temperature":
-                low, high = self._parse_numeric_range(value)
-                if low is not None and high is not None:
-                    additional_searches["brenda"] = {"temperature_range": (low, high)}
-
-        return additional_searches
 
 
 def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
@@ -527,7 +452,6 @@ def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
             field="database",
             value_map=db_map,
             supports_range=False,
-            quote_phrases=False,
             resolver_kind="database_map",
         ),
         # Multi-mode keywords
@@ -535,7 +459,6 @@ def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
             field="keyword",
             value_map=keyword_map,
             supports_range=False,
-            quote_phrases=True,
             resolver_kind="keyword_map",
         ),
         # Multi-mode GO (supports resolving known names -> IDs)
@@ -543,7 +466,6 @@ def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
             field="go",
             value_map=go_name_map,
             supports_range=False,
-            quote_phrases=False,
             resolver_kind="go_name_map",
         ),
         # Example: taxa / organisms
@@ -551,7 +473,6 @@ def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
             field="taxonomy_id",
             value_map=taxonomy_id_map,
             supports_range=False,
-            quote_phrases=True,
             resolver_kind=None,
         ),
         # Singular aliases that should also resolve via taxonomy_id_map
@@ -559,14 +480,12 @@ def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
             field="taxonomy_id",
             value_map=taxonomy_id_map,
             supports_range=False,
-            quote_phrases=True,
             resolver_kind=None,
         ),
         "taxid": MultiModeFieldConfig(
             field="taxonomy_id",
             value_map=taxonomy_id_map,
             supports_range=False,
-            quote_phrases=False,
             resolver_kind=None,
         ),
         # Allow 'organism' (singular) to resolve to organism_id using the taxonomy map
@@ -574,35 +493,30 @@ def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
             field="organism_id",
             value_map=taxonomy_id_map,
             supports_range=False,
-            quote_phrases=True,
             resolver_kind="organism_map",
         ),
         "ec": MultiModeFieldConfig(
             field="ec",
             value_map=function_map,
             supports_range=False,
-            quote_phrases=False,
             resolver_kind="function_map",
         ),
         "length": MultiModeFieldConfig(
             field="length",
             value_map={},
             supports_range=True,
-            quote_phrases=False,
             resolver_kind="length_transform",
         ),
         "temperature": MultiModeFieldConfig(
             field="cc_bpcp_temp_dependence",
             value_map={},
             supports_range=True,
-            quote_phrases=False,
             resolver_kind=None,
         ),
         "ph": MultiModeFieldConfig(
             field="cc_bpcp_ph_dependence",
             value_map={},
             supports_range=True,
-            quote_phrases=False,
             resolver_kind=None,
         ),
     }
@@ -673,26 +587,6 @@ class ChEMBLQueryInterpreter(BaseQueryInterpreter):
         processed_query = self._resolve_query_items(processed_query)
         return processed_query
 
-    def extract_additional_searches(self, query: str) -> dict[str, Any]:
-        """Extract additional searches implied by certain fields in the query.
-        For example, 'ic50' implies a ChEMBL search.
-        Returns a dictionary mapping search names to parameters.
-        """
-        processed_query = self._expand_field_aliases(query)
-        processed_query = self._cleanup_whitespace(processed_query)
-
-        additional_searches: dict[str, Any] = {}
-        tokens = self._tokenize_query(query)
-        for tok in tokens:
-            if ":" not in tok:
-                continue
-            prefix, value = tok.split(":", 1)
-
-            if prefix in {"ic50", "activity", "target"}:
-                additional_searches.setdefault("chembl", {})[prefix] = value.strip()
-
-        return additional_searches
-
 
 def build_default_chembl_interpreter() -> ChEMBLQueryInterpreter:
     """Build a ChEMBLQueryInterpreter with default configuration."""
@@ -701,21 +595,18 @@ def build_default_chembl_interpreter() -> ChEMBLQueryInterpreter:
             field="ic50",
             value_map={},
             supports_range=True,
-            quote_phrases=False,
             resolver_kind="ic50_transform",
         ),
         "activity": MultiModeFieldConfig(
             field="activity",
             value_map={},
             supports_range=False,
-            quote_phrases=True,
             resolver_kind=None,
         ),
         "target": MultiModeFieldConfig(
             field="target",
             value_map={},
             supports_range=False,
-            quote_phrases=True,
             resolver_kind=None,
         ),
     }

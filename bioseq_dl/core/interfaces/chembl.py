@@ -514,9 +514,7 @@ class ChEMBLInterface(BaseAPIInterface):
 
         if isinstance(data, requests.models.Response):
             data = data.json()
-        elif isinstance(data, dict) or isinstance(data, list):
-            data = data
-        else:
+        elif not isinstance(data, (dict, list)):
             log.error(
                 "Tried to parse data but the type is not supported. Response should be a dict or a list."
             )
@@ -525,11 +523,3 @@ class ChEMBLInterface(BaseAPIInterface):
         parsed = self._extract_fields(data, fields_to_extract)
 
         return parsed
-
-    def query_usage(self) -> str:
-        return (
-            "ChEMBL API allows you to search for compounds, activities, and other chemical data.\n"
-            "You can use methods like 'activity' and 'activity-search' to fetch data.\n"
-            "For example, to search for activities, use:\n"
-            "`fetch(query='CHEMBL1824', method='activity-search')`"
-        )

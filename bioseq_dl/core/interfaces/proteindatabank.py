@@ -192,14 +192,3 @@ class PDBInterface(BaseAPIInterface):
             return {}
 
         return self._extract_fields(data, fields_to_extract)
-
-    def query_usage(self) -> str:
-        return """Usage: To fetch PDB entries, use the PDB ID as the query.
-        Example:
-            - fetch_single("4HHB")
-            - fetch_batch(["4HHB", "1A2B"])
-        Also you can download structures by setting the `download_structures` parameter in the constructor.
-        Example:
-            - pdb_interface = PDBInterface(download_structures=True)
-            - entry = pdb_interface.fetch_single("4HHB")
-        """

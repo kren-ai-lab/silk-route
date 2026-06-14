@@ -3,7 +3,7 @@ from typing import Any
 import requests
 
 from bioseq_dl.constants.databases import INTERPRO
-from bioseq_dl.constants.interpro import data_types, db_types, entry_integration_types, filter_types
+from bioseq_dl.constants.interpro import db_types, entry_integration_types, filter_types
 from bioseq_dl.core.exceptions import ConfigError
 from bioseq_dl.logging import get_logger
 
@@ -224,27 +224,3 @@ class InterproInterface(BaseAPIInterface):
             return {}
 
         return self._extract_fields(data, fields_to_extract)
-
-    def query_usage(self) -> str:
-        return (
-            ""
-            "Available methods: \n"
-            f"{', '.join(data_types)}\n"
-            "Available databases: \n"
-            f"{', '.join(db_types['entry'])}\n"
-            "Available entry integration types: \n"
-            f"{', '.join(entry_integration_types)}\n"
-            "Example query:\n"
-            "interpro_instance.fetch(\n"
-            "    query={\n"
-            "        'db': 'InterPro',\n"
-            "        'entry_integration': 'all',\n"
-            "        'modifiers': {'page_size': 10, 'page': 1},\n"
-            "        'filters': {'type': 'protein', 'db': 'UniProt', 'value': 'P12345'}\n"
-            "    },\n"
-            "    method='entry'\n"
-            ")\n"
-            "This will fetch InterPro entries with the specified filters and modifiers.\n"
-            "You can also specify the number of pages to fetch using the 'pages_to_fetch' parameter.\n"
-            "For more information, refer to the InterPro API documentation.\n"
-        )

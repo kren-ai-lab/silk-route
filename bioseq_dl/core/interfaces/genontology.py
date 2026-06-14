@@ -140,9 +140,7 @@ class GenOntologyInterface(BaseAPIInterface):
 
         if isinstance(data, requests.models.Response):
             data = data.json()
-        elif isinstance(data, dict):
-            data = data
-        else:
+        elif not isinstance(data, dict):
             log.error(
                 "Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object."
             )
@@ -181,29 +179,14 @@ class GenOntologyInterface(BaseAPIInterface):
             log.error(f"Error fetching relationships for GO term {parsed.get('goid', '')}: {e}")
         return parsed
 
-    # Patch Solution
     def fetch_single(
         self, query: str | dict, parse: bool = False, *args, **kwargs
     ) -> list | dict | pd.DataFrame:
         option = kwargs.pop("option", "default")
         return super().fetch_single(*args, query=query, parse=parse, option=option, **kwargs)
 
-    # Patch Solution
     def fetch_batch(
         self, queries: list[str | dict], parse: bool = False, *args, **kwargs
     ) -> list | pd.DataFrame:
         option = kwargs.pop("option", "default")
         return super().fetch_batch(*args, queries=queries, parse=parse, option=option, **kwargs)
-
-    def query_usage(self) -> str:
-        return (
-            "GenOntology API allows you to fetch ontology terms and their relationships.\n"
-            "Available methods:\n"
-            "- ontology-term: Fetch ontology term details.\n"
-            "- go: Fetch Gene Ontology hierarchy or models.\n"
-            "Options for 'ontology-term': graph, subgraph.\n"
-            "Options for 'go': hierarchy, models.\n"
-            "Example usage:\n"
-            "  - Fetch ontology term: fetch_single('GO:0008150', method='ontology-term')\n"
-            "  - Fetch GO hierarchy: fetch_single('GO:0008150', method='go', option='hierarchy')\n"
-        )

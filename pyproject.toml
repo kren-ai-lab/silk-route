@@ -124,7 +124,6 @@ ignore = [
     "PLR0912",  # too many branches: Phase 3
     "B006",     # mutable default arg (crossref_enricher, alphafold)
     "PD003",    # .isnull -> .isna (Phase 5 polars migration touches this)
-    "PLW0127",  # `data = data` no-op across ~13 interfaces (Phase 3 dedup)
     "RUF012",   # mutable ClassVar default (Phase 3 base refactor)
 ]
 

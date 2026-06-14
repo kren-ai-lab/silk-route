@@ -625,9 +625,6 @@ class UniprotInterface(BaseAPIInterface):
                 metadata
             ) > 0 else metadata
         if format == "xml":
-            # xml_bytes = dicttoxml(parsed, custom_root='results', attr_type=False)
-            # return xml_bytes, metadata[0] if len(metadata) > 0 else metadata
-
             return dict_to_elementtree(parsed, root_tag="results"), metadata[0] if len(
                 metadata
             ) > 0 else metadata
@@ -644,12 +641,4 @@ class UniprotInterface(BaseAPIInterface):
         raise NotImplementedError(
             "UniprotInterface does not implement generic fetch(); use submit_stream() "
             "for query search or download_batch()/submit_id_mapping() for id mapping."
-        )
-
-    def query_usage(self) -> str:
-        return (
-            "UniProt interface. Retrieve data via submit_stream(query, fields, sort) for "
-            "query/field search, or download_batch(dataframe, column_ids) / submit_id_mapping("
-            "from_db, to_db, ids) for id mapping. Use parse(results, extract_fields, format) "
-            "to shape results into json / dataframe / xml."
         )

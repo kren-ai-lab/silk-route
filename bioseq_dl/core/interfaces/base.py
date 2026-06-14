@@ -8,7 +8,6 @@ import re
 import time
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
-from itertools import permutations
 from typing import Any, ClassVar, Literal
 
 import pandas as pd
@@ -19,6 +18,7 @@ from requests.exceptions import RequestException
 from requests.models import Request, Response
 
 from bioseq_dl.core.dbconfig import DBConfig
+from bioseq_dl.core.exceptions import RequestError
 from bioseq_dl.core.interfacesconfig import load_packaged_config, read_config_file
 from bioseq_dl.core.utils.base_auxiliary_methods import get_nested, get_primary_keys, validate_parameters
 from bioseq_dl.logging import get_logger
@@ -227,6 +227,40 @@ class BaseAPIInterface(ABC):
             for col in df.columns
         ]
 
+    @classmethod
+    def _build_data_info(cls, data: Any) -> dict:
+        """Build the ``data_info`` metadata block for any result shape.
+
+        Single source of truth shared by ``fetch_single``/``fetch_batch`` (and the
+        workflow). ``data_type`` is the result type name (a string, so the
+        metadata stays serializable); ``total_entries`` and the per-column block
+        are derived from a DataFrame view of the data.
+        """
+        if isinstance(data, pd.DataFrame):
+            df = data
+        elif isinstance(data, list):
+            df = pd.DataFrame(data) if len(data) > 0 else pd.DataFrame()
+        elif isinstance(data, dict):
+            df = pd.DataFrame([data]) if len(data) > 0 else pd.DataFrame()
+        elif data is None:
+            df = pd.DataFrame()
+        else:
+            df = pd.DataFrame([data])
+
+        if isinstance(data, list):
+            total_entries = len(data)
+        elif isinstance(data, pd.DataFrame):
+            total_entries = data.shape[0]
+        elif data is None:
+            total_entries = 0
+        else:
+            total_entries = len(df)
+        return {
+            "total_entries": total_entries,
+            "data_type": type(data).__name__,
+            "columns": cls._build_columns_info(df),
+        }
+
     def get_cache_ignore_keys(self) -> set[str]:
         """Get the set of keys to ignore when generating cache keys.
 
@@ -264,7 +298,7 @@ class BaseAPIInterface(ABC):
             if k in self.get_cache_ignore_keys():
                 continue
             if sort_lists and isinstance(v, list):
-                # Solo ordena si los elementos son comparables (no dict)
+                # Only sort if items are comparable (not dicts)
                 if all(not isinstance(item, dict) for item in v):
                     v = sorted(v)
             result[k] = v
@@ -286,22 +320,17 @@ class BaseAPIInterface(ABC):
 
         # Include relevant kwargs (like 'operation') in the cache key
         if relevant_kwargs:
-            # extra = json.dumps(relevant_kwargs, sort_keys=True)
             extra = "_".join(f"{v}" for _, v in relevant_kwargs.items())
 
         if base and extra:
-            # log.debug(f"Cache_key: {base}_{extra}")
             return f"{base}_{extra}"
         if base:
-            # log.debug(f"Cache_key: {base}")
             return base
         # A rarer case where input_obj is empty or None
         return extra
 
     def _hash_key(self, key: str) -> str:
-        # TODO change it to hash
         return hashlib.md5(key.encode("utf-8")).hexdigest()
-        # return key
 
     def _get_cache_path(self, identifier: str) -> str:
         """Generate a cache file path based on the identifier."""
@@ -348,11 +377,11 @@ class BaseAPIInterface(ABC):
         """Return the configuration dictionary for a given key (config filename without extension)."""
         return self.configs.get(key, {})
 
-    # def _resolve_fields_from_kwargs(self, include_defaults_from=None, **kwargs) -> Optional[Dict]:
     def _resolve_fields_from_kwargs(self, **kwargs) -> dict | None:
-        """Resolve fields_to_extract by matching kwargs against keys in fields.yml.
+        """Resolve fields_to_extract by matching kwargs values against keys in fields.yml.
 
-        Automatically checks if any value in kwargs or combination like f"{value}_{mode}" matches a known config key.
+        Returns the config entry whose key matches the ``method`` (or any string
+        kwarg). Returns ``None`` if nothing matches.
         """
         fields_config = self.get_config("fields") if self.use_config else {}
 
@@ -366,16 +395,9 @@ class BaseAPIInterface(ABC):
         values = [method]
         values.extend([str(v) for v in kwargs.values() if isinstance(v, str)])
 
-        # 1. Check if any value in kwargs matches a known key
         for v in values:
             if v in known_keys:
                 return fields_config[v]
-
-        # 2. Check combinations of values in kwargs
-        for v1, v2 in permutations(values, 2):
-            composite = f"{v1}_{v2}"
-            if composite in known_keys:
-                return fields_config[composite]
 
         return None
 
@@ -392,7 +414,6 @@ class BaseAPIInterface(ABC):
             if not fields_to_extract and self.use_config:
                 log.debug("No fields_to_extract provided, trying to resolve from kwargs.")
                 # 1. Try to resolve fields from kwargs
-                # fields_to_extract = self._resolve_fields_from_kwargs(include_defaults_from=self.fetch, **kwargs)
                 fields_to_extract = self._resolve_fields_from_kwargs(**kwargs)
 
                 # 2. If not found, try to get from config
@@ -528,9 +549,6 @@ class BaseAPIInterface(ABC):
 
         method_info = method_info.get(option, {}) if option else method_info
 
-        # Redundant
-        # if not all(k in method_info.keys() for k in ["http_method", "path_param", "parameters", "group_queries", "separator"]):
-        #    raise ValueError(f"Method '{method}' with option '{option}' is not defined correctly in the method definition. Defined method: {method_info.keys()}")
         http_method = method_info["http_method"]
         path_param = method_info["path_param"]
         parameters = method_info["parameters"]
@@ -550,9 +568,6 @@ class BaseAPIInterface(ABC):
                     f"Query must be a dictionary when multiple primary keys are defined for method '{method}'. "
                     f"Received: {type(query)} with value {query}"
                 )
-            # if not all(key in query.keys() for key in primary_keys):
-            #     raise ValueError(f"Query must contain primary keys {primary_keys} for method '{method}'. "
-            #                  f"Received: {query.keys()} with value {query}")
 
         inputs = {}
 
@@ -562,14 +577,13 @@ class BaseAPIInterface(ABC):
                     if key in query and isinstance(query[key], list):
                         inputs[key] = separator.join(query[key])
                         log.debug(f"Joined {key} with separator '{separator}': {inputs[key]}")
-                    # TODO Changed else for elif, check
                     elif key in query:
                         inputs[key] = query.get(key, "")
                 inputs.update({k: v for k, v in query.items() if k not in group_queries})
             else:
                 inputs.update(query)
         elif isinstance(query, list):
-            # Asume that the list contains or a single value or a list of values for the primary key
+            # Assume the list contains a single value or a list of values for the primary key
             if group_queries and primary_keys[0] in group_queries:
                 inputs[primary_keys[0]] = separator.join(query)
             else:
@@ -578,10 +592,6 @@ class BaseAPIInterface(ABC):
             inputs[primary_keys[0]] = query
         else:
             raise ValueError(f"Unsupported query type: {type(query)}. Expected str, dict, or list.")
-
-        # Probably this line is not needed. All inputs should be in the query
-        # TODO TRY IF IN OTHER APIS THIS CHANGE MAKE ERRORS
-        # inputs.update([(k, v) for k, v in kwargs.items() if k not in self.get_cache_ignore_keys()])
 
         return http_method, path_param, parameters, inputs
 
@@ -706,7 +716,7 @@ class BaseAPIInterface(ABC):
             for k, v in d.items():
                 if k not in merged:
                     merged[k] = v
-                # Si ya hay una lista, añade solo si es distinto
+                # If already a list, append only if different
                 elif isinstance(merged[k], list):
                     if v not in merged[k]:
                         merged[k].append(v)
@@ -758,7 +768,6 @@ class BaseAPIInterface(ABC):
             log.debug(f"Generated a group of queries based on key '{group_key}' with multiple values.")
             results = {}
             remaining = []
-            # values = list(query[group_key])
             subqueries = self.decompose_query(query, method, option)
             # Check cache per individual
             log.debug(f"Subqueries generated: {subqueries}")
@@ -810,11 +819,7 @@ class BaseAPIInterface(ABC):
                 # TODO Check if this line of code works as intended
                 if dfs:
                     export_df = pd.concat(dfs, ignore_index=True)
-                    metadata["data_info"] = {
-                        "total_entries": len(export_df),
-                        "data_type": type(export_df),
-                        "columns": self._build_columns_info(export_df),
-                    }
+                    metadata["data_info"] = self._build_data_info(export_df)
                     metadata["execution_time"] = time.time() - t0
                     metadata["api_name"] = self.API_NAME
                     metadata["method"] = method
@@ -874,20 +879,8 @@ class BaseAPIInterface(ABC):
                 metadata["failed_ids"] = [identifier]
 
         parsed = self._maybe_parse(data=raw, parse=parse, format=format, **kwargs)
-        tmp_df = pd.DataFrame()
 
-        if isinstance(parsed, list):
-            tmp_df = pd.DataFrame(parsed) if parsed else pd.DataFrame()
-        elif isinstance(parsed, pd.DataFrame):
-            tmp_df = parsed
-        else:
-            tmp_df = pd.DataFrame([parsed]) if parsed else pd.DataFrame()
-
-        metadata["data_info"] = {
-            "total_entries": len(tmp_df),
-            "data_type": type(parsed),
-            "columns": self._build_columns_info(tmp_df),
-        }
+        metadata["data_info"] = self._build_data_info(parsed)
         metadata["execution_time"] = time.time() - t0
         metadata["api_name"] = self.API_NAME
         metadata["method"] = method
@@ -1014,30 +1007,14 @@ class BaseAPIInterface(ABC):
         metadata["execution_time"] = time.time() - t0
         metadata["fetched_length"] = sum(len(r) if isinstance(r, list) else 1 for r in results)
 
-        # Patch solution. Make sure that it works as intended
         # If it's a list of dataframes, concatenate them
-        columns_info = []
         if all(isinstance(r, pd.DataFrame) for r in results) and len(results) > 0:
             batch_data = pd.concat(results, ignore_index=True)
-            columns_info = self._build_columns_info(batch_data)
         else:
             batch_data = results
-            tmp_df = pd.DataFrame(batch_data)
-            columns_info = [
-                {"name": col, "dtype": str(type(batch_data)), "n_missing": int(tmp_df[col].isnull().sum())}
-                for col in tmp_df.columns
-            ]
 
-        metadata["data_info"] = {
-            "total_entries": len(batch_data)
-            if isinstance(batch_data, list)
-            else batch_data.shape[0]
-            if isinstance(batch_data, pd.DataFrame)
-            else 0,
-            "data_type": type(batch_data).__name__,
-            "columns": columns_info,
-        }
-        metadata["source_api"] = self.API_NAME
+        metadata["data_info"] = self._build_data_info(batch_data)
+        metadata["api_name"] = self.API_NAME
         metadata["method"] = method
         metadata["option"] = option
 
@@ -1089,7 +1066,7 @@ class BaseAPIInterface(ABC):
 
         return parsed
 
-    def _do_request(self, query: str | dict | list, *, method: str, **kwargs) -> dict | list | Response:
+    def _do_request(self, query: str | dict | list, *, method: str, **kwargs) -> Response:
         """Fetch data from the API based on the provided query and method.
 
         Args:
@@ -1099,11 +1076,13 @@ class BaseAPIInterface(ABC):
             api_url (str): API URL to use for the request.
 
         Returns:
-            dict: Fetched data from the API.
+            Response: The raw HTTP response from the API.
 
         Raises:
             ValueError: If the method is not defined in the METHODS.
-            RequestException: If there is an error during the HTTP request.
+            RequestError: If there is an error during the HTTP request. Raised
+                instead of silently returning an empty result so callers can
+                distinguish a failed request from a successful empty response.
 
         """
         api_url = kwargs.pop("api_url", None)
@@ -1137,14 +1116,10 @@ class BaseAPIInterface(ABC):
             return response
         except RequestException as e:
             log.error(f"Error fetching {query} for method '{method}': {e}")
-            return {}
+            raise RequestError(f"Request failed for method '{method}': {e}") from e
 
     @abstractmethod
     def fetch(self, query: str | dict | list, *, method: str, **kwargs):
-        raise NotImplementedError
-
-    @abstractmethod
-    def query_usage(self) -> str:
         raise NotImplementedError
 
     @abstractmethod

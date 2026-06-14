@@ -147,67 +147,10 @@ class BioGRIDInterface(BaseAPIInterface):
 
         if isinstance(data, requests.models.Response):
             data = data.json()
-        elif isinstance(data, (dict, list)):
-            data = data
-        else:
+        elif not isinstance(data, (dict, list)):
             log.error(
                 "Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object."
             )
             return {}
 
         return self._extract_fields(data, fields_to_extract)
-
-    def query_usage(self):
-        """Get usage information for the BioGRID API query parameters.
-
-        Returns:
-            str: Usage information.
-
-        """
-        usage = (
-            """Usage: To fetch interactions, use the BioGRID API with the following parameters.
-        Example:
-            - fetch_single(method="interactions", query={})
-        Available methods: """
-            + ", ".join(self.METHODS.keys())
-            + "\n\n"
-        )
-        usage += "\n\nExample Query:\n"
-        usage += """
-        {
-            "accessKey": "YOUR_ACCESS_KEY",
-            "geneList": ["P53"],
-            "max": 10,
-            "format": "json"
-        }
-        """
-        usage += "\n\nResponse Format:\n"
-        usage += """
-        {
-            "BIOGRID_INTERACTION_ID": "int",
-            "ENTREZ_GENE_A": "str",
-            "ENTREZ_GENE_B": "str",
-            "BIOGRID_ID_A": "int",
-            "BIOGRID_ID_B": "int",
-            "SYSTEMATIC_NAME_A": "str",
-            "SYSTEMATIC_NAME_B": "str",
-            "OFFICIAL_SYMBOL_A": "str",
-            "OFFICIAL_SYMBOL_B": "str",
-            "SYNONYMS_A": "str",
-            "SYNONYMS_B": "str",
-            "EXPERIMENTAL_SYSTEM": "str",
-            "EXPERIMENTAL_SYSTEM_TYPE": "str",
-            "PUBMED_AUTHOR": "str",
-            "PUBMED_ID": "int",
-            "ORGANISM_A": "int",
-            "ORGANISM_B": "int",
-            "THROUGHPUT": "str",
-            "QUANTITATION": "str",
-            "MODIFICATION": "str",
-            "ONTOLOGY_TERMS": {},
-            "QUALIFICATIONS": "",
-            "TAGS": "",
-            "SOURCEDB": ""
-        }"""
-
-        return usage

@@ -75,15 +75,10 @@ class RheaInterface(BaseAPIInterface):
 
         if isinstance(data, Response):
             data = data.json()
-        elif isinstance(data, (dict, list)):
-            data = data
-        else:
+        elif not isinstance(data, (dict, list)):
             log.error(
                 "Tried to parse data but the type is not supported. Data should be a list or a dictionary."
             )
             return {}
 
         return self._extract_fields(data, fields_to_extract, **kwargs)
-
-    def query_usage(self) -> str:
-        return "Use Rhea methods with supported reaction identifiers or query parameters."

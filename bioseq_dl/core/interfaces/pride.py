@@ -112,9 +112,7 @@ class PrideInterface(BaseAPIInterface):
 
         if isinstance(data, Response):
             data = data.json()
-        elif isinstance(data, dict):
-            data = data
-        else:
+        elif not isinstance(data, dict):
             log.error(
                 "Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object."
             )
@@ -127,6 +125,3 @@ class PrideInterface(BaseAPIInterface):
     ) -> list | dict | pd.DataFrame:
         option = kwargs.pop("option", "default")
         return super().fetch_single(*args, query=query, parse=parse, option=option, **kwargs)
-
-    def query_usage(self) -> str:
-        return "Use PRIDE methods with supported project, protein, peptide, or assay query parameters."

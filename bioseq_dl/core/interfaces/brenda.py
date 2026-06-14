@@ -133,25 +133,6 @@ class BrendaInterface(BaseAPIInterface):
         """
         return list(self.METHODS.keys())
 
-    def query_usage(self) -> str:
-        """Get the usage of the BRENDA API.
-
-        Returns:
-            str: Usage information.
-
-        """
-        usage = (
-            """Usage: To fetch data from BRENDA, use the following parameters.
-        Example:
-            - fetch(query={}, methods=["getKmValue", "getIc50Value"])
-        Available methods: """
-            + ", ".join(self.METHODS.keys())
-            + "\n\n"
-        )
-        usage += "For more information about each method, please refer to the BRENDA documentation."
-        usage += "\nOr use `show_method({method_name})` to see the parameters required for each method."
-        return usage
-
     def show_method(self, method_name: str) -> str:
         """Show the parameters required for a specific method.
 

@@ -144,32 +144,6 @@ class CrossRefEnricher:
         else:
             result = []
 
-        if format == "dataframe":
-            # Merge result with original row
-            if not isinstance(result, pd.DataFrame) or result.empty:
-                # if concat_results:
-                #     return row.to_frame().T, metadata  # Return original row as single-row DataFrame
-                # else:
-                return result, metadata
-            # Expand original row to match the number of result rows, then column-wise concat
-            # if concat_results:
-            #     row_expanded = pd.concat(
-            #         [pd.DataFrame([row] * len(result)).reset_index(drop=True),
-            #             result.reset_index(drop=True)],
-            #         axis=1
-            #     )
-            #     return row_expanded, metadata
-            # else:
-            return result, metadata
-        # if concat_results:
-        #     # Merge each dict in result with original row dict
-        #     if not isinstance(result, list) or not result:
-        #         return [row.to_dict()], metadata  # Return original row as single dict in list
-        #     merged_results = [
-        #         {**row.to_dict(), **res} for res in result
-        #     ]
-        #     return merged_results, metadata
-        # else:
         return result, metadata
 
     def _merge_metadata(self, meta1: dict, meta2: dict) -> dict:
@@ -362,29 +336,7 @@ class CrossRefEnricher:
             )
 
         if format == "dataframe":
-            frames = []
-            for df in results.values():
-                # 1) Flatten MultiIndex columns (if any)
-                if isinstance(df.columns, pd.MultiIndex):
-                    df = df.copy()
-                    df.columns = ["__".join(map(str, c)) for c in df.columns]
-                # 2) Drop duplicate column names and reset index to avoid reindex issues on concat
-                frames.append(df.loc[:, ~pd.Index(df.columns).duplicated()].reset_index(drop=True))
-
-            # if concat_results:
-            #     if frames and any([not f.empty for f in frames]):
-            #         out = pd.concat(frames, axis=0, ignore_index=True, sort=False)
-            #         return out, metadata
-            #     else:
-            #         return pd.DataFrame(), metadata
-            # else:
             return results, metadata
         if format in ["json", "xml"]:
-            # if concat_results:
-            #     # Flatten all dict lists into a single list
-            #     combined_results = []
-            #     for lst in results.values():
-            #         combined_results.extend(lst)
-            #     return combined_results, metadata
             return results, metadata
         raise ValueError(f"Unsupported format: {format}")
