@@ -421,7 +421,7 @@ class UniprotInterface(BaseAPIInterface):
         download: bool | None = False,
         method: str = "uniprotkb",
         timeout: float | None = None,
-    ) -> tuple[dict, dict] | None:
+    ) -> tuple[dict, dict]:
         """Submit a query to the Uniprot stream API.
 
         Args:
@@ -548,7 +548,7 @@ class UniprotInterface(BaseAPIInterface):
                     raise RuntimeError(message) from e
             else:
                 return payload, metadata
-        return None
+        return {}, {}
 
     def adapt_field_map(
         self, field_map: dict[str, tuple[str, Callable[..., Any]]], use_prefix: bool = False

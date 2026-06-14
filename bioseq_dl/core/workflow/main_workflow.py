@@ -310,7 +310,7 @@ class MainWorkflow:
         raise ValueError(msg)
 
     # ---- Pipeline step implementations ----
-    def _step_fetch_uniprot(self, context: dict) -> None:
+    def _step_fetch_uniprot(self, context: dict[str, Any]) -> None:
         args = context.get("searches", {}).get("uniprot", {}) or context.get("args", {})
         interpreted = context.get("searches", {}).get("uniprot", {}).get("interpreted_query") or args.get(
             "query"
@@ -396,7 +396,7 @@ class MainWorkflow:
         )
         self.log.debug("Pipeline UniProt fetch metadata: %s", fetch_meta)
 
-    def _step_parse_uniprot(self, context: dict) -> None:
+    def _step_parse_uniprot(self, context: dict[str, Any]) -> None:
         args = context.get("searches", {}).get("uniprot", {}) or context.get("args", {})
         export_format = args.get("export_format") or self.default_export_format
         parse_format = normalize_parse_format(export_format) or "dataframe"
@@ -444,7 +444,7 @@ class MainWorkflow:
             )
             return
 
-    def _step_crossref_enrich(self, context: dict, **kwargs: Any) -> None:
+    def _step_crossref_enrich(self, context: dict[str, Any], **kwargs: Any) -> None:
         args = context.get("searches", {}).get("uniprot", {})
         input_data = context.get("data", {}).get("uniprot")
         cross_ref_fields = normalize_crossref_fields(args.get("additional_crossref_fields"))
@@ -483,7 +483,7 @@ class MainWorkflow:
         self.log.debug("Pipeline enrichment metadata: %s", enriched_meta)
         self.log.info("Pipeline: CrossRef enrichment completed (elapsed=%.2fs)", enrich_elapsed)
 
-    def _step_fetch_chembl(self, context: dict, search_type: str | None = "activity") -> None:
+    def _step_fetch_chembl(self, context: dict[str, Any], search_type: str | None = "activity") -> None:
         """Search ChEMBL for queries found in context['searches']['chembl']."""
         chembl_search = context.get("searches", {}).get("chembl", {})
         query = chembl_search.get("interpreted_query") or chembl_search.get("query")
@@ -533,7 +533,9 @@ class MainWorkflow:
         context["metadata"].setdefault("chembl", meta)
         self.log.debug("Pipeline ChEMBL fetch metadata: %s", meta)
 
-    def _step_chembl_to_uniprot_query(self, context: dict, keep_original_query: bool = True) -> None:
+    def _step_chembl_to_uniprot_query(
+        self, context: dict[str, Any], keep_original_query: bool = True
+    ) -> None:
         # Build UniProt subquery from ChEMBL results (reuse logic similar to _resolve_chembl_search)
         result = context.get("data", {}).get("chembl")
         ids = []
@@ -595,7 +597,7 @@ class MainWorkflow:
         enrich: bool = False,
         uniprot_timeout: float | None = None,
         crossref_endpoint_specs: list[EndpointSpec] | None = None,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> tuple[dict, dict]:
         """Run the protein modality.
@@ -608,7 +610,7 @@ class MainWorkflow:
 
         export_format = export_format or self.default_export_format
 
-        args = {
+        args: dict[str, Any] = {
             "query": query,
             "interpreted_query": None,
             "additional_crossref_fields": None,
@@ -626,7 +628,7 @@ class MainWorkflow:
             override = {k: v for k, v in args.items() if v is not None}
             context["searches"]["uniprot"] = {**existing_args, **override}
         else:
-            context = {
+            context: dict[str, Any] = {
                 "searches": {"uniprot": args},
                 "data": {"uniprot": {}},
                 "metadata": {"mode": "query_first", "modality": "protein", "origin": "query"},
@@ -675,7 +677,7 @@ class MainWorkflow:
         search_type: str | None = "activity",
         export_format: str | None = None,
         chembl_pages_to_fetch: int | None = None,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> tuple[dict, dict]:
         """Run the compound modality, routing queries through ChEMBL -> UniProt.
@@ -697,7 +699,7 @@ class MainWorkflow:
         export_format = export_format or self.default_export_format
         pages_to_fetch = normalize_chembl_pages_to_fetch(chembl_pages_to_fetch)
 
-        args = {
+        args: dict[str, Any] = {
             "query": query,
             "interpreted_query": None,
             "export_format": export_format,
@@ -706,7 +708,7 @@ class MainWorkflow:
             "pages_to_fetch": pages_to_fetch,
         }
         if context is None:
-            context = {
+            context: dict[str, Any] = {
                 "searches": {
                     "chembl": args,
                     "uniprot": {
@@ -810,7 +812,7 @@ class MainWorkflow:
         uniprot_interpreter = build_default_uniprot_interpreter()
         chembl_interpreter = build_default_chembl_interpreter()
 
-        args = {
+        args: dict[str, Any] = {
             "query": query,
             "export_format": export_format,
             "interaction_type": interaction_type,
@@ -819,7 +821,7 @@ class MainWorkflow:
         if "uniprot_timeout" in kwargs:
             args["uniprot_timeout"] = kwargs.get("uniprot_timeout")
         chembl_pages_to_fetch = normalize_chembl_pages_to_fetch(kwargs.get("chembl_pages_to_fetch"))
-        context = {
+        context: dict[str, Any] = {
             "searches": {
                 "uniprot": args,
             },
