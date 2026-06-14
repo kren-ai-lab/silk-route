@@ -86,7 +86,7 @@ class ReactomeInterface(BaseAPIInterface):
 
         primary_method = method.split("-", maxsplit=1)[0]
         secondary_method = "/".join(method.split("-")[1:])
-        if primary_method not in methods.keys():
+        if primary_method not in methods:
             log.error(
                 f"Method '{primary_method}' is not supported. Supported methods are: {list(methods.keys())}"
             )

@@ -62,7 +62,7 @@ class BrendaInterface(BaseAPIInterface):
         print("Available methods:")  # noqa: T201
         for service in self.client.wsdl.services.values():
             for port in service.ports.values():
-                for method_name in port.binding._methods.keys():
+                for method_name in port.binding._methods:
                     print(f"- {method_name}")  # noqa: T201
 
     def fetch(self, query: str | dict | list, *, method: str = "getKmValue", **kwargs: Any) -> dict | list:
@@ -78,7 +78,7 @@ class BrendaInterface(BaseAPIInterface):
             list: List of results from the BRENDA API.
 
         """
-        if method not in self.METHODS.keys():
+        if method not in self.METHODS:
             log.error(f"method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
             return []
         if not isinstance(query, dict):
@@ -144,7 +144,7 @@ class BrendaInterface(BaseAPIInterface):
             str: Parameters required for the method.
 
         """
-        if method_name not in self.METHODS.keys():
+        if method_name not in self.METHODS:
             return f"method {method_name} is not supported."
 
         params = self.METHODS[method_name]

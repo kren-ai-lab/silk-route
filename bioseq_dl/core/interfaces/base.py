@@ -1,4 +1,5 @@
 import ast
+import contextlib
 import functools
 import hashlib
 import itertools
@@ -33,10 +34,8 @@ def _normalize_matching_tokens(value: Any) -> list[str]:
     if not value:
         return []
     if isinstance(value, str) and value.startswith("[") and value.endswith("]"):
-        try:
+        with contextlib.suppress(Exception):
             value = ast.literal_eval(value)
-        except Exception:
-            pass
     if isinstance(value, (list, tuple)):
         tokens = []
         for item in value:
@@ -88,10 +87,7 @@ class BaseAPIInterface(ABC):
         """
         db = cls.DB_CONFIG
         if not cache_dir:
-            if db is not None and db.CACHE_DIR is not None:
-                cache_dir = db.CACHE_DIR
-            else:
-                cache_dir = "./cache"
+            cache_dir = db.CACHE_DIR if db is not None and db.CACHE_DIR is not None else "./cache"
         # Always normalize to an absolute path so caches don't land relative to
         # the current working directory (DB_CONFIG/env values may be relative).
         cache_dir = str(Path(cache_dir).resolve())
@@ -297,11 +293,12 @@ class BaseAPIInterface(ABC):
         for k, v in sorted(input_dict.items()):
             if k in self.get_cache_ignore_keys():
                 continue
-            if sort_lists and isinstance(v, list):
-                # Only sort if items are comparable (not dicts)
-                if all(not isinstance(item, dict) for item in v):
-                    v = sorted(v)
-            result[k] = v
+            val = (
+                sorted(v)
+                if sort_lists and isinstance(v, list) and all(not isinstance(item, dict) for item in v)
+                else v
+            )
+            result[k] = val
         return result
 
     def _make_cache_key(self, input_obj: str | dict, **kwargs: Any) -> str:
@@ -490,7 +487,7 @@ class BaseAPIInterface(ABC):
         params = {}
         separator = spec.get("separator", ",")
 
-        for name, (typ, default, is_id) in spec["parameters"].items():
+        for name, (_typ, default, is_id) in spec["parameters"].items():
             val = default
             # Override from query dict or direct string/list
             if isinstance(query, dict) and name in query:
@@ -518,14 +515,7 @@ class BaseAPIInterface(ABC):
         usado para nombrar el cache key.
         """
         keys = [k for k, (_, _, is_id) in spec["parameters"].items() if is_id]
-        parts = []
-        if isinstance(query, dict):
-            for k in keys:
-                if k in query:
-                    parts.append(str(query[k]))
-        else:
-            # query str o list
-            parts.append(str(query))
+        parts = [str(query[k]) for k in keys if k in query] if isinstance(query, dict) else [str(query)]
         return "_".join(parts)
 
     def initialize_method_parameters(
@@ -539,7 +529,7 @@ class BaseAPIInterface(ABC):
 
         method_info = method_definition.get(method, {})
 
-        if option and option not in method_info.keys():
+        if option and option not in method_info:
             msg = (
                 f"Option '{option}' is not valid for method '{method}'. Allowed options: {method_info.keys()}"
             )
@@ -559,13 +549,12 @@ class BaseAPIInterface(ABC):
             msg = f"No primary keys defined for method '{method}'. Please check the method definition."
             raise ValueError(msg)
 
-        if len(primary_keys) > 1:
-            if not isinstance(query, dict):
-                msg = (
-                    f"Query must be a dictionary when multiple primary keys are defined for method '{method}'. "
-                    f"Received: {type(query)} with value {query}"
-                )
-                raise ValueError(msg)
+        if len(primary_keys) > 1 and not isinstance(query, dict):
+            msg = (
+                f"Query must be a dictionary when multiple primary keys are defined for method '{method}'. "
+                f"Received: {type(query)} with value {query}"
+            )
+            raise ValueError(msg)
 
         inputs = {}
 
@@ -652,10 +641,7 @@ class BaseAPIInterface(ABC):
                 subquery[key] = value
                 identifier_parts.append(str(value))
 
-            # Include other keys in identifier
-            for key in keys:
-                if key not in group_queries:
-                    identifier_parts.append(str(query[key]))
+            identifier_parts.extend(str(query[key]) for key in keys if key not in group_queries)
 
             identifier = "_".join(identifier_parts)
             subqueries.append((identifier, subquery))
@@ -697,7 +683,7 @@ class BaseAPIInterface(ABC):
             )
             subquery_values[identifier] = norm
 
-        for i, item in enumerate(full_result):
+        for _i, item in enumerate(full_result):
             tokens = _extract_nested_values(item)
             item_tokens = set(_normalize_matching_tokens(tokens))
 
@@ -1037,7 +1023,7 @@ class BaseAPIInterface(ABC):
         """
         option = kwargs.get("option", "default")
 
-        if option and isinstance(fields_to_extract, dict) and option in fields_to_extract.keys():
+        if option and isinstance(fields_to_extract, dict) and option in fields_to_extract:
             fields_to_extract = fields_to_extract[option]
 
         parsed = {}

@@ -113,9 +113,9 @@ class PathwayCommonsInterface(BaseAPIInterface):
             if response.content == b"":
                 return {}
             response = response.json()
-            if "searchHit" in response.keys():
+            if "searchHit" in response:
                 response = response["searchHit"]
-            elif "@graph" in response.keys():
+            elif "@graph" in response:
                 response = response["@graph"]
 
         except RequestException:

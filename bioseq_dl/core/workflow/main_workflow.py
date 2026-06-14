@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import inspect
 import time
 import xml.etree.ElementTree as ET
@@ -240,8 +241,7 @@ class MainWorkflow:
         self.default_export_format = default_export_format
         self.log = logger or log
 
-        # Debug: show resolved components
-        try:
+        with contextlib.suppress(Exception):
             self.log.debug(
                 "MainWorkflow initialized (interpreter=%s, uniprot=%s, enricher=%s, default_export_format=%s)",
                 type(self.interpreter).__name__,
@@ -249,9 +249,6 @@ class MainWorkflow:
                 type(self.enricher).__name__,
                 self.default_export_format,
             )
-        except Exception:
-            # Avoid breaking if logger misbehaves
-            pass
 
         # NOTE: declarative pipelines and custom step overrides are disabled for now.
         # Future work: reintroduce `self.pipelines` and `self.step_overrides` for custom pipelines.
@@ -293,10 +290,8 @@ class MainWorkflow:
 
         modality = modality.lower()
         workflow_mode = mode.lower()
-        try:
+        with contextlib.suppress(Exception):
             self.log.debug("Run invoked with mode=%s modality=%s kwargs=%s", workflow_mode, modality, kwargs)
-        except Exception:
-            pass
 
         if workflow_mode == "query_first":
             return self.query_first(modality=modality, **kwargs)
@@ -567,10 +562,7 @@ class MainWorkflow:
                     if keep_original_query
                     else None
                 )
-                if prev:
-                    new_query = f"{prev} AND {chunk_query}"
-                else:
-                    new_query = chunk_query
+                new_query = f"{prev} AND {chunk_query}" if prev else chunk_query
                 output_list.append(new_query)
             context["searches"]["uniprot"]["query"] = output_list
             self.log.debug("Pipeline built UniProt subqueries from ChEMBL IDs in %s chunks", len(output_list))
@@ -578,10 +570,7 @@ class MainWorkflow:
             out = "(" + " OR ".join([f"xref:chembl-{i}" for i in ids]) + ")"
             # attach or extend existing interpreted_query
             prev = context.get("searches", {}).get("uniprot", {}).get("query")
-            if prev and keep_original_query:
-                new_query = f"{prev} AND {out}"
-            else:
-                new_query = out
+            new_query = f"{prev} AND {out}" if prev and keep_original_query else out
             context["searches"]["uniprot"]["query"] = new_query
             self.log.debug("Pipeline built UniProt subquery from ChEMBL IDs: %s", out)
 
@@ -1004,13 +993,13 @@ class MainWorkflow:
 
         # Combined_rows now contains only the labeled data parts in a list.
         # For example
-        # { "uniprot": [...], "chembl": [...] }
+        # { "uniprot": [...], "chembl": [...] }  # noqa: ERA001
         # On the other hand, combined_enrichment contains only the enrichment data combined.
         # For example
-        # {
-        #   "alphafold_prediction": [pd.DataFrame(...)],
-        #   "pdb_entry": [pd.DataFrame(...)],
-        # }
+        # {  # noqa: ERA001
+        #   "alphafold_prediction": [pd.DataFrame(...)],  # noqa: ERA001
+        #   "pdb_entry": [pd.DataFrame(...)],  # noqa: ERA001
+        # }  # noqa: ERA001
         # We need to generate the final output merging every part.
         # RResulting in: { "uniprot": pd.DataFrame(...), "chembl": pd.DataFrame(...), "uniprot_enrichment": { ... } }
         # Merge results depending on their type,

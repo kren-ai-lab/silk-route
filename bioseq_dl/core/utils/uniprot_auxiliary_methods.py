@@ -21,12 +21,12 @@ def extract_database_terms(xrefs: list, database: str) -> list[str]:
     """Extracts database terms"""
     # Comment solution
     if all("reaction" in xref for xref in xrefs if isinstance(xrefs, list)):
-        ids = []
-        for xref in xrefs:
-            for reaction_xref in xref.get("reaction", {}).get("reactionCrossReferences", []):
-                if reaction_xref.get("database") == database:
-                    ids.append(reaction_xref.get("id"))
-        return ids
+        return [
+            reaction_xref.get("id")
+            for xref in xrefs
+            for reaction_xref in xref.get("reaction", {}).get("reactionCrossReferences", [])
+            if reaction_xref.get("database") == database
+        ]
     # Normal solution
     return [x["id"] for x in xrefs if isinstance(x, dict) and x.get("database") == database]
 
@@ -117,10 +117,7 @@ def extract_diseases(comments: list) -> list[dict]:
 
         note_texts = []
         note = comment.get("note", {})
-        if isinstance(note, dict):
-            note_items = note.get("texts", [])
-        else:
-            note_items = []
+        note_items = note.get("texts", []) if isinstance(note, dict) else []
 
         if isinstance(note_items, dict):
             note_items = [note_items]
@@ -128,24 +125,15 @@ def extract_diseases(comments: list) -> list[dict]:
             note_items = [note_items] if note_items else []
 
         for text in note_items:
-            if isinstance(text, dict):
-                value = text.get("value", "")
-            else:
-                value = str(text)
+            value = text.get("value", "") if isinstance(text, dict) else str(text)
             if value:
                 note_texts.append(value)
 
         cross_reference = disease.get("diseaseCrossReference", {})
-        if isinstance(cross_reference, dict):
-            cross_reference = dict(cross_reference)
-        else:
-            cross_reference = {}
+        cross_reference = dict(cross_reference) if isinstance(cross_reference, dict) else {}
 
         evidences = disease.get("evidences", [])
-        if isinstance(evidences, list):
-            evidences = list(evidences)
-        else:
-            evidences = []
+        evidences = list(evidences) if isinstance(evidences, list) else []
 
         extracted.append(
             {

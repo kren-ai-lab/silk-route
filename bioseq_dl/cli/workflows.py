@@ -904,8 +904,8 @@ def get_expected_query_composition_labels(workflow_values: dict) -> list[str]:
 
     labels = []
     seen = set()
-    for query_part in query_value.split(","):
-        query_part = query_part.strip()
+    for raw_part in query_value.split(","):
+        query_part = raw_part.strip()
         if not query_part:
             continue
         try:
@@ -1198,7 +1198,7 @@ def write_failure_reports(
 
     output_dir = Path(output)
     output_infos: list[dict] = []
-    finished_at = dt.datetime.now().replace(microsecond=0).isoformat()
+    finished_at = dt.datetime.now(tz=dt.UTC).replace(microsecond=0).isoformat()
     duration_seconds = time.perf_counter() - start_time
     reporting = calculate_reporting_metrics(workflow_values, {}, output_infos, duration_seconds)
     workflow_metadata = {"error": error_message}
@@ -1373,7 +1373,7 @@ def run_workflow(
         logger.warning("Could not configure logging: %s", e)
 
     wf = MainWorkflow(uniprot_interface=UniprotInterface(total_retries=workflow_values["retries"]))
-    started_at = dt.datetime.now().replace(microsecond=0).isoformat()
+    started_at = dt.datetime.now(tz=dt.UTC).replace(microsecond=0).isoformat()
     start_time = time.perf_counter()
 
     try:
@@ -1439,7 +1439,7 @@ def run_workflow(
         id_column=workflow_values["id_column"],
     )
 
-    finished_at = dt.datetime.now().replace(microsecond=0).isoformat()
+    finished_at = dt.datetime.now(tz=dt.UTC).replace(microsecond=0).isoformat()
     duration_seconds = time.perf_counter() - start_time
     reporting = calculate_reporting_metrics(workflow_values, data, output_infos, duration_seconds)
     workflow_metadata = meta if isinstance(meta, dict) else {"metadata": meta}

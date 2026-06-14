@@ -468,7 +468,6 @@ def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
             supports_range=False,
             resolver_kind="go_name_map",
         ),
-        # Example: taxa / organisms
         "taxa": MultiModeFieldConfig(
             field="taxonomy_id",
             value_map=taxonomy_id_map,

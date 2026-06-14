@@ -328,15 +328,15 @@ class ChEMBLInterface(BaseAPIInterface):
                 log.exception("Error fetching page for method %s", method)
                 break
 
-            if "activities" in data.keys() and isinstance(data["activities"], list):
+            if "activities" in data and isinstance(data["activities"], list):
                 responses.extend(data["activities"])
-            elif "binding_sites" in data.keys() and isinstance(data["binding_sites"], list):
+            elif "binding_sites" in data and isinstance(data["binding_sites"], list):
                 responses.extend(data["binding_sites"])
-            elif "molecules" in data.keys() and isinstance(data["molecules"], list):
+            elif "molecules" in data and isinstance(data["molecules"], list):
                 responses.extend(data["molecules"])
-            elif "targets" in data.keys() and isinstance(data["targets"], list):
+            elif "targets" in data and isinstance(data["targets"], list):
                 responses.extend(data["targets"])
-            elif "assays" in data.keys() and isinstance(data["assays"], list):
+            elif "assays" in data and isinstance(data["assays"], list):
                 responses.extend(data["assays"])
             else:
                 responses.append(data)
@@ -379,7 +379,7 @@ class ChEMBLInterface(BaseAPIInterface):
             return {}
 
         # Validate method and format
-        if method not in self.METHODS.keys():
+        if method not in self.METHODS:
             log.error(
                 f"Method {method} is not supported. Supported methods are: {', '.join(self.METHODS.keys())}."
             )

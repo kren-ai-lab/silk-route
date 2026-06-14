@@ -47,13 +47,13 @@ class CrossRefEnricher:
 
     def __init__(
         self,
-        endpoint_specs: list[EndpointSpec] = [],
+        endpoint_specs: list[EndpointSpec] | None = None,
         config_path: str | None = None,
         max_workers: int = 4,
         total_retries: int = 3,
     ) -> None:
         """Initialize with a single endpoint specification."""
-        self.endpoint_specs = endpoint_specs
+        self.endpoint_specs = endpoint_specs or []
         self.config_path = config_path
         self.max_workers = max_workers
         self.total_retries = total_retries
@@ -117,7 +117,6 @@ class CrossRefEnricher:
         instance: Any,
         spec: EndpointSpec,
         params: dict[str, Any],
-        # concat_results: bool = True,
         format: Literal["dataframe", "json", "xml"] = "dataframe",
     ) -> tuple[pd.DataFrame | list[dict[str, Any]], dict]:
         """Build query from row using the registered query-builder, perform fetch_single or fetch_batch,
@@ -190,7 +189,6 @@ class CrossRefEnricher:
         instance: Any,
         spec: EndpointSpec,
         params: dict[str, Any],
-        # concat_results: bool = True,
         format: Literal["dataframe", "json", "xml"] = "dataframe",
     ) -> tuple[pd.DataFrame | list[dict[str, Any]] | ElementTree[Element[str] | None], dict]:
         """Apply search-then-merge for every row and vertically concatenate all row-expansions."""
@@ -215,13 +213,13 @@ class CrossRefEnricher:
                 if isinstance(result, pd.DataFrame):
                     if result.empty:
                         continue
-                    result = result.loc[:, ~pd.Index(result.columns).duplicated()]
+                    deduped = result.loc[:, ~pd.Index(result.columns).duplicated()]
 
                     # Drop accidental numeric-only column names like '1','2','3',...
-                    cols_to_keep = [c for c in result.columns if not str(c).isdigit()]
+                    cols_to_keep = [c for c in deduped.columns if not str(c).isdigit()]
                     if not cols_to_keep:
                         continue
-                    cleaned_results.append(result.loc[:, cols_to_keep].reset_index(drop=True))
+                    cleaned_results.append(deduped.loc[:, cols_to_keep].reset_index(drop=True))
                     continue
 
                 # If result is a list (likely list of dicts), try to coerce to DataFrame.
@@ -269,11 +267,10 @@ class CrossRefEnricher:
             return pd.concat(cleaned_results, ignore_index=True, sort=False), all_metadata
         if format == "json":
             cleaned_results = []
-            for result in all_results:
-                if isinstance(result, tuple):
-                    result = result[0]
-                if isinstance(result, list):
-                    cleaned_results.extend(result)
+            for raw in all_results:
+                item = raw[0] if isinstance(raw, tuple) else raw
+                if isinstance(item, list):
+                    cleaned_results.extend(item)
             return cleaned_results, all_metadata
         if format == "xml":
             # TODO check if this code is correct, i did a lot of changes recently regarding XML exporting

@@ -61,7 +61,7 @@ class StringInterface(BaseAPIInterface):
             dict: Parsed response from the API.
 
         """
-        if method not in self.METHODS.keys():
+        if method not in self.METHODS:
             log.error(f"Method '{method}' is not supported. Available methods: {list(self.METHODS.keys())}")
             return {}
 
@@ -75,10 +75,7 @@ class StringInterface(BaseAPIInterface):
             log.exception("Parameter validation failed")
             return {}
 
-        if "format" in validated_params:
-            outfmt = validated_params.pop("format")
-        else:
-            outfmt = "json"
+        outfmt = validated_params.pop("format") if "format" in validated_params else "json"
 
         if outfmt not in METHOD_FORMATS[method]:
             log.error(

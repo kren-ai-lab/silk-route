@@ -59,7 +59,7 @@ class PrideInterface(BaseAPIInterface):
     }
 
     def fetch(self, query: str | dict | list, *, method: str = "search", **kwargs: Any) -> dict | list:
-        if method not in self.METHODS.keys():
+        if method not in self.METHODS:
             log.error(f"Method '{method}' is not defined in the interface.")
             return {}
         option = kwargs.pop("option", "default")

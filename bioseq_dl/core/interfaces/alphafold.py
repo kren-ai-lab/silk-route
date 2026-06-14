@@ -34,7 +34,7 @@ class AlphafoldInterface(BaseAPIInterface):
 
     def __init__(
         self,
-        structures: list[Literal["pdb", "cif", "bcif"]] | None = ["pdb"],
+        structures: list[Literal["pdb", "cif", "bcif"]] | None = None,
         cache_dir: str | None = None,
         config_dir: str | None = None,
         output_dir: str | None = None,
@@ -94,8 +94,7 @@ class AlphafoldInterface(BaseAPIInterface):
         if self.structures:
             for result in results:
                 if isinstance(result, list):
-                    for res in result:
-                        new_results.append(self.download_structures(res))
+                    new_results.extend(self.download_structures(res) for res in result)
                 elif isinstance(result, pd.DataFrame):
                     for _, row in result.iterrows():
                         row_dict = row.to_dict()
@@ -118,7 +117,7 @@ class AlphafoldInterface(BaseAPIInterface):
             Dict: Prediction data.
 
         """
-        if method not in self.METHODS.keys():
+        if method not in self.METHODS:
             log.error(
                 f"Method {method} is not supported. Supported methods are: {', '.join(self.METHODS.keys())}."
             )

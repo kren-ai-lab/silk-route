@@ -22,10 +22,10 @@ BIOGRID_ENV_VARS = (
 # TODO add more from docs
 # TODO ISSUES:
 # For some reason, running this query:
-# query={
-#     "accessKey": biogrid_api_key,
-#     "geneList": ['1148170', '1148186', '112090'],
-#     "searchBiogridIds" : True,
+# query={  # noqa: ERA001
+#     "accessKey": biogrid_api_key,  # noqa: ERA001
+#     "geneList": ['1148170', '1148186', '112090'],  # noqa: ERA001
+#     "searchBiogridIds" : True,  # noqa: ERA001
 #     "format": "tab2"
 # },
 # gives an error:
@@ -118,7 +118,7 @@ class BioGRIDInterface(BaseAPIInterface):
         match method:
             case "interactions":
                 # Special case for BioGRID
-                if isinstance(response, dict) and all(str(key).isdigit() for key in response.keys()):
+                if isinstance(response, dict) and all(str(key).isdigit() for key in response):
                     # Convert to list of interactions
                     response = list(response.values())
             case _:

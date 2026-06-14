@@ -85,9 +85,9 @@ def run_crossref_enrichment(
     # For this reason we will make a new dictionary containing the databases and their methods
     # As last thing, some fields definitions will have another underscore after the method name, this will indicate the option to use
     # Example: "brenda_getOptimumTemperature_option1" should be processed as:
-    # {"brenda": [{"method": "getOptimumTemperature", "option": "option1"}]}
+    # {"brenda": [{"method": "getOptimumTemperature", "option": "option1"}]}  # noqa: ERA001
     # Special case: "kegg_all" should be processed as:
-    # {"kegg": [{"method": None, "option": None}]}
+    # {"kegg": [{"method": None, "option": None}]}  # noqa: ERA001
 
     processed_crossref_fields = {}
     for field in crossref_fields:
@@ -130,25 +130,16 @@ def run_crossref_enrichment(
 
                 for ep_name, ep_info in endpoint_config.get("endpoints", {}).items():
                     if ep_info.get("enabled", False):
-                        if "options" in ep_info:
-                            for ep_option in ep_info.get("options", [None]):
-                                endpoint_specs.append(
-                                    EndpointSpec(
-                                        database=db_name,
-                                        endpoint=ep_name,
-                                        option=ep_option,
-                                        params=ep_info.get("params", {}),
-                                    )
-                                )
-                        else:
-                            endpoint_specs.append(
-                                EndpointSpec(
-                                    database=db_name,
-                                    endpoint=ep_name,
-                                    option=None,
-                                    params=ep_info.get("params", {}),
-                                )
+                        options = ep_info.get("options", [None]) if "options" in ep_info else [None]
+                        endpoint_specs.extend(
+                            EndpointSpec(
+                                database=db_name,
+                                endpoint=ep_name,
+                                option=ep_option,
+                                params=ep_info.get("params", {}),
                             )
+                            for ep_option in options
+                        )
             else:
                 log.debug(f"Using specified methods for database: {db_name}")
                 for method in processed_crossref_fields[db_name]:

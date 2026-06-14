@@ -22,7 +22,7 @@ from bioseq_dl.core.interfaces.base import BaseAPIInterface
 from bioseq_dl.logging import get_logger
 
 # Replace with the real DBConfig once added to constants/databases.py, e.g.:
-# from bioseq_dl.constants.databases import YOUR_DATABASE
+# from bioseq_dl.constants.databases import YOUR_DATABASE  # noqa: ERA001
 YOUR_DATABASE = None  # placeholder
 
 log = get_logger("bioseq_dl.interfaces.your_database")

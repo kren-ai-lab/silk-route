@@ -71,24 +71,10 @@ class ChEBIInterface(BaseAPIInterface):
             "group_queries": [None],
             "separator": None,
         },
-        # Not implemented yet, requires pagination handling
-        # "structure_search": {
-        #     "http_method": "GET",
-        #     "path_param": None,
-        #     "parameters": {
-        #         "smiles": (str, None, True),
-        #         "search_type": (str, "connectivity", False),
-        #         "similarity": (float, 0.7, False),
-        #         "three_star_only": (bool, True, False),
-        #         "page": (int, 1, False),
-        #         "size": (int, 15, False),
-        #         "download": (bool, False, False)
-        #     }
-        # }
     }
 
     def fetch(self, query: str | dict | list, *, method: str = "compound", **kwargs: Any) -> dict | list:
-        if method not in self.METHODS.keys():
+        if method not in self.METHODS:
             log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
             return {}
 
@@ -145,7 +131,7 @@ class ChEBIInterface(BaseAPIInterface):
                 # Convert to list of interactions
                 response = list(response.values())
 
-            if isinstance(response, dict) and "results" in response.keys():
+            if isinstance(response, dict) and "results" in response:
                 response = response["results"]
 
         except RequestException:

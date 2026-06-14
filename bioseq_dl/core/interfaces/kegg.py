@@ -73,7 +73,6 @@ class KEGGInterface(BaseAPIInterface):
         rules = {
             "entries": lambda v: isinstance(v, (str, list)),
             "db": lambda v: v in DATABASES,
-            #'todb' : lambda v: v in DATABASES,
             "option": lambda v: v in METHOD_OPTIONS.get(method, []),
         }
 
@@ -132,18 +131,18 @@ class KEGGInterface(BaseAPIInterface):
         if method == "pathways":
             url = f"{KEGG.API_URL}/link"
             url += "/pathway"
-            if "entries" in validated_params.keys() and validated_params["entries"]:
+            if validated_params.get("entries"):
                 q = str(validated_params["entries"])
                 url += f"/{q}"
         else:
             url = f"{KEGG.API_URL}{method}"
-            if "db" in validated_params.keys() and validated_params["db"]:
+            if validated_params.get("db"):
                 url += f"/{validated_params['db']}"
-            if "entries" in validated_params.keys() and validated_params["entries"]:
+            if validated_params.get("entries"):
                 q = str(validated_params["entries"])
                 url += f"/{q}"
 
-            if "option" in validated_params.keys() and validated_params["option"]:
+            if validated_params.get("option"):
                 if method not in METHOD_OPTIONS or validated_params["option"] not in METHOD_OPTIONS[method]:
                     log.error(
                         f"Option {validated_params['option']} is not supported for method {method}. Supported options are: {', '.join(METHOD_OPTIONS.get(method, []))}."

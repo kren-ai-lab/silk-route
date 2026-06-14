@@ -161,20 +161,18 @@ class PubChemInterface(BaseAPIInterface):
             ):
                 log.error("Only one 'cid', 'name', 'smiles', or 'inchi' parameters must be specified.")
                 return {}
-        elif method == "pug/gene":
-            if (
-                sum(
-                    bool(inputs.get(validated_params))
-                    for validated_params in ["genesymbol", "geneid", "synonym"]
-                )
-                != 1
-            ):
-                log.error("Only one 'genesymbol', 'geneid', or 'synonym' parameters must be specified.")
-                return {}
+        elif method == "pug/gene" and (
+            sum(
+                bool(inputs.get(validated_params)) for validated_params in ["genesymbol", "geneid", "synonym"]
+            )
+            != 1
+        ):
+            log.error("Only one 'genesymbol', 'geneid', or 'synonym' parameters must be specified.")
+            return {}
 
         if method == "autocomplete":
             url = f"{PUBCHEM.API_URL}{method}"
-            for key, value in validated_params.items():
+            for value in validated_params.values():
                 if value is not None:
                     url += f"/{value}"
         elif method.startswith("pug/"):
@@ -257,10 +255,8 @@ class PubChemInterface(BaseAPIInterface):
                     response = response.get("ProteinSummaries", {}).get("ProteinSummary", [])
                 elif isinstance(response, dict) and "GeneSummaries" in response:
                     response = response.get("GeneSummaries", {}).get("GeneSummary", [])
-            elif method.startswith("pug_view/") or method == "autocomplete":
-                # Convert from string to dict if needed
-                if isinstance(response, str):
-                    response = json.loads(response)
+            elif (method.startswith("pug_view/") or method == "autocomplete") and isinstance(response, str):
+                response = json.loads(response)
 
         except RequestException:
             log.exception(f"Error fetching {query} for method '{method}'")
@@ -274,7 +270,7 @@ class PubChemInterface(BaseAPIInterface):
         option = kwargs.get("option", "default")
 
         if option:
-            if isinstance(fields_to_extract, dict) and option in fields_to_extract.keys():
+            if isinstance(fields_to_extract, dict) and option in fields_to_extract:
                 fields_to_extract = fields_to_extract.get(option, [])
             else:
                 fields_to_extract = {}
@@ -313,9 +309,7 @@ class PubChemInterface(BaseAPIInterface):
 
     def _proccess_information_value(self, info_value: dict) -> str | list | dict:
         if "StringWithMarkup" in info_value:
-            texts = []
-            for text_entry in info_value["StringWithMarkup"]:
-                texts.append(text_entry.get("String", ""))
+            texts = [text_entry.get("String", "") for text_entry in info_value["StringWithMarkup"]]
             return texts if len(texts) > 1 else texts[0]
         if "Number" in info_value:
             numbers = info_value["Number"]
@@ -338,10 +332,11 @@ class PubChemInterface(BaseAPIInterface):
         for section in sections:
             if "TOCHeading" in section and "Information" in section:
                 heading = section["TOCHeading"]
-                extracted_values = []
-                for info in section["Information"]:
-                    if "Value" in info:
-                        extracted_values.append(self._proccess_information_value(info["Value"]))
+                extracted_values = [
+                    self._proccess_information_value(info["Value"])
+                    for info in section["Information"]
+                    if "Value" in info
+                ]
 
                 headings[heading] = extracted_values if len(extracted_values) > 1 else extracted_values[0]
 

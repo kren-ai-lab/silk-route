@@ -75,7 +75,7 @@ class GenOntologyInterface(BaseAPIInterface):
             any: response from the API.
 
         """
-        if method not in self.METHODS.keys():
+        if method not in self.METHODS:
             log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
             return {}
 

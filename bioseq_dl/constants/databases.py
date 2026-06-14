@@ -67,7 +67,6 @@ CHEMBL = DBConfig(
 )
 
 CHEBI = DBConfig(
-    # API_URL="https://www.ebi.ac.uk/chebi/beta/api/public/", # Old API, deprecated
     API_URL="https://www.ebi.ac.uk/chebi/backend/api/public/",
     CACHE_DIR=str(BASE_CACHE_DIR / "chebi"),
     CONFIG_DIR=str(BASE_CONFIG_DIR / "chebi"),

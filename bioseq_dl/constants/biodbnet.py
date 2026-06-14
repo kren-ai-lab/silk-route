@@ -120,9 +120,9 @@ outputs = [
     # "locustag",
     # "maizegdbid",
     # "meropsid",
-    # "mgc(zgc/xgc)id",
-    # "mgc(zgc/xgc)imageid",
-    # "mgc(zgc/xgc)info",
+    # "mgc(zgc/xgc)id",  # noqa: ERA001
+    # "mgc(zgc/xgc)imageid",  # noqa: ERA001
+    # "mgc(zgc/xgc)info",  # noqa: ERA001
     # "mgiid",
     # "mimid",
     # "miminfo",

@@ -4,7 +4,7 @@ import time
 import xml.etree.ElementTree as ET
 import zlib
 from collections.abc import Iterator
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Literal
 from urllib.parse import parse_qs, urlencode, urlparse
 
@@ -375,7 +375,7 @@ class UniprotInterface(BaseAPIInterface):
             self.print_progress_batches(batch_index, batch_size, total)
 
         metadata["time_taken_seconds"] = time.time() - time_started
-        metadata["started_at"] = datetime.fromtimestamp(time_started).isoformat()
+        metadata["started_at"] = datetime.fromtimestamp(time_started, tz=UTC).isoformat()
         metadata["batch_size"] = batch_size
         metadata["num_batches"] = (len(ids) + batch_size - 1) // batch_size
         metadata["failed_ids_count"] = sum(len(res.get("failedIds", [])) for res in results)
@@ -438,7 +438,7 @@ class UniprotInterface(BaseAPIInterface):
         for attempt in range(self.total_retries):
             try:
                 time_started = time.time()
-                started_at = datetime.fromtimestamp(time_started).isoformat()
+                started_at = datetime.fromtimestamp(time_started, tz=UTC).isoformat()
                 log.info("UniProt stream request started (path=%s)", endpoint_path)
                 log.debug(
                     "UniProt stream request details: query=%s fields=%s sort=%s include_isoform=%s timeout=%s started_at=%s",
@@ -457,7 +457,7 @@ class UniprotInterface(BaseAPIInterface):
                 )
                 response.raise_for_status()
                 time_finished = time.time()
-                finished_at = datetime.fromtimestamp(time_finished).isoformat()
+                finished_at = datetime.fromtimestamp(time_finished, tz=UTC).isoformat()
                 elapsed_seconds = time_finished - time_started
                 size_header = response.headers.get("Content-Length")
                 response_size_bytes = (
@@ -558,13 +558,12 @@ class UniprotInterface(BaseAPIInterface):
             try:
                 # Navigate through the path (e.g. 'to.proteinDescription...')
                 data = result
-                for key in path.split("."):
-                    if key.isdigit():  # For array indices
-                        key = int(key)
+                for raw_key in path.split("."):
+                    key = int(raw_key) if raw_key.isdigit() else raw_key
                     data = data.get(key, {})
 
                 # Extract the value using the specific function
-                if field in DATABASES.keys():
+                if field in DATABASES:
                     parsed[field] = extractor(data, DATABASES[field]) if data else None
                 else:
                     parsed[field] = extractor(data) if data else None
@@ -577,7 +576,7 @@ class UniprotInterface(BaseAPIInterface):
 
         metadata["extract_fields"] = extract_fields if extract_fields is not None else list(field_map.keys())
         metadata["parsed_fields"] = list(parsed.keys())
-        metadata["failed_fields"] = [k for k in field_map.keys() if k not in parsed.keys()]
+        metadata["failed_fields"] = [k for k in field_map if k not in parsed]
 
         return parsed, metadata
 

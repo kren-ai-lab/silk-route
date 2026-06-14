@@ -56,12 +56,12 @@ class InterproInterface(BaseAPIInterface):
             "modifiers": lambda v: isinstance(v, dict),
             # Example of a valid filters:
             # "filters" : [
-            #     {
-            #         "type": "protein",
-            #         "db": "reviewed",
+            #     {  # noqa: ERA001
+            #         "type": "protein",  # noqa: ERA001
+            #         "db": "reviewed",  # noqa: ERA001
             #         "value": "Q29537"
-            #     }
-            # ]
+            #     }  # noqa: ERA001
+            # ]  # noqa: ERA001
             "filters": lambda filters: (
                 isinstance(filters, list)
                 and all(
@@ -124,11 +124,14 @@ class InterproInterface(BaseAPIInterface):
 
             data = response.json()
 
-            if not isinstance(data, dict) and "detail" in data.keys():
-                if data["detail"].startswith("There is no data associated with the requested URL"):
-                    return {}
+            if (
+                not isinstance(data, dict)
+                and "detail" in data
+                and data["detail"].startswith("There is no data associated with the requested URL")
+            ):
+                return {}
 
-            if "results" in data.keys() and isinstance(data["results"], list):
+            if "results" in data and isinstance(data["results"], list):
                 responses.extend(data["results"])
             else:
                 responses.append(data)
@@ -160,7 +163,7 @@ class InterproInterface(BaseAPIInterface):
         """
         pages_to_fetch = kwargs.get("pages_to_fetch", 1)
 
-        if method not in self.METHODS.keys():
+        if method not in self.METHODS:
             log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
             return {}
 
@@ -176,13 +179,13 @@ class InterproInterface(BaseAPIInterface):
         # Construct the base URL
         url = f"{INTERPRO.API_URL}{method}/"
 
-        if "db" in query.keys() and query["db"]:
+        if query.get("db"):
             url += f"{query['db']}/"
-        if "id" in query.keys() and query["id"]:
+        if query.get("id"):
             url += f"{query['id']}/"
-        if "entry_integration" in query.keys() and query["entry_integration"]:
+        if query.get("entry_integration"):
             url += f"{query['entry_integration']}/"
-        if "filters" in query.keys() and isinstance(query["filters"], list):
+        if "filters" in query and isinstance(query["filters"], list):
             for f in query["filters"]:
                 if f["type"] in filter_types and f["db"] in db_types[f["type"]] and f["value"]:
                     url += f"{f['type']}/{f['db']}/{f['value']}/"
@@ -192,7 +195,7 @@ class InterproInterface(BaseAPIInterface):
                     )
                     return {}
 
-        if "modifiers" in query.keys() and query["modifiers"]:
+        if query.get("modifiers"):
             url += "?"
             for key, value in query["modifiers"].items():
                 if value is not None and value != "":

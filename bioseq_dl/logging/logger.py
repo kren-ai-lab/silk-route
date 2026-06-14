@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import sys
@@ -134,13 +135,11 @@ class _LoggingManager:
             handlers.append(fh)
         except Exception as e:
             # Keep console even if the file handler fails; print a clear hint.
-            try:
+            with contextlib.suppress(Exception):
                 sys.stderr.write(
                     f"[bioseq_dl.logging] WARNING: Failed to initialize file handler at "
                     f"{self._log_dir!s} ({type(e).__name__}: {e}). Falling back to console only.\n"
                 )
-            except Exception:
-                pass
 
         return handlers
 

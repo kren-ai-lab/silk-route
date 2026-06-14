@@ -35,10 +35,7 @@ def load_environment_files(config_dir: str | None = None) -> None:
 
     env_paths.append(Path.cwd() / ENV_FILE_NAME)
 
-    if config_dir:
-        config_path = Path(config_dir).expanduser()
-    else:
-        config_path = Path(BASE_CONFIG_DIR)
+    config_path = Path(config_dir).expanduser() if config_dir else Path(BASE_CONFIG_DIR)
 
     env_paths.append(config_path / ENV_FILE_NAME)
 

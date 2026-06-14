@@ -14,7 +14,7 @@ from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.cli.uniprot_crossref")
 
-CROSS_REF_FIELDS = [xref.lower() for xref in XREF_MAPPING.keys()]
+CROSS_REF_FIELDS = [xref.lower() for xref in XREF_MAPPING]
 
 
 def save_to_file(
@@ -84,25 +84,16 @@ def run(
 
                 for ep_name, ep_info in endpoint_config.get("endpoints", {}).items():
                     if ep_info.get("enabled", False):
-                        if "options" in ep_info:
-                            for ep_option in ep_info.get("options", [None]):
-                                endpoint_specs.append(
-                                    EndpointSpec(
-                                        database=xref,
-                                        endpoint=ep_name,
-                                        option=ep_option,
-                                        params=ep_info.get("params", {}),
-                                    )
-                                )
-                        else:
-                            endpoint_specs.append(
-                                EndpointSpec(
-                                    database=xref,
-                                    endpoint=ep_name,
-                                    option=None,
-                                    params=ep_info.get("params", {}),
-                                )
+                        options = ep_info.get("options", [None]) if "options" in ep_info else [None]
+                        endpoint_specs.extend(
+                            EndpointSpec(
+                                database=xref,
+                                endpoint=ep_name,
+                                option=ep_option,
+                                params=ep_info.get("params", {}),
                             )
+                            for ep_option in options
+                        )
 
         if not endpoint_specs:
             msg = "No valid endpoint specifications found. Please check your database selections and configuration."

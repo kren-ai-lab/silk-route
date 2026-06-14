@@ -41,7 +41,7 @@ class BioDBNetInterface(BaseAPIInterface):
     }
 
     def fetch(self, query: str | dict | list, *, method: str = "getpathways", **kwargs: Any) -> dict | list:
-        if method not in self.METHODS.keys():
+        if method not in self.METHODS:
             log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
             return {}
 
