@@ -239,17 +239,22 @@ class BaseAPIInterface(ABC):
         if isinstance(data, pd.DataFrame):
             df = data
         elif isinstance(data, list):
-            df = pd.DataFrame(data) if data else pd.DataFrame()
+            df = pd.DataFrame(data) if len(data) > 0 else pd.DataFrame()
+        elif isinstance(data, dict):
+            df = pd.DataFrame([data]) if len(data) > 0 else pd.DataFrame()
+        elif data is None:
+            df = pd.DataFrame()
         else:
-            df = pd.DataFrame([data]) if data else pd.DataFrame()
+            df = pd.DataFrame([data])
 
         if isinstance(data, list):
             total_entries = len(data)
         elif isinstance(data, pd.DataFrame):
             total_entries = data.shape[0]
+        elif data is None:
+            total_entries = 0
         else:
             total_entries = len(df)
-
         return {
             "total_entries": total_entries,
             "data_type": type(data).__name__,
