@@ -67,7 +67,7 @@ class BrendaInterface(BaseAPIInterface):
         print("Available methods:")  # noqa: T201
         for service in self.client.wsdl.services.values():
             for port in service.ports.values():
-                for method_name in port.binding._methods:
+                for method_name in port.binding._methods:  # noqa: SLF001  # zeep internal API
                     print(f"- {method_name}")  # noqa: T201
 
     def fetch(self, query: str | dict | list, *, method: str = "getKmValue", **kwargs: Any) -> dict | list:
@@ -156,7 +156,7 @@ class BrendaInterface(BaseAPIInterface):
         params = self.METHODS[method_name]
         return f"Parameters for {method_name}: {', '.join(params)}"
 
-    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> dict | list:
+    def parse(self, data: Any, fields_to_extract: list | dict | None, **_kwargs: Any) -> dict | list:
         """Parse the response from the BioGRID API.
 
         Args:

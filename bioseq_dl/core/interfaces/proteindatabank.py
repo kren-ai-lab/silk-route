@@ -183,7 +183,7 @@ class PDBInterface(BaseAPIInterface):
                     self.fetch_structure(query)
         return results
 
-    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> dict | list:
+    def parse(self, data: Any, fields_to_extract: list | dict | None, **_kwargs: Any) -> dict | list:
         """Parse data by extracting specified fields or returning the entire structure.
 
         Args:

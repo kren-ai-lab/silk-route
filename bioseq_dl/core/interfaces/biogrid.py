@@ -131,7 +131,7 @@ class BioGRIDInterface(BaseAPIInterface):
 
         return response
 
-    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> dict | list:
+    def parse(self, data: Any, fields_to_extract: list | dict | None, **_kwargs: Any) -> dict | list:
         """Parse the response from the BioGRID API.
 
         Args:

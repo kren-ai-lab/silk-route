@@ -148,7 +148,7 @@ def get_query_builder(database: str, method: str, option: str | None = None) -> 
 
 
 @register_query_builder("alphafold", "prediction")
-def build_query_alphafold_prediction(row: pd.Series, params: dict) -> list:
+def build_query_alphafold_prediction(row: pd.Series, _params: dict) -> list:
     """Build AlphaFold prediction queries from 'alphafold_ids' column."""
     alphafold_ids = to_str_list(row.get("alphafold_ids"))
     if alphafold_ids:
@@ -249,7 +249,7 @@ def build_query_chebi_ontology(row: pd.Series, params: dict) -> list:
 
 @register_query_builder("go", "bioentity-function")
 @register_query_builder("go", "ontology-term")
-def build_query_go(row: pd.Series, params: dict) -> list:
+def build_query_go(row: pd.Series, _params: dict) -> list:
     """Build Gene Ontology queries from 'go_terms' column."""
     go_terms = to_str_list(row.get("go_terms"))
     if go_terms:
@@ -347,7 +347,7 @@ def build_query_pathwaycommons_neighborhood(row: pd.Series, params: dict) -> lis
 
 
 @register_query_builder("pdb", "entry")
-def build_query_pdb(row: pd.Series, params: dict) -> list:
+def build_query_pdb(row: pd.Series, _params: dict) -> list:
     """Build PDB entry queries from 'pdb_ids' column."""
     pdb = to_str_list(row.get("pdb_ids"))
     if pdb:
@@ -378,7 +378,7 @@ def build_query_pubchem_protein(row: pd.Series, params: dict) -> list:
 
 
 @register_query_builder("reactome", "data-discover")
-def build_query_reactome(row: pd.Series, params: dict) -> list:
+def build_query_reactome(row: pd.Series, _params: dict) -> list:
     """Build Reactome data-discover queries from 'reactome_ids' column."""
     ids_raw = to_str_list(row.get("reactome_ids"))
     if ids_raw:
@@ -396,7 +396,7 @@ def build_query_rhea(row: pd.Series, params: dict) -> list:
 
 
 @register_query_builder("refseq", "protein")
-def build_query_refseq(row: pd.Series, params: dict) -> list:
+def build_query_refseq(row: pd.Series, _params: dict) -> list:
     """Build RefSeq protein queries from 'refseq_ids' column."""
     ids_raw = to_str_list(row.get("refseq_ids"))
     if ids_raw:

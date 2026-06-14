@@ -59,6 +59,9 @@ def run(
     ),
 ) -> None:
     """Run UniProt search from a list of accession IDs."""
+    # TODO(diego): these CLI options are not yet wired into the download_batch call below
+    # (which currently hardcodes its arguments); kept for API stability until wired.
+    _ = (column, from_db, to_db, batch_size, auto_db)
     logger = log
     raw_export_format = export_format
     try:

@@ -260,7 +260,7 @@ class ChEMBLInterface(BaseAPIInterface):
         return params
 
     # DEPRECATED - Use validate_parameters instead
-    def validate_query(self, method: str, query: dict) -> None:
+    def validate_query(self, method: str, query: dict) -> None:  # noqa: ARG002  # deprecated; signature kept
         """Validate the query parameters.
 
         Args:
@@ -509,7 +509,7 @@ class ChEMBLInterface(BaseAPIInterface):
 
         return True
 
-    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> dict | list:
+    def parse(self, data: Any, fields_to_extract: list | dict | None, **_kwargs: Any) -> dict | list:
         """Parse the response from the ChEMBL API.
 
         Args:

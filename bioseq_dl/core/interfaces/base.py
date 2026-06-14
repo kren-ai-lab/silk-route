@@ -453,10 +453,10 @@ class BaseAPIInterface(ABC):
         if fmt == "xml":
             log.debug("Converting result to XML")
             if isinstance(result, dict):
-                return dicttoxml(result, custom_root="results", item_func=lambda x: "entry", attr_type=False)
+                return dicttoxml(result, custom_root="results", item_func=lambda _: "entry", attr_type=False)
             if isinstance(result, list):
                 return dicttoxml(
-                    {"item": result}, custom_root="results", item_func=lambda x: "entry", attr_type=False
+                    {"item": result}, custom_root="results", item_func=lambda _: "entry", attr_type=False
                 )
             log.error("Cannot convert to XML, unsupported type.")
             msg = f"Cannot convert to XML: unsupported type {type(result)}"
@@ -829,7 +829,7 @@ class BaseAPIInterface(ABC):
                 xml_bytes = dicttoxml(
                     {"item": combined_results},
                     custom_root="results",
-                    item_func=lambda x: "entry",
+                    item_func=lambda _: "entry",
                     attr_type=False,
                 )
                 metadata["fetched_length"] = len(combined_results)

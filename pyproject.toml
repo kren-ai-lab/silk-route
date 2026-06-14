@@ -92,13 +92,10 @@ ignore = [
     "TRY301",
     # Boolean flags (common in this API surface; CLI also relies on them)
     "FBT001", "FBT002",
-    # Unused args (interface-contract signatures)
-    "ARG001", "ARG002", "ARG005",
     # TODO hygiene: author + colon enforced (TD002/TD004). TD003 (issue link)
     # and FIX002 (presence) kept ignored — TODOs are intentional, no issue-link workflow.
     "TD003", "FIX002",
     # Misc legacy style
-    "SLF001",
     "S110",
     # Complexity / size (deferred to Phase 3 refactor)
     "PLR0911", "PLR0915",
@@ -122,6 +119,8 @@ ignore = [
 "bioseq_dl/init_config.py" = ["T201"]  # init script prints setup progress
 "tests/*" = [
     "ANN",
+    "ARG001",  # unused fixture/mock arguments are common in tests
+    "ARG002",  # unused mock-method arguments are common in tests
     "D",
     "EM101",
     "FBT003",
@@ -130,9 +129,11 @@ ignore = [
     "PT011",
     "PT017",
     "S101",
+    "SLF001",  # tests legitimately exercise private members
     "TRY003",
 ]
 "examples/*" = [
+    "ARG002",  # template stubs declare interface args they don't use
     "INP001",  # example scripts are intentionally standalone modules
     "PLR2004", # small referential scripts can compare against literal sizes
     "S101",    # lightweight runtime checks are fine in examples

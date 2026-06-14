@@ -528,7 +528,7 @@ class MainWorkflow:
                     "pagination_capped": pages_to_fetch != -1,
                 }
                 meta["post_fetch_filter"] = post_filter_meta
-                meta["data_info"] = instance._build_data_info(result)
+                meta["data_info"] = instance._build_data_info(result)  # noqa: SLF001  # library-internal helper
         context["data"].setdefault("chembl", result)
         context["metadata"].setdefault("chembl", meta)
         self.log.debug("Pipeline ChEMBL fetch metadata: %s", meta)

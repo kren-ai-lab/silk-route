@@ -215,7 +215,7 @@ class AlphafoldInterface(BaseAPIInterface):
 
         return parsed if parsed is not None else {}
 
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **_kwargs: Any) -> list | dict:
         """Parse data by extracting specified fields or returning the entire structure.
 
         Args:

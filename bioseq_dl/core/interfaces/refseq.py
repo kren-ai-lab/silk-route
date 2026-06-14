@@ -128,7 +128,7 @@ class RefSeqInterface(BaseAPIInterface):
 
         return self.to_native(records)
 
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **_kwargs: Any) -> list | dict:
         """Parse the fetched data into a DataFrame.
 
         Args:

@@ -217,7 +217,7 @@ class InterproInterface(BaseAPIInterface):
         log.debug(f"Prepared url: {url}")
         return self.fetch_pages(url, method, pages_to_fetch)
 
-    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> dict | list:
+    def parse(self, data: Any, fields_to_extract: list | dict | None, **_kwargs: Any) -> dict | list:
         """Parse the fetched data.
 
         Args:

@@ -147,7 +147,7 @@ class ChEBIInterface(BaseAPIInterface):
         else:
             return response
 
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **_kwargs: Any) -> list | dict:
         """Parse ChEBI response data."""
         if not data:
             log.warning("Tried to parse data but the data is empty or None.")

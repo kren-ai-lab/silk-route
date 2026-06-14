@@ -126,7 +126,7 @@ class BaseQueryInterpreter:
 
         return " ".join(resolved_final)
 
-    def _format_prefix(self, prefix: str, cfg: MultiModeFieldConfig) -> str:
+    def _format_prefix(self, _prefix: str, cfg: MultiModeFieldConfig) -> str:
         """Format a field prefix based on the field configuration."""
         return cfg.field
 

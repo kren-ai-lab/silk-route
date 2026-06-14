@@ -126,7 +126,7 @@ class ReactomeInterface(BaseAPIInterface):
             log.exception(f"Error fetching prediction for {query}")
             return {}
 
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **_kwargs: Any) -> list | dict:
         """Parse the pathway data.
 
         Args:

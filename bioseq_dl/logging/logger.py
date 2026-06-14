@@ -222,9 +222,9 @@ def get_logger(name: str | None = None) -> logging.Logger:
 
     Children keep level=NOTSET to inherit the root's effective level.
     """
-    _manager._ensure_configured()
+    _manager._ensure_configured()  # noqa: SLF001  # module logging singleton
     logger = logging.getLogger(name or "")
-    logger.disabled = not _manager._enable
+    logger.disabled = not _manager._enable  # noqa: SLF001  # module logging singleton
     logger.setLevel(logging.NOTSET)  # <-- inherit from root
     logger.propagate = True
     return logger
