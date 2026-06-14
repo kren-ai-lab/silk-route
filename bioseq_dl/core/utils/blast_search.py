@@ -39,16 +39,16 @@ def download_uniprot_database(
     if not db_path.exists():
         DB_DIR.mkdir(parents=True, exist_ok=True)
         url = f"{BASE_URL}/{DATABASES[db_name]}.{extension}.gz"
-        os.system(f"wget {url} -O {db_path}.gz")
+        os.system(f"wget {url} -O {db_path}.gz")  # noqa: S605  # trusted NCBI URL, dev tooling
         log.info(f"Unzipping {db_path}...")
-        subprocess.run(["gunzip", db_path], check=True)
+        subprocess.run(["gunzip", db_path], check=True)  # noqa: S603, S607  # trusted local tool, dev tooling
     else:
         log.info(f"Database {db_name} already exists at {db_path}.")
 
 
 def get_latest_version_url() -> tuple[str, str]:
     """Retrieve the latest BLAST+ tarball URL from the NCBI FTP site."""
-    with urlopen(BLAST_BASE_URL) as response:
+    with urlopen(BLAST_BASE_URL) as response:  # noqa: S310  # trusted NCBI FTP URL constant
         html = response.read().decode("utf-8")
     # Look for something like: ncbi-blast-2.16.0+-x64-linux.tar.gz
     match = re.search(r"ncbi-blast-(\d+\.\d+\.\d+\+)-x64-linux\.tar\.gz", html)
@@ -63,7 +63,7 @@ def get_latest_version_url() -> tuple[str, str]:
 def is_blast_installed() -> bool:
     """Check if 'blastp' is available in the system PATH."""
     try:
-        subprocess.run(["blastp", "-version"], check=True, stdout=subprocess.DEVNULL)
+        subprocess.run(["blastp", "-version"], check=True, stdout=subprocess.DEVNULL)  # noqa: S607  # trusted local tool on PATH
     except (subprocess.CalledProcessError, FileNotFoundError):
         return False
     else:
@@ -75,11 +75,11 @@ def download_and_extract_blast(version: str, url: str) -> None:
     tarball_name = url.rsplit("/", maxsplit=1)[-1]
     if not Path(tarball_name).exists():
         log.info(f"Downloading BLAST+ {version}...")
-        subprocess.run(["wget", url], check=True)
+        subprocess.run(["wget", url], check=True)  # noqa: S603, S607  # trusted NCBI URL, dev tooling
 
     log.info("Extracting BLAST+...")
     with tarfile.open(tarball_name, "r:gz") as tar:
-        tar.extractall(BLAST_DIR)
+        tar.extractall(BLAST_DIR)  # noqa: S202  # trusted NCBI tarball, dev tooling
     log.info(f"BLAST extracted to: {BLAST_DIR.resolve()}")
 
 
@@ -132,7 +132,7 @@ def make_blast_database(db_name: str, db_type: str = "prot", extension: str = "x
             str(blast_db_path / "db"),
         ]
 
-        subprocess.run(blast_db_cmd, check=True)
+        subprocess.run(blast_db_cmd, check=True)  # noqa: S603  # trusted local BLAST tool, dev tooling
         log.info(f"BLAST database created at: {DB_DIR / DATABASES[db_name]}")
     else:
         log.info(f"BLAST database already exists at {blast_db_path}. No need to create it again.")
@@ -166,7 +166,7 @@ def run_blast(sequences: list[str], db_name: str, blast_type: str = "blastp", ev
 
     log.info("Running BLAST search...")
     with Path("tmp/blast_results.txt").open("w") as f:
-        subprocess.run(blast_cmd, stdout=f, check=True)
+        subprocess.run(blast_cmd, stdout=f, check=True)  # noqa: S603  # trusted local BLAST tool, dev tooling
 
     # Clean up temporary file
     Path("tmp/sequences.fasta").unlink()

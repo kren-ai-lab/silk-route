@@ -227,7 +227,7 @@ class CrossRefEnricher:
                         continue
                     try:
                         df_result = pd.DataFrame(result)
-                    except Exception:
+                    except Exception:  # noqa: S112  # skip records that won't coerce to a DataFrame
                         continue
                     if df_result.empty:
                         continue
@@ -244,7 +244,7 @@ class CrossRefEnricher:
                 if isinstance(result, dict):
                     try:
                         df_result = pd.DataFrame([result])
-                    except Exception:
+                    except Exception:  # noqa: S112  # skip records that won't coerce to a DataFrame
                         continue
                     if df_result.empty:
                         continue
@@ -280,7 +280,7 @@ class CrossRefEnricher:
 
             for xml_bytes in all_results:
                 # Parse each XML
-                root = ET.fromstring(xml_bytes)
+                root = ET.fromstring(xml_bytes)  # noqa: S314  # trusted cross-ref API response
 
                 # Copy all <item> to final root
                 for item in root.findall("item"):

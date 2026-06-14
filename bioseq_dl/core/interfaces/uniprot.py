@@ -187,9 +187,9 @@ class UniprotInterface(BaseAPIInterface):
 
     def merge_xml_results(self, xml_results: list) -> bytes:
         """Merge a list of XML byte strings into one root element."""
-        merged_root = ET.fromstring(xml_results[0])
+        merged_root = ET.fromstring(xml_results[0])  # noqa: S314  # trusted UniProt API response
         for result in xml_results[1:]:
-            root = ET.fromstring(result)
+            root = ET.fromstring(result)  # noqa: S314  # trusted UniProt API response
             for child in root.findall("{http://uniprot.org/uniprot}entry"):
                 merged_root.insert(-1, child)
         ET.register_namespace("", self.get_xml_namespace(merged_root[0]))

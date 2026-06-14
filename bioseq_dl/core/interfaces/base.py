@@ -200,7 +200,7 @@ class BaseAPIInterface(ABC):
 
     def _delay(self) -> None:
         """Introduce a random delay between min_wait and max_wait."""
-        time.sleep(random.uniform(self.min_wait, self.max_wait))
+        time.sleep(random.uniform(self.min_wait, self.max_wait))  # noqa: S311  # jittered rate-limit delay, not cryptographic
 
     @staticmethod
     def _empty_metadata() -> dict[str, Any]:
@@ -330,7 +330,7 @@ class BaseAPIInterface(ABC):
         return extra
 
     def _hash_key(self, key: str) -> str:
-        return hashlib.md5(key.encode("utf-8")).hexdigest()
+        return hashlib.md5(key.encode("utf-8"), usedforsecurity=False).hexdigest()
 
     def _get_cache_path(self, identifier: str) -> str:
         """Generate a cache file path based on the identifier."""
