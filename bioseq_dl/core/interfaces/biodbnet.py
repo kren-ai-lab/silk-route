@@ -83,9 +83,7 @@ class BioDBNetInterface(BaseAPIInterface):
             log.warning("Tried to parse data but the data is empty or None.")
             return {}
 
-        if isinstance(data, (dict, list)):
-            data = data
-        else:
+        if not isinstance(data, (dict, list)):
             log.error(
                 "Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object."
             )

@@ -256,14 +256,10 @@ class PubChemInterface(BaseAPIInterface):
                     response = response.get("ProteinSummaries", {}).get("ProteinSummary", [])
                 elif isinstance(response, dict) and "GeneSummaries" in response:
                     response = response.get("GeneSummaries", {}).get("GeneSummary", [])
-                else:
-                    response = response
             elif method.startswith("pug_view/") or method == "autocomplete":
                 # Convert from string to dict if needed
                 if isinstance(response, str):
                     response = json.loads(response)
-            else:
-                response = response
 
             return response
         except RequestException as e:
@@ -288,9 +284,7 @@ class PubChemInterface(BaseAPIInterface):
 
         if isinstance(data, Response):
             data = data.json()
-        elif isinstance(data, dict):
-            data = data
-        else:
+        elif not isinstance(data, dict):
             log.error(
                 "Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object."
             )

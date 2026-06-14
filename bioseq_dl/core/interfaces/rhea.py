@@ -75,9 +75,7 @@ class RheaInterface(BaseAPIInterface):
 
         if isinstance(data, Response):
             data = data.json()
-        elif isinstance(data, (dict, list)):
-            data = data
-        else:
+        elif not isinstance(data, (dict, list)):
             log.error(
                 "Tried to parse data but the type is not supported. Data should be a list or a dictionary."
             )

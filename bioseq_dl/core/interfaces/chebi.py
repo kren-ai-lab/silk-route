@@ -159,9 +159,7 @@ class ChEBIInterface(BaseAPIInterface):
 
         if isinstance(data, Response):
             data = data.json()
-        elif isinstance(data, dict):
-            data = data
-        else:
+        elif not isinstance(data, dict):
             log.error(
                 "Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object."
             )

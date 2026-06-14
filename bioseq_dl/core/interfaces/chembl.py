@@ -514,9 +514,7 @@ class ChEMBLInterface(BaseAPIInterface):
 
         if isinstance(data, requests.models.Response):
             data = data.json()
-        elif isinstance(data, dict) or isinstance(data, list):
-            data = data
-        else:
+        elif not isinstance(data, (dict, list)):
             log.error(
                 "Tried to parse data but the type is not supported. Response should be a dict or a list."
             )
