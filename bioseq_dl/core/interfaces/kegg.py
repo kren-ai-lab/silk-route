@@ -85,12 +85,12 @@ class KEGGInterface(BaseAPIInterface):
             if key in query and not check(query[key]):
                 if key == "entries":
                     log.error("Invalid entries: %s. Must be a string or a list of strings.", query["entries"])
-                    return {}
+                    return
                 if key == "db":
                     log.error(
                         "Invalid database type: %s. Valid types are: %s.", query["db"], ", ".join(DATABASES)
                     )
-                    return {}
+                    return
                 if key == "option":
                     log.error(
                         "Invalid option: %s for method %s. Supported options are: %s.",
@@ -98,8 +98,8 @@ class KEGGInterface(BaseAPIInterface):
                         method,
                         ", ".join(METHOD_OPTIONS.get(method, [])),
                     )
-                    return {}
-        return None
+                    return
+        return
 
     def fetch(self, query: str | dict | list, *, method: str = "get", **kwargs: Any) -> dict | list | str:
         """Fetch data from the KEGG API.

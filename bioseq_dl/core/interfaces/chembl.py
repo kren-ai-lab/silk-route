@@ -284,14 +284,14 @@ class ChEMBLInterface(BaseAPIInterface):
                         "Invalid target_chembl_id: %s. It should be a non-empty string.",
                         query["target_chembl_id"],
                     )
-                    return {}
+                    return
                 if key == "pchembl_value":
                     log.error(
                         "Invalid pchembl_value: %s. It should be a number (int or float).",
                         query["pchembl_value"],
                     )
-                    return {}
-        return None
+                    return
+        return
 
     def fetch_pages(self, next_url: str, method: str, pages_to_fetch: int = 1) -> dict | list:
         """Fetch the next page of results from the ChEMBL API.
