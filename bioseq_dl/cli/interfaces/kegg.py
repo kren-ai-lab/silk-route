@@ -23,7 +23,7 @@ def run_get(
         "-o",
         help="Output file to save the fetched data.",
     ),
-):
+) -> None:
     """Fetch data from KEGG database."""
     instance = KEGGInterface()
 

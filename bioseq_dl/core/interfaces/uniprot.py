@@ -48,7 +48,7 @@ class UniprotInterface(BaseAPIInterface):
         cache_dir: str | None = None,
         config_dir: str | None = None,
         **kwargs,
-    ):
+    ) -> None:
         """Initialize the UniProt interface.
 
         UniProt uses a bespoke id-mapping / stream flow rather than the generic
@@ -116,7 +116,7 @@ class UniprotInterface(BaseAPIInterface):
             "keyword": ("keywords", extract_keywords),
         }
 
-    def check_response(self, response):
+    def check_response(self, response) -> None:
         try:
             response.raise_for_status()
         except requests.HTTPError:
@@ -133,7 +133,7 @@ class UniprotInterface(BaseAPIInterface):
         self.check_response(request)
         return request.json()["jobId"]
 
-    def print_progress_batches(self, batch_index, size, total):
+    def print_progress_batches(self, batch_index, size, total) -> None:
         n_fetched = min((batch_index + 1) * size, total)
         log.info(f"Fetched: {n_fetched} / {total}")
 
@@ -380,7 +380,7 @@ class UniprotInterface(BaseAPIInterface):
 
         return results, metadata
 
-    def show_results(self, results: list[dict], raw=False):
+    def show_results(self, results: list[dict], raw=False) -> None:
         # Deliberate stdout helper for interactive inspection of fetched results.
         if results:
             if raw:

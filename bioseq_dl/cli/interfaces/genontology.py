@@ -10,7 +10,7 @@ app = typer.Typer(help="Fetch data from Gene Ontology database.")
 def run_ontology_term(
     goid: str = typer.Argument(..., help="Gene Ontology ID (e.g., GO:0008150)."),
     output: str = typer.Option(None, "--output", "-o", help="Output file to save the fetched data."),
-):
+) -> None:
     """Fetch data from Gene Ontology database."""
     instance = GenOntologyInterface()
 
@@ -27,7 +27,7 @@ def run_ontology_term(
 def run_go(
     goid: str = typer.Argument(..., help="Gene Ontology ID (e.g., GO:0008150)."),
     output: str = typer.Option(None, "--output", "-o", help="Output file to save the fetched data."),
-):
+) -> None:
     """Fetch data from Gene Ontology database."""
     instance = GenOntologyInterface()
 
@@ -44,7 +44,7 @@ def run_go(
 def run_bioentity_function(
     goid: str = typer.Argument(..., help="Gene Ontology ID (e.g., GO:0008150)."),
     output: str = typer.Option(None, "--output", "-o", help="Output file to save the fetched data."),
-):
+) -> None:
     """Fetch data from Gene Ontology database."""
     instance = GenOntologyInterface()
 

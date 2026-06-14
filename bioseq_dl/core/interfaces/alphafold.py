@@ -39,7 +39,7 @@ class AlphafoldInterface(BaseAPIInterface):
         config_dir: str | None = None,
         output_dir: str | None = None,
         **kwargs,
-    ):
+    ) -> None:
         """Initialize the AlphafoldInterface.
 
         Args:

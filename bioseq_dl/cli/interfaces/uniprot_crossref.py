@@ -17,7 +17,7 @@ log = get_logger("bioseq_dl.cli.uniprot_crossref")
 CROSS_REF_FIELDS = [xref.lower() for xref in XREF_MAPPING.keys()]
 
 
-def save_to_file(df, out_dir, filename, db, endpoint, option):
+def save_to_file(df, out_dir, filename, db, endpoint, option) -> None:
     # Make folder with filename
     (Path(out_dir) / filename).mkdir(parents=True, exist_ok=True)
     # Save the DataFrame to a CSV file
@@ -53,7 +53,7 @@ def run(
         + ", ".join(CROSS_REF_FIELDS),
         case_sensitive=False,
     ),
-):
+) -> None:
     try:
         # Check if input file exists
         if not Path(input).exists():

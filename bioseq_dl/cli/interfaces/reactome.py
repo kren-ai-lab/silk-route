@@ -12,7 +12,7 @@ def run_discover(
         ..., help="Identifier to discover (comma-separated for several), e.g., R-DME-1834941"
     ),
     output_file: str = typer.Option(None, help="Output file to save results"),
-):
+) -> None:
     """Discover data in Reactome using one or more identifiers."""
     interface = ReactomeInterface()
 

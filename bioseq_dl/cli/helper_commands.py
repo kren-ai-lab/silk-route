@@ -15,7 +15,7 @@ def list_registered(
     log_level: str = typer.Option(
         "info", "--log", "-l", help="Logging level (debug, info, warning, error, critical)."
     ),
-):
+) -> None:
     """List registered caches."""
     LOG_LEVELS = {
         "debug": logging.DEBUG,

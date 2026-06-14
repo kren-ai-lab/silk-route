@@ -10,7 +10,7 @@ app = typer.Typer(help="Collect data from RefSeq database.")
 def run_protein(
     id: str = typer.Argument(..., help="Comma-separated list of RefSeq protein IDs"),
     output_file: str = typer.Option(None, help="Output file to save results"),
-):
+) -> None:
     """Fetch protein data from RefSeq."""
     interface = RefSeqInterface()
 
@@ -23,7 +23,7 @@ def run_protein(
 def run_gene(
     id: str = typer.Argument(..., help="Comma-separated list of RefSeq gene IDs"),
     output_file: str = typer.Option(None, help="Output file to save results"),
-):
+) -> None:
     """Fetch gene data from RefSeq."""
     interface = RefSeqInterface()
 
@@ -36,7 +36,7 @@ def run_gene(
 def run_popset(
     id: str = typer.Argument(..., help="Comma-separated list of RefSeq popset IDs"),
     output_file: str = typer.Option(None, help="Output file to save results"),
-):
+) -> None:
     """Fetch popset data from RefSeq."""
     interface = RefSeqInterface()
 

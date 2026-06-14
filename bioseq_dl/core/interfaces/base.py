@@ -111,7 +111,7 @@ class BaseAPIInterface(ABC):
         total_retries: int = 5,
         headers: dict | None = None,
         use_config: bool = True,
-    ):
+    ) -> None:
         """Initialize the BaseAPIInterface class.
 
         Args:
@@ -198,7 +198,7 @@ class BaseAPIInterface(ABC):
                 except Exception:
                     log.exception(f"Error loading config {entry.name}")
 
-    def _delay(self):
+    def _delay(self) -> None:
         """Introduce a random delay between min_wait and max_wait."""
         time.sleep(random.uniform(self.min_wait, self.max_wait))
 

@@ -44,7 +44,7 @@ class PDBInterface(BaseAPIInterface):
         config_dir: str | None = None,
         output_dir: str | None = None,
         **kwargs,
-    ):
+    ) -> None:
         """Initialize the PDBInterface.
         Args:.
             batch_size (int): Number of entries to process in each batch.

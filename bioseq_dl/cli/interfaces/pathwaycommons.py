@@ -27,7 +27,7 @@ def run_top_pathways(
         "-o",
         help="Output file to save the top pathways.",
     ),
-):
+) -> None:
     """Fetch data from Pathway Commons."""
     instance = PathwayCommonsInterface()
 
@@ -57,7 +57,7 @@ def run_fetch(
         "-o",
         help="Output file to save the fetched data.",
     ),
-):
+) -> None:
     """Fetch data from Pathway Commons using a BioPAX URI."""
     instance = PathwayCommonsInterface()
 
@@ -107,7 +107,7 @@ def run_neighborhood(
         "-o",
         help="Output file to save the neighborhood data.",
     ),
-):
+) -> None:
     """Fetch neighborhood data from Pathway Commons."""
     instance = PathwayCommonsInterface()
 

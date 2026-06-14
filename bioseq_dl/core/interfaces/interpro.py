@@ -38,7 +38,7 @@ class InterproInterface(BaseAPIInterface):
         }
     }
 
-    def validate_query(self, method: str, query: dict):
+    def validate_query(self, method: str, query: dict) -> None:
         """Validate the query parameters.
 
         Args:

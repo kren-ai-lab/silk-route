@@ -52,7 +52,7 @@ class RefSeqInterface(BaseAPIInterface):
 
     def __init__(
         self, email: str = "", cache_dir: str | None = None, config_dir: str | None = None, **kwargs
-    ):
+    ) -> None:
         """Initialize the RefSeqInterface class.
 
         Args:

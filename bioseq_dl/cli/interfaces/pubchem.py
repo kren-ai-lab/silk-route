@@ -24,7 +24,7 @@ def run_compound(
     ),
     option: str = typer.Option("default", help=f"Fetch option (e.g., {', '.join(OPTIONS['pug/compound'])})"),
     output_file: str = typer.Option(None, help="Output file to save results"),
-):
+) -> None:
     """Fetch compound data from PubChem."""
     interface = PubChemInterface()
 
@@ -49,7 +49,7 @@ def run_protein(
     accession: str = typer.Argument(..., help="Protein accession number"),
     option: str = typer.Option("summary", help=f"Fetch option (e.g., {', '.join(OPTIONS['pug/protein'])})"),
     output_file: str = typer.Option(None, help="Output file to save results"),
-):
+) -> None:
     """Fetch protein data from PubChem."""
     interface = PubChemInterface()
 
@@ -77,7 +77,7 @@ def run_gene(
     taxid: str = typer.Option(None, help="Taxonomy ID"),
     option: str = typer.Option("summary", help=f"Fetch option (e.g., {', '.join(OPTIONS['pug/gene'])})"),
     output_file: str = typer.Option(None, help="Output file to save results"),
-):
+) -> None:
     """Fetch gene data from PubChem."""
     interface = PubChemInterface()
 
@@ -101,7 +101,7 @@ def run_gene(
 def run_compound_view(
     cid: str = typer.Argument(..., help="Compound ID (CID, e.g., 2244)"),
     output_file: str = typer.Option(None, help="Output file to save results"),
-):
+) -> None:
     """Fetch detailed compound data from PubChem."""
     interface = PubChemInterface()
 
@@ -124,7 +124,7 @@ def run_compound_view(
 def run_protein_view(
     accession: str = typer.Argument(..., help="Protein accession number (e.g., P00533)"),
     output_file: str = typer.Option(None, help="Output file to save results"),
-):
+) -> None:
     """Fetch detailed protein data from PubChem."""
     interface = PubChemInterface()
 
@@ -145,7 +145,7 @@ def run_protein_view(
 def run_gene_view(
     geneid: str = typer.Argument(..., help="Gene ID (e.g., EGFR)"),
     output_file: str = typer.Option(None, help="Output file to save results"),
-):
+) -> None:
     """Fetch detailed gene data from PubChem."""
     interface = PubChemInterface()
 
@@ -169,7 +169,7 @@ def run_pathway_view(
     source: str = typer.Option("Reactome", help="Pathway source (e.g., Reactome)"),
     id: str = typer.Option(None, help="Pathway ID (e.g., R-HSA-5673001)"),
     output_file: str = typer.Option(None, help="Output file to save results"),
-):
+) -> None:
     """Fetch detailed pathway data from PubChem."""
     interface = PubChemInterface()
 
@@ -195,7 +195,7 @@ def run_pathway_view(
 def run_taxonomy_view(
     taxid: str = typer.Argument(..., help="Taxonomy ID (e.g., 9606)"),
     output_file: str = typer.Option(None, help="Output file to save results"),
-):
+) -> None:
     """Fetch detailed taxonomy data from PubChem."""
     interface = PubChemInterface()
 

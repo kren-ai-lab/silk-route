@@ -64,7 +64,7 @@ class BioGRIDInterface(BaseAPIInterface):
         cache_dir: str | None = None,
         config_dir: str | None = None,
         **kwargs,
-    ):
+    ) -> None:
         """Initialize the BioGRIDInterface class.
 
         Args:

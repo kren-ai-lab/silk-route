@@ -11,7 +11,7 @@ def run_search(
     q: str = typer.Argument(..., help="Rhea reaction ID"),
     columns: str = typer.Option(None, help="Columns to fetch"),
     output_file: str = typer.Option(None, help="Output file to save results"),
-):
+) -> None:
     """Fetch reaction data from Rhea."""
     interface = RheaInterface()
 

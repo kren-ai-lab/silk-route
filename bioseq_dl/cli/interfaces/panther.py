@@ -21,7 +21,7 @@ def run_geneinfo(
         "-o",
         help="Output file to save the data.",
     ),
-):
+) -> None:
 
     interface = PantherInterface()
 
@@ -47,7 +47,7 @@ def run_familyortholog(
         "-o",
         help="Output file to save the data.",
     ),
-):
+) -> None:
     interface = PantherInterface()
 
     query = {"family": id, "taxonFltr": taxon_filter}
@@ -72,7 +72,7 @@ def run_familymsa(
         "-o",
         help="Output file to save the data.",
     ),
-):
+) -> None:
     interface = PantherInterface()
 
     query = {"family": id, "taxonFltr": taxon_filter}

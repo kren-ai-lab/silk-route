@@ -21,7 +21,7 @@ def run_prediction(
         "-o",
         help="Output file to save the fetched data.",
     ),
-):
+) -> None:
     """Fetch data from AlphaFold database."""
     if download_structures:
         instance = AlphafoldInterface(structures=["pdb"], output_dir=output)

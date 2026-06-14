@@ -23,7 +23,7 @@ def run_interactions(
         "-out",
         help="Output file to save the fetched data.",
     ),
-):
+) -> None:
     """Fetch interaction data from BioGRID database."""
     instance = BioGRIDInterface(api_key=access_key)
 

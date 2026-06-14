@@ -13,7 +13,7 @@ def run_activity(
         None, "--p-value", help="Minimum p-value threshold for filtering activities (optional)"
     ),
     output: str = typer.Option(None, help="Output file to save the results (optional)"),
-):
+) -> None:
     """Fetch activity information by ChEMBL ID."""
     interface = ChEMBLInterface()
 
@@ -32,7 +32,7 @@ def run_activity(
 def run_binding_site(
     chembl_id: str = typer.Argument(..., help="ChEMBL ID of the compound (e.g., CHEMBL25)"),
     output: str = typer.Option(None, help="Output file to save the results (optional)"),
-):
+) -> None:
     """Fetch binding site information by ChEMBL ID."""
     interface = ChEMBLInterface()
 

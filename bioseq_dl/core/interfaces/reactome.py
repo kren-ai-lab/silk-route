@@ -27,7 +27,7 @@ class ReactomeInterface(BaseAPIInterface):
         }
     }
 
-    def validate_query(self, query: dict):
+    def validate_query(self, query: dict) -> None:
         """Validate the query parameters.
 
         Args:

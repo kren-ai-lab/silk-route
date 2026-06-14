@@ -34,7 +34,7 @@ class SabiorkInterface(BaseAPIInterface):
         config_dir: str | None = None,
         output_dir: str | None = None,
         **kwargs,
-    ):
+    ) -> None:
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
         self.output_dir = output_dir or self.cache_dir

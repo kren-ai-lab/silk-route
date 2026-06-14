@@ -32,7 +32,7 @@ def run_db2db(
         "-out",
         help="Output file to save the fetched data.",
     ),
-):
+) -> None:
     """Fetch interaction data from BioGRID database."""
     instance = BioDBNetInterface()
 
@@ -62,7 +62,7 @@ def run_pathways(
         "-out",
         help="Output file to save the fetched data.",
     ),
-):
+) -> None:
     """Fetch interaction data from BioGRID database."""
     instance = BioDBNetInterface()
 

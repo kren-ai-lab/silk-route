@@ -37,7 +37,7 @@ class BrendaInterface(BaseAPIInterface):
         cache_dir: str | None = None,
         config_dir: str | None = None,
         **kwargs,
-    ):
+    ) -> None:
         """Initialize the BrendaInstance.
 
         Args:
@@ -57,7 +57,7 @@ class BrendaInterface(BaseAPIInterface):
         self.password = hashlib.sha256(raw_password.encode("utf-8")).hexdigest() if raw_password else None
         self.client = Client(BRENDA.API_URL)
 
-    def show_all_methods(self):
+    def show_all_methods(self) -> None:
         # Deliberate stdout helper for interactive inspection of available SOAP methods.
         print("Available methods:")  # noqa: T201
         for service in self.client.wsdl.services.values():

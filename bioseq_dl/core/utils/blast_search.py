@@ -20,7 +20,7 @@ BLAST_DIR = Path("blast_bin")
 def download_uniprot_database(
     db_name: Literal["uniprotkb_reviewed", "uniprotkb_unreviewed", "uniref100", "uniref90", "uniref50"],
     extension: str = "xml",
-):
+) -> None:
     """Download a Uniprot database from the Uniprot FTP server.
 
     Args:
@@ -58,7 +58,7 @@ def get_latest_version_url():
     raise RuntimeError(msg)
 
 
-def is_blast_installed():
+def is_blast_installed() -> bool:
     """Check if 'blastp' is available in the system PATH."""
     try:
         subprocess.run(["blastp", "-version"], check=True, stdout=subprocess.DEVNULL)
@@ -68,7 +68,7 @@ def is_blast_installed():
         return True
 
 
-def download_and_extract_blast(version: str, url: str):
+def download_and_extract_blast(version: str, url: str) -> None:
     """Download and extract the BLAST+ tarball."""
     tarball_name = url.rsplit("/", maxsplit=1)[-1]
     if not Path(tarball_name).exists():
@@ -102,7 +102,7 @@ def check_blast():
     return str(local_blastp)
 
 
-def make_blast_database(db_name: str, db_type: str = "prot", extension: str = "xml"):
+def make_blast_database(db_name: str, db_type: str = "prot", extension: str = "xml") -> None:
     """Create a BLAST database from the Uniprot database."""
     db_path = DB_DIR / f"{db_name}.{extension}"
     if not db_path.exists():
@@ -136,7 +136,7 @@ def make_blast_database(db_name: str, db_type: str = "prot", extension: str = "x
         log.info(f"BLAST database already exists at {blast_db_path}. No need to create it again.")
 
 
-def run_blast(sequences: list[str], db_name: str, blast_type: str = "blastp", evalue: float = 0.001):
+def run_blast(sequences: list[str], db_name: str, blast_type: str = "blastp", evalue: float = 0.001) -> None:
     """Run BLAST search."""
     blast_db_path = DB_DIR / db_name
     if not blast_db_path.exists():

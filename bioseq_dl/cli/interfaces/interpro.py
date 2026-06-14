@@ -24,7 +24,7 @@ def run_entry(
         "-o",
         help="Output file to save the fetched data.",
     ),
-):
+) -> None:
     """Fetch data from InterPro database."""
     instance = InterproInterface()
 

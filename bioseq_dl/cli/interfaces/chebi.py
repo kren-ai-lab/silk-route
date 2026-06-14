@@ -16,7 +16,7 @@ def run_compound(
         False, "--only-children", help="If true, only fetch ontology children"
     ),
     output: str = typer.Option(None, help="Output file to save the results (optional)"),
-):
+) -> None:
     """Fetch compound information by ChEBI ID."""
     interface = ChEBIInterface()
 
@@ -36,7 +36,7 @@ def run_compounds(
         ..., help="Comma-separated list of ChEBI IDs (e.g., CHEBI:15377,CHEBI:15378)"
     ),
     output: str = typer.Option(None, help="Output file to save the results (optional)"),
-):
+) -> None:
     """Fetch multiple compounds by ChEBI IDs."""
     interface = ChEBIInterface()
 
@@ -58,7 +58,7 @@ def run_es_search(
     page: int = typer.Option(1, "--page", help="Page number for pagination (default: 1)"),
     size: int = typer.Option(15, "--size", help="Number of results per page (default: 15)"),
     output: str = typer.Option(None, help="Output file to save the results (optional)"),
-):
+) -> None:
     """Perform an Elasticsearch search in the ChEBI database."""
     interface = ChEBIInterface()
 
@@ -76,7 +76,7 @@ def run_es_search(
 def run_ontology_children(
     chebi_id: str = typer.Argument(..., help="ChEBI ID to fetch ontology children for (e.g., CHEBI:15377)"),
     output: str = typer.Option(None, help="Output file to save the results (optional)"),
-):
+) -> None:
     """Fetch ontology children of a given ChEBI ID."""
     interface = ChEBIInterface()
 
@@ -92,7 +92,7 @@ def run_ontology_children(
 def run_ontology_parents(
     chebi_id: str = typer.Argument(..., help="ChEBI ID to fetch ontology parents for (e.g., CHEBI:15377)"),
     output: str = typer.Option(None, help="Output file to save the results (optional)"),
-):
+) -> None:
     """Fetch ontology parents of a given ChEBI ID."""
     interface = ChEBIInterface()
 

@@ -13,7 +13,7 @@ def run_fetch_entry(
         False, "--download-structures", help="Whether to download the structure files."
     ),
     output_file: str | None = typer.Option(None, "--output-file", help="File to save the results."),
-):
+) -> None:
     """Fetch a PDB entry by its ID."""
     interface = PDBInterface(
         download_structures=download_structures,

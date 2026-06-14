@@ -173,7 +173,7 @@ def run_compound(
     output: str = typer.Option(..., help="Output file to save results"),
     exact_match: bool = typer.Option(False, help="Use exact match for name searches"),
     debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
-):
+) -> None:
     """Fetch compound data from chemical databases."""
     logger = log
     try:

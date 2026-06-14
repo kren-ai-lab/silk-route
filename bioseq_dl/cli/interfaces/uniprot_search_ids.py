@@ -57,7 +57,7 @@ def run(
         "--export_format",
         help="Export format: csv, json, xml, parquet. Default is csv.",
     ),
-):
+) -> None:
     logger = log
     raw_export_format = export_format
     try:
