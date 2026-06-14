@@ -18,11 +18,9 @@ from bioseq_dl.core.export import (
     normalize_user_export_format,
 )
 from bioseq_dl.core.utils.crossref_enrichment import run_crossref_enrichment
-from bioseq_dl.logging import configure_logging
+from bioseq_dl.logging import configure_logging, get_logger
 
 app = typer.Typer(help="Search and download sequences from UniProt using IDs.")
-
-from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.cli.uniprot_search_ids")
 

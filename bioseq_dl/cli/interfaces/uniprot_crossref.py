@@ -1,6 +1,7 @@
 """UniProt cross-reference CLI commands."""
 
 # bioseq_dl/cli/uniprot_crossref.py
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -9,10 +10,9 @@ import typer
 from bioseq_dl.constants.uniprot import XREF_MAPPING
 from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
 from bioseq_dl.core.interfacesconfig import load_packaged_config
+from bioseq_dl.logging import get_logger
 
 app = typer.Typer(help="Search and download cross-references from UniProt.")
-
-from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.cli.uniprot_crossref")
 
@@ -123,8 +123,6 @@ def run(
 
         metadata_path = Path(out_dir) / "metadata.json"
         with metadata_path.open("w") as f:
-            import json
-
             json.dump(enriched_metadata, f, indent=2)
             log.info(f"Metadata saved to {metadata_path}")
 

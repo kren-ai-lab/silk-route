@@ -5,11 +5,10 @@ import logging
 import typer
 
 from bioseq_dl.core.cache import clear_cache, list_caches
+from bioseq_dl.logging import get_logger
 from bioseq_dl.logging.logger import configure_logging
 
 app = typer.Typer(name="cache", help="Cache utility commands for BioSeqDownloader.")
-
-from bioseq_dl.logging import get_logger
 
 
 @app.command("list")

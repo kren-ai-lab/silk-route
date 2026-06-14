@@ -13,8 +13,6 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-QueryBuilder = Callable[[pd.Series, dict], list]
-
 from bioseq_dl import (
     AlphafoldInterface,
     BioDBNetInterface,
@@ -35,6 +33,11 @@ from bioseq_dl import (
     SabiorkInterface,
     StringInterface,
 )
+
+QueryBuilder = Callable[[pd.Series, dict], list]
+
+# A valid EC number has four dot-separated components (e.g. "1.1.1.1").
+EC_NUMBER_PARTS = 4
 
 INTERFACE_CLASSES = {
     "alphafold": AlphafoldInterface,
@@ -203,7 +206,8 @@ def build_query_brenda(row: pd.Series, params: dict) -> list:
     ec_numbers = [
         ec
         for ec in ec_numbers
-        if len(ec.split(".")) == 4 and all(part.isdigit() for part in ec.replace("-", "").split("."))
+        if len(ec.split(".")) == EC_NUMBER_PARTS
+        and all(part.isdigit() for part in ec.replace("-", "").split("."))
     ]
 
     if ec_numbers:

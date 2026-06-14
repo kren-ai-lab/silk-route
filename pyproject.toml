@@ -97,10 +97,10 @@ ignore = [
     # TODO formatting / presence
     "TD002", "TD003", "TD004", "FIX002",
     # Misc legacy style
-    "A001", "A002", "E402", "E501", "PLC0415", "SLF001",
-    "B905", "S110",
+    "A001", "A002", "E501", "SLF001",
+    "S110",
     # Complexity / size (deferred to Phase 3 refactor)
-    "PLR0911", "PLR0915", "PLR2004",
+    "PLR0911", "PLR0915",
 
     # --- Transitional: REAL findings deferred to Phase 2/3 (remove as fixed) ---
     "BLE001",   # blind except: intentional CLI/defensive catch-alls (see note above)

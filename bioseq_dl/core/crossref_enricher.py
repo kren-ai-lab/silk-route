@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
-from xml.etree.ElementTree import Element, ElementTree
+from xml.etree.ElementTree import Element, ElementTree, fromstring
 
 import pandas as pd
 
@@ -170,7 +170,9 @@ class CrossRefEnricher:
                 elif key == "data_info":
                     if "total_entries" in merged[key] and "total_entries" in value:
                         merged[key]["total_entries"] = merged[key]["total_entries"] + value["total_entries"]
-                    for column1, column2 in zip(merged[key].get("columns", []), value.get("columns", [])):
+                    for column1, column2 in zip(
+                        merged[key].get("columns", []), value.get("columns", []), strict=False
+                    ):
                         if column1["name"] == column2["name"]:
                             column1["n_missing"] = column1.get("n_missing", 0) + column2.get("n_missing", 0)
                 else:
@@ -273,20 +275,18 @@ class CrossRefEnricher:
             return cleaned_results, all_metadata
         if format == "xml":
             # TODO check if this code is correct, i did a lot of changes recently regarding XML exporting
-            import xml.etree.ElementTree as ET
-
             # Make final root
-            merged_root = ET.Element("results")
+            merged_root = Element("results")
 
             for xml_bytes in all_results:
                 # Parse each XML
-                root = ET.fromstring(xml_bytes)  # noqa: S314  # trusted cross-ref API response
+                root = fromstring(xml_bytes)  # noqa: S314  # trusted cross-ref API response
 
                 # Copy all <item> to final root
                 for item in root.findall("item"):
                     merged_root.append(item)
 
-            return ET.ElementTree(merged_root), all_metadata
+            return ElementTree(merged_root), all_metadata
         msg = f"Unsupported format: {format}"
         raise ValueError(msg)
 

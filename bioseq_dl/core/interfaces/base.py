@@ -639,7 +639,7 @@ class BaseAPIInterface(ABC):
             identifier_parts = []
 
             # Set values from the group_queries
-            for key, value in zip(group_queries, combo):
+            for key, value in zip(group_queries, combo, strict=False):
                 subquery[key] = value
                 identifier_parts.append(str(value))
 
@@ -972,7 +972,7 @@ class BaseAPIInterface(ABC):
                 try:
                     result = future.result()
 
-                    if isinstance(result, tuple) and len(result) == 2:
+                    if isinstance(result, tuple) and len(result) == 2:  # noqa: PLR2004  # (data, metadata) pair
                         data, _ = result
                         results.append(data)
                     else:

@@ -6,6 +6,7 @@ import contextlib
 import logging
 import os
 import sys
+from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 
 
@@ -23,8 +24,8 @@ def _resolve_log_dir() -> Path:
         return Path(env_dir).expanduser().resolve()
 
     try:
-        # Optional: use project config if available
-        from bioseq_dl.core import config  # type: ignore[unresolved-import]
+        # Optional: use project config if available (avoids a hard dependency)
+        from bioseq_dl.core import config  # type: ignore[unresolved-import]  # noqa: PLC0415
 
         cfg = config.get_config()
         return Path(cfg.cache_paths.logs()).expanduser().resolve()
@@ -119,8 +120,6 @@ class _LoggingManager:
             log_path = self._log_dir / self._filename
 
             if self._use_rotation:
-                from logging.handlers import TimedRotatingFileHandler
-
                 fh = TimedRotatingFileHandler(
                     filename=str(log_path),
                     when="D",

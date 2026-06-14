@@ -1,5 +1,6 @@
 """Gene Ontology API interface."""
 
+from http import HTTPStatus
 from typing import Any
 
 import pandas as pd
@@ -172,7 +173,10 @@ class GenOntologyInterface(BaseAPIInterface):
         """
         try:
             rel_response = self.fetch(method="ontology-term", query=parsed.get("goid", ""), option="graph")
-            if isinstance(rel_response, requests.models.Response) and rel_response.status_code == 200:
+            if (
+                isinstance(rel_response, requests.models.Response)
+                and rel_response.status_code == HTTPStatus.OK
+            ):
                 graph_json = rel_response.json()
                 nodes = graph_json.get("topology_graph_json", {}).get("nodes", [])
                 relationships = [node.get("id") for node in nodes if "id" in node]

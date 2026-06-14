@@ -20,6 +20,9 @@ app = typer.Typer(
 
 AVAILABLE_DATABASES = ["pubchem", "chembl", "chebi"]
 
+# Gene symbols are short; longer SMILES-like strings exceed this length.
+_MAX_GENE_QUERY_LEN = 6
+
 
 def detect_query_type(query: str) -> str:
     """Detect the type of the query string."""
@@ -27,9 +30,9 @@ def detect_query_type(query: str) -> str:
 
     if query.startswith("InChI="):
         return "inchi"
-    if any(c in query for c in "=#[]") and query.count("C") >= 1 and len(query) > 6:
+    if any(c in query for c in "=#[]") and query.count("C") >= 1 and len(query) > _MAX_GENE_QUERY_LEN:
         return "smiles"
-    if query.isupper() and len(query) <= 6:
+    if query.isupper() and len(query) <= _MAX_GENE_QUERY_LEN:
         return "gene"
     return "name"
 

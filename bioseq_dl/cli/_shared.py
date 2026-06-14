@@ -23,7 +23,7 @@ def unwrap(result: Any) -> Any:
     ``fetch_single`` / ``fetch_batch`` return a 2-tuple whose second element is a
     metadata dict. Anything that is not such a tuple is returned unchanged.
     """
-    if isinstance(result, tuple) and len(result) == 2 and isinstance(result[1], dict):
+    if isinstance(result, tuple) and len(result) == 2 and isinstance(result[1], dict):  # noqa: PLR2004  # (data, metadata) pair
         return result[0]
     return result
 

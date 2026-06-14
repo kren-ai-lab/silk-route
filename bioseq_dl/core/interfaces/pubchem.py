@@ -251,7 +251,7 @@ class PubChemInterface(BaseAPIInterface):
                     table = response.get("Table", {})
                     columns = table.get("Columns", {}).get("Column", [])
                     rows = table.get("Row", [])
-                    response = [dict(zip(columns, row.get("Cell", []))) for row in rows]
+                    response = [dict(zip(columns, row.get("Cell", []), strict=False)) for row in rows]
                 elif isinstance(response, dict) and "PC_Compounds" in response:
                     response = response.get("PC_Compounds", [])
                 elif isinstance(response, dict) and "IdentifierList" in response:

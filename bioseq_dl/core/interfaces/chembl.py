@@ -1,6 +1,7 @@
 """ChEMBL API interface."""
 
 import re
+from http import HTTPStatus
 from typing import Any
 from urllib.parse import urlencode
 
@@ -323,7 +324,7 @@ class ChEMBLInterface(BaseAPIInterface):
                 self._delay()
                 response.raise_for_status()
 
-                if response.status_code == 204:
+                if response.status_code == HTTPStatus.NO_CONTENT:
                     log.warning("No content returned for URL %s.", current_url)
                     break
 

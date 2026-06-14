@@ -28,6 +28,9 @@ if TYPE_CHECKING:
 
 log = get_logger("bioseq_dl.core.workflow.main")
 
+# Split large ChEMBL ID lists into chunks of this size to keep UniProt queries short.
+CHEMBL_ID_CHUNK_SIZE = 100
+
 
 def calculate_enrichment_execution_time(enrichment_metadata: Any) -> float:
     """Return the total execution time reported by enrichment metadata."""
@@ -552,14 +555,14 @@ class MainWorkflow:
         if not ids:
             self.log.debug("Pipeline: no ChEMBL IDs found; leaving interpreted_query untouched")
             return
-        if len(ids) > 100:
+        if len(ids) > CHEMBL_ID_CHUNK_SIZE:
             self.log.warning(
                 "Pipeline: large number of ChEMBL IDs (%s); UniProt query may be too long", len(ids)
             )
-            self.log.info("Searches will be divided into chunks of 100 IDs")
+            self.log.info("Searches will be divided into chunks of %s IDs", CHEMBL_ID_CHUNK_SIZE)
             output_list = []
-            for i in range(0, len(ids), 100):
-                chunk_ids = ids[i : i + 100]
+            for i in range(0, len(ids), CHEMBL_ID_CHUNK_SIZE):
+                chunk_ids = ids[i : i + CHEMBL_ID_CHUNK_SIZE]
                 chunk_query = "(" + " OR ".join([f"xref:chembl-{i}" for i in chunk_ids]) + ")"
                 # attatch or extend existing interpreted_query for each chunk
                 prev = (

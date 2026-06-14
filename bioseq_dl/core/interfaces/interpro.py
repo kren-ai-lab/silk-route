@@ -1,5 +1,6 @@
 """InterPro API interface."""
 
+from http import HTTPStatus
 from typing import Any
 
 import requests
@@ -123,7 +124,7 @@ class InterproInterface(BaseAPIInterface):
             self._delay()
             response.raise_for_status()
 
-            if response.status_code == 204:
+            if response.status_code == HTTPStatus.NO_CONTENT:
                 log.warning(f"No content returned for URL {next_url}.")
                 return {}
 
