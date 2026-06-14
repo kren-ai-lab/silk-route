@@ -6,7 +6,6 @@ import shutil
 import subprocess
 import tarfile
 from pathlib import Path
-from typing import Literal
 from urllib.request import urlopen
 
 from bioseq_dl.constants.databases import BASE_BLAST_DB_DIR as DB_DIR
@@ -20,7 +19,7 @@ BLAST_DIR = Path("blast_bin")
 
 
 def download_uniprot_database(
-    db_name: Literal["uniprotkb_reviewed", "uniprotkb_unreviewed", "uniref100", "uniref90", "uniref50"],
+    db_name: str,
     extension: str = "xml",
 ) -> None:
     """Download a Uniprot database from the Uniprot FTP server.

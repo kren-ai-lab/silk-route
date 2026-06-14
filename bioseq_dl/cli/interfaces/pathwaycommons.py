@@ -1,5 +1,7 @@
 """PathwayCommons CLI commands."""
 
+from typing import Any
+
 import typer
 
 from bioseq_dl import PathwayCommonsInterface
@@ -33,7 +35,7 @@ def run_top_pathways(
     """Fetch data from Pathway Commons."""
     instance = PathwayCommonsInterface()
 
-    query_params = {"q": query}
+    query_params: dict[str, Any] = {"q": query}
     if organism:
         query_params["organism"] = [organism]
     if databases:

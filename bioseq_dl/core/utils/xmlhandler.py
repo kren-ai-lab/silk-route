@@ -88,6 +88,8 @@ def elementtree_to_dataframe(
     - Containers with repeated <item> -> list[str] or list[dict]
     """
     root = tree.getroot()
+    if root is None:
+        return []
     records = root.findall(record_path)
 
     rows = []

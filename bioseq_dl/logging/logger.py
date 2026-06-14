@@ -25,7 +25,7 @@ def _resolve_log_dir() -> Path:
 
     # Optional: use project config if available (avoids a hard dependency)
     with contextlib.suppress(Exception):
-        from bioseq_dl.core import config  # type: ignore[unresolved-import]  # noqa: PLC0415
+        from bioseq_dl.core import config  # ty: ignore[unresolved-import]  # noqa: PLC0415
 
         cfg = config.get_config()
         return Path(cfg.cache_paths.logs()).expanduser().resolve()

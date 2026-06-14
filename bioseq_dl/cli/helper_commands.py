@@ -55,7 +55,7 @@ def clear(
     log_level: str = typer.Option(
         "info", "--log", "-l", help="Logging level (debug, info, warning, error, critical)."
     ),
-) -> None:
+) -> dict:
     """Clear cached data.
 
     Use --name to specify one or more registered cache names, or --all to clear everything.

@@ -1,5 +1,7 @@
 """InterPro CLI commands."""
 
+from typing import Any
+
 import typer
 
 from bioseq_dl import InterproInterface
@@ -30,7 +32,7 @@ def run_entry(
     """Fetch data from InterPro database."""
     instance = InterproInterface()
 
-    query = {}
+    query: dict[str, Any] = {}
 
     if identifier:
         query["id"] = identifier
