@@ -9,7 +9,7 @@ callables or DBConfig objects) and then let callers clear caches using a single
 API:
 - register_cache(name: str, provider)
 - list_caches() -> dict
-- clear_cache(names: Optional[List[str]] = None, *, dry_run=False, older_than_days=None, pattern=None, allowed_bases=None)
+- clear_cache(selected_names=None, *, dry_run=False, older_than_days=None, empty=False, pattern=None, allowed_bases=None)
 
 Provider types supported:
 - str or pathlib.Path -> a single path
@@ -128,42 +128,92 @@ def _is_within_allowed_bases(path: Path, allowed_bases: list[Path]) -> bool:
 
 
 def _is_empty_file(file_path: Path) -> bool:
-    """Check if a file is considered empty.
-    Empty means:
-    - File size is 0
-    - File contains only whitespace
-    - File contains only [] or {}
-    """
+    """Return True if the file is empty: zero bytes, only whitespace, or just `[]`/`{}`."""
     try:
-        # Check file size
         if file_path.stat().st_size == 0:
             return True
-
-        # Read file content
         try:
-            content = file_path.read_text(encoding="utf-8").strip()
-        except (UnicodeDecodeError, Exception):
-            # If can't read as text, check by bytes
+            content: str | bytes = file_path.read_text(encoding="utf-8").strip()
+        except UnicodeDecodeError:
             content = file_path.read_bytes().strip()
-            if not content:
-                return True
-            return False
-
-        # Check if content is empty, [], or {}
-        if not content or content == "[]" or content == "{}":
-            return True
-
-        return False
-    except Exception:
+        return content in ("", "[]", "{}", b"")
+    except OSError:
         _logger.exception("Error checking if file is empty: %s", file_path)
         return False
+
+
+def _default_allowed_bases() -> list[Path]:
+    """Build the safe-to-delete base dirs from constants and registered providers."""
+    bases: list[Path] = []
+    base_cache = getattr(db_consts, "BASE_CACHE_DIR", None)
+    if base_cache:
+        bases.append(Path(base_cache))
+    for v in vars(db_consts).values():
+        cd = getattr(v, "CACHE_DIR", None)
+        if cd:
+            bases.append(Path(cd))
+    for provider in _CACHE_REGISTRY.values():
+        bases.extend(_resolver_provider_paths(provider))
+    return list(dict.fromkeys(p.resolve() for p in bases))
+
+
+def _expand_targets(provider: CacheProvider, pattern: str | None) -> list[Path]:
+    """Resolve a provider to concrete paths, expanding `pattern` as a glob if given."""
+    targets: list[Path] = []
+    for p in _resolver_provider_paths(provider):
+        if not p:
+            continue
+        if pattern:
+            try:
+                targets.extend(Path(m) for m in glob.glob(str(p / pattern), recursive=True))
+            except Exception:
+                _logger.exception("Error globbing pattern %s under %s", pattern, p)
+        else:
+            targets.append(p)
+    return targets
+
+
+def _delete_target(
+    path: Path,
+    *,
+    dry_run: bool,
+    age_cutoff: float | None,
+    empty: bool,
+    allowed_bases: list[Path],
+) -> list[str]:
+    """Delete one target subject to safety/age/empty filters; return paths removed."""
+    if not path.exists():
+        return []
+    if not _is_within_allowed_bases(path, allowed_bases):
+        _logger.warning("Skipping path outside allowed bases: %s", path)
+        return []
+    if age_cutoff is not None and path.stat().st_mtime > age_cutoff:
+        _logger.debug("Skipping recent path %s", path)
+        return []
+
+    if empty:
+        if path.is_dir():
+            empty_files = [f for f in path.rglob("*") if f.is_file() and _is_empty_file(f)]
+            if not dry_run:
+                for f in empty_files:
+                    f.unlink()
+            return [str(f) for f in empty_files]
+        if not _is_empty_file(path):
+            _logger.debug("Skipping non-empty file %s", path)
+            return []
+
+    if not dry_run:
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+    return [str(path)]
 
 
 def clear_cache(
     selected_names: list[str] | None = None,
     *,
     dry_run: bool = False,
-    force: bool = False,
     older_than_days: int | None = None,
     empty: bool = False,
     pattern: str | None = None,
@@ -172,128 +222,40 @@ def clear_cache(
     """Clear registered cache entries.
 
     Args:
-        selected_names: optional list of registered cache names to clear. If None, all
-            registered caches are used.
-        dry_run: if True, don't delete anything; only return what would be
-            deleted.
-        force: currently reserved for interactive confirmation skipping.
-        older_than_days: if set, only delete files/directories older than this
-            many days.
+        selected_names: registered cache names to clear; if None, all are used.
+        dry_run: if True, don't delete anything; only report what would be deleted.
+        older_than_days: if set, only delete entries older than this many days.
         empty: if True, only delete entries that are empty files.
-        pattern: glob pattern relative to each provider path. If set, the glob
-            is applied under the provider path (supports recursive globs).
-        allowed_bases: optional list of base directories that are considered
-            safe to delete within. If not provided, the function will build a
-            sensible default from registry and constants.
+        pattern: recursive glob applied under each provider path.
+        allowed_bases: base directories considered safe to delete within;
+            defaults to dirs gathered from the registry and constants.
 
     Returns:
-        Dict[name, list_of_paths_actually_deleted_or_matched]
+        Dict mapping each cache name to the paths deleted (or matched, if dry_run).
 
     """
-    # Build default allowed_bases from constants and registered CACHE_DIRs
-    if allowed_bases is None:
-        allowed_bases_list: list[Path] = []
-        # try to pick BASE_CACHE_DIR from constants if present
-        try:
-            base_cache = getattr(db_consts, "BASE_CACHE_DIR", None)
-            if base_cache:
-                allowed_bases_list.append(Path(base_cache))
-        except Exception:
-            pass
-        # also add any explicitly configured CACHE_DIRs in constants module
-        for v in vars(db_consts).values():
-            if hasattr(v, "CACHE_DIR"):
-                cd = v.CACHE_DIR
-                if cd:
-                    allowed_bases_list.append(Path(cd))
-        # and any cache dirs already registered
-        for provider in _CACHE_REGISTRY.values():
-            try:
-                for p in _resolver_provider_paths(provider):
-                    if p:
-                        allowed_bases_list.append(p)
-            except Exception:
-                continue
-        # deduplicate
-        allowed_bases = [p for i, p in enumerate({x.resolve(): None for x in allowed_bases_list}.keys())]
-    else:
-        allowed_bases = [Path(p) for p in allowed_bases]
-
-    _names_selected = selected_names or list(_CACHE_REGISTRY.keys())
-    now = time.time()
-    age_cutoff = None
-    if older_than_days is not None:
-        age_cutoff = now - older_than_days * 86400
+    bases = _default_allowed_bases() if allowed_bases is None else [Path(p) for p in allowed_bases]
+    age_cutoff = time.time() - older_than_days * 86400 if older_than_days is not None else None
+    names = selected_names or list(_CACHE_REGISTRY)
 
     report: dict[str, list[str]] = {}
-
-    for name in _names_selected:
+    for name in names:
         provider = _CACHE_REGISTRY.get(name)
         if provider is None:
             _logger.warning("Cache name '%s' not registered; skipping", name)
             continue
 
-        resolved_paths: list[Path] = []
-        for p in _resolver_provider_paths(provider):
-            if not p:
-                continue
-            if pattern:
-                # apply glob under p
-                try:
-                    matches = glob.glob(str(p / pattern), recursive=True)
-                    resolved_paths.extend([Path(m) for m in matches])
-                except Exception:
-                    _logger.exception("Error globbing pattern %s under %s", pattern, p)
-            else:
-                resolved_paths.append(p)
-
-        removed_paths: list[str] = []
-        for path in resolved_paths:
+        removed: list[str] = []
+        for path in _expand_targets(provider, pattern):
             try:
-                if not path.exists():
-                    continue
-                # ensure safety
-                if not _is_within_allowed_bases(path, allowed_bases):
-                    _logger.warning("Skipping path outside allowed bases: %s", path)
-                    continue
-                # age filter
-                if age_cutoff is not None:
-                    mtime = path.stat().st_mtime
-                    if mtime > age_cutoff:
-                        _logger.debug("Skipping recent path %s", path)
-                        continue
-                # empty filter
-                if empty:
-                    if path.is_dir():
-                        # collect only empty files within directory
-                        empty_files = []
-                        for file_path in path.rglob("*"):
-                            if file_path.is_file() and _is_empty_file(file_path):
-                                empty_files.append(file_path)
-                        # if no empty files found, skip this directory
-                        if not empty_files:
-                            _logger.debug("Skipping directory with no empty files: %s", path)
-                            continue
-                        # add only the empty files
-                        removed_paths.extend([str(f) for f in empty_files])
-                        if not dry_run:
-                            for f in empty_files:
-                                f.unlink()
-                        continue
-                    # check if file is empty
-                    if not _is_empty_file(path):
-                        _logger.debug("Skipping non-empty file %s", path)
-                        continue
-
-                removed_paths.append(str(path))
-                if not dry_run:
-                    if path.is_dir():
-                        shutil.rmtree(path)
-                    else:
-                        path.unlink()
+                removed.extend(
+                    _delete_target(
+                        path, dry_run=dry_run, age_cutoff=age_cutoff, empty=empty, allowed_bases=bases
+                    )
+                )
             except Exception:
                 _logger.exception("Failed to remove %s", path)
-        report[name] = removed_paths
+        report[name] = removed
 
     return report
 

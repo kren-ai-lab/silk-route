@@ -86,12 +86,23 @@ def clear(
 
     selected_names = None if clear_all else cache_names
 
+    if not dry_run and not force:
+        preview = clear_cache(
+            selected_names=selected_names,
+            dry_run=True,
+            older_than_days=older_than,
+            pattern=pattern,
+            empty=empty,
+        )
+        total = sum(len(v) for v in preview.values())
+        if total and not typer.confirm(f"Delete {total} path(s)?"):
+            raise typer.Abort()
+
     log.info("Clearing caches (dry_run=%s) - selected=%s", dry_run, selected_names or "ALL")
 
     results = clear_cache(
         selected_names=selected_names,
         dry_run=dry_run,
-        force=force,
         older_than_days=older_than,
         pattern=pattern,
         empty=empty,
