@@ -318,56 +318,33 @@ class UniProtQueryInterpreter(BaseQueryInterpreter):
         """Check if a string matches a 7-digit GO numeric ID."""
         return bool(re.fullmatch(r"\d{7}", text.strip()))
 
+    # Resolver kinds whose only job is a friendly-name -> native-id lookup in the
+    # field's own ``value_map`` (after stripping any surrounding quotes).
+    _MAP_RESOLVERS = frozenset({"go_name_map", "keyword_map", "organism_map", "database_map", "function_map"})
+
     def _resolve_item(self, prefix: str, value: str, cfg: Any) -> tuple[str, str]:
-        """Resolve an item value based on the field configuration.
+        """Resolve a single ``prefix:value`` item against its field configuration.
 
-        Args:
-            item: The user-provided item value.
-            cfg: The UniProtInterpreterConfig field configuration.
-
-        Returns:
-            The resolved item value.
-
+        Map-based resolvers translate a friendly value to its native id via
+        ``cfg.value_map``; ``length_transform`` rewrites a numeric range to UniProt
+        ``[low TO high]`` syntax. Values that are already native ids pass through.
         """
-        if cfg.resolver_kind == "go_name_map":
-            if self._looks_like_go_id(value):
-                return prefix, value
-            # Assume a quoted phrase; strip surrounding quotes
-            value = value.strip("'\"")
-            go_id = self.config.fields["go"].value_map.get(value.lower(), None)
-            if go_id:
-                return prefix, go_id
+        # Already-native ids pass through untouched.
+        if cfg.resolver_kind == "go_name_map" and self._looks_like_go_id(value):
+            return prefix, value
+        if cfg.resolver_kind == "keyword_map" and "KW-" in value:
+            return prefix, value
 
-        elif cfg.resolver_kind == "keyword_map":
-            if "KW-" in value:
-                return prefix, value
-            # Assume a quoted phrase; strip surrounding quotes
-            value = value.strip("'\"")
-            keyword_id = self.config.fields["keywords"].value_map.get(value.lower(), None)
-            if keyword_id:
-                return prefix, keyword_id
-
-        elif cfg.resolver_kind == "organism_map":
-            # Assume a quoted phrase; strip surrounding quotes
-            value = value.strip("'\"")
-            tax_id = self.config.fields["organism"].value_map.get(value.lower(), None)
-            if tax_id:
-                return prefix, tax_id
-
-        elif cfg.resolver_kind == "database_map":
-            db_id = self.config.fields["databases"].value_map.get(value.lower(), None)
-            if db_id:
-                return prefix, db_id
-
-        elif cfg.resolver_kind == "function_map":
-            func_id = self.config.fields["ec"].value_map.get(value.lower(), None)
-            if func_id:
-                return prefix, func_id
-
-        elif cfg.resolver_kind == "length_transform":
+        if cfg.resolver_kind == "length_transform":
             low, high = self._parse_numeric_range(value)
             if low is not None and high is not None:
                 return prefix, f"[{low} TO {high}]"
+            return prefix, value
+
+        if cfg.resolver_kind in self._MAP_RESOLVERS:
+            mapped = cfg.value_map.get(value.strip("'\"").lower())
+            if mapped:
+                return prefix, mapped
 
         return prefix, value
 
