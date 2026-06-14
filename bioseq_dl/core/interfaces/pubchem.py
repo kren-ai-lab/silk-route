@@ -410,14 +410,14 @@ class PubChemInterface(BaseAPIInterface):
 
     def fetch_single(
         self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
-    ) -> tuple[list | dict | pd.DataFrame, dict]:
+    ) -> tuple[list | dict | pd.DataFrame | bytes | str, dict]:
         """Fetch a batch of PubChem records."""
         option = kwargs.pop("option", "default")
-        return super().fetch_single(*args, query=query, parse=parse, option=option, **kwargs)
+        return super().fetch_single(query, parse, *args, option=option, **kwargs)
 
     def fetch_batch(
         self, queries: list[str | dict], parse: bool = False, *args: Any, **kwargs: Any
-    ) -> tuple[list | pd.DataFrame, dict]:
+    ) -> tuple[list | pd.DataFrame | bytes | str, dict]:
         """Fetch a batch of PubChem records."""
         option = kwargs.pop("option", "default")
-        return super().fetch_batch(*args, queries=queries, parse=parse, option=option, **kwargs)
+        return super().fetch_batch(queries, parse, *args, option=option, **kwargs)

@@ -100,7 +100,7 @@ requires-dist = [
     { name = "pandas" },
     { name = "platformdirs", specifier = ">=4.0,<5.0" },
     { name = "pyarrow" },
-    { name = "pyrefly", marker = "extra == 'dev'", specifier = ">=0.64" },
+    { name = "pyrefly", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "pytest", marker = "extra == 'tests'", specifier = ">=9.0" },
     { name = "pytest-cov", marker = "extra == 'tests'", specifier = ">=7.1" },
     { name = "python-dotenv" },

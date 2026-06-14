@@ -40,7 +40,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pyrefly>=0.64",
+    "pyrefly>=1.0.0",
     "ruff>=0.15",
     "taskipy>=1.14",
     "ty>=0.0.30",
@@ -80,7 +80,6 @@ ignore = [
     "N803",
     "N806",
     "PLR0913",
-
     # ANN401 (Any): load-bearing for the generic-interface design — ~82 `**kwargs: Any`
     # passthroughs plus dynamic JSON `data`, yaml-loader returns, and generic helpers.
     # Cleanly-typeable sites have been narrowed (to concrete types / `object`); the rest
@@ -102,18 +101,18 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "bioseq_dl/cli/*" = [
-    "B008",    # typer.Option() in function defaults is the intended pattern
-    "FBT001",  # bool flags are standard in CLI functions
+    "B008", # typer.Option() in function defaults is the intended pattern
+    "FBT001", # bool flags are standard in CLI functions
     "FBT002",
     "FBT003",
-    "TC003",   # Path used at runtime by typer for type coercion
-    "T201",    # CLI commands print user-facing output
+    "TC003", # Path used at runtime by typer for type coercion
+    "T201", # CLI commands print user-facing output
 ]
 "bioseq_dl/init_config.py" = ["T201"]  # init script prints setup progress
 "tests/*" = [
     "ANN",
-    "ARG001",  # unused fixture/mock arguments are common in tests
-    "ARG002",  # unused mock-method arguments are common in tests
+    "ARG001", # unused fixture/mock arguments are common in tests
+    "ARG002", # unused mock-method arguments are common in tests
     "D",
     "EM101",
     "FBT003",
@@ -122,16 +121,22 @@ ignore = [
     "PT011",
     "PT017",
     "S101",
-    "SLF001",  # tests legitimately exercise private members
+    "SLF001", # tests legitimately exercise private members
     "TRY003",
 ]
 "examples/*" = [
-    "ARG002",  # template stubs declare interface args they don't use
-    "INP001",  # example scripts are intentionally standalone modules
+    "ARG002", # template stubs declare interface args they don't use
+    "INP001", # example scripts are intentionally standalone modules
     "PLR2004", # small referential scripts can compare against literal sizes
-    "S101",    # lightweight runtime checks are fine in examples
-    "S603",    # subprocess usage is explicit in CLI examples
-    "T201",    # examples print result snippets by design
+    "S101", # lightweight runtime checks are fine in examples
+    "S603", # subprocess usage is explicit in CLI examples
+    "T201", # examples print result snippets by design
+]
+
+[tool.pyrefly]
+project-includes = [
+    "**/*.py*",
+    "**/*.ipynb",
 ]
 
 [tool.taskipy.tasks]
