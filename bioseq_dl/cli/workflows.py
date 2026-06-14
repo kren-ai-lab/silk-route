@@ -7,6 +7,7 @@ import json
 import logging
 import time
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import typer
@@ -278,7 +279,7 @@ def validate_numeric_or_null(section_name: str, key: str, value: object) -> None
 def validate_pages_to_fetch(section_name: str, key: str, value: object) -> None:
     """Validate a ChEMBL page count where -1 means all pages."""
     validate_int(section_name, key, value)
-    if value == 0 or value < -1:
+    if value == 0 or (isinstance(value, int) and value < -1):
         msg = f"Workflow YAML key '{section_name}.{key}' must be -1 or a positive integer."
         raise ValueError(msg)
 
@@ -297,7 +298,7 @@ def normalize_optional_field_list(section_name: str, key: str, value: object) ->
     if isinstance(value, str):
         return value
     if isinstance(value, list) and all(isinstance(item, str) for item in value):
-        cleaned = [item.strip() for item in value if item.strip()]
+        cleaned = [item.strip() for item in value if isinstance(item, str) and item.strip()]
         return ",".join(cleaned) if cleaned else None
     msg = f"Workflow YAML key '{section_name}.{key}' must be null, a string, or a list of strings."
     raise ValueError(msg)
@@ -724,7 +725,9 @@ def add_id_column_for_export(df: pd.DataFrame, result_label: str, id_column: str
     if not id_column or id_column in df.columns:
         return df
     export_df = df.copy()
-    export_df.insert(0, id_column, [f"{result_label}_{index}" for index in range(1, len(export_df) + 1)])
+    id_values = [f"{result_label}_{index}" for index in range(1, len(export_df) + 1)]
+    # pandas accepts a list for the insert value at runtime; the stub types it as scalar/array-like only.
+    export_df.insert(0, id_column, id_values)  # ty: ignore[invalid-argument-type]
     return export_df
 
 
@@ -784,7 +787,7 @@ def build_output_info(
     output_category: str,
 ) -> dict:
     """Return metadata for an exported output file."""
-    info = {
+    info: dict[str, Any] = {
         "label": label,
         "file": output_path.name,
         "path": str(output_path),
