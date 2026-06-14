@@ -55,8 +55,8 @@ tests = [
 bioseq-dl = "bioseq_dl.cli.main:app"
 
 [project.urls]
-Homepage = "https://github.com/ProteinEngineering-PESB2/BioSeqDownloader"
-Issues = "https://github.com/ProteinEngineering-PESB2/BioSeqDownloader/issues"
+Homepage = "https://github.com/kren-ai-lab/BioSeqDownloader"
+Issues = "https://github.com/kren-ai-lab/BioSeqDownloader/issues"
 
 [tool.hatch.version]
 path = "bioseq_dl/__init__.py"
@@ -73,7 +73,6 @@ extend-exclude = ["*.ipynb"]
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
-    # --- Group defaults (shared with roxy/sylphy) ---
     "COM812",
     "D203",
     "D213",
