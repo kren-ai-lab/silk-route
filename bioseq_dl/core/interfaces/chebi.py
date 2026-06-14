@@ -1,3 +1,5 @@
+"""ChEBI API interface."""
+
 import json
 from typing import Any
 from urllib.parse import quote
@@ -19,6 +21,8 @@ log = get_logger("bioseq_dl.interfaces.chebi")
 
 
 class ChEBIInterface(BaseAPIInterface):
+    """ChEBI chemical entity database API interface."""
+
     API_NAME = "ChEBI"
     DB_CONFIG = CHEBI
     METHODS = {
@@ -74,6 +78,7 @@ class ChEBIInterface(BaseAPIInterface):
     }
 
     def fetch(self, query: str | dict | list, *, method: str = "compound", **kwargs: Any) -> dict | list:
+        """Fetch compound or ontology data from ChEBI."""
         if method not in self.METHODS:
             log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
             return {}
@@ -141,6 +146,7 @@ class ChEBIInterface(BaseAPIInterface):
             return response
 
     def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
+        """Parse ChEBI response data."""
         if not data:
             log.warning("Tried to parse data but the data is empty or None.")
             return {}

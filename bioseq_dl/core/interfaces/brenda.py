@@ -1,3 +1,5 @@
+"""BRENDA SOAP API interface."""
+
 import hashlib
 from typing import Any
 
@@ -26,6 +28,8 @@ BRENDA_PASSWORD_ENV_VARS = (
 
 # For aditional implementations see: https://www.brenda-enzymes.org/soap.php
 class BrendaInterface(BaseAPIInterface):
+    """BRENDA enzyme kinetics database SOAP API interface."""
+
     API_NAME = "BRENDA"
     DB_CONFIG = BRENDA
     METHODS = BRENDA_METHODS
@@ -45,7 +49,7 @@ class BrendaInterface(BaseAPIInterface):
             password (str): Password for BRENDA API.
             cache_dir (str): Directory to cache results.
             config_dir (str): Directory for configuration files.
-            output_dir (str): Directory to save output files.
+            **kwargs: Passed through to the base class.
 
         """
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs, min_wait=2.0, max_wait=5.0)
@@ -58,6 +62,7 @@ class BrendaInterface(BaseAPIInterface):
         self.client = Client(BRENDA.API_URL)
 
     def show_all_methods(self) -> None:
+        """Print all available SOAP methods from the BRENDA WSDL."""
         # Deliberate stdout helper for interactive inspection of available SOAP methods.
         print("Available methods:")  # noqa: T201
         for service in self.client.wsdl.services.values():
@@ -73,6 +78,7 @@ class BrendaInterface(BaseAPIInterface):
                 - `ecNumber`: Enzyme Commission number (e.g., '1.1.1.1').
                 - `organism`: Organism name (e.g., 'Escherichia coli').
             method (str): Name of the method to perform (e.g., 'getKmValue').
+            **kwargs: Additional keyword arguments passed to the request builder.
 
         Returns:
             list: List of results from the BRENDA API.
@@ -158,6 +164,7 @@ class BrendaInterface(BaseAPIInterface):
             fields_to_extract (List|Dict): Fields to keep from the original response.
                 - If List: Keep those keys.
                 - If Dict: Maps {desired_name: real_field_name}.
+            **kwargs: Additional keyword arguments.
 
         Returns:
             any: Parsed data from the response.

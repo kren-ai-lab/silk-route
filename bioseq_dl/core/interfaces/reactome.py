@@ -1,3 +1,5 @@
+"""Reactome API interface."""
+
 from typing import Any
 
 import requests
@@ -15,6 +17,8 @@ log = get_logger("bioseq_dl.interfaces.reactome")
 
 
 class ReactomeInterface(BaseAPIInterface):
+    """Reactome biological pathway database API interface."""
+
     API_NAME = "Reactome"
     DB_CONFIG = REACTOME
     METHODS = {
@@ -65,10 +69,9 @@ class ReactomeInterface(BaseAPIInterface):
         """Download pathways from a given Reactome pathway ID.
 
         Args:
-            pathway_id (str): Reactome pathway ID.
+            query (str|dict|list): Reactome pathway ID or query dict.
             method (str): Method to use for fetching data (e.g., 'discover', 'complex', etc.).
-        kwargs:
-            option (str): Additional options for the method.
+            **kwargs: Supports `option` key for additional method options.
 
         Returns:
             dict: Pathway data.
@@ -130,6 +133,7 @@ class ReactomeInterface(BaseAPIInterface):
             fields_to_extract (list|dict): Fields to keep from the original response.
                 - If list: Keep those keys.
                 - If dict: Maps {desired_name: real_field_name}.
+            **kwargs: Additional keyword arguments.
 
         Returns:
             Union[List, Dict]: Parsed data with specified fields or the entire structure.

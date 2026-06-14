@@ -1,24 +1,26 @@
+"""Field extraction helpers for UniProt API responses."""
+
 from typing import Any
 
 
 # Specific extraction functions
 def extract_simple(value: Any) -> Any:
-    """Extracts a simple value from the data"""
+    """Extract a simple value from the data."""
     return value
 
 
 def extract_ec_numbers(ec_data: list) -> list[str]:
-    """Extracts EC numbers"""
+    """Extract EC numbers."""
     return [ec["value"] for ec in ec_data] if isinstance(ec_data, list) else []
 
 
 def extract_gene_names(gene_names: list) -> list[str]:
-    """Extracts gene names"""
+    """Extract gene names."""
     return [gene["geneName"]["value"] for gene in gene_names] if isinstance(gene_names, list) else []
 
 
 def extract_database_terms(xrefs: list, database: str) -> list[str]:
-    """Extracts database terms"""
+    """Extract database terms."""
     # Comment solution
     if all("reaction" in xref for xref in xrefs if isinstance(xrefs, list)):
         return [
@@ -32,7 +34,7 @@ def extract_database_terms(xrefs: list, database: str) -> list[str]:
 
 
 def extract_references(refs: list) -> list[dict]:
-    """Extracts references"""
+    """Extract references."""
     extracted = []
     for ref in refs if isinstance(refs, list) else []:
         citation = ref.get("citation", {})
@@ -57,7 +59,7 @@ def extract_references(refs: list) -> list[dict]:
 
 # TODO: currently not used, delete if not needed
 def extract_features(features: list) -> list[dict]:
-    """Extracts protein features"""
+    """Extract protein features."""
     return [
         {"type": f.get("type"), "description": f.get("description", ""), "location": f.get("location", {})}
         for f in features
@@ -67,7 +69,7 @@ def extract_features(features: list) -> list[dict]:
 
 # For fields ft_mutagen and ft_variant
 def extract_variants(features: list) -> list[dict]:
-    """Extracts variant information"""
+    """Extract variant information."""
     VARIANTS_NAMES = {"Mutagenesis", "Natural variant", "Disease mutation"}
     extracted = []
     for feature in features if isinstance(features, list) else []:
@@ -152,7 +154,7 @@ def extract_diseases(comments: list) -> list[dict]:
 
 # For fields ft_act_site, ft_binding, and ft_site.
 def extract_active_sites(active_sites: list) -> list[dict]:
-    """Extracts active sites from features"""
+    """Extract active sites from features."""
     ACTIVE_SITE_TYPES = {"Active site", "Binding site", "Site"}
     extracted = []
     for feature in active_sites if isinstance(active_sites, list) else []:
@@ -181,7 +183,7 @@ def extract_active_sites(active_sites: list) -> list[dict]:
 
 # for fields cc_interaction
 def extract_interactions(comments: list) -> list[dict]:
-    """Extracts interaction information from comments"""
+    """Extract interaction information from comments."""
     extracted = []
     for c in comments if isinstance(comments, list) else []:
         comment_type = c.get("commentType", "")
@@ -210,7 +212,7 @@ def extract_interactions(comments: list) -> list[dict]:
 
 # for fields temp_dependence, ph_dependence
 def extract_temperature(comments: list) -> list[str]:
-    """Extracts temperature dependence information from comments"""
+    """Extract temperature dependence information from comments."""
     extracted = []
     for c in comments if isinstance(comments, list) else []:
         comment_type = c.get("commentType", "")
@@ -227,7 +229,7 @@ def extract_temperature(comments: list) -> list[str]:
 
 # for fields temp_dependence, ph_dependence
 def extract_ph(comments: list) -> list[str]:
-    """Extracts pH dependence information from comments"""
+    """Extract pH dependence information from comments."""
     extracted = []
     for c in comments if isinstance(comments, list) else []:
         comment_type = c.get("commentType", "")
@@ -244,7 +246,7 @@ def extract_ph(comments: list) -> list[str]:
 
 # for fields ft_domain,ft_motif and ft_region,
 def extract_domains(domains: list) -> list[dict]:
-    """Extracts protein domains from features"""
+    """Extract protein domains from features."""
     DOMAINS_TYPES = {"Region", "Motif", "Domain", "Repeat", "Coiled coil", "Compositional bias"}
     extracted = []
     for domain in domains if isinstance(domains, list) else []:
@@ -272,5 +274,5 @@ def extract_domains(domains: list) -> list[dict]:
 
 
 def extract_keywords(keywords: list) -> list[str]:
-    """Extracts keywords"""
+    """Extract keywords."""
     return [kw.get("name", "") for kw in keywords if isinstance(keywords, list)]

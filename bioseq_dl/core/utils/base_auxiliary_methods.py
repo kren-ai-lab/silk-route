@@ -1,3 +1,5 @@
+"""Shared utility functions for parameter validation and field extraction."""
+
 from typing import Any
 
 ### Useful functions ###
@@ -41,8 +43,9 @@ def get_nested(data: dict, path: str, sep: str = ".") -> Any:
 
 
 def get_feature_keys(data: dict, sep: str = ".") -> dict:
-    """Recursively get all keys in a nested dictionary and get the type of the value.
-    Use dot notation for nested keys.
+    """Recursively get all keys in a nested dictionary and the type of each value.
+
+    Uses dot notation for nested keys.
 
     Args:
         data (dict): The dictionary to extract keys from.
@@ -81,12 +84,11 @@ def get_feature_keys(data: dict, sep: str = ".") -> dict:
 
 
 def validate_parameters(inputs: dict, param_schema: dict) -> dict:
-    """Validates the input parameters against the method definition.
+    """Validate the input parameters against the method definition.
 
     Args:
         inputs (dict): The input parameters to validate.
-        method (str): The method name to validate against.
-        methods_def (dict): The definition of methods and their parameters.
+        param_schema (dict): Schema dict mapping param name to (type, default, is_primary) tuples.
 
     Returns:
         dict: A dictionary of validated parameters.

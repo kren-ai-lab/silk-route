@@ -1,3 +1,5 @@
+"""Abstract base class for all API interfaces."""
+
 import ast
 import contextlib
 import functools
@@ -59,6 +61,8 @@ def _extract_nested_values(value: Any) -> list[str]:
 
 
 class BaseAPIInterface(ABC):
+    """Abstract base class for all BioSeqDownloader API interfaces."""
+
     API_NAME: ClassVar[str] = "BaseAPI"
     METHODS: ClassVar[dict[str, Any]] = {}
     DB_CONFIG: ClassVar[DBConfig | None] = None
@@ -269,8 +273,7 @@ class BaseAPIInterface(ABC):
     # Higly Encouraged to override this method in subclasses that can handle
     # multiple queries at once, such as BioGRID or KEGG.
     def get_subquery_match_keys(self) -> set[str]:
-        """Get the set of keys used for matching queries.
-        This is used to determine which keys in the query should be used for generating subqueries.
+        """Get the set of keys used for matching queries and generating subqueries.
 
         Returns:
             Set[str]: Set of keys used for matching queries.
@@ -279,7 +282,7 @@ class BaseAPIInterface(ABC):
         return self.subquery_match_keys
 
     def _filter_dict_keys(self, input_dict: dict, sort_lists: bool = True) -> dict:
-        """Filters out keys from a dictionary based on `get_cache_ignore_keys()`.
+        """Filter out keys from a dictionary based on `get_cache_ignore_keys()`.
 
         Args:
             input_dict (dict): The dictionary to filter.
@@ -340,9 +343,7 @@ class BaseAPIInterface(ABC):
         return Path(cache_path).exists()
 
     def _load_file(self, path: str) -> dict | pd.DataFrame:
-        """Load a file from the cache path.
-        Supports both JSON and CSV formats.
-        """
+        """Load a file from the cache path, supporting JSON and CSV formats."""
         if path.endswith(".csv"):
             return pd.read_csv(path)
         with Path(path).open() as f:
@@ -481,8 +482,10 @@ class BaseAPIInterface(ABC):
         return self.METHODS[method]
 
     def _prepare_params(self, query: dict, spec: dict, **overrides: Any) -> dict:
-        """- Validates types and defaults from spec["parameters"]
-        - If value is a list and name is in spec["group_queries"], joins with spec["separator"]
+        """Validate types and defaults from spec["parameters"].
+
+        - Applies defaults from ``spec["parameters"]`` for any key absent from the query.
+        - If a value is a list and its name is in ``spec["group_queries"]``, joins it with ``spec["separator"]``.
         """
         params = {}
         separator = spec.get("separator", ",")
@@ -511,9 +514,7 @@ class BaseAPIInterface(ABC):
         return params
 
     def _make_identifier(self, query: dict, spec: dict) -> str:
-        """Construye un identificador único a partir de las keys is_id=True,
-        usado para nombrar el cache key.
-        """
+        """Build a unique identifier from is_id=True keys for use as a cache key."""
         keys = [k for k, (_, _, is_id) in spec["parameters"].items() if is_id]
         parts = [str(query[k]) for k in keys if k in query] if isinstance(query, dict) else [str(query)]
         return "_".join(parts)
@@ -521,6 +522,7 @@ class BaseAPIInterface(ABC):
     def initialize_method_parameters(
         self, query: str | dict | list, method: str, method_definition: dict, **kwargs: Any
     ) -> tuple:
+        """Initialize HTTP method params and build query inputs."""
         if method not in method_definition:
             msg = f"Method '{method}' is not defined in the method definition. Available methods: {list(method_definition.keys())}"
             raise ValueError(msg)
@@ -649,9 +651,7 @@ class BaseAPIInterface(ABC):
         return subqueries
 
     def get_matching_values(self, query: dict) -> list[str]:
-        """Extract values from the subquery that will be used for matching items
-        in the full result. Relies on self.subquery_match_keys defined in subclass.
-        """
+        """Extract values from the subquery used for matching items in the full result, relying on self.subquery_match_keys."""
         keys = self.get_subquery_match_keys()
 
         if not keys:
@@ -662,8 +662,7 @@ class BaseAPIInterface(ABC):
     def split_results_by_subquery(
         self, full_result: Any, subqueries: list[tuple[str, dict]]
     ) -> dict[str, list[dict]]:
-        """Generic implementation: for each result, check if any subquery's values appear in the result
-        using token-based partial matching.
+        """Check if any subquery's values appear in each result using token-based partial matching.
 
         Returns a mapping {id_: [results]}.
         """
@@ -695,6 +694,7 @@ class BaseAPIInterface(ABC):
         return mapping
 
     def merge_dicts(self, dicts: list[dict]) -> dict:
+        """Deep-merge a list of dicts, collecting conflicting values into lists."""
         merged = {}
         for d in dicts:
             for k, v in d.items():
@@ -722,10 +722,8 @@ class BaseAPIInterface(ABC):
         Args:
             query (Union[str, dict]): Query to fetch data for.
             parse (bool): Whether to parse the fetched data.
-        kwargs:
-            config_key (str): Key to use for configuration settings.
-            fields_to_extract (Optional[Union[list, dict]]): Fields to extract from the fetched data.
-            format (Literal["dataframe", "json", "xml"]): Format of the output data.
+            *args: Positional arguments for subclass compatibility.
+            **kwargs: Keyword arguments; notable keys: config_key, fields_to_extract, format, method, option.
 
         Returns:
             Tuple[Union[List, Dict, pd.DataFrame], Dict]: Fetched (and optionally parsed) data and metadata.
@@ -881,11 +879,8 @@ class BaseAPIInterface(ABC):
         Args:
             queries (List[Union[str, dict, list[str]]]): List of queries to fetch data for.
             parse (bool): Whether to parse the fetched data.
-
-        kwargs:
-            config_key (str): Key to use for configuration settings.
-            fields_to_extract (Optional[Union[list, dict]]): Fields to extract from the fetched data.
-            format (Literal["dataframe", "json", "xml"]): Format of the output data.
+            *args: Positional arguments for subclass compatibility.
+            **kwargs: Keyword arguments; notable keys: config_key, fields_to_extract, format, method, option.
 
         Returns:
             Tuple[Union[List, pd.DataFrame, bytes, str], Dict]: Fetched (and optionally parsed) data and metadata.
@@ -1016,6 +1011,7 @@ class BaseAPIInterface(ABC):
             fields_to_extract (List|Dict): Fields to keep from the original response.
                 - If List: Keep those keys.
                 - If Dict: Maps {desired_name: real_field_name}.
+            **kwargs: Supports `option` key to select a sub-section of fields_to_extract.
 
         Returns:
             Union[dict, list]: Data with only the specified fields.
@@ -1054,8 +1050,7 @@ class BaseAPIInterface(ABC):
         Args:
             query (Union[str, dict, list]): Query to fetch data for.
             method (str): Method to use for fetching data.
-        kwargs:
-            api_url (str): API URL to use for the request.
+            **kwargs: Supports `api_url` key for the API endpoint URL.
 
         Returns:
             Response: The raw HTTP response from the API.
@@ -1105,8 +1100,10 @@ class BaseAPIInterface(ABC):
 
     @abstractmethod
     def fetch(self, query: str | dict | list, *, method: str, **kwargs: Any) -> Any:
+        """Fetch raw data from the API for a given query and method."""
         raise NotImplementedError
 
     @abstractmethod
     def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> Any:
+        """Parse raw API response into the requested format."""
         raise NotImplementedError

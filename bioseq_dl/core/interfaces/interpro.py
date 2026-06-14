@@ -1,3 +1,5 @@
+"""InterPro API interface."""
+
 from typing import Any
 
 import requests
@@ -17,6 +19,8 @@ log = get_logger("bioseq_dl.interfaces.interpro")
 
 
 class InterproInterface(BaseAPIInterface):
+    """InterPro protein family database API interface."""
+
     API_NAME = "InterPro"
     DB_CONFIG = INTERPRO
     METHODS = {
@@ -107,6 +111,7 @@ class InterproInterface(BaseAPIInterface):
         Args:
             next_url (str): The URL for the next page of results.
             method (str): The method used for the initial request.
+            pages_to_fetch (int): Maximum number of pages to fetch recursively. Default is 1.
 
         Returns:
             dict: The fetched data from the next page.
@@ -156,6 +161,7 @@ class InterproInterface(BaseAPIInterface):
         Args:
             query (str|dict|list): The query parameters to fetch data.
             method (str): The method to use for the request.
+            **kwargs: Supports `pages_to_fetch` key for pagination depth.
 
         Returns:
             dict: The fetched data.
@@ -214,6 +220,7 @@ class InterproInterface(BaseAPIInterface):
             fields_to_extract (List|Dict): Fields to keep from the original response.
                 - If List: Keep those keys.
                 - If Dict: Maps {desired_name: real_field_name}.
+            **kwargs: Additional keyword arguments.
 
         Returns:
             dict: The parsed data.

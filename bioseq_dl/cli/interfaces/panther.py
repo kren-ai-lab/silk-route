@@ -1,3 +1,5 @@
+"""PANTHER CLI commands."""
+
 import typer
 
 from bioseq_dl import PantherInterface
@@ -22,7 +24,7 @@ def run_geneinfo(
         help="Output file to save the data.",
     ),
 ) -> None:
-
+    """Run PANTHER gene info lookup."""
     interface = PantherInterface()
 
     query = {"geneInputList": [gene.strip() for gene in gene_list.split(",")], "taxonFltr": taxon_filter}
@@ -48,6 +50,7 @@ def run_familyortholog(
         help="Output file to save the data.",
     ),
 ) -> None:
+    """Run PANTHER family ortholog lookup."""
     interface = PantherInterface()
 
     query = {"family": id, "taxonFltr": taxon_filter}
@@ -73,6 +76,7 @@ def run_familymsa(
         help="Output file to save the data.",
     ),
 ) -> None:
+    """Run PANTHER family MSA lookup."""
     interface = PantherInterface()
 
     query = {"family": id, "taxonFltr": taxon_filter}

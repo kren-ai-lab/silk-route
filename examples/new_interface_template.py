@@ -41,6 +41,7 @@ class YourDatabaseInterface(BaseAPIInterface):
         output_dir: str | None = None,
         **kwargs: Any,
     ) -> None:
+        """Initialize the template interface."""
         if cache_dir:
             cache_dir = str(Path(cache_dir).resolve())
         else:
@@ -54,6 +55,7 @@ class YourDatabaseInterface(BaseAPIInterface):
         Path(self.output_dir).mkdir(parents=True, exist_ok=True)
 
     def fetch(self, query: str | dict | list, *, method: str = "SOME_DEFAULT", **kwargs: Any) -> Any:
+        """Fetch data from the example API."""
         url = f"{YOUR_DATABASE.API_URL}{method}/{query}"
         try:
             response = self.session.get(url)
@@ -65,7 +67,9 @@ class YourDatabaseInterface(BaseAPIInterface):
             return {}
 
     def parse(self, data: dict | list, fields_to_extract: list | dict | None, **kwargs: Any) -> dict | list:
+        """Parse the API response."""
         return self._extract_fields(data, fields_to_extract)
 
     def query_usage(self) -> str:
+        """Return a usage example string."""
         return "Describe how to query YourDatabase here."

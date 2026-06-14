@@ -1,3 +1,5 @@
+"""RCSB Protein Data Bank API interface."""
+
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +24,8 @@ log = get_logger("bioseq_dl.interfaces.pdb")
 
 
 class PDBInterface(BaseAPIInterface):
+    """RCSB Protein Data Bank API interface."""
+
     API_NAME = "PDB"
     DB_CONFIG = PDB
     METHODS = {
@@ -46,12 +50,15 @@ class PDBInterface(BaseAPIInterface):
         **kwargs: Any,
     ) -> None:
         """Initialize the PDBInterface.
-        Args:.
+
+        Args:
             batch_size (int): Number of entries to process in each batch.
             download_structures (bool): Whether to download structure files. Default is False.
             cache_dir (str): Directory to cache API responses. If None, defaults to the cache directory defined in constants.
             config_dir (str): Directory for configuration files. If None, defaults to the config directory defined in constants.
             output_dir (str): Directory to save downloaded files. If None, defaults to the cache directory.
+            **kwargs: Passed through to the base class.
+
         """
         cache_dir, config_dir = self._resolve_dirs(cache_dir, config_dir)
         packaged_init = load_packaged_config("pdb", "init.yml") or {}
@@ -70,6 +77,7 @@ class PDBInterface(BaseAPIInterface):
         Args:
             query (str): PDB ID to fetch data for.
             method (str): API method to use. Default is "entry".
+            **kwargs: Additional keyword arguments passed to the request builder.
 
         Returns:
             dict: Fetched data for the given PDB ID.
@@ -157,7 +165,7 @@ class PDBInterface(BaseAPIInterface):
     def fetch_single(
         self, query: str | dict | list[str], parse: bool = False, *args: Any, **kwargs: Any
     ) -> list | dict | pd.DataFrame:
-
+        """Fetch a single PDB entry and optionally download the structure file."""
         if self.download_structures and query and isinstance(query, str):
             self.fetch_structure(query)
         return super().fetch_single(query, parse, *args, **kwargs)
@@ -165,6 +173,7 @@ class PDBInterface(BaseAPIInterface):
     def fetch_batch(
         self, queries: list[str | dict], parse: bool = False, *args: Any, **kwargs: Any
     ) -> list | pd.DataFrame:
+        """Fetch a batch of PDB entries and optionally download structure files."""
         results = super().fetch_batch(queries, parse, *args, **kwargs)
         if self.download_structures:
             for query in queries:
@@ -180,6 +189,7 @@ class PDBInterface(BaseAPIInterface):
             fields_to_extract (list|dict): Fields to keep from the original response.
                 - If list: Keep those keys.
                 - If dict: Maps {desired_name: real_field_name}.
+            **kwargs: Additional keyword arguments.
 
         Returns:
             Union[List, Dict]: Parsed data with specified fields or the entire structure.

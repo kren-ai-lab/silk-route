@@ -1,3 +1,5 @@
+"""STRING database constants and configuration."""
+
 METHODS = [
     "get_string_ids",
     "network",

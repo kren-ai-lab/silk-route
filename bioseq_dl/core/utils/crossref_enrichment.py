@@ -1,3 +1,5 @@
+"""Cross-reference enrichment workflow utilities."""
+
 from typing import Any, Literal
 
 import pandas as pd
@@ -69,6 +71,7 @@ def run_crossref_enrichment(
     max_workers: int = 4,
     total_retries: int = 3,
 ) -> tuple[Any, dict | list[dict]]:
+    """Run cross-reference enrichment for all configured endpoint specs."""
     crossref_fields = normalize_crossref_fields(crossref_fields)
     if not crossref_fields:
         log.info("Skipping CrossRef enrichment because no cross-reference fields were requested.")

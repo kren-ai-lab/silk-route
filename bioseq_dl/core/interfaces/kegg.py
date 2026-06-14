@@ -1,3 +1,5 @@
+"""KEGG API interface."""
+
 import re
 from typing import Any
 
@@ -25,6 +27,8 @@ log = get_logger("bioseq_dl.interfaces.kegg")
 
 
 class KEGGInterface(BaseAPIInterface):
+    """KEGG pathway and compound database API interface."""
+
     API_NAME = "KEGG"
     DB_CONFIG = KEGG
     # TODO add more methods from KEGG API. DDI and Link should be added.
@@ -57,6 +61,7 @@ class KEGGInterface(BaseAPIInterface):
     }
 
     def get_subquery_match_keys(self) -> set[str]:
+        """Return keys used to match subqueries across KEGG results."""
         return super().get_subquery_match_keys().union({"entries"})
 
     def validate_query(self, method: str, query: dict) -> None:
@@ -189,7 +194,7 @@ class KEGGInterface(BaseAPIInterface):
             return r  # TODO check if for other functions we need to return json or text
 
     def parse(self, data: Any, fields_to_extract: list | dict | None = None, **kwargs: Any) -> dict | list:
-        """Parse the response from the KEGG API.
+        r"""Parse the response from the KEGG API.
 
         Args:
             data (Any): Raw data from the API response.

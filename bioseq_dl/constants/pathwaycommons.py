@@ -1,3 +1,5 @@
+"""PathwayCommons database constants and configuration."""
+
 OUTPUT_FORMATS = ["biopax", "gsea", "jsonld", "sbgn", "sif", "txt"]
 PATTERNS = [
     "controls-state-change-of",

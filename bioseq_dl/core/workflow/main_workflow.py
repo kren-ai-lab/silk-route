@@ -1,3 +1,5 @@
+"""High-level multi-step download workflow orchestrator."""
+
 from __future__ import annotations
 
 import contextlib
@@ -216,13 +218,14 @@ def merge_enrichment_data(existing: list[Any], new: Any) -> list[Any]:
 
 
 class MainWorkflow:
-    """High-level workflow orchestrator for biological modalities and workflow modes:
-      - query_first(query, ...): interpret user-friendly queries, fetch from UniProt, optional enrichment
-      - query_composition(queries_with_labels, ...): run multiple queries and tag results with labels
+    """High-level workflow orchestrator for biological modalities and workflow modes.
+
+    Modes:
+      - query_first(query, ...): interpret user-friendly queries, fetch from UniProt, optional enrichment.
+      - query_composition(queries_with_labels, ...): run multiple queries and tag results with labels.
 
     By default this class will instantiate reasonable components so the caller does not need
     to provide any dependencies. All I/O (saving to disk, printing) is left to the caller.
-
     Optional dependency injection is supported via constructor arguments.
     """
 
@@ -234,6 +237,7 @@ class MainWorkflow:
         default_export_format: str = "csv",
         logger: logging.Logger | None = None,
     ) -> None:
+        """Initialize MainWorkflow with optional dependency injection."""
         # Instantiate sensible defaults if not provided
         self.interpreter = interpreter or build_default_uniprot_interpreter()
         self.uniprot = uniprot_interface or UniprotInterface()
@@ -267,9 +271,10 @@ class MainWorkflow:
         mode: str = "query_first",
         **kwargs: Any,
     ) -> tuple[Any, dict]:
-        """Primary public entry. modality is mandatory and selects the declarative
-        pipeline to use (e.g. 'protein', 'compound', 'interaction'). mode selects
-        the workflow execution strategy.
+        """Primary public entry that routes by workflow mode.
+
+        ``modality`` selects the declarative pipeline (e.g. 'protein', 'compound', 'interaction');
+        ``mode`` selects the workflow execution strategy.
 
         Examples:
           run(modality='protein', mode='query_first', query='...')
@@ -474,7 +479,7 @@ class MainWorkflow:
         self.log.info("Pipeline: CrossRef enrichment completed (elapsed=%.2fs)", enrich_elapsed)
 
     def _step_fetch_chembl(self, context: dict, search_type: str | None = "activity") -> None:
-        """Searches ChEMBL for queries found in context['searches']['chembl']."""
+        """Search ChEMBL for queries found in context['searches']['chembl']."""
         chembl_search = context.get("searches", {}).get("chembl", {})
         query = chembl_search.get("interpreted_query") or chembl_search.get("query")
         export_format = chembl_search.get("export_format") or self.default_export_format
@@ -589,8 +594,8 @@ class MainWorkflow:
         **kwargs: Any,
     ) -> tuple[dict, dict]:
         """Run the protein modality.
-        The most basic form of query is a UniProt query string, e.g. "organism:9606 AND reviewed:true".
 
+        The most basic form of query is a UniProt query string, e.g. "organism:9606 AND reviewed:true".
 
         Returns (data, metadata).
         """
@@ -668,11 +673,10 @@ class MainWorkflow:
         context: dict | None = None,
         **kwargs: Any,
     ) -> tuple[dict, dict]:
-        """Run the compound modality. Query path goes through ChEMBL -> UniProt.
-        Some queries can include just ChEMBL searches or ChEMBL + UniProt searches.
-        For example we can search:
-        - By target: "Proteases" or "dopamine D2 receptor"
-        - By activity: "IC50:<1000" or "Ki:<50"
+        """Run the compound modality, routing queries through ChEMBL -> UniProt.
+
+        Some queries include just ChEMBL searches; others combine ChEMBL + UniProt.
+        For example: by target ("Proteases"), by activity ("IC50:<1000" or "Ki:<50").
 
         Args:
             query: The user-friendly compound query string.
@@ -680,8 +684,7 @@ class MainWorkflow:
             export_format: The desired export format for the results. Defaults to None.
             chembl_pages_to_fetch: ChEMBL pages to fetch. Use -1 for all pages.
             context: Optional context dictionary to carry state between steps.
-
-            Returns (data, metadata).
+            **kwargs: Additional keyword arguments (currently unused, reserved for future use).
 
         """
         chembl_interpreter = build_default_chembl_interpreter()
@@ -771,19 +774,12 @@ class MainWorkflow:
         export_format: str | None = None,
         **kwargs: Any,
     ) -> tuple[dict, dict]:
-        """Run the interaction modality. If query provided, fetch interaction candidates (BioGRID/ChEMBL)
-        and build interactions dataset.
-        This will do more than 1 search if needed (e.g., ChEMBL + UniProt).
-        For example:
-        - "pli:'Proteases' AND {uniprot_filter_query}"
-        Will search in ChEMBL using the query "target:'Proteases' AND {uniprot_filter_query}",
-          extract the ChEMBL IDs, then search UniProt for those IDs.
-          A new request will be made to UniProt, merging the uniprot_filter_query and the IDs from ChEMBL.
-        - "ppi: 'disease:cancer' AND {uniprot_filter_query}"
-        Will search in UniProt for the PPI query, additional BioGRID search will be made to fetch interactions.
-          In this specific example all the query will be sent to UniProt since it supports disease and all
-          the necessary filters. From BioGRID only interactions will be fetched for the resulting accessions.
+        """Run the interaction modality, fetching interaction candidates from BioGRID/ChEMBL.
 
+        May perform more than one search (e.g., ChEMBL + UniProt). Example queries:
+
+        - ``"pli:'Proteases' AND {uniprot_filter_query}"`` — searches ChEMBL, extracts IDs, then fetches from UniProt.
+        - ``"ppi:'disease:cancer' AND {uniprot_filter_query}"`` — searches UniProt; BioGRID is used for interaction data only.
 
         Returns (data, metadata).
         """
@@ -928,13 +924,15 @@ class MainWorkflow:
         search_type: str | None = "activity",
         **kwargs: Any,
     ) -> tuple[dict, dict]:
-        """Run several queries and tag every row with the provided label.
-        This requires a more complex query composition, for example:
+        """Run several labeled queries and tag every result row with its label.
+
+        Each ``(query, label)`` pair calls ``query_first`` and attaches the label to every row.
+        Example::
+
             queries_with_labels = [
                 ("Proteases AND reviewed:true", "protease_reviewed"),
                 ("Kinases AND reviewed:false", "kinase_unreviewed"),
             ]
-        Basically it runs several query_first calls and attach the label to every row.
 
         Returns (data, metadata).
         """

@@ -1,3 +1,5 @@
+"""Gene Ontology API interface."""
+
 from typing import Any
 
 import pandas as pd
@@ -15,6 +17,8 @@ log = get_logger("bioseq_dl.interfaces.genontology")
 
 
 class GenOntologyInterface(BaseAPIInterface):
+    """Gene Ontology API interface."""
+
     API_NAME = "GenOntology"
     DB_CONFIG = GENONTOLOGY
     METHODS = {
@@ -182,11 +186,13 @@ class GenOntologyInterface(BaseAPIInterface):
     def fetch_single(
         self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
     ) -> list | dict | pd.DataFrame:
+        """Fetch a single record and resolve related ontology terms."""
         option = kwargs.pop("option", "default")
         return super().fetch_single(*args, query=query, parse=parse, option=option, **kwargs)
 
     def fetch_batch(
         self, queries: list[str | dict], parse: bool = False, *args: Any, **kwargs: Any
     ) -> list | pd.DataFrame:
+        """Fetch a batch of records and resolve related ontology terms."""
         option = kwargs.pop("option", "default")
         return super().fetch_batch(*args, queries=queries, parse=parse, option=option, **kwargs)

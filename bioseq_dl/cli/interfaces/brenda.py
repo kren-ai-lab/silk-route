@@ -1,3 +1,5 @@
+"""BRENDA CLI commands."""
+
 import typer
 
 from bioseq_dl import BrendaInterface

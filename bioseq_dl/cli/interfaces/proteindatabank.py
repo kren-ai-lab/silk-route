@@ -1,3 +1,5 @@
+"""Protein Data Bank CLI commands."""
+
 import typer
 
 from bioseq_dl import PDBInterface

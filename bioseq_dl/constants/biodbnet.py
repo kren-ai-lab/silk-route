@@ -1,3 +1,5 @@
+"""BioDBNet database constants and configuration."""
+
 # More inputs can be added from
 # https://biodbnet.abcc.ncifcrf.gov/webServices/rest.php/biodbnetRestApi.json?method=getinputs
 inputs = [

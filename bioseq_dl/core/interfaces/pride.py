@@ -1,3 +1,5 @@
+"""PRIDE Archive API interface."""
+
 from typing import Any
 
 import pandas as pd
@@ -15,6 +17,8 @@ log = get_logger("bioseq_dl.interfaces.pride")
 
 
 class PrideInterface(BaseAPIInterface):
+    """PRIDE proteomics data archive API interface."""
+
     API_NAME = "PRIDE"
     DB_CONFIG = PRIDE
     METHODS = {
@@ -59,6 +63,7 @@ class PrideInterface(BaseAPIInterface):
     }
 
     def fetch(self, query: str | dict | list, *, method: str = "search", **kwargs: Any) -> dict | list:
+        """Fetch proteomics data from PRIDE Archive."""
         if method not in self.METHODS:
             log.error(f"Method '{method}' is not defined in the interface.")
             return {}
@@ -108,7 +113,7 @@ class PrideInterface(BaseAPIInterface):
             return {}
 
     def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
-
+        """Parse PRIDE Archive response data."""
         if not data:
             return {}
 
@@ -125,5 +130,6 @@ class PrideInterface(BaseAPIInterface):
     def fetch_single(
         self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
     ) -> list | dict | pd.DataFrame:
+        """Fetch a single PRIDE record."""
         option = kwargs.pop("option", "default")
         return super().fetch_single(*args, query=query, parse=parse, option=option, **kwargs)

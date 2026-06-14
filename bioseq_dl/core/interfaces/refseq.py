@@ -1,3 +1,5 @@
+"""NCBI RefSeq/Entrez API interface."""
+
 from typing import Any
 
 from Bio import Entrez
@@ -20,6 +22,8 @@ REFSEQ_EMAIL_ENV_VARS = (
 
 
 class RefSeqInterface(BaseAPIInterface):
+    """NCBI RefSeq/Entrez nucleotide and protein sequence API interface."""
+
     API_NAME = "RefSeq"
     DB_CONFIG = REFSEQ
     METHODS = {
@@ -61,7 +65,7 @@ class RefSeqInterface(BaseAPIInterface):
             email (str): Email address for NCBI Entrez.
             cache_dir (str): Directory to cache API responses. If None, defaults to the cache directory defined in constants.
             config_dir (str): Directory for configuration files. If None, defaults to the config directory defined in constants.
-            output_dir (str): Directory to save downloaded files. If None, defaults to the cache directory.
+            **kwargs: Passed through to the base class.
 
         """
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
@@ -94,9 +98,9 @@ class RefSeqInterface(BaseAPIInterface):
         """Fetch data from NCBI Entrez for a given ID.
 
         Args:
-            id (str): ID to fetch data for.
+            query (str|dict|list): ID or query dict to fetch data for.
             method (str): Database to query (default: "protein").
-            retmode (str): Return mode (default: "xml").
+            **kwargs: Supports `retmode` key for return mode (default: "xml").
 
         Returns:
             list: Fetched data.
@@ -127,6 +131,8 @@ class RefSeqInterface(BaseAPIInterface):
 
         Args:
             data (dict): Fetched data from NCBI Entrez.
+            fields_to_extract (list|dict): Fields to extract from the data.
+            **kwargs: Additional keyword arguments.
 
         Returns:
             dict: Parsed data.

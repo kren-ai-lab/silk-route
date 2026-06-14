@@ -1,3 +1,5 @@
+"""CLI commands for batch data collection."""
+
 import typer
 
 from .interfaces.alphafold import app as alphafold_app

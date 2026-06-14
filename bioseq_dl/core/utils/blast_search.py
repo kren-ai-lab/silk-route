@@ -1,3 +1,5 @@
+"""BLAST sequence search utilities."""
+
 import os
 import re
 import shutil

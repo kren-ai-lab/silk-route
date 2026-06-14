@@ -1,3 +1,5 @@
+"""Interface configuration loading utilities."""
+
 import json
 from importlib import resources
 from pathlib import Path

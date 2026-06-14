@@ -1,3 +1,5 @@
+"""PubChem API interface."""
+
 import json
 import urllib.parse
 from typing import Any
@@ -22,6 +24,8 @@ log = get_logger("bioseq_dl.interfaces.pubchem")
 
 
 class PubChemInterface(BaseAPIInterface):
+    """PubChem compound and protein database API interface."""
+
     API_NAME = "PubChem"
     DB_CONFIG = PUBCHEM
     METHODS = {
@@ -106,6 +110,7 @@ class PubChemInterface(BaseAPIInterface):
     }
 
     def fetch(self, query: str | dict | list, *, method: str = "DEFAULT", **kwargs: Any) -> dict | list | str:
+        """Fetch compound or protein data from PubChem."""
         option_given = False
         name_type = None
         option = kwargs.get("option")
@@ -265,6 +270,7 @@ class PubChemInterface(BaseAPIInterface):
             return response
 
     def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
+        """Parse PubChem response data."""
         if not data:
             return {}
         option = kwargs.get("option", "default")
@@ -305,6 +311,7 @@ class PubChemInterface(BaseAPIInterface):
         return processed_data
 
     def is_pug_view_record(self, data: dict) -> bool:
+        """Return True if data is a PUG View record (contains 'Record' key)."""
         return all(key in data for key in ["record_type", "record_number", "sections"])
 
     def _proccess_information_value(self, info_value: dict) -> str | list | dict:
@@ -328,6 +335,7 @@ class PubChemInterface(BaseAPIInterface):
         return info_value  # Return as is if no known key is found
 
     def process_tocheadings(self, sections: list[dict]) -> dict:
+        """Process PubChem compound sections into a flat dict."""
         headings = {}
         for section in sections:
             if "TOCHeading" in section and "Information" in section:
@@ -347,6 +355,7 @@ class PubChemInterface(BaseAPIInterface):
         return headings
 
     def process_sections(self, data: dict) -> dict:
+        """Fetch a single PubChem record."""
         export_data = {}
         if "record_type" in data and "record_number" in data:
             record_type = data["record_type"]
@@ -362,11 +371,13 @@ class PubChemInterface(BaseAPIInterface):
     def fetch_single(
         self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
     ) -> tuple[list | dict | pd.DataFrame, dict]:
+        """Fetch a batch of PubChem records."""
         option = kwargs.pop("option", "default")
         return super().fetch_single(*args, query=query, parse=parse, option=option, **kwargs)
 
     def fetch_batch(
         self, queries: list[str | dict], parse: bool = False, *args: Any, **kwargs: Any
     ) -> tuple[list | pd.DataFrame, dict]:
+        """Fetch a batch of PubChem records."""
         option = kwargs.pop("option", "default")
         return super().fetch_batch(*args, queries=queries, parse=parse, option=option, **kwargs)

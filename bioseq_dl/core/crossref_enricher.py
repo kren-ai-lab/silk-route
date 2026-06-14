@@ -1,3 +1,5 @@
+"""Cross-reference enrichment orchestrator."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -19,6 +21,7 @@ log = get_logger("bioseq_dl.interfaces.crossref_enricher")
 @dataclass
 class EndpointSpec:
     """Declarative specification for a single endpoint.
+
     - database: database key as used in INTERFACE_CLASSES (e.g., "uniprot", "brenda", "biogrid").
     - endpoint: method name to call within the interface (e.g., "search", "getKmValue", "xrefs").
     - option: optional modifier some interfaces support (e.g., GeneOntology categories).
@@ -35,8 +38,7 @@ class EndpointSpec:
 
 
 class CrossRefEnricher:
-    """A reusable, high-level orchestrator to enrich a dataframe of sequences/IDs with
-    cross-references fetched from multiple biological APIs.
+    """A reusable, high-level orchestrator to enrich a dataframe of sequences/IDs with cross-references fetched from multiple biological APIs.
 
     Key features:
     - Auto-detect available columns and validate per-endpoint requirements (optional).
@@ -63,7 +65,7 @@ class CrossRefEnricher:
         return database in INTERFACE_CLASSES
 
     def _check_required_columns(self, df: pd.DataFrame, spec: EndpointSpec) -> None:
-        """Optional check to warn/raise if declared required columns are missing."""
+        """Raise if declared required columns are missing from the DataFrame."""
         if not spec.required_columns:
             return
         missing = [c for c in spec.required_columns if c not in df.columns]
@@ -93,17 +95,13 @@ class CrossRefEnricher:
         )
 
     def _query_builder_key(self, spec: EndpointSpec) -> str:
-        """English docs:
-        Compute the registry key for QUERY_BUILDERS like 'db_endpoint_option' or 'db_endpoint'.
-        """
+        """Compute the registry key for QUERY_BUILDERS like 'db_endpoint_option' or 'db_endpoint'."""
         if spec.option:
             return f"{spec.database}_{spec.endpoint}_{spec.option}"
         return f"{spec.database}_{spec.endpoint}"
 
     def _resolve_query_builder(self, spec: EndpointSpec) -> QueryBuilder:
-        """English docs:
-        Find the query builder callable from QUERY_BUILDERS registry.
-        """
+        """Find the query builder callable from QUERY_BUILDERS registry."""
         key = self._query_builder_key(spec)
         qb = QUERY_BUILDERS.get(key)
         if not qb:
@@ -119,8 +117,9 @@ class CrossRefEnricher:
         params: dict[str, Any],
         format: Literal["dataframe", "json", "xml"] = "dataframe",
     ) -> tuple[pd.DataFrame | list[dict[str, Any]], dict]:
-        """Build query from row using the registered query-builder, perform fetch_single or fetch_batch,
-        and merge the API result with the original row (row-expanded).
+        """Build query from row using the registered query-builder.
+
+        Performs ``fetch_single`` or ``fetch_batch`` and merges the API result with the original row (row-expanded).
         """
         metadata = {}
         # Search for an available builder via a search key: {database}_{endpoint}[_option]

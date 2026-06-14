@@ -1,3 +1,5 @@
+"""UniProt cross-reference CLI commands."""
+
 # bioseq_dl/cli/uniprot_crossref.py
 from pathlib import Path
 
@@ -20,6 +22,7 @@ CROSS_REF_FIELDS = [xref.lower() for xref in XREF_MAPPING]
 def save_to_file(
     df: pd.DataFrame, out_dir: str, filename: str, db: str, endpoint: str, option: str | None
 ) -> None:
+    """Run UniProt cross-reference ID mapping."""
     # Make folder with filename
     (Path(out_dir) / filename).mkdir(parents=True, exist_ok=True)
     # Save the DataFrame to a CSV file
@@ -56,6 +59,7 @@ def run(
         case_sensitive=False,
     ),
 ) -> None:
+    """Run UniProt cross-reference name mapping."""
     try:
         # Check if input file exists
         if not Path(input).exists():

@@ -1,3 +1,5 @@
+"""Logger factory and global logging configuration."""
+
 from __future__ import annotations
 
 import contextlib
@@ -33,8 +35,7 @@ def _resolve_log_dir() -> Path:
 
 
 class _LoggingManager:
-    """Singleton-like manager that configures root logging once and
-    exposes a small API for obtaining child loggers and adjusting settings.
+    """Singleton-like manager that configures root logging once and exposes a small API for obtaining child loggers and adjusting settings.
 
     Key points
     ----------
@@ -63,8 +64,9 @@ class _LoggingManager:
         use_rotation: bool | None = None,
         filename: str | None = None,
     ) -> None:
-        """Update the global logging configuration. Changes are applied lazily
-        (on the next logger access).
+        """Update the global logging configuration.
+
+        Changes are applied lazily (on the next logger access).
 
         Notes
         -----
@@ -166,8 +168,9 @@ class _LoggingManager:
     # ---------------- Public API ----------------
 
     def get_logger(self, name: str | None = None) -> logging.Logger:
-        """Return a logger. Child loggers PROPAGATE so their messages reach
-        the root handlers configured here.
+        """Return a logger that propagates to root handlers configured here.
+
+        Child loggers keep level=NOTSET so they inherit the root's effective level.
         """
         self._ensure_configured()
         logger = logging.getLogger(name or "")
@@ -217,7 +220,8 @@ def configure_logging(
 
 def get_logger(name: str | None = None) -> logging.Logger:
     """Return a logger for the current module/class.
-    Children should keep level=NOTSET to inherit the root's effective level.
+
+    Children keep level=NOTSET to inherit the root's effective level.
     """
     _manager._ensure_configured()
     logger = logging.getLogger(name or "")

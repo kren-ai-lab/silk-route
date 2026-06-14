@@ -1,3 +1,5 @@
+"""Chemical search query CLI commands."""
+
 import json
 import logging
 from pathlib import Path

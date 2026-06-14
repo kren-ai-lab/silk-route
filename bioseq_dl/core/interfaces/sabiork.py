@@ -1,3 +1,5 @@
+"""SABIO-RK kinetics database API interface."""
+
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +15,8 @@ log = get_logger("bioseq_dl.interfaces.sabiork")
 
 
 class SabiorkInterface(BaseAPIInterface):
+    """SABIO-RK biochemical kinetics database API interface."""
+
     API_NAME = "Sabio-RK"
     DB_CONFIG = SABIORK
     METHODS = {
@@ -36,7 +40,7 @@ class SabiorkInterface(BaseAPIInterface):
         output_dir: str | None = None,
         **kwargs: Any,
     ) -> None:
-
+        """Initialize the SabiorkInterface."""
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
         self.output_dir = output_dir or self.cache_dir
         Path(self.output_dir).mkdir(parents=True, exist_ok=True)
@@ -105,4 +109,5 @@ class SabiorkInterface(BaseAPIInterface):
             return response.text
 
     def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
+        """Parse SABIO-RK response data."""
         return self._extract_fields(data, fields_to_extract)

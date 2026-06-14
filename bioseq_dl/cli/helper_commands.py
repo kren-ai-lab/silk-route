@@ -1,3 +1,5 @@
+"""Cache management CLI commands."""
+
 import logging
 
 import typer
@@ -55,8 +57,10 @@ def clear(
         "info", "--log", "-l", help="Logging level (debug, info, warning, error, critical)."
     ),
 ) -> None:
-    """Clear cached data. Use --name to specify one or more registered cache names,
-    or --all to clear everything. By default the command runs in --dry-run mode.
+    """Clear cached data.
+
+    Use --name to specify one or more registered cache names, or --all to clear everything.
+    By default the command runs in --dry-run mode.
     """
     LOG_LEVELS = {
         "debug": logging.DEBUG,

@@ -1,3 +1,5 @@
+"""AlphaFold API interface."""
+
 import json
 from pathlib import Path
 from typing import Any, Literal
@@ -18,6 +20,8 @@ log = get_logger("bioseq_dl.interfaces.alphafold")
 
 
 class AlphafoldInterface(BaseAPIInterface):
+    """AlphaFold structure prediction API interface."""
+
     API_NAME = "Alphafold"
     DB_CONFIG = ALPHAFOLD
     METHODS = {
@@ -47,6 +51,7 @@ class AlphafoldInterface(BaseAPIInterface):
             cache_dir (str): Directory to cache API responses. If None, defaults to the cache directory defined in constants.
             config_dir (str): Directory for configuration files. If None, defaults to the config directory defined in constants.
             output_dir (str): Directory to save downloaded files. If None, defaults to the cache directory.
+            **kwargs: Passed through to the base class.
 
         """
         cache_dir, config_dir = self._resolve_dirs(cache_dir, config_dir)
@@ -62,6 +67,7 @@ class AlphafoldInterface(BaseAPIInterface):
     def fetch_single(
         self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
     ) -> tuple[list | dict | pd.DataFrame, dict]:
+        """Fetch a single prediction and optionally download structure files."""
         if not isinstance(query, str):
             log.error("Query must be a string representing a AlphaFold ID.")
             return {}
@@ -84,6 +90,7 @@ class AlphafoldInterface(BaseAPIInterface):
     def fetch_batch(
         self, queries: list[str | dict], parse: bool = False, *args: Any, **kwargs: Any
     ) -> tuple[list | pd.DataFrame, dict]:
+        """Fetch a batch of predictions and optionally download structure files."""
         if not isinstance(queries, list) or not isinstance(queries[0], str):
             log.error("Queries must be a list of strings representing AlphaFold IDs.")
             return [], {}
@@ -112,6 +119,7 @@ class AlphafoldInterface(BaseAPIInterface):
         Args:
             query (str): UniProt ID to fetch prediction for.
             method (str): Method to use for fetching data. Currently only "prediction" is supported.
+            **kwargs: Additional keyword arguments passed to the request builder.
 
         Returns:
             Dict: Prediction data.
@@ -212,7 +220,8 @@ class AlphafoldInterface(BaseAPIInterface):
             fields_to_extract (List|Dict): Fields to keep from the original response.
                 - If List: Keep those keys.
                 - If Dict: Maps {desired_name: real_field_name}.
-            for more information, see: https://alphafold.ebi.ac.uk/#/public-api/get_predictions_api_prediction__qualifier__get
+            **kwargs: Additional keyword arguments.
+
         Returns:
             Union[List, Dict]: Parsed data with specified fields or the entire structure.
 
@@ -240,7 +249,8 @@ class AlphafoldInterface(BaseAPIInterface):
 
         Args:
             data (Union[List, Dict]): Data to save.
-            file_name (str): Name of the file to save the data to.
+            filename (str): Name of the file to save the data to.
+            extension (str): File format. One of csv, tsv, json, parquet.
 
         """
         if not Path(self.output_dir).exists():

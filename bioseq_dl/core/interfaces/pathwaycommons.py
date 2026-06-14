@@ -1,3 +1,5 @@
+"""PathwayCommons API interface."""
+
 import json
 from typing import Any
 
@@ -16,6 +18,8 @@ log = get_logger("bioseq_dl.interfaces.pathwaycommons")
 
 
 class PathwayCommonsInterface(BaseAPIInterface):
+    """PathwayCommons biological pathway data API interface."""
+
     API_NAME = "PathwayCommons"
     DB_CONFIG = PATHWAYCOMMONS
     METHODS = {
@@ -61,6 +65,7 @@ class PathwayCommonsInterface(BaseAPIInterface):
     }
 
     def fetch(self, query: str | dict | list, *, method: str = "SOME_DEFAULT", **kwargs: Any) -> dict | list:
+        """Fetch pathway data from PathwayCommons."""
         if method not in self.METHODS:
             log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
             return {}
@@ -125,6 +130,7 @@ class PathwayCommonsInterface(BaseAPIInterface):
             return response
 
     def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
+        """Parse PathwayCommons response data."""
         if not data:
             return {}
 

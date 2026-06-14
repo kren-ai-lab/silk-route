@@ -1,3 +1,5 @@
+"""PRIDE CLI commands."""
+
 import typer
 
 from bioseq_dl import PrideInterface

@@ -1,3 +1,5 @@
+"""UniProt sequence search CLI commands."""
+
 import json
 import logging
 import shutil
@@ -78,6 +80,7 @@ def run(
         help="Export format: csv, json, xml, parquet. Default is csv.",
     ),
 ) -> None:
+    """Run UniProt BLAST-based sequence search."""
     logger = log
     raw_export_format = export_format
     try:

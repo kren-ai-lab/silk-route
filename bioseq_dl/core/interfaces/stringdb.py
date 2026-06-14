@@ -1,3 +1,5 @@
+"""STRING protein interaction database API interface."""
+
 from typing import Any
 
 from requests import Request
@@ -16,6 +18,8 @@ log = get_logger("bioseq_dl.interfaces.stringdb")
 
 
 class StringInterface(BaseAPIInterface):
+    """STRING protein-protein interaction database API interface."""
+
     API_NAME = "STRING"
     DB_CONFIG = STRING
     METHODS = {
@@ -55,7 +59,7 @@ class StringInterface(BaseAPIInterface):
         Args:
             query (str|dict|list): Query parameters for the API.
             method (str): Method to use for the request.
-            outfmt (str): Output format for the response.
+            **kwargs: Additional keyword arguments passed to the request builder.
 
         Returns:
             dict: Parsed response from the API.
@@ -108,7 +112,7 @@ class StringInterface(BaseAPIInterface):
             fields_to_extract (List|Dict): Fields to keep from the original response.
                 - If List: Keep those keys.
                 - If Dict: Maps {desired_name: real_field_name}
-            fmt (str): Format of the response.
+            **kwargs: Supports `fmt` key for response format (default: "json").
 
         Returns:
             dict: Parsed response.

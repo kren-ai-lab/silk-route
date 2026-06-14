@@ -1,3 +1,5 @@
+"""PANTHER API interface."""
+
 from typing import Any
 
 from requests import Request
@@ -15,6 +17,8 @@ log = get_logger("bioseq_dl.interfaces.panther")
 
 
 class PantherInterface(BaseAPIInterface):
+    """PANTHER gene family annotation and ontology API interface."""
+
     API_NAME = "PANTHER"
     DB_CONFIG = PANTHER
     # Definition of methods for PANTHER API
@@ -47,6 +51,7 @@ class PantherInterface(BaseAPIInterface):
     }
 
     def fetch(self, query: str | dict | list, *, method: str = "geneinfo", **kwargs: Any) -> dict | list:
+        """Fetch gene family or MSA data from PANTHER."""
         http_method, path_param, parameters, inputs = self.initialize_method_parameters(
             query, method, self.METHODS, **kwargs
         )
@@ -93,6 +98,7 @@ class PantherInterface(BaseAPIInterface):
             return response
 
     def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
+        """Parse PANTHER response data."""
         if not data:
             log.warning("Tried to parse data but the data is empty or None.")
             return {}

@@ -1,3 +1,5 @@
+"""BioDBNet CLI commands."""
+
 import pandas as pd
 import typer
 

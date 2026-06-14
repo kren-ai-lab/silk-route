@@ -1,3 +1,5 @@
+"""BioGRID API interface."""
+
 from typing import Any
 
 import requests
@@ -32,6 +34,8 @@ BIOGRID_ENV_VARS = (
 # Error fetching data for {...}: Extra data: line 1 column 8 (char 7). Tried URL: https://webservice.thebiogrid.org/interactions?accessKey={ACCESS_KEY}&geneList=1148170|1148186|112090&searchBiogridIds=True&format=tab2
 # This error will go to a low priority issue, as it is not as used as the JSON format.
 class BioGRIDInterface(BaseAPIInterface):
+    """BioGRID protein interaction database API interface."""
+
     API_NAME = "BioGRID"
     DB_CONFIG = BIOGRID
     METHODS = {
@@ -68,9 +72,10 @@ class BioGRIDInterface(BaseAPIInterface):
         """Initialize the BioGRIDInterface class.
 
         Args:
+            api_key (str): BioGRID API key. Falls back to environment variable.
             cache_dir (str): Directory to cache results.
             config_dir (str): Directory for configuration files.
-            output_dir (str): Directory to save output files.
+            **kwargs: Passed through to the base class.
 
         """
         cache_dir, config_dir = self._resolve_dirs(cache_dir, config_dir)
@@ -95,8 +100,8 @@ class BioGRIDInterface(BaseAPIInterface):
 
         Args:
             query (str): Query string to search for.
-            **kwargs: Additional parameters for the request.
-            - `method`: Method to use for the request. Default is "interactions".
+            method (str): Method to use for the request. Default is "interactions".
+            **kwargs: Additional parameters passed to the request.
 
         Returns:
             any: response from the API.
@@ -134,6 +139,7 @@ class BioGRIDInterface(BaseAPIInterface):
             fields_to_extract (List|Dict): Fields to keep from the original response.
                 - If List: Keep those keys.
                 - If Dict: Maps {desired_name: real_field_name}.
+            **kwargs: Additional keyword arguments.
 
         Returns:
             any: Parsed data from the response.

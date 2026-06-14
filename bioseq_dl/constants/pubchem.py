@@ -1,3 +1,5 @@
+"""PubChem database constants and configuration."""
+
 # pwaccs: Pathway Accession Codes
 # Falta Pwaccs de gene
 OPTIONS = {

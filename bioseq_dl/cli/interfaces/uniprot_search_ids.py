@@ -1,3 +1,5 @@
+"""UniProt ID search CLI commands."""
+
 import json
 import logging
 from pathlib import Path
@@ -58,6 +60,7 @@ def run(
         help="Export format: csv, json, xml, parquet. Default is csv.",
     ),
 ) -> None:
+    """Run UniProt search from a list of accession IDs."""
     logger = log
     raw_export_format = export_format
     try:

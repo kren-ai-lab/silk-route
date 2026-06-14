@@ -1,3 +1,5 @@
+"""UniProt database constants and configuration."""
+
 # Constants for UniProt data fields and cross-references
 # Only should be added the fields that are available and defined
 # in the file bioseq_dl/core/interfaces/uniprot.py at line 187

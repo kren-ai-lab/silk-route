@@ -1,3 +1,5 @@
+"""UniProt CLI commands."""
+
 import typer
 
 from .uniprot_crossref import app as uniprot_crossref_app

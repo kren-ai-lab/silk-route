@@ -1,3 +1,5 @@
+"""DBConfig instances for all supported databases."""
+
 import os
 from pathlib import Path
 

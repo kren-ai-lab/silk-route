@@ -1,3 +1,5 @@
+"""BioDBNet API interface."""
+
 from typing import Any
 
 from requests import Request
@@ -12,6 +14,8 @@ log = get_logger("bioseq_dl.interfaces.biodbnet")
 
 
 class BioDBNetInterface(BaseAPIInterface):
+    """BioDBNet biological database network API interface."""
+
     API_NAME = "BioDBNet"
     DB_CONFIG = BIODBNET
     METHODS = {
@@ -41,6 +45,7 @@ class BioDBNetInterface(BaseAPIInterface):
     }
 
     def fetch(self, query: str | dict | list, *, method: str = "getpathways", **kwargs: Any) -> dict | list:
+        """Fetch data from BioDBNet for the given query."""
         if method not in self.METHODS:
             log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
             return {}
@@ -79,7 +84,7 @@ class BioDBNetInterface(BaseAPIInterface):
             return {}
 
     def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
-
+        """Parse BioDBNet response data."""
         if not data:
             log.warning("Tried to parse data but the data is empty or None.")
             return {}

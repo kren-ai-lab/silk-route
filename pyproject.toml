@@ -83,9 +83,6 @@ ignore = [
     "PLR0913",
 
     # --- Transitional: legacy style/docs/typing, not enforced yet ---
-    # Documentation (no docstrings on legacy code yet)
-    "D100", "D101", "D102", "D103", "D104", "D105", "D107",
-    "D200", "D205", "D400", "D401", "D404", "D415", "D417", "D301",
     # ANN401 (Any type): intentional for passthrough **kwargs and dynamic JSON API responses
     "ANN401",
     # Logging string style (f-strings in log calls are pervasive and acceptable here)

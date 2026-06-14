@@ -1,3 +1,5 @@
+"""KEGG database constants and configuration."""
+
 METHODS = ["info", "list", "find", "get", "conv", "link", "ddi"]
 
 DATABASES = [

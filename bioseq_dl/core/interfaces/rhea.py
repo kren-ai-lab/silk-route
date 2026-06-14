@@ -1,3 +1,5 @@
+"""Rhea reaction database API interface."""
+
 from typing import Any
 
 from requests import Request
@@ -15,6 +17,8 @@ log = get_logger("bioseq_dl.interfaces.rhea")
 
 
 class RheaInterface(BaseAPIInterface):
+    """Rhea reaction database API interface."""
+
     API_NAME = "Rhea"
     DB_CONFIG = RHEA
     METHODS = {
@@ -33,6 +37,7 @@ class RheaInterface(BaseAPIInterface):
     }
 
     def fetch(self, query: str | dict | list, *, method: str = "rhea", **kwargs: Any) -> dict | list:
+        """Fetch reaction data from Rhea."""
         if method not in self.METHODS:
             log.error(f"Method '{method}' is not supported. Available methods: {list(self.METHODS.keys())}")
             return {}
@@ -73,6 +78,7 @@ class RheaInterface(BaseAPIInterface):
             return response
 
     def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
+        """Parse Rhea response data."""
         if not data:
             return {}
 

@@ -1,3 +1,5 @@
+"""CLI commands for running multi-step download workflows."""
+
 from __future__ import annotations
 
 import datetime as dt
@@ -1237,6 +1239,7 @@ def write_failure_reports(
 
 
 def split_pair(s: str) -> tuple[str, str]:
+    """Run the multi-step download workflow from the CLI."""
     if "=" in s:
         q, label = s.split("=", 1)
     elif "|" in s:

@@ -1,3 +1,5 @@
+"""ChEMBL API interface."""
+
 import re
 from typing import Any
 from urllib.parse import urlencode
@@ -27,6 +29,8 @@ log = get_logger("bioseq_dl.interfaces.chembl")
 # These methods accept SMILES, InChI Key and molecule ChEMBL_ID as arguments and in the case
 # of similarity searches an additional identity cut-off is needed.
 class ChEMBLInterface(BaseAPIInterface):
+    """ChEMBL bioactivity database API interface."""
+
     API_NAME = "ChEMBL"
     DB_CONFIG = CHEMBL
     METHODS = {
@@ -358,10 +362,8 @@ class ChEMBLInterface(BaseAPIInterface):
 
         Args:
             query (str): Query string to search for.
-            **kwargs: Additional parameters for the request.
-            - `method`: Method to use for the request. Default is "compound".
-            - `pages_to_fetch`: Number of pages to fetch. Default is 1.
-            - `limit`: Records per page for paginated endpoints. Default is endpoint-specific.
+            method (str): Method to use for the request. Default is "activity".
+            **kwargs: Additional parameters; notable keys: pages_to_fetch, limit.
 
         Returns:
             any: response from the API.
@@ -504,6 +506,7 @@ class ChEMBLInterface(BaseAPIInterface):
             fields_to_extract (List|Dict): Fields to keep from the original response.
                 - If List: Keep those keys.
                 - If Dict: Maps {desired_name: real_field_name}.
+            **kwargs: Additional keyword arguments.
 
         Returns:
             dict: Parsed response.

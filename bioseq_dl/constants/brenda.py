@@ -1,3 +1,5 @@
+"""BRENDA database constants and configuration."""
+
 METHODS = {
     "getKmValue": {
         "http_method": "GET",
