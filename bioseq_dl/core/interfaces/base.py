@@ -485,7 +485,7 @@ class BaseAPIInterface(ABC):
             return self.METHODS[method].get(option, {})
         return self.METHODS[method]
 
-    def _prepare_params(self, query: dict, spec: dict, **overrides: Any) -> dict:
+    def _prepare_params(self, query: str | dict | list, spec: dict, **overrides: Any) -> dict:
         """Validate types and defaults from spec["parameters"].
 
         - Applies defaults from ``spec["parameters"]`` for any key absent from the query.
@@ -518,7 +518,7 @@ class BaseAPIInterface(ABC):
 
         return params
 
-    def _make_identifier(self, query: dict, spec: dict) -> str:
+    def _make_identifier(self, query: str | dict | list, spec: dict) -> str:
         """Build a unique identifier from is_id=True keys for use as a cache key."""
         keys = [k for k, (_, _, is_id) in spec["parameters"].items() if is_id]
         parts = [str(query[k]) for k in keys if k in query] if isinstance(query, dict) else [str(query)]
@@ -762,7 +762,7 @@ class BaseAPIInterface(ABC):
             log.debug("Generated a group of queries based on key '%s' with multiple values.", group_key)
             results = {}
             remaining = []
-            subqueries = self.decompose_query(query, method, option)
+            subqueries = self.decompose_query(query, method, option) or []
             # Check cache per individual
             log.debug("Subqueries generated: %s", subqueries)
             for identifier, subq in subqueries:

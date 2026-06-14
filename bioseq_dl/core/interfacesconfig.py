@@ -8,7 +8,7 @@ from typing import Any
 import yaml
 
 
-def read_config_file(path: str) -> Any:
+def read_config_file(path: str | Path) -> Any:
     """Load a single JSON/YAML config file into a Python object.
 
     Returns ``None`` for unsupported extensions. Shared by ``load_packaged_config``

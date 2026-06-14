@@ -166,7 +166,7 @@ class PDBInterface(BaseAPIInterface):
 
     def fetch_single(
         self, query: str | dict | list[str], parse: bool = False, *args: Any, **kwargs: Any
-    ) -> list | dict | pd.DataFrame:
+    ) -> tuple[list | dict | pd.DataFrame | bytes | str, dict]:
         """Fetch a single PDB entry and optionally download the structure file."""
         if self.download_structures and query and isinstance(query, str):
             self.fetch_structure(query)
@@ -174,7 +174,7 @@ class PDBInterface(BaseAPIInterface):
 
     def fetch_batch(
         self, queries: list[str | dict], parse: bool = False, *args: Any, **kwargs: Any
-    ) -> list | pd.DataFrame:
+    ) -> tuple[list | pd.DataFrame | bytes | str, dict]:
         """Fetch a batch of PDB entries and optionally download structure files."""
         results = super().fetch_batch(queries, parse, *args, **kwargs)
         if self.download_structures:
