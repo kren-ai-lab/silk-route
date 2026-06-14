@@ -515,26 +515,7 @@ class MainWorkflow:
                     "pagination_capped": pages_to_fetch != -1,
                 }
                 meta["post_fetch_filter"] = post_filter_meta
-                if isinstance(result, pd.DataFrame):
-                    result_df = result
-                elif isinstance(result, list):
-                    result_df = pd.DataFrame(result)
-                elif isinstance(result, dict):
-                    result_df = pd.DataFrame([result]) if result else pd.DataFrame()
-                else:
-                    result_df = pd.DataFrame()
-                meta["data_info"] = {
-                    "total_entries": len(result_df),
-                    "data_type": type(result),
-                    "columns": [
-                        {
-                            "name": col,
-                            "dtype": str(result_df[col].dtype),
-                            "n_missing": int(result_df[col].isna().sum()),
-                        }
-                        for col in result_df.columns
-                    ],
-                }
+                meta["data_info"] = instance._build_data_info(result)
         context["data"].setdefault("chembl", result)
         context["metadata"].setdefault("chembl", meta)
         self.log.debug("Pipeline ChEMBL fetch metadata: %s", meta)

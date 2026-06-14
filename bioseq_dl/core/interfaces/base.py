@@ -228,6 +228,35 @@ class BaseAPIInterface(ABC):
             for col in df.columns
         ]
 
+    @classmethod
+    def _build_data_info(cls, data: Any) -> dict:
+        """Build the ``data_info`` metadata block for any result shape.
+
+        Single source of truth shared by ``fetch_single``/``fetch_batch`` (and the
+        workflow). ``data_type`` is the result type name (a string, so the
+        metadata stays serializable); ``total_entries`` and the per-column block
+        are derived from a DataFrame view of the data.
+        """
+        if isinstance(data, pd.DataFrame):
+            df = data
+        elif isinstance(data, list):
+            df = pd.DataFrame(data) if data else pd.DataFrame()
+        else:
+            df = pd.DataFrame([data]) if data else pd.DataFrame()
+
+        if isinstance(data, list):
+            total_entries = len(data)
+        elif isinstance(data, pd.DataFrame):
+            total_entries = data.shape[0]
+        else:
+            total_entries = len(df)
+
+        return {
+            "total_entries": total_entries,
+            "data_type": type(data).__name__,
+            "columns": cls._build_columns_info(df),
+        }
+
     def get_cache_ignore_keys(self) -> set[str]:
         """Get the set of keys to ignore when generating cache keys.
 
@@ -792,11 +821,7 @@ class BaseAPIInterface(ABC):
                 # TODO Check if this line of code works as intended
                 if dfs:
                     export_df = pd.concat(dfs, ignore_index=True)
-                    metadata["data_info"] = {
-                        "total_entries": len(export_df),
-                        "data_type": type(export_df),
-                        "columns": self._build_columns_info(export_df),
-                    }
+                    metadata["data_info"] = self._build_data_info(export_df)
                     metadata["execution_time"] = time.time() - t0
                     metadata["api_name"] = self.API_NAME
                     metadata["method"] = method
@@ -856,20 +881,8 @@ class BaseAPIInterface(ABC):
                 metadata["failed_ids"] = [identifier]
 
         parsed = self._maybe_parse(data=raw, parse=parse, format=format, **kwargs)
-        tmp_df = pd.DataFrame()
 
-        if isinstance(parsed, list):
-            tmp_df = pd.DataFrame(parsed) if parsed else pd.DataFrame()
-        elif isinstance(parsed, pd.DataFrame):
-            tmp_df = parsed
-        else:
-            tmp_df = pd.DataFrame([parsed]) if parsed else pd.DataFrame()
-
-        metadata["data_info"] = {
-            "total_entries": len(tmp_df),
-            "data_type": type(parsed),
-            "columns": self._build_columns_info(tmp_df),
-        }
+        metadata["data_info"] = self._build_data_info(parsed)
         metadata["execution_time"] = time.time() - t0
         metadata["api_name"] = self.API_NAME
         metadata["method"] = method
@@ -997,28 +1010,13 @@ class BaseAPIInterface(ABC):
         metadata["fetched_length"] = sum(len(r) if isinstance(r, list) else 1 for r in results)
 
         # If it's a list of dataframes, concatenate them
-        columns_info = []
         if all(isinstance(r, pd.DataFrame) for r in results) and len(results) > 0:
             batch_data = pd.concat(results, ignore_index=True)
-            columns_info = self._build_columns_info(batch_data)
         else:
             batch_data = results
-            tmp_df = pd.DataFrame(batch_data)
-            columns_info = [
-                {"name": col, "dtype": str(type(batch_data)), "n_missing": int(tmp_df[col].isnull().sum())}
-                for col in tmp_df.columns
-            ]
 
-        metadata["data_info"] = {
-            "total_entries": len(batch_data)
-            if isinstance(batch_data, list)
-            else batch_data.shape[0]
-            if isinstance(batch_data, pd.DataFrame)
-            else 0,
-            "data_type": type(batch_data).__name__,
-            "columns": columns_info,
-        }
-        metadata["source_api"] = self.API_NAME
+        metadata["data_info"] = self._build_data_info(batch_data)
+        metadata["api_name"] = self.API_NAME
         metadata["method"] = method
         metadata["option"] = option
 
