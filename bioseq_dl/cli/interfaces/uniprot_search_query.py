@@ -60,7 +60,10 @@ def run(
     try:
         export_format = normalize_user_export_format(export_format)
         if export_format is None:
-            msg = f"Unsupported export format '{raw_export_format}'. Supported formats are: {', '.join(USER_EXPORT_FORMATS)}."
+            msg = (
+                f"Unsupported export format '{raw_export_format}'. Supported formats are: "
+                f"{', '.join(USER_EXPORT_FORMATS)}."
+            )
             raise ValueError(msg)
     except ValueError as e:
         typer.echo(f"Error: {e}", err=True)
@@ -77,12 +80,16 @@ def run(
         logger.warning(f"Could not configure logging: {e}")
 
     logger.info(
-        f"Starting UniProt search with query: {query} with parameters fields={fields}, crossref_fields={crossref_fields}, sort={sort}, include_isoform={include_isoform}, concat_results={concat_results}"
+        f"Starting UniProt search with query: {query} with parameters fields={fields}, "
+        f"crossref_fields={crossref_fields}, sort={sort}, include_isoform={include_isoform}, "
+        f"concat_results={concat_results}"
     )
     metadata = {}
     instance = UniprotInterface()
     logger.debug(
-        f"Downloading data using\nquery {query}\nfields {fields}\ncrossref_fields {crossref_fields}\nformat {format}\nsort {sort}\ninclude_isoform {include_isoform}"
+        f"Downloading data using\nquery {query}\nfields {fields}\ncrossref_fields {crossref_fields}\nformat "
+        f"{format}\nsort {sort}\ninclude_isoform "
+        f"{include_isoform}"
     )
     xref_mapping = {v[1]: v[0] for k, v in XREF_MAPPING.items() if v[0] is not None}
     xref = ",".join([xref_mapping[c] for c in crossref_fields.split(",") if c in xref_mapping])

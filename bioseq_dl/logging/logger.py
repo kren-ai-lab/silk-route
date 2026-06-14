@@ -36,7 +36,7 @@ def _resolve_log_dir() -> Path:
 
 
 class _LoggingManager:
-    """Singleton-like manager that configures root logging once and exposes a small API for obtaining child loggers and adjusting settings.
+    """Configure root logging once and hand out child loggers that propagate to the root handlers.
 
     Key points
     ----------

@@ -111,9 +111,13 @@ EXPORT_KEYS = {
 }
 
 OLD_ROOT_KEY_ERRORS = {
-    "version": "Unknown workflow YAML key 'version'. Use the structured dataset/query/execution/export schema.",
+    "version": (
+        "Unknown workflow YAML key 'version'. Use the structured dataset/query/execution/export schema."
+    ),
     "kind": "Unknown workflow YAML key 'kind'. Use the structured dataset/query/execution/export schema.",
-    "workflow": "Unknown workflow YAML key 'workflow'. Use the structured dataset/query/execution/export schema.",
+    "workflow": (
+        "Unknown workflow YAML key 'workflow'. Use the structured dataset/query/execution/export schema."
+    ),
 }
 OLD_MODE_KEY_ERROR_MESSAGES = [
     "Unknown workflow YAML key 'dispatch_mode'. Use dataset.mode instead.",
@@ -122,7 +126,9 @@ OLD_MODE_KEY_ERROR_MESSAGES = [
 ]
 QUERY_KEY_ERRORS = {
     "type": "Unknown query YAML key 'type'. Query type is not supported yet; use query.value.",
-    "filters": "Unknown query YAML key 'filters'. Use query.filtering_strategy for descriptive filtering notes.",
+    "filters": (
+        "Unknown query YAML key 'filters'. Use query.filtering_strategy for descriptive filtering notes."
+    ),
 }
 FORBIDDEN_CREDENTIAL_KEYS = {
     "api_key",
@@ -680,7 +686,10 @@ def validate_merged_workflow_values(values: dict) -> None:
 
     export_format = normalize_user_export_format(values["export_format"])
     if export_format is None:
-        msg = f"Unsupported export format '{values['export_format']}'. Supported formats are: {', '.join(FORMATS)}."
+        msg = (
+            f"Unsupported export format '{values['export_format']}'. Supported formats are: "
+            f"{', '.join(FORMATS)}."
+        )
         raise ValueError(msg)
     values["export_format"] = export_format
 
@@ -1279,7 +1288,10 @@ def run_workflow(
         None,
         "--query",
         "-q",
-        help="Executable query string. For query_composition, provide labeled pairs such as query1=label1,query2=label2.",
+        help=(
+            "Executable query string. For query_composition, provide labeled pairs such as "
+            "query1=label1,query2=label2."
+        ),
     ),
     fields: str | None = typer.Option(
         None,
@@ -1317,7 +1329,11 @@ def run_workflow(
     chembl_pages_to_fetch: int | None = typer.Option(
         None,
         "--chembl-pages-to-fetch",
-        help="ChEMBL pages to fetch. Use -1 for all pages; positive values cap pages. Limit remains records per page.",
+        help=(
+            "ChEMBL pages to fetch. Use -1 for all pages; positive values cap pages. Limit remains records "
+            "per "
+            "page."
+        ),
     ),
     uniprot_timeout: float | None = typer.Option(
         None,

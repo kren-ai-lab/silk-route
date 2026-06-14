@@ -93,7 +93,8 @@ class KEGGInterface(BaseAPIInterface):
                     return {}
                 if key == "option":
                     log.error(
-                        f"Invalid option: {query['option']} for method {method}. Supported options are: {', '.join(METHOD_OPTIONS.get(method, []))}."
+                        f"Invalid option: {query['option']} for method {method}. Supported options are: "
+                        f"{', '.join(METHOD_OPTIONS.get(method, []))}."
                     )
                     return {}
         return None
@@ -150,7 +151,10 @@ class KEGGInterface(BaseAPIInterface):
             if validated_params.get("option"):
                 if method not in METHOD_OPTIONS or validated_params["option"] not in METHOD_OPTIONS[method]:
                     log.error(
-                        f"Option {validated_params['option']} is not supported for method {method}. Supported options are: {', '.join(METHOD_OPTIONS.get(method, []))}."
+                        f"Option {validated_params['option']} is not supported for method {method}. "
+                        f"Supported "
+                        f"options are: "
+                        f"{', '.join(METHOD_OPTIONS.get(method, []))}."
                     )
                     return {}
                 url += f"/{validated_params['option']}"

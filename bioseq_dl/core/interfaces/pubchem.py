@@ -126,7 +126,8 @@ class PubChemInterface(BaseAPIInterface):
             return {}
         if option and option not in OPTIONS.get(method, []):
             log.error(
-                f"Option '{option}' is not valid for method '{method}'. Allowed options: {OPTIONS.get(method, [])}"
+                f"Option '{option}' is not valid for method '{method}'. Allowed options: "
+                f"{OPTIONS.get(method, [])}"
             )
             return {}
 
@@ -290,7 +291,9 @@ class PubChemInterface(BaseAPIInterface):
             data = data.json()
         elif not isinstance(data, dict):
             log.error(
-                "Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object."
+                "Tried to parse data but the type is not supported. Response should be a dict or a "
+                "requests.Response "
+                "object."
             )
             return {}
 

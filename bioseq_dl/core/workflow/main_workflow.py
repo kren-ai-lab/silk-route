@@ -250,7 +250,8 @@ class MainWorkflow:
 
         with contextlib.suppress(Exception):
             self.log.debug(
-                "MainWorkflow initialized (interpreter=%s, uniprot=%s, enricher=%s, default_export_format=%s)",
+                "MainWorkflow initialized (interpreter=%s, uniprot=%s, enricher=%s, "
+                "default_export_format=%s)",
                 type(self.interpreter).__name__,
                 type(self.uniprot).__name__,
                 type(self.enricher).__name__,
@@ -387,7 +388,8 @@ class MainWorkflow:
                     search_process.get("response_size_bytes"),
                     search_process.get("total_results"),
                 )
-        # Always store the latest response under context['data']['uniprot'] (setdefault would not overwrite existing value)
+        # Always store the latest response under context['data']['uniprot'] (setdefault would not overwrite
+        # existing value)
         context.setdefault("data", {})["uniprot"] = response
         context.setdefault("metadata", {}).setdefault("uniprot", {}).update(
             {"fetch": fetch_meta if isinstance(fetch_meta, dict) else {}}
@@ -781,8 +783,10 @@ class MainWorkflow:
 
         May perform more than one search (e.g., ChEMBL + UniProt). Example queries:
 
-        - ``"pli:'Proteases' AND {uniprot_filter_query}"`` — searches ChEMBL, extracts IDs, then fetches from UniProt.
-        - ``"ppi:'disease:cancer' AND {uniprot_filter_query}"`` — searches UniProt; BioGRID is used for interaction data only.
+        - ``"pli:'Proteases' AND {uniprot_filter_query}"`` — searches ChEMBL, extracts IDs, then fetches from
+          UniProt.
+        - ``"ppi:'disease:cancer' AND {uniprot_filter_query}"`` — searches UniProt; BioGRID is used for
+          interaction data only.
 
         Returns (data, metadata).
         """
@@ -790,8 +794,10 @@ class MainWorkflow:
         # After searching UniProt with a desired query (e.g., "disease:cancer AND reviewed:true"),
         # We get a list of columns that we can use to retrieve data from different databases.
         # For example,
-        # string_ids: '9606.ENSP00000269305' (from STRING database) can be used to get interactions giving us gene_a vs gene_b and score
-        # biogrid_ids: '108356' (from BioGRID database) can be used to get interactions giving us gene_a vs gene_b and experimental details
+        # string_ids: '9606.ENSP00000269305' (from STRING database) can be used to get interactions giving us
+        # gene_a vs gene_b and score
+        # biogrid_ids: '108356' (from BioGRID database) can be used to get interactions giving us gene_a vs
+        # gene_b and experimental details
         # ====== Short PLI search explanation ======
         # We do a similar approach for PLI, but we use ChEMBL to get the interactions with a target.
         # After that we search UniProt for the target details.
@@ -831,7 +837,8 @@ class MainWorkflow:
             # then use those accessions to fetch interactions from BioGRID and StringDB.
             self._step_fetch_uniprot(context)
             self._step_parse_uniprot(context)
-            # Instead of doing a enrichment we use another method to fetch specific endpoint from Biogrid and StringDB.
+            # Instead of doing a enrichment we use another method to fetch specific endpoint from Biogrid and
+            # StringDB.
             self._step_fetch_additional_ppi_interaction_sources(context, **kwargs)
 
             return context.get("data", {}), context.get("metadata", {})
@@ -975,12 +982,10 @@ class MainWorkflow:
                 msg = f"Unknown modality: {modality}"
                 raise ValueError(msg)
 
-            # Note: Normally, at this point the body of part data should be
-            #  {"uniprot": pd.DataFrame(...), "uniprot_enrichment": {...}} for protein modality,
-            #  {"chembl": pd.DataFrame(...), "uniprot": pd.DataFrame(...), "uniprot_enrichment": {...}} for compound modality
-            # On the other hand, part_meta should contain the metadata for that specific run
-            #  {"mode": "query_first", "modality": "protein", "origin": "query", "uniprot": {...}, "uniprot_enrichment": {...}} for protein modality,
-            #  {"mode": "query_first", "modality": "compound", "origin": "query", "chembl": {...}, "uniprot": {...}, "uniprot_enrichment": {...}} for compound modality
+            # Note: part_data is normally a dict of per-database results, e.g. uniprot (plus
+            # uniprot_enrichment) for protein modality, with chembl added for compound modality.
+            # part_meta holds the run metadata (mode, modality, origin, per-database entries and
+            # their enrichment) for that specific run.
 
             labeled_part = attach_label_to_part(part_data, label, modality)
             if isinstance(labeled_part, dict):
@@ -1002,9 +1007,11 @@ class MainWorkflow:
         #   "pdb_entry": [pd.DataFrame(...)],  # noqa: ERA001
         # }  # noqa: ERA001
         # We need to generate the final output merging every part.
-        # RResulting in: { "uniprot": pd.DataFrame(...), "chembl": pd.DataFrame(...), "uniprot_enrichment": { ... } }
+        # RResulting in: { "uniprot": pd.DataFrame(...), "chembl": pd.DataFrame(...), "uniprot_enrichment": {
+        # ... } }
         # Merge results depending on their type,
-        # For dataframes we concat, for lists we extend, for dicts we create a list of dicts, for ET we create a list of ET.
+        # For dataframes we concat, for lists we extend, for dicts we create a list of dicts, for ET we create
+        # a list of ET.
         if not combined_rows:
             return {}, metadata
 

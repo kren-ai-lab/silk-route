@@ -127,7 +127,9 @@ class ChEBIInterface(BaseAPIInterface):
                 response = json.loads(response.text)
             except json.JSONDecodeError:
                 log.exception(
-                    f"Failed to decode JSON response for method '{method}' with query '{query}'. Response text: {response.text}"
+                    f"Failed to decode JSON response for method '{method}' with query '{query}'. Response "
+                    f"text: "
+                    f"{response.text}"
                 )
                 return {}
 
@@ -155,7 +157,9 @@ class ChEBIInterface(BaseAPIInterface):
             data = data.json()
         elif not isinstance(data, dict):
             log.error(
-                "Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object."
+                "Tried to parse data but the type is not supported. Response should be a dict or a "
+                "requests.Response "
+                "object."
             )
             return {}
 

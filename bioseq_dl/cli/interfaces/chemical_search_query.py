@@ -15,7 +15,11 @@ from bioseq_dl.logging import configure_logging, get_logger
 log = get_logger("bioseq_dl.cli.chemical_search_query")
 
 app = typer.Typer(
-    help="Collect data from chemical databases. A general search interface is provided to query compounds by name, CID, SMILES, InChI, or gene ID."
+    help=(
+        "Collect data from chemical databases. A general search interface is provided to query compounds by "
+        "name, CID, SMILES, InChI, or gene "
+        "ID."
+    )
 )
 
 AVAILABLE_DATABASES = ["pubchem", "chembl", "chebi"]
@@ -173,7 +177,11 @@ def run_compound(
     ),
     databases: str = typer.Option(
         "all",
-        help="Databases to search separated by commas (e.g., pubchem, chembl). Use 'all' to search all available databases.",
+        help=(
+            "Databases to search separated by commas (e.g., pubchem, chembl). Use 'all' to search all "
+            "available "
+            "databases."
+        ),
     ),
     output: str = typer.Option(..., help="Output file to save results"),
     exact_match: bool = typer.Option(False, help="Use exact match for name searches"),

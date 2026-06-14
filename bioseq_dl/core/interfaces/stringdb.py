@@ -83,7 +83,8 @@ class StringInterface(BaseAPIInterface):
 
         if outfmt not in METHOD_FORMATS[method]:
             log.error(
-                f"Output format {outfmt} is not supported for method {method}. Supported formats are: {', '.join(METHOD_FORMATS[method])}."
+                f"Output format {outfmt} is not supported for method {method}. Supported formats are: "
+                f"{', '.join(METHOD_FORMATS[method])}."
             )
             return {}
 
@@ -129,7 +130,8 @@ class StringInterface(BaseAPIInterface):
             return data.text
         if fmt == "image":
             log.error(
-                "Image format is not supported for parsing. Please use the method save_image() to save the image."
+                "Image format is not supported for parsing. Please use the method save_image() to save the "
+                "image."
             )
         else:
             log.error(f"Format {fmt} is not supported. Supported formats are: json, tsv")

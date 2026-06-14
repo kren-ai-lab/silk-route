@@ -9,7 +9,8 @@ callables or DBConfig objects) and then let callers clear caches using a single
 API:
 - register_cache(name: str, provider)
 - list_caches() -> dict
-- clear_cache(selected_names=None, *, dry_run=False, older_than_days=None, empty=False, pattern=None, allowed_bases=None)
+- clear_cache(selected_names=None, *, dry_run=False, older_than_days=None, empty=False, pattern=None,
+  allowed_bases=None)
 
 Provider types supported:
 - str or pathlib.Path -> a single path

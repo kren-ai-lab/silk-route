@@ -100,7 +100,10 @@ def run(
                         )
 
         if not endpoint_specs:
-            msg = "No valid endpoint specifications found. Please check your database selections and configuration."
+            msg = (
+                "No valid endpoint specifications found. Please check your database selections and "
+                "configuration."
+            )
             raise ValueError(msg)
         log.debug(f"Endpoint specifications: {endpoint_specs}")
         enricher = CrossRefEnricher(endpoint_specs)

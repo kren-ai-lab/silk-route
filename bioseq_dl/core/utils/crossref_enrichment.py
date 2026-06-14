@@ -83,10 +83,13 @@ def run_crossref_enrichment(
 
     # Process crossref fields
     # Some definitions in crossref_fields may contain the database name and the method separated by underscore
-    # For example, "brenda_getOptimumTemperature" should be processed as "brenda" and use the method "getOptimumTemperature"
-    # Another example is giving only the database name "kegg" which means we should use all available methods for that database
+    # For example, "brenda_getOptimumTemperature" should be processed as "brenda" and use the method
+    # "getOptimumTemperature"
+    # Another example is giving only the database name "kegg" which means we should use all available methods
+    # for that database
     # For this reason we will make a new dictionary containing the databases and their methods
-    # As last thing, some fields definitions will have another underscore after the method name, this will indicate the option to use
+    # As last thing, some fields definitions will have another underscore after the method name, this will
+    # indicate the option to use
     # Example: "brenda_getOptimumTemperature_option1" should be processed as:
     # {"brenda": [{"method": "getOptimumTemperature", "option": "option1"}]}  # noqa: ERA001
     # Special case: "kegg_all" should be processed as:
@@ -164,7 +167,9 @@ def run_crossref_enrichment(
                         )
                     else:
                         log.warning(
-                            f"Method {method_name} for database {db_name} is not enabled or does not exist in config."
+                            f"Method {method_name} for database {db_name} is not enabled or does not "
+                            f"exist in "
+                            f"config."
                         )
 
     log.debug(f"Final endpoint specs: {endpoint_specs}")

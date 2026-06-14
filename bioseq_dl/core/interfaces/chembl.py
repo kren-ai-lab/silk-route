@@ -17,7 +17,8 @@ log = get_logger("bioseq_dl.interfaces.chembl")
 
 # For the moment, only activity is necessary, but more methods can be added later.
 
-# The main methods that are used in the webUI version of ChEMBL are 'Target', 'Assay', 'Cell Line' and 'Molecule'.
+# The main methods that are used in the webUI version of ChEMBL are 'Target', 'Assay', 'Cell Line' and
+# 'Molecule'.
 # These methods allow for searching ChEMBL for targets, assays, cell lines and molecules respectively
 # These methods accept query search or filtering by parameters.
 # Filter rules are described in https://chembl.gitbook.io/chembl-interface-documentation/web-services/chembl-data-web-services
@@ -280,12 +281,14 @@ class ChEMBLInterface(BaseAPIInterface):
             if key in query and not check(query[key]):
                 if key == "target_chembl_id":
                     log.error(
-                        f"Invalid target_chembl_id: {query['target_chembl_id']}. It should be a non-empty string."
+                        f"Invalid target_chembl_id: {query['target_chembl_id']}. It should be a non-empty "
+                        f"string."
                     )
                     return {}
                 if key == "pchembl_value":
                     log.error(
-                        f"Invalid pchembl_value: {query['pchembl_value']}. It should be a number (int or float)."
+                        f"Invalid pchembl_value: {query['pchembl_value']}. It should be a number (int or "
+                        f"float)."
                     )
                     return {}
         return None
@@ -415,7 +418,10 @@ class ChEMBLInterface(BaseAPIInterface):
         elif method in ["target", "assay", "cell_line", "molecule"]:
             if "query" in validated_params:
                 query_str = validated_params.pop("query")
-                url = f"{CHEMBL.API_URL}{method}/search.json?limit={limit if limit is not None else 20}&q={query_str}"
+                url = (
+                    f"{CHEMBL.API_URL}{method}/search.json"
+                    f"?limit={limit if limit is not None else 20}&q={query_str}"
+                )
             else:
                 url = f"{CHEMBL.API_URL}{method}?"
                 if self.validate_filter_rules(validated_params["filters"]):
@@ -436,7 +442,10 @@ class ChEMBLInterface(BaseAPIInterface):
                 )
                 url = f"{CHEMBL.API_URL}activity.json?{urlencode(filter_params)}"
             else:
-                url = f"{CHEMBL.API_URL}{method.replace('-', '/')}.json?limit={limit if limit is not None else 20}&q={query_str.replace(' ', '%20')}"
+                url = (
+                    f"{CHEMBL.API_URL}{method.replace('-', '/')}.json"
+                    f"?limit={limit if limit is not None else 20}&q={query_str.replace(' ', '%20')}"
+                )
         else:
             log.error(f"Method {method} is not implemented in fetch.")
             return {}
@@ -493,7 +502,8 @@ class ChEMBLInterface(BaseAPIInterface):
 
             if not isinstance(item["filter_type"], str) or item["filter_type"] not in allowed_filter_types:
                 log.error(
-                    f"Filter 'filter_type' is not valid: {item['filter_type']}. Allowed: {sorted(allowed_filter_types)}"
+                    f"Filter 'filter_type' is not valid: {item['filter_type']}. Allowed: "
+                    f"{sorted(allowed_filter_types)}"
                 )
                 return False
 

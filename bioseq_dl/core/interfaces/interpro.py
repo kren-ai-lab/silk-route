@@ -176,7 +176,10 @@ class InterproInterface(BaseAPIInterface):
 
         if not isinstance(query, dict):
             log.error(
-                "Query must be a dictionary containing 'db', 'entry_integration', 'modifiers', 'filter_type', 'filter_db', and 'filter_value' keys."
+                "Query must be a dictionary containing 'db', 'entry_integration', 'modifiers', "
+                "'filter_type', "
+                "'filter_db', and 'filter_value' "
+                "keys."
             )
             return {}
 
@@ -198,7 +201,8 @@ class InterproInterface(BaseAPIInterface):
                     url += f"{f['type']}/{f['db']}/{f['value']}/"
                 else:
                     log.error(
-                        f"Invalid filter: {f}. Valid filters are of type {filter_types} with databases {db_types[f['type']]}."
+                        f"Invalid filter: {f}. Valid filters are of type {filter_types} with databases "
+                        f"{db_types[f['type']]}."
                     )
                     return {}
 

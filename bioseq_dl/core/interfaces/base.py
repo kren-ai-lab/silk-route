@@ -406,7 +406,8 @@ class BaseAPIInterface(ABC):
         fields_to_extract = kwargs.pop("fields_to_extract", None)
 
         log.debug(
-            f"_maybe_parse called with parse={parse}, format={fmt}, config_key={config_key}, fields_to_extract={fields_to_extract}"
+            f"_maybe_parse called with parse={parse}, format={fmt}, config_key={config_key}, "
+            f"fields_to_extract={fields_to_extract}"
         )
         if parse:
             if not fields_to_extract and self.use_config:
@@ -485,7 +486,8 @@ class BaseAPIInterface(ABC):
         """Validate types and defaults from spec["parameters"].
 
         - Applies defaults from ``spec["parameters"]`` for any key absent from the query.
-        - If a value is a list and its name is in ``spec["group_queries"]``, joins it with ``spec["separator"]``.
+        - If a value is a list and its name is in ``spec["group_queries"]``, joins it with
+          ``spec["separator"]``.
         """
         params = {}
         separator = spec.get("separator", ",")
@@ -524,7 +526,10 @@ class BaseAPIInterface(ABC):
     ) -> tuple:
         """Initialize HTTP method params and build query inputs."""
         if method not in method_definition:
-            msg = f"Method '{method}' is not defined in the method definition. Available methods: {list(method_definition.keys())}"
+            msg = (
+                f"Method '{method}' is not defined in the method definition. Available methods: "
+                f"{list(method_definition.keys())}"
+            )
             raise ValueError(msg)
 
         option = kwargs.get("option") if "option" in kwargs else None
@@ -614,7 +619,10 @@ class BaseAPIInterface(ABC):
             msg = f"Method '{method}' is not supported. Available methods: {list(self.METHODS.keys())}"
             raise ValueError(msg)
         if option and option not in self.METHODS[method]:
-            msg = f"Option '{option}' is not valid for method '{method}'. Allowed options: {self.METHODS[method].keys()}"
+            msg = (
+                f"Option '{option}' is not valid for method '{method}'. Allowed options: "
+                f"{self.METHODS[method].keys()}"
+            )
             raise ValueError(msg)
 
         method_spec = self.METHODS[method].get(option, self.METHODS[method])
@@ -651,7 +659,7 @@ class BaseAPIInterface(ABC):
         return subqueries
 
     def get_matching_values(self, query: dict) -> list[str]:
-        """Extract values from the subquery used for matching items in the full result, relying on self.subquery_match_keys."""
+        """Extract values from the subquery used to match items, per self.subquery_match_keys."""
         keys = self.get_subquery_match_keys()
 
         if not keys:
@@ -850,7 +858,8 @@ class BaseAPIInterface(ABC):
             metadata["cached_subqueries"] = [query]
             raw = self.load_cache(cache_key)
         else:
-            # TODO(diego): Probably is necesary to give the user the option to not save empty results, check if it is a problem in some APIs
+            # TODO(diego): Probably is necesary to give the user the option to not save empty results, check
+            # if it is a problem in some APIs
             log.debug(f"No cache found for identifier: {identifier}, fetching from API.")
             raw = self.fetch(params, *args, **kwargs)
             # Save to cache even if empty, to avoid refetching known empty results
@@ -883,7 +892,8 @@ class BaseAPIInterface(ABC):
             **kwargs: Keyword arguments; notable keys: config_key, fields_to_extract, format, method, option.
 
         Returns:
-            Tuple[Union[List, pd.DataFrame, bytes, str], Dict]: Fetched (and optionally parsed) data and metadata.
+            Tuple[Union[List, pd.DataFrame, bytes, str], Dict]: Fetched (and optionally parsed) data and
+            metadata.
 
         """
         metadata = self._empty_metadata()

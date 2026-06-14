@@ -38,7 +38,7 @@ class EndpointSpec:
 
 
 class CrossRefEnricher:
-    """A reusable, high-level orchestrator to enrich a dataframe of sequences/IDs with cross-references fetched from multiple biological APIs.
+    """Reusable orchestrator that enriches a dataframe of sequences/IDs with cross-references from APIs.
 
     Key features:
     - Auto-detect available columns and validate per-endpoint requirements (optional).
@@ -119,7 +119,8 @@ class CrossRefEnricher:
     ) -> tuple[pd.DataFrame | list[dict[str, Any]], dict]:
         """Build query from row using the registered query-builder.
 
-        Performs ``fetch_single`` or ``fetch_batch`` and merges the API result with the original row (row-expanded).
+        Performs ``fetch_single`` or ``fetch_batch`` and merges the API result with the original row
+        (row-expanded).
         """
         metadata = {}
         # Search for an available builder via a search key: {database}_{endpoint}[_option]
@@ -139,7 +140,10 @@ class CrossRefEnricher:
         elif isinstance(query_params, list) and len(query_params) > 1:
             # If is a list of dicts, use batch
             log.debug(
-                f"Batch querying {spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''} with {len(query_params)} queries and method_params: {method_params}"
+                f"Batch querying "
+                f"{spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''} with "
+                f"{len(query_params)} queries and method_params: "
+                f"{method_params}"
             )
             result, metadata = instance.fetch_batch(queries=query_params, **method_params)
         # Handle unexpected query_params format
@@ -165,7 +169,8 @@ class CrossRefEnricher:
                     merged[key] = merged[key] + value  # Concatenate lists
                 elif isinstance(merged[key], (int, float)) and isinstance(value, (int, float)):
                     merged[key] = merged[key] + value  # Sum counts
-                # Special case: data_info, in this case we just need to sum n_missing, because all metadata values have the same
+                # Special case: data_info, in this case we just need to sum n_missing, because all metadata
+                # values have the same
                 # structure across endpoints, so they will be overridden by the same value.
                 elif key == "data_info":
                     if "total_entries" in merged[key] and "total_entries" in value:
@@ -274,7 +279,8 @@ class CrossRefEnricher:
                     cleaned_results.extend(item)
             return cleaned_results, all_metadata
         if fmt == "xml":
-            # TODO(diego): check if this code is correct, i did a lot of changes recently regarding XML exporting
+            # TODO(diego): check if this code is correct, i did a lot of changes recently regarding XML
+            # exporting
             # Make final root
             merged_root = Element("results")
 
@@ -313,12 +319,14 @@ class CrossRefEnricher:
         metadata = {}
         for spec in self.endpoint_specs:
             log.debug(
-                f"Processing {spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''}..."
+                f"Processing "
+                f"{spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''}..."
             )
             log.info(f"Checking availability for interface: {spec.database}")
             self._check_interface_availability(spec.database)
             log.info(
-                f"Checking required columns for {spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''}..."
+                f"Checking required columns for "
+                f"{spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''}..."
             )
             self._check_required_columns(df, spec)
 
@@ -326,18 +334,17 @@ class CrossRefEnricher:
             instance = self._build_interface(spec.database)
             params = self._prepare_params(spec)
             log.info(
-                f"Prepared params for {spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''}: {params}"
+                f"Prepared params for "
+                f"{spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''}: "
+                f"{params}"
             )
 
             processed_data, processed_metadata = self._process_dataframe(df, instance, spec, params, fmt)
             results.update(
                 {f"{spec.database}_{spec.endpoint}{'_' + spec.option if spec.option else ''}": processed_data}
             )
-            metadata.update(
-                {
-                    f"{spec.database}_{spec.endpoint}{'_' + spec.option if spec.option else ''}": processed_metadata
-                }
-            )
+            metadata_key = f"{spec.database}_{spec.endpoint}{'_' + spec.option if spec.option else ''}"
+            metadata.update({metadata_key: processed_metadata})
 
         if fmt == "dataframe":
             return results, metadata

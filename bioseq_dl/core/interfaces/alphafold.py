@@ -47,9 +47,12 @@ class AlphafoldInterface(BaseAPIInterface):
         """Initialize the AlphafoldInterface.
 
         Args:
-            structures (List[str]): List of structures extensions to download. Available options are pdb, cif, bcif, none.
-            cache_dir (str): Directory to cache API responses. If None, defaults to the cache directory defined in constants.
-            config_dir (str): Directory for configuration files. If None, defaults to the config directory defined in constants.
+            structures (List[str]): List of structures extensions to download. Available options are pdb, cif,
+                bcif, none.
+            cache_dir (str): Directory to cache API responses. If None, defaults to the cache directory
+                defined in constants.
+            config_dir (str): Directory for configuration files. If None, defaults to the config directory
+                defined in constants.
             output_dir (str): Directory to save downloaded files. If None, defaults to the cache directory.
             **kwargs: Passed through to the base class.
 

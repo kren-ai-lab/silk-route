@@ -54,8 +54,10 @@ class PDBInterface(BaseAPIInterface):
         Args:
             batch_size (int): Number of entries to process in each batch.
             download_structures (bool): Whether to download structure files. Default is False.
-            cache_dir (str): Directory to cache API responses. If None, defaults to the cache directory defined in constants.
-            config_dir (str): Directory for configuration files. If None, defaults to the config directory defined in constants.
+            cache_dir (str): Directory to cache API responses. If None, defaults to the cache directory
+                defined in constants.
+            config_dir (str): Directory for configuration files. If None, defaults to the config directory
+                defined in constants.
             output_dir (str): Directory to save downloaded files. If None, defaults to the cache directory.
             **kwargs: Passed through to the base class.
 

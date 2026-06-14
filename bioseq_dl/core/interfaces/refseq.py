@@ -63,8 +63,10 @@ class RefSeqInterface(BaseAPIInterface):
 
         Args:
             email (str): Email address for NCBI Entrez.
-            cache_dir (str): Directory to cache API responses. If None, defaults to the cache directory defined in constants.
-            config_dir (str): Directory for configuration files. If None, defaults to the config directory defined in constants.
+            cache_dir (str): Directory to cache API responses. If None, defaults to the cache directory
+                defined in constants.
+            config_dir (str): Directory for configuration files. If None, defaults to the config directory
+                defined in constants.
             **kwargs: Passed through to the base class.
 
         """

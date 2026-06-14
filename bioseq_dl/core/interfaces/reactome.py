@@ -96,7 +96,8 @@ class ReactomeInterface(BaseAPIInterface):
             return {}
         if secondary_method not in methods[primary_method]:
             log.error(
-                f"Method '{secondary_method}' is not supported. Supported methods are: {methods[primary_method]}"
+                f"Method '{secondary_method}' is not supported. Supported methods are: "
+                f"{methods[primary_method]}"
             )
             return {}
 

@@ -325,7 +325,8 @@ class UniprotInterface(BaseAPIInterface):
             id_groups = self.group_ids_by_type(ids)
 
             log.debug(
-                f"Auto db has identified the following ID groups: { {k: len(v) for k, v in id_groups.items()} }"
+                f"Auto db has identified the following ID groups: "
+                f"{ {k: len(v) for k, v in id_groups.items()} }"
             )
             for db_type, id_list in id_groups.items():
                 if not id_list or db_type == "unknown":
@@ -458,7 +459,9 @@ class UniprotInterface(BaseAPIInterface):
                 started_at = datetime.fromtimestamp(time_started, tz=UTC).isoformat()
                 log.info("UniProt stream request started (path=%s)", endpoint_path)
                 log.debug(
-                    "UniProt stream request details: query=%s fields=%s sort=%s include_isoform=%s timeout=%s started_at=%s",
+                    "UniProt stream request details: query=%s fields=%s sort=%s include_isoform=%s "
+                    "timeout=%s "
+                    "started_at=%s",
                     query,
                     fields,
                     sort,
