@@ -36,7 +36,7 @@ class BrendaInterface(BaseAPIInterface):
         password: str | None = None,
         cache_dir: str | None = None,
         config_dir: str | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Initialize the BrendaInstance.
 
@@ -65,7 +65,7 @@ class BrendaInterface(BaseAPIInterface):
                 for method_name in port.binding._methods.keys():
                     print(f"- {method_name}")  # noqa: T201
 
-    def fetch(self, query: str | dict | list, *, method: str = "getKmValue", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "getKmValue", **kwargs: Any) -> dict | list:
         """Fetch data from BRENDA for a given EC number and organism.
 
         Args:
@@ -150,7 +150,7 @@ class BrendaInterface(BaseAPIInterface):
         params = self.METHODS[method_name]
         return f"Parameters for {method_name}: {', '.join(params)}"
 
-    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs):
+    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> dict | list:
         """Parse the response from the BioGRID API.
 
         Args:

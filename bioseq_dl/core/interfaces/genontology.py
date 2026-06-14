@@ -62,7 +62,7 @@ class GenOntologyInterface(BaseAPIInterface):
         },
     }
 
-    def fetch(self, query: str | dict | list, *, method: str = "ontology-term", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "ontology-term", **kwargs: Any) -> dict | list:
         """Fetch data from the GenOntology API.
 
         Args:
@@ -118,7 +118,7 @@ class GenOntologyInterface(BaseAPIInterface):
             log.exception(f"Error fetching data from {url}")
             return {}
 
-    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs) -> dict | list:
+    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> dict | list:
         """Parse the response from the GenOntology API.
 
         Args:
@@ -180,13 +180,13 @@ class GenOntologyInterface(BaseAPIInterface):
         return parsed
 
     def fetch_single(
-        self, query: str | dict, parse: bool = False, *args, **kwargs
+        self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
     ) -> list | dict | pd.DataFrame:
         option = kwargs.pop("option", "default")
         return super().fetch_single(*args, query=query, parse=parse, option=option, **kwargs)
 
     def fetch_batch(
-        self, queries: list[str | dict], parse: bool = False, *args, **kwargs
+        self, queries: list[str | dict], parse: bool = False, *args: Any, **kwargs: Any
     ) -> list | pd.DataFrame:
         option = kwargs.pop("option", "default")
         return super().fetch_batch(*args, queries=queries, parse=parse, option=option, **kwargs)

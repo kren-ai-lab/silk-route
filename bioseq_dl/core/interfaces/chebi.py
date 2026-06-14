@@ -1,4 +1,5 @@
 import json
+from typing import Any
 from urllib.parse import quote
 
 from requests import Request
@@ -86,7 +87,7 @@ class ChEBIInterface(BaseAPIInterface):
         # }
     }
 
-    def fetch(self, query: str | dict | list, *, method: str = "compound", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "compound", **kwargs: Any) -> dict | list:
         if method not in self.METHODS.keys():
             log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
             return {}
@@ -153,7 +154,7 @@ class ChEBIInterface(BaseAPIInterface):
         else:
             return response
 
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
         if not data:
             log.warning("Tried to parse data but the data is empty or None.")
             return {}

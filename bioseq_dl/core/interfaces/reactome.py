@@ -1,3 +1,5 @@
+from typing import Any
+
 import requests
 
 from bioseq_dl.constants.databases import REACTOME
@@ -59,7 +61,7 @@ class ReactomeInterface(BaseAPIInterface):
                 log.error(msg)
                 raise ConfigError(msg)
 
-    def fetch(self, query: str | dict | list, *, method: str = "data", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "data", **kwargs: Any) -> dict | list:
         """Download pathways from a given Reactome pathway ID.
 
         Args:
@@ -120,7 +122,7 @@ class ReactomeInterface(BaseAPIInterface):
             log.exception(f"Error fetching prediction for {query}")
             return {}
 
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
         """Parse the pathway data.
 
         Args:

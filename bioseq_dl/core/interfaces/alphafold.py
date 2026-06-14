@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import pandas as pd
 from requests import Request
@@ -38,7 +38,7 @@ class AlphafoldInterface(BaseAPIInterface):
         cache_dir: str | None = None,
         config_dir: str | None = None,
         output_dir: str | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Initialize the AlphafoldInterface.
 
@@ -60,7 +60,7 @@ class AlphafoldInterface(BaseAPIInterface):
         self.structures = structures
 
     def fetch_single(
-        self, query: str | dict, parse: bool = False, *args, **kwargs
+        self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
     ) -> tuple[list | dict | pd.DataFrame, dict]:
         if not isinstance(query, str):
             log.error("Query must be a string representing a AlphaFold ID.")
@@ -82,7 +82,7 @@ class AlphafoldInterface(BaseAPIInterface):
         return result, metadata
 
     def fetch_batch(
-        self, queries: list[str | dict], parse: bool = False, *args, **kwargs
+        self, queries: list[str | dict], parse: bool = False, *args: Any, **kwargs: Any
     ) -> tuple[list | pd.DataFrame, dict]:
         if not isinstance(queries, list) or not isinstance(queries[0], str):
             log.error("Queries must be a list of strings representing AlphaFold IDs.")
@@ -107,7 +107,7 @@ class AlphafoldInterface(BaseAPIInterface):
             return new_results, metadata
         return results, metadata
 
-    def fetch(self, query: str | dict | list, *, method: str = "prediction", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "prediction", **kwargs: Any) -> dict | list:
         """Get prediction for a given UniProt ID.
 
         Args:
@@ -205,7 +205,7 @@ class AlphafoldInterface(BaseAPIInterface):
 
         return parsed if parsed is not None else {}
 
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
         """Parse data by extracting specified fields or returning the entire structure.
 
         Args:
@@ -236,7 +236,7 @@ class AlphafoldInterface(BaseAPIInterface):
 
         return self._extract_fields(data, fields_to_extract)
 
-    def save(self, data: list | dict, filename: str, extension: str = "csv"):
+    def save(self, data: list | dict, filename: str, extension: str = "csv") -> str | None:
         """Save the parsed data to a file.
 
         Args:

@@ -86,8 +86,8 @@ ignore = [
     # Documentation (no docstrings on legacy code yet)
     "D100", "D101", "D102", "D103", "D104", "D105", "D107",
     "D200", "D205", "D400", "D401", "D404", "D415", "D417", "D301",
-    # Type annotations (legacy code is largely unannotated)
-    "ANN001", "ANN002", "ANN003", "ANN201", "ANN202", "ANN204", "ANN401",
+    # ANN401 (Any type): intentional for passthrough **kwargs and dynamic JSON API responses
+    "ANN401",
     # Logging string style (f-strings in log calls are pervasive and acceptable here)
     "G003", "G004",
     # Deliberate error-handling style: TRY301 (validate-then-convert-to-Exit) and

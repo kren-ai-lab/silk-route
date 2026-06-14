@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 import requests
 from requests import Request
@@ -33,14 +34,16 @@ class SabiorkInterface(BaseAPIInterface):
         cache_dir: str | None = None,
         config_dir: str | None = None,
         output_dir: str | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
         self.output_dir = output_dir or self.cache_dir
         Path(self.output_dir).mkdir(parents=True, exist_ok=True)
 
-    def fetch(self, query: str | dict | list, *, method: str = "kineticlaws", **kwargs):
+    def fetch(
+        self, query: str | dict | list, *, method: str = "kineticlaws", **kwargs: Any
+    ) -> dict | list | str:
         """Fetch data from the Sabio-RK API based on the provided query."""
         if method not in self.METHODS:
             msg = f"Method '{method}' is not supported. Available methods: {list(self.METHODS.keys())}"
@@ -101,5 +104,5 @@ class SabiorkInterface(BaseAPIInterface):
         else:
             return response.text
 
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
         return self._extract_fields(data, fields_to_extract)

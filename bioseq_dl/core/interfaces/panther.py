@@ -1,3 +1,5 @@
+from typing import Any
+
 from requests import Request
 from requests.exceptions import RequestException
 from requests.models import Response
@@ -44,7 +46,7 @@ class PantherInterface(BaseAPIInterface):
         },
     }
 
-    def fetch(self, query: str | dict | list, *, method: str = "geneinfo", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "geneinfo", **kwargs: Any) -> dict | list:
         http_method, path_param, parameters, inputs = self.initialize_method_parameters(
             query, method, self.METHODS, **kwargs
         )
@@ -90,7 +92,7 @@ class PantherInterface(BaseAPIInterface):
         else:
             return response
 
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
         if not data:
             log.warning("Tried to parse data but the data is empty or None.")
             return {}

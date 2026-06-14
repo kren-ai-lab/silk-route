@@ -1,3 +1,5 @@
+from typing import Any
+
 from requests import Request
 from requests.exceptions import RequestException
 
@@ -38,7 +40,7 @@ class BioDBNetInterface(BaseAPIInterface):
         },
     }
 
-    def fetch(self, query: str | dict | list, *, method: str = "getpathways", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "getpathways", **kwargs: Any) -> dict | list:
         if method not in self.METHODS.keys():
             log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
             return {}
@@ -76,7 +78,7 @@ class BioDBNetInterface(BaseAPIInterface):
             log.exception(f"Error fetching {query} for method '{method}'")
             return {}
 
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
 
         if not data:
             log.warning("Tried to parse data but the data is empty or None.")

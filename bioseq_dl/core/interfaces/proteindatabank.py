@@ -43,7 +43,7 @@ class PDBInterface(BaseAPIInterface):
         cache_dir: str | None = None,
         config_dir: str | None = None,
         output_dir: str | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Initialize the PDBInterface.
         Args:.
@@ -64,7 +64,7 @@ class PDBInterface(BaseAPIInterface):
         self.batch_size = batch_size
         self.download_structures = download_structures
 
-    def fetch(self, query: str | dict | list, *, method: str = "entry", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "entry", **kwargs: Any) -> dict | list:
         """Run a query to fetch data from the PDB database.
 
         Args:
@@ -155,7 +155,7 @@ class PDBInterface(BaseAPIInterface):
             return ""
 
     def fetch_single(
-        self, query: str | dict | list[str], parse: bool = False, *args, **kwargs
+        self, query: str | dict | list[str], parse: bool = False, *args: Any, **kwargs: Any
     ) -> list | dict | pd.DataFrame:
 
         if self.download_structures and query and isinstance(query, str):
@@ -163,7 +163,7 @@ class PDBInterface(BaseAPIInterface):
         return super().fetch_single(query, parse, *args, **kwargs)
 
     def fetch_batch(
-        self, queries: list[str | dict], parse: bool = False, *args, **kwargs
+        self, queries: list[str | dict], parse: bool = False, *args: Any, **kwargs: Any
     ) -> list | pd.DataFrame:
         results = super().fetch_batch(queries, parse, *args, **kwargs)
         if self.download_structures:
@@ -172,7 +172,7 @@ class PDBInterface(BaseAPIInterface):
                     self.fetch_structure(query)
         return results
 
-    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs):
+    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> dict | list:
         """Parse data by extracting specified fields or returning the entire structure.
 
         Args:

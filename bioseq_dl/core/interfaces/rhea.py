@@ -1,3 +1,5 @@
+from typing import Any
+
 from requests import Request
 from requests.exceptions import RequestException
 from requests.models import Response
@@ -30,7 +32,7 @@ class RheaInterface(BaseAPIInterface):
         }
     }
 
-    def fetch(self, query: str | dict | list, *, method: str = "rhea", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "rhea", **kwargs: Any) -> dict | list:
         if method not in self.METHODS.keys():
             log.error(f"Method '{method}' is not supported. Available methods: {list(self.METHODS.keys())}")
             return {}
@@ -70,7 +72,7 @@ class RheaInterface(BaseAPIInterface):
 
             return response
 
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
         if not data:
             return {}
 

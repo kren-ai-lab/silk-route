@@ -47,7 +47,9 @@ class StringInterface(BaseAPIInterface):
         # Add other methods as needed
     }
 
-    def fetch(self, query: str | dict | list, *, method: str = "get_string_ids", **kwargs):
+    def fetch(
+        self, query: str | dict | list, *, method: str = "get_string_ids", **kwargs: Any
+    ) -> dict | list:
         """Fetch data from the STRING API.
 
         Args:
@@ -101,7 +103,7 @@ class StringInterface(BaseAPIInterface):
             log.exception(f"Error fetching {query} for method '{method}'")
             return {}
 
-    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs) -> Any:
+    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> Any:
         """Parse the response from the STRING API.
 
         Args:

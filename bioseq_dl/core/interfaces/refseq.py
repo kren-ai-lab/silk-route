@@ -1,3 +1,5 @@
+from typing import Any
+
 from Bio import Entrez
 from Bio.Entrez.Parser import DictionaryElement, ListElement, StringElement
 
@@ -51,7 +53,7 @@ class RefSeqInterface(BaseAPIInterface):
     }
 
     def __init__(
-        self, email: str = "", cache_dir: str | None = None, config_dir: str | None = None, **kwargs
+        self, email: str = "", cache_dir: str | None = None, config_dir: str | None = None, **kwargs: Any
     ) -> None:
         """Initialize the RefSeqInterface class.
 
@@ -70,7 +72,7 @@ class RefSeqInterface(BaseAPIInterface):
         if is_valid_secret(self.email):
             Entrez.email = self.email
 
-    def to_native(self, obj):
+    def to_native(self, obj: Any) -> Any:
         """Convert EntrezDict to native Python types.
 
         Args:
@@ -88,7 +90,7 @@ class RefSeqInterface(BaseAPIInterface):
             return str(obj)
         return obj
 
-    def fetch(self, query: str | dict | list, *, method: str = "protein", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "protein", **kwargs: Any) -> dict | list:
         """Fetch data from NCBI Entrez for a given ID.
 
         Args:
@@ -120,7 +122,7 @@ class RefSeqInterface(BaseAPIInterface):
 
         return self.to_native(records)
 
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
         """Parse the fetched data into a DataFrame.
 
         Args:

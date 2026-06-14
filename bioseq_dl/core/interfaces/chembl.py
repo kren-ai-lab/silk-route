@@ -254,7 +254,7 @@ class ChEMBLInterface(BaseAPIInterface):
         return params
 
     # DEPRECATED - Use validate_parameters instead
-    def validate_query(self, method: str, query: dict):
+    def validate_query(self, method: str, query: dict) -> None:
         """Validate the query parameters.
 
         Args:
@@ -285,7 +285,7 @@ class ChEMBLInterface(BaseAPIInterface):
                     return {}
         return None
 
-    def fetch_pages(self, next_url: str, method: str, pages_to_fetch: int = 1):
+    def fetch_pages(self, next_url: str, method: str, pages_to_fetch: int = 1) -> dict | list:
         """Fetch the next page of results from the ChEMBL API.
 
         Args:
@@ -353,7 +353,7 @@ class ChEMBLInterface(BaseAPIInterface):
 
         return responses
 
-    def fetch(self, query: str | dict | list, *, method: str = "activity", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "activity", **kwargs: Any) -> dict | list:
         """Fetch data from the ChEMBL API.
 
         Args:
@@ -496,7 +496,7 @@ class ChEMBLInterface(BaseAPIInterface):
 
         return True
 
-    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs) -> dict | list:
+    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> dict | list:
         """Parse the response from the ChEMBL API.
 
         Args:

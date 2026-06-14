@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 from xml.etree.ElementTree import Element, ElementTree
 
 import pandas as pd
 
-from bioseq_dl.core.utils.query_builders import INTERFACE_CLASSES, QUERY_BUILDERS
+from bioseq_dl.core.utils.query_builders import INTERFACE_CLASSES, QUERY_BUILDERS, QueryBuilder
+
+if TYPE_CHECKING:
+    from bioseq_dl.core.interfaces.base import BaseAPIInterface
 from bioseq_dl.core.utils.xmlhandler import elementtree_to_dataframe
 from bioseq_dl.logging import get_logger
 
@@ -79,7 +82,7 @@ class CrossRefEnricher:
 
         return params
 
-    def _build_interface(self, database_name: str):
+    def _build_interface(self, database_name: str) -> BaseAPIInterface:
         """Create the correct interface instance with configured max_workers and total_retries."""
         if database_name not in INTERFACE_CLASSES:
             msg = f"Unsupported database: {database_name}"
@@ -97,7 +100,7 @@ class CrossRefEnricher:
             return f"{spec.database}_{spec.endpoint}_{spec.option}"
         return f"{spec.database}_{spec.endpoint}"
 
-    def _resolve_query_builder(self, spec: EndpointSpec):
+    def _resolve_query_builder(self, spec: EndpointSpec) -> QueryBuilder:
         """English docs:
         Find the query builder callable from QUERY_BUILDERS registry.
         """
@@ -295,7 +298,7 @@ class CrossRefEnricher:
         self,
         data: pd.DataFrame | list[dict[str, Any]] | dict[str, Any] | ElementTree | str,
         format: Literal["dataframe", "json", "xml"] = "dataframe",
-    ):
+    ) -> tuple[dict, dict]:
         """Enrich the input DataFrame with cross-references from specified endpoints."""
         # For an easier handling, convert input data to DataFrame if needed
         if isinstance(data, (list, dict)):

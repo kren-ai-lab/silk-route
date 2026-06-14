@@ -304,7 +304,7 @@ class BaseAPIInterface(ABC):
             result[k] = v
         return result
 
-    def _make_cache_key(self, input_obj: str | dict, **kwargs) -> str:
+    def _make_cache_key(self, input_obj: str | dict, **kwargs: Any) -> str:
         """Generate a string key from the input object."""
         # Serialize input_obj based on its type
         if isinstance(input_obj, dict):
@@ -377,7 +377,7 @@ class BaseAPIInterface(ABC):
         """Return the configuration dictionary for a given key (config filename without extension)."""
         return self.configs.get(key, {})
 
-    def _resolve_fields_from_kwargs(self, **kwargs) -> dict | None:
+    def _resolve_fields_from_kwargs(self, **kwargs: Any) -> dict | None:
         """Resolve fields_to_extract by matching kwargs values against keys in fields.yml.
 
         Returns the config entry whose key matches the ``method`` (or any string
@@ -402,7 +402,7 @@ class BaseAPIInterface(ABC):
         return None
 
     def _maybe_parse(
-        self, data, parse: bool, format: Literal["dataframe", "json", "xml"], **kwargs
+        self, data: Any, parse: bool, format: Literal["dataframe", "json", "xml"], **kwargs: Any
     ) -> list | dict | pd.DataFrame | bytes | str:
         config_key = kwargs.pop("config_key", None)
         fields_to_extract = kwargs.pop("fields_to_extract", None)
@@ -472,7 +472,7 @@ class BaseAPIInterface(ABC):
     # Methods to handle complex queries and making subqueries using METHODS
     ##################
 
-    def _get_method_spec(self, **kwargs) -> dict[str, Any]:
+    def _get_method_spec(self, **kwargs: Any) -> dict[str, Any]:
         method = kwargs.get("method")
         if method not in self.METHODS:
             msg = f"Unknown method '{method}'"
@@ -483,7 +483,7 @@ class BaseAPIInterface(ABC):
             return self.METHODS[method].get(option, {})
         return self.METHODS[method]
 
-    def _prepare_params(self, query, spec, **overrides) -> dict:
+    def _prepare_params(self, query: dict, spec: dict, **overrides: Any) -> dict:
         """- Validates types and defaults from spec["parameters"]
         - If value is a list and name is in spec["group_queries"], joins with spec["separator"]
         """
@@ -513,7 +513,7 @@ class BaseAPIInterface(ABC):
 
         return params
 
-    def _make_identifier(self, query, spec) -> str:
+    def _make_identifier(self, query: dict, spec: dict) -> str:
         """Construye un identificador único a partir de las keys is_id=True,
         usado para nombrar el cache key.
         """
@@ -529,8 +529,8 @@ class BaseAPIInterface(ABC):
         return "_".join(parts)
 
     def initialize_method_parameters(
-        self, query: str | dict | list, method: str, method_definition: dict, **kwargs
-    ):
+        self, query: str | dict | list, method: str, method_definition: dict, **kwargs: Any
+    ) -> tuple:
         if method not in method_definition:
             msg = f"Method '{method}' is not defined in the method definition. Available methods: {list(method_definition.keys())}"
             raise ValueError(msg)
@@ -708,7 +708,7 @@ class BaseAPIInterface(ABC):
 
         return mapping
 
-    def merge_dicts(self, dicts):
+    def merge_dicts(self, dicts: list[dict]) -> dict:
         merged = {}
         for d in dicts:
             for k, v in d.items():
@@ -729,7 +729,7 @@ class BaseAPIInterface(ABC):
     ###################
 
     def fetch_single(
-        self, query: str | dict, parse: bool = False, *args, **kwargs
+        self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
     ) -> tuple[list | dict | pd.DataFrame | bytes | str, dict]:
         """General-purpose fetch method with optional parsing and cache handling.
 
@@ -888,7 +888,7 @@ class BaseAPIInterface(ABC):
         return parsed, metadata
 
     def fetch_batch(
-        self, queries: list[str | dict], parse: bool = False, *args, **kwargs
+        self, queries: list[str | dict], parse: bool = False, *args: Any, **kwargs: Any
     ) -> tuple[list | pd.DataFrame | bytes | str, dict]:
         """Fetch data in parallel for a batch of queries.
 
@@ -1021,7 +1021,7 @@ class BaseAPIInterface(ABC):
     ###################
 
     def _extract_fields(
-        self, data: dict | list, fields_to_extract: list | dict | None = None, **kwargs
+        self, data: dict | list, fields_to_extract: list | dict | None = None, **kwargs: Any
     ) -> dict | list:
         """Extract specified fields from the data.
 
@@ -1062,7 +1062,7 @@ class BaseAPIInterface(ABC):
 
         return parsed
 
-    def _do_request(self, query: str | dict | list, *, method: str, **kwargs) -> Response:
+    def _do_request(self, query: str | dict | list, *, method: str, **kwargs: Any) -> Response:
         """Fetch data from the API based on the provided query and method.
 
         Args:
@@ -1118,9 +1118,9 @@ class BaseAPIInterface(ABC):
             return response
 
     @abstractmethod
-    def fetch(self, query: str | dict | list, *, method: str, **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str, **kwargs: Any) -> Any:
         raise NotImplementedError
 
     @abstractmethod
-    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs):
+    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> Any:
         raise NotImplementedError

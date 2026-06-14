@@ -101,7 +101,7 @@ class InterproInterface(BaseAPIInterface):
                 log.error(msg)
                 raise ConfigError(msg)
 
-    def fetch_pages(self, next_url: str, method: str, pages_to_fetch: int = 1):
+    def fetch_pages(self, next_url: str, method: str, pages_to_fetch: int = 1) -> dict | list:
         """Fetch the next page of results from the InterPro API.
 
         Args:
@@ -147,7 +147,7 @@ class InterproInterface(BaseAPIInterface):
         else:
             return responses
 
-    def fetch(self, query: str | dict | list, *, method: str = "entry", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "entry", **kwargs: Any) -> dict | list:
         """Fetch data from InterPro API.
 
         Args:
@@ -203,7 +203,7 @@ class InterproInterface(BaseAPIInterface):
         log.debug(f"Prepared url: {url}")
         return self.fetch_pages(url, method, pages_to_fetch)
 
-    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs) -> dict | list:
+    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> dict | list:
         """Parse the fetched data.
 
         Args:

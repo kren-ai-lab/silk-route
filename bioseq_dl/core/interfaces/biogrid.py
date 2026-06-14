@@ -63,7 +63,7 @@ class BioGRIDInterface(BaseAPIInterface):
         api_key: str | None = None,
         cache_dir: str | None = None,
         config_dir: str | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Initialize the BioGRIDInterface class.
 
@@ -90,7 +90,7 @@ class BioGRIDInterface(BaseAPIInterface):
         """
         return super().get_cache_ignore_keys().union({"accessKey"})
 
-    def fetch(self, query: str | dict | list, *, method: str = "interactions", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "interactions", **kwargs: Any) -> dict | list:
         """Fetch data from the BioGRID API.
 
         Args:
@@ -126,7 +126,7 @@ class BioGRIDInterface(BaseAPIInterface):
 
         return response
 
-    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs) -> dict | list:
+    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> dict | list:
         """Parse the response from the BioGRID API.
 
         Args:

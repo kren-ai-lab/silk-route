@@ -59,7 +59,7 @@ class KEGGInterface(BaseAPIInterface):
     def get_subquery_match_keys(self) -> set[str]:
         return super().get_subquery_match_keys().union({"entries"})
 
-    def validate_query(self, method: str, query: dict):
+    def validate_query(self, method: str, query: dict) -> None:
         """Validate the query parameters.
 
         Args:
@@ -94,7 +94,7 @@ class KEGGInterface(BaseAPIInterface):
                     return {}
         return None
 
-    def fetch(self, query: str | dict | list, *, method: str = "get", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "get", **kwargs: Any) -> dict | list | str:
         """Fetch data from the KEGG API.
 
         Args:
@@ -189,7 +189,7 @@ class KEGGInterface(BaseAPIInterface):
         else:
             return r  # TODO check if for other functions we need to return json or text
 
-    def parse(self, data: Any, fields_to_extract: list | dict | None = None, **kwargs) -> dict | list:
+    def parse(self, data: Any, fields_to_extract: list | dict | None = None, **kwargs: Any) -> dict | list:
         """Parse the response from the KEGG API.
 
         Args:

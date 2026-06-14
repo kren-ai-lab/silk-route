@@ -44,7 +44,7 @@ def download_uniprot_database(
         log.info(f"Database {db_name} already exists at {db_path}.")
 
 
-def get_latest_version_url():
+def get_latest_version_url() -> tuple[str, str]:
     """Retrieve the latest BLAST+ tarball URL from the NCBI FTP site."""
     with urlopen(BLAST_BASE_URL) as response:
         html = response.read().decode("utf-8")
@@ -81,12 +81,12 @@ def download_and_extract_blast(version: str, url: str) -> None:
     log.info(f"BLAST extracted to: {BLAST_DIR.resolve()}")
 
 
-def get_local_blastp_path(version: str):
+def get_local_blastp_path(version: str) -> Path:
     """Return the path to local blastp binary."""
     return BLAST_DIR / f"ncbi-blast-{version}" / "bin" / "blastp"
 
 
-def check_blast():
+def check_blast() -> str | None:
     """Ensure BLAST is installed. Return path to `blastp` binary."""
     if is_blast_installed():
         log.info("System-wide BLAST is installed.")
@@ -170,7 +170,7 @@ def run_blast(sequences: list[str], db_name: str, blast_type: str = "blastp", ev
     Path("tmp/sequences.fasta").unlink()
 
 
-def parse_blast_results(file_path: str, identity_threshold: float = 90.0):
+def parse_blast_results(file_path: str, identity_threshold: float = 90.0) -> list[dict]:
     """Parse BLAST results from a file."""
     with Path(file_path).open() as f:
         results = f.readlines()

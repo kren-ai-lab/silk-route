@@ -268,7 +268,7 @@ class MainWorkflow:
         self,
         modality: str,
         mode: str = "query_first",
-        **kwargs,
+        **kwargs: Any,
     ) -> tuple[Any, dict]:
         """Primary public entry. modality is mandatory and selects the declarative
         pipeline to use (e.g. 'protein', 'compound', 'interaction'). mode selects
@@ -439,7 +439,7 @@ class MainWorkflow:
             )
             return
 
-    def _step_crossref_enrich(self, context: dict, **kwargs) -> None:
+    def _step_crossref_enrich(self, context: dict, **kwargs: Any) -> None:
         args = context.get("searches", {}).get("uniprot", {})
         input_data = context.get("data", {}).get("uniprot")
         cross_ref_fields = normalize_crossref_fields(args.get("additional_crossref_fields"))
@@ -597,7 +597,7 @@ class MainWorkflow:
         uniprot_timeout: float | None = None,
         crossref_endpoint_specs: list[EndpointSpec] | None = None,
         context: dict | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> tuple[dict, dict]:
         """Run the protein modality.
         The most basic form of query is a UniProt query string, e.g. "organism:9606 AND reviewed:true".
@@ -677,7 +677,7 @@ class MainWorkflow:
         export_format: str | None = None,
         chembl_pages_to_fetch: int | None = None,
         context: dict | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> tuple[dict, dict]:
         """Run the compound modality. Query path goes through ChEMBL -> UniProt.
         Some queries can include just ChEMBL searches or ChEMBL + UniProt searches.
@@ -780,7 +780,7 @@ class MainWorkflow:
         query: str,
         interaction_type: Literal["protein-protein", "protein-ligand"] | None = None,
         export_format: str | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> tuple[dict, dict]:
         """Run the interaction modality. If query provided, fetch interaction candidates (BioGRID/ChEMBL)
         and build interactions dataset.
@@ -890,7 +890,7 @@ class MainWorkflow:
         crossref_endpoint_specs: list[EndpointSpec] | None = None,
         search_type: str | None = "activity",
         interaction_type: str | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> tuple[dict, dict]:
         """Interpret `query` and route to the modality-specific handler. Returns (data, metadata)."""
         modality = (modality or "").lower()
@@ -937,7 +937,7 @@ class MainWorkflow:
         enrich: bool = False,
         crossref_endpoint_specs: list[EndpointSpec] | None = None,
         search_type: str | None = "activity",
-        **kwargs,
+        **kwargs: Any,
     ) -> tuple[dict, dict]:
         """Run several queries and tag every row with the provided label.
         This requires a more complex query composition, for example:
@@ -1059,7 +1059,7 @@ class MainWorkflow:
         return final_main, metadata
 
     # ---- Helpers ----
-    def _step_fetch_additional_ppi_interaction_sources(self, context: dict, **kwargs) -> None:
+    def _step_fetch_additional_ppi_interaction_sources(self, context: dict, **kwargs: Any) -> None:
         args = context.get("searches", {}).get("uniprot", {})
         input_data = context.get("data", {}).get("uniprot")
         export_format = args.get("export_format") or self.default_export_format

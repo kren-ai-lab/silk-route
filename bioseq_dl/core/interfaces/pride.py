@@ -1,3 +1,5 @@
+from typing import Any
+
 import pandas as pd
 from requests import Request, Response
 from requests.exceptions import RequestException
@@ -56,7 +58,7 @@ class PrideInterface(BaseAPIInterface):
         },
     }
 
-    def fetch(self, query: str | dict | list, *, method: str = "search", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "search", **kwargs: Any) -> dict | list:
         if method not in self.METHODS.keys():
             log.error(f"Method '{method}' is not defined in the interface.")
             return {}
@@ -105,7 +107,7 @@ class PrideInterface(BaseAPIInterface):
             log.exception(f"Error fetching data from {url}")
             return {}
 
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
 
         if not data:
             return {}
@@ -121,7 +123,7 @@ class PrideInterface(BaseAPIInterface):
         return self._extract_fields(data, fields_to_extract, **kwargs)
 
     def fetch_single(
-        self, query: str | dict, parse: bool = False, *args, **kwargs
+        self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
     ) -> list | dict | pd.DataFrame:
         option = kwargs.pop("option", "default")
         return super().fetch_single(*args, query=query, parse=parse, option=option, **kwargs)

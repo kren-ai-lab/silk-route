@@ -1,4 +1,5 @@
 import json
+from typing import Any
 
 from requests import Request, Response
 from requests.exceptions import RequestException
@@ -59,7 +60,7 @@ class PathwayCommonsInterface(BaseAPIInterface):
         },
     }
 
-    def fetch(self, query: str | dict | list, *, method: str = "SOME_DEFAULT", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "SOME_DEFAULT", **kwargs: Any) -> dict | list:
         if method not in self.METHODS:
             log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
             return {}
@@ -123,7 +124,7 @@ class PathwayCommonsInterface(BaseAPIInterface):
         else:
             return response
 
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
         if not data:
             return {}
 

@@ -1,5 +1,6 @@
 import json
 import urllib.parse
+from typing import Any
 
 import pandas as pd
 from requests import Request, Response
@@ -104,7 +105,7 @@ class PubChemInterface(BaseAPIInterface):
         },
     }
 
-    def fetch(self, query: str | dict | list, *, method: str = "DEFAULT", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "DEFAULT", **kwargs: Any) -> dict | list | str:
         option_given = False
         name_type = None
         option = kwargs.get("option")
@@ -267,7 +268,7 @@ class PubChemInterface(BaseAPIInterface):
         else:
             return response
 
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
         if not data:
             return {}
         option = kwargs.get("option", "default")
@@ -364,13 +365,13 @@ class PubChemInterface(BaseAPIInterface):
         return export_data
 
     def fetch_single(
-        self, query: str | dict, parse: bool = False, *args, **kwargs
+        self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
     ) -> tuple[list | dict | pd.DataFrame, dict]:
         option = kwargs.pop("option", "default")
         return super().fetch_single(*args, query=query, parse=parse, option=option, **kwargs)
 
     def fetch_batch(
-        self, queries: list[str | dict], parse: bool = False, *args, **kwargs
+        self, queries: list[str | dict], parse: bool = False, *args: Any, **kwargs: Any
     ) -> tuple[list | pd.DataFrame, dict]:
         option = kwargs.pop("option", "default")
         return super().fetch_batch(*args, queries=queries, parse=parse, option=option, **kwargs)
