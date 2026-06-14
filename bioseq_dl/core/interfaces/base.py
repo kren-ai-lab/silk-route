@@ -11,6 +11,7 @@ import random
 import re
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, ClassVar, Literal
@@ -726,7 +727,7 @@ class BaseAPIInterface(ABC):
     ###################
 
     def fetch_single(
-        self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
+        self, query: str | dict | list, parse: bool = False, *args: Any, **kwargs: Any
     ) -> tuple[list | dict | pd.DataFrame | bytes | str, dict]:
         """General-purpose fetch method with optional parsing and cache handling.
 
@@ -884,7 +885,7 @@ class BaseAPIInterface(ABC):
         return parsed, metadata
 
     def fetch_batch(
-        self, queries: list[str | dict], parse: bool = False, *args: Any, **kwargs: Any
+        self, queries: Sequence[str | dict], parse: bool = False, *args: Any, **kwargs: Any
     ) -> tuple[list | pd.DataFrame | bytes | str, dict]:
         """Fetch data in parallel for a batch of queries.
 

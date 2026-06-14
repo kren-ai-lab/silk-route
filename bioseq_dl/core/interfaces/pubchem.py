@@ -2,6 +2,7 @@
 
 import json
 import urllib.parse
+from collections.abc import Sequence
 from typing import Any, ClassVar
 
 import pandas as pd
@@ -416,7 +417,7 @@ class PubChemInterface(BaseAPIInterface):
         return super().fetch_single(query, parse, *args, option=option, **kwargs)
 
     def fetch_batch(
-        self, queries: list[str | dict], parse: bool = False, *args: Any, **kwargs: Any
+        self, queries: Sequence[str | dict], parse: bool = False, *args: Any, **kwargs: Any
     ) -> tuple[list | pd.DataFrame | bytes | str, dict]:
         """Fetch a batch of PubChem records."""
         option = kwargs.pop("option", "default")

@@ -1,5 +1,6 @@
 """RCSB Protein Data Bank API interface."""
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -173,7 +174,7 @@ class PDBInterface(BaseAPIInterface):
         return super().fetch_single(query, parse, *args, **kwargs)
 
     def fetch_batch(
-        self, queries: list[str | dict], parse: bool = False, *args: Any, **kwargs: Any
+        self, queries: Sequence[str | dict], parse: bool = False, *args: Any, **kwargs: Any
     ) -> tuple[list | pd.DataFrame | bytes | str, dict]:
         """Fetch a batch of PDB entries and optionally download structure files."""
         results = super().fetch_batch(queries, parse, *args, **kwargs)

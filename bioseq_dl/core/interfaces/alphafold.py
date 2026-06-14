@@ -1,6 +1,7 @@
 """AlphaFold API interface."""
 
 import json
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
@@ -91,7 +92,7 @@ class AlphafoldInterface(BaseAPIInterface):
         return result, metadata
 
     def fetch_batch(
-        self, queries: list[str | dict], parse: bool = False, *args: Any, **kwargs: Any
+        self, queries: Sequence[str | dict], parse: bool = False, *args: Any, **kwargs: Any
     ) -> tuple[list | pd.DataFrame | bytes | str, dict]:
         """Fetch a batch of predictions and optionally download structure files."""
         if not isinstance(queries, list) or not isinstance(queries[0], str):

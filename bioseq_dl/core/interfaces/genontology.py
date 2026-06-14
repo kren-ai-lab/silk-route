@@ -1,5 +1,6 @@
 """Gene Ontology API interface."""
 
+from collections.abc import Sequence
 from http import HTTPStatus
 from typing import Any, ClassVar
 
@@ -197,7 +198,7 @@ class GenOntologyInterface(BaseAPIInterface):
         return super().fetch_single(query, parse, *args, option=option, **kwargs)
 
     def fetch_batch(
-        self, queries: list[str | dict], parse: bool = False, *args: Any, **kwargs: Any
+        self, queries: Sequence[str | dict], parse: bool = False, *args: Any, **kwargs: Any
     ) -> tuple[list | pd.DataFrame | bytes | str, dict]:
         """Fetch a batch of records and resolve related ontology terms."""
         option = kwargs.pop("option", "default")
