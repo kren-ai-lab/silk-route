@@ -1,6 +1,6 @@
 """Rhea reaction database API interface."""
 
-from typing import Any
+from typing import Any, ClassVar
 
 from requests import Request
 from requests.exceptions import RequestException
@@ -21,7 +21,7 @@ class RheaInterface(BaseAPIInterface):
 
     API_NAME = "Rhea"
     DB_CONFIG = RHEA
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "rhea": {
             "http_method": "GET",
             "path_param": None,

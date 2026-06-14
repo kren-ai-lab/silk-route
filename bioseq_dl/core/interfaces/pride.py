@@ -1,6 +1,6 @@
 """PRIDE Archive API interface."""
 
-from typing import Any
+from typing import Any, ClassVar
 
 import pandas as pd
 from requests import Request, Response
@@ -21,7 +21,7 @@ class PrideInterface(BaseAPIInterface):
 
     API_NAME = "PRIDE"
     DB_CONFIG = PRIDE
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "search": {
             "projects": {
                 "http_method": "GET",

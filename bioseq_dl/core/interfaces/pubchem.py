@@ -2,7 +2,7 @@
 
 import json
 import urllib.parse
-from typing import Any
+from typing import Any, ClassVar
 
 import pandas as pd
 from requests import Request, Response
@@ -28,7 +28,7 @@ class PubChemInterface(BaseAPIInterface):
 
     API_NAME = "PubChem"
     DB_CONFIG = PUBCHEM
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "pug/compound": {
             **dict.fromkeys(OPTIONS["pug/compound"], COMPOUND_TEMPLATE),
         },

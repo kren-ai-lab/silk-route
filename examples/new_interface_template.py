@@ -14,7 +14,7 @@ This file lives in ``examples/`` on purpose; it is a reference, not part of the 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import requests
 
@@ -32,7 +32,7 @@ class YourDatabaseInterface(BaseAPIInterface):
     """Minimal interface skeleton. Rename to match your database."""
 
     API_NAME = "YourDatabase"
-    METHODS: dict[str, Any] = {}
+    METHODS: ClassVar[dict[str, Any]] = {}
 
     def __init__(
         self,

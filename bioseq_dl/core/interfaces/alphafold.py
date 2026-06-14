@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 import pandas as pd
 from requests import Request
@@ -24,7 +24,7 @@ class AlphafoldInterface(BaseAPIInterface):
 
     API_NAME = "Alphafold"
     DB_CONFIG = ALPHAFOLD
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "prediction": {
             "http_method": "GET",
             "path_param": "qualifier",

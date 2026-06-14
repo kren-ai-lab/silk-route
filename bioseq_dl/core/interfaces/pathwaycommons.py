@@ -1,7 +1,7 @@
 """PathwayCommons API interface."""
 
 import json
-from typing import Any
+from typing import Any, ClassVar
 
 from requests import Request, Response
 from requests.exceptions import RequestException
@@ -22,7 +22,7 @@ class PathwayCommonsInterface(BaseAPIInterface):
 
     API_NAME = "PathwayCommons"
     DB_CONFIG = PATHWAYCOMMONS
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "fetch": {
             "http_method": "POST",
             "path_param": None,

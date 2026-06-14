@@ -1,7 +1,7 @@
 """ChEBI API interface."""
 
 import json
-from typing import Any
+from typing import Any, ClassVar
 from urllib.parse import quote
 
 from requests import Request
@@ -25,7 +25,7 @@ class ChEBIInterface(BaseAPIInterface):
 
     API_NAME = "ChEBI"
     DB_CONFIG = CHEBI
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "compound": {
             "http_method": "GET",
             "path_param": "chebi_id",

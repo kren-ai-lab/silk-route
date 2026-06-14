@@ -1,7 +1,7 @@
 """SABIO-RK kinetics database API interface."""
 
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import requests
 from requests import Request
@@ -19,7 +19,7 @@ class SabiorkInterface(BaseAPIInterface):
 
     API_NAME = "Sabio-RK"
     DB_CONFIG = SABIORK
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "kineticlaws": {
             "http_method": "POST",
             "path_param": None,

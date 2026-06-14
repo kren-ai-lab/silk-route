@@ -2,7 +2,7 @@
 
 import re
 from http import HTTPStatus
-from typing import Any
+from typing import Any, ClassVar
 from urllib.parse import urlencode
 
 import requests
@@ -35,7 +35,7 @@ class ChEMBLInterface(BaseAPIInterface):
 
     API_NAME = "ChEMBL"
     DB_CONFIG = CHEMBL
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "target": {
             "http_method": "GET",
             "path_param": None,

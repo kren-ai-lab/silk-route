@@ -1,7 +1,7 @@
 """Gene Ontology API interface."""
 
 from http import HTTPStatus
-from typing import Any
+from typing import Any, ClassVar
 
 import pandas as pd
 import requests
@@ -22,7 +22,7 @@ class GenOntologyInterface(BaseAPIInterface):
 
     API_NAME = "GenOntology"
     DB_CONFIG = GENONTOLOGY
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "ontology-term": {
             "default": {
                 "http_method": "GET",

@@ -104,7 +104,6 @@ ignore = [
     "BLE001",   # blind except: intentional CLI/defensive catch-alls (see note above)
     "C901",     # complexity: Phase 3 (split base.py / fetch_single)
     "PLR0912",  # too many branches: Phase 3
-    "RUF012",   # mutable ClassVar default (Phase 3 base refactor)
 ]
 
 [tool.ruff.lint.per-file-ignores]

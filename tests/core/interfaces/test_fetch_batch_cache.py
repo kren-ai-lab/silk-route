@@ -7,6 +7,8 @@ separately, duplicating them in the output.
 
 from __future__ import annotations
 
+from typing import Any, ClassVar
+
 import pytest
 
 from bioseq_dl.core.interfaces.base import BaseAPIInterface
@@ -14,7 +16,7 @@ from bioseq_dl.core.interfaces.base import BaseAPIInterface
 
 class FakeInterface(BaseAPIInterface):
     API_NAME = "Fake"
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "get": {
             "http_method": "GET",
             "path_param": None,

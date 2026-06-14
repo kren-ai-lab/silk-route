@@ -67,7 +67,7 @@ class BaseAPIInterface(ABC):
     METHODS: ClassVar[dict[str, Any]] = {}
     DB_CONFIG: ClassVar[DBConfig | None] = None
 
-    cache_key_ignore_args: set[str] = {
+    cache_key_ignore_args: ClassVar[set[str]] = {
         "parse",
         "to_dataframe",
         "fields_to_extract",
@@ -77,7 +77,7 @@ class BaseAPIInterface(ABC):
         "format",
         "download",
     }
-    subquery_match_keys: set[str] = set()
+    subquery_match_keys: ClassVar[set[str]] = set()
 
     @classmethod
     def _resolve_dirs(cls, cache_dir: str | None, config_dir: str | None) -> tuple[str, str | None]:

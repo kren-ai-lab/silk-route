@@ -1,7 +1,7 @@
 """KEGG API interface."""
 
 import re
-from typing import Any
+from typing import Any, ClassVar
 
 import requests
 
@@ -32,7 +32,7 @@ class KEGGInterface(BaseAPIInterface):
     API_NAME = "KEGG"
     DB_CONFIG = KEGG
     # TODO(diego): add more methods from KEGG API. DDI and Link should be added.
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "get": {
             "http_method": "GET",
             "path_param": DATABASES,

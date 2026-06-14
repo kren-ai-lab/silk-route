@@ -1,6 +1,6 @@
 """STRING protein interaction database API interface."""
 
-from typing import Any
+from typing import Any, ClassVar
 
 from requests import Request
 from requests.exceptions import RequestException
@@ -22,7 +22,7 @@ class StringInterface(BaseAPIInterface):
 
     API_NAME = "STRING"
     DB_CONFIG = STRING
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "get_string_ids": {
             "http_method": "GET",
             "path_param": None,

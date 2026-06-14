@@ -1,6 +1,6 @@
 """BioDBNet API interface."""
 
-from typing import Any
+from typing import Any, ClassVar
 
 from requests import Request
 from requests.exceptions import RequestException
@@ -18,7 +18,7 @@ class BioDBNetInterface(BaseAPIInterface):
 
     API_NAME = "BioDBNet"
     DB_CONFIG = BIODBNET
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "getpathways": {
             "http_method": "GET",
             "path_param": None,

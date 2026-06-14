@@ -1,7 +1,7 @@
 """InterPro API interface."""
 
 from http import HTTPStatus
-from typing import Any
+from typing import Any, ClassVar
 
 import requests
 
@@ -24,7 +24,7 @@ class InterproInterface(BaseAPIInterface):
 
     API_NAME = "InterPro"
     DB_CONFIG = INTERPRO
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "entry": {
             "http_method": "GET",
             "path_param": None,

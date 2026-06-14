@@ -1,6 +1,6 @@
 """Reactome API interface."""
 
-from typing import Any
+from typing import Any, ClassVar
 
 import requests
 
@@ -21,7 +21,7 @@ class ReactomeInterface(BaseAPIInterface):
 
     API_NAME = "Reactome"
     DB_CONFIG = REACTOME
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "data-discover": {
             "http_method": "GET",
             "path_param": None,

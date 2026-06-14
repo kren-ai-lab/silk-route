@@ -1,6 +1,6 @@
 """BioGRID API interface."""
 
-from typing import Any
+from typing import Any, ClassVar
 
 import requests
 
@@ -38,7 +38,7 @@ class BioGRIDInterface(BaseAPIInterface):
 
     API_NAME = "BioGRID"
     DB_CONFIG = BIOGRID
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "interactions": {
             "http_method": "GET",
             "path_param": None,

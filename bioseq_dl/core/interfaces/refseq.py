@@ -1,6 +1,6 @@
 """NCBI RefSeq/Entrez API interface."""
 
-from typing import Any
+from typing import Any, ClassVar
 
 from Bio import Entrez
 from Bio.Entrez.Parser import DictionaryElement, ListElement, StringElement
@@ -26,7 +26,7 @@ class RefSeqInterface(BaseAPIInterface):
 
     API_NAME = "RefSeq"
     DB_CONFIG = REFSEQ
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "protein": {
             "http_method": "GET",
             "path_param": None,

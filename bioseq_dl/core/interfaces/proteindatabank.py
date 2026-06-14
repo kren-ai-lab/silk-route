@@ -1,7 +1,7 @@
 """RCSB Protein Data Bank API interface."""
 
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import pandas as pd
 import requests
@@ -28,7 +28,7 @@ class PDBInterface(BaseAPIInterface):
 
     API_NAME = "PDB"
     DB_CONFIG = PDB
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "entry": {
             "http_method": "GET",
             "path_param": "id",

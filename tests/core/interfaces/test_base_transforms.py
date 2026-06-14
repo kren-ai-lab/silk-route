@@ -8,6 +8,7 @@ interface relies on — independent of any single API.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, ClassVar
 
 import pandas as pd
 import pytest
@@ -18,7 +19,7 @@ from bioseq_dl.core.interfaces.base import BaseAPIInterface
 
 class FakeInterface(BaseAPIInterface):
     API_NAME = "Fake"
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "get": {
             "http_method": "GET",
             "path_param": None,

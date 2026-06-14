@@ -1,6 +1,6 @@
 """PANTHER API interface."""
 
-from typing import Any
+from typing import Any, ClassVar
 
 from requests import Request
 from requests.exceptions import RequestException
@@ -23,7 +23,7 @@ class PantherInterface(BaseAPIInterface):
     DB_CONFIG = PANTHER
     # Definition of methods for PANTHER API
     # Each parameter is a tuple with (type, default_value, primary_key)
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "geneinfo": {
             "http_method": "POST",
             "path_param": None,
