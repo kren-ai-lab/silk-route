@@ -48,6 +48,7 @@ import shutil
 import time
 from collections.abc import Callable, Iterable
 from pathlib import Path
+from typing import Any, cast
 
 from bioseq_dl.constants import databases as db_consts
 
@@ -82,22 +83,23 @@ def _resolver_provider_paths(provider: CacheProvider) -> list[Path]:
         return []
     # DBConfig-like object with CACHE_DIR attribute
     if hasattr(provider, "CACHE_DIR"):
-        c = provider.CACHE_DIR
+        c: Any = getattr(provider, "CACHE_DIR", None)
         if c:
             return [Path(c)]
         return []
     # callable
     if callable(provider):
+        provider_fn = cast("Callable[[], Any]", provider)
         out: list[Path] = []
         try:
-            for p in provider():
+            for p in provider_fn():
                 if p is None:
                     continue
                 out.append(Path(p))
         except TypeError:
             # provider() might return a single path (not iterable)
             try:
-                single = provider()
+                single = provider_fn()
                 if single is not None:
                     out.append(Path(single))
             except Exception:
@@ -106,7 +108,7 @@ def _resolver_provider_paths(provider: CacheProvider) -> list[Path]:
             _logger.exception("Provider callable raised an exception")
         return out
     # string / Path-like
-    return [Path(provider)]
+    return [Path(cast("str | Path", provider))]
 
 
 def _is_within_allowed_bases(path: Path, allowed_bases: list[Path]) -> bool:

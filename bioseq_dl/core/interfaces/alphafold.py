@@ -69,11 +69,11 @@ class AlphafoldInterface(BaseAPIInterface):
 
     def fetch_single(
         self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
-    ) -> tuple[list | dict | pd.DataFrame, dict]:
+    ) -> tuple[list | dict | pd.DataFrame | bytes | str, dict]:
         """Fetch a single prediction and optionally download structure files."""
         if not isinstance(query, str):
             log.error("Query must be a string representing a AlphaFold ID.")
-            return {}
+            return {}, {}
 
         result, metadata = super().fetch_single(query, parse, *args, **kwargs)
 
@@ -92,7 +92,7 @@ class AlphafoldInterface(BaseAPIInterface):
 
     def fetch_batch(
         self, queries: list[str | dict], parse: bool = False, *args: Any, **kwargs: Any
-    ) -> tuple[list | pd.DataFrame, dict]:
+    ) -> tuple[list | pd.DataFrame | bytes | str, dict]:
         """Fetch a batch of predictions and optionally download structure files."""
         if not isinstance(queries, list) or not isinstance(queries[0], str):
             log.error("Queries must be a list of strings representing AlphaFold IDs.")
