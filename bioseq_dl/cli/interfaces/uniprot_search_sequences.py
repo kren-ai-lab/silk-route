@@ -10,11 +10,11 @@ import pandas as pd
 import typer
 
 from bioseq_dl import UniprotInterface
+from bioseq_dl.cli._shared import save_uniprot_results
 from bioseq_dl.constants.uniprot import DATABASES, VALID_FIELDS, XREF_MAPPING
 from bioseq_dl.core.export import (
     USER_EXPORT_FORMATS,
     export_dataframe,
-    normalize_export_format,
     normalize_parse_format,
     normalize_user_export_format,
 )
@@ -199,56 +199,4 @@ def run(
             )
             metadata["enrichment"] = enriched_metadata
 
-        if export_format in {"csv", "parquet"}:
-            if isinstance(export_data, pd.DataFrame) and not export_data.empty:
-                tabular_format = normalize_export_format(export_format)
-                export_path = Path(output) / f"uniprot_results.{tabular_format}"
-                export_dataframe(export_data, export_path, output_format=tabular_format)
-                if isinstance(enriched_data, dict):
-                    for key, value in enriched_data.items():
-                        logger.info("Saving %s results into %s directory", key, output)
-                        export_dataframe(
-                            value,
-                            Path(output) / f"{key}_results.{tabular_format}",
-                            output_format=tabular_format,
-                        )
-
-                with (Path(output) / "metadata.json").open("w") as f:
-                    json.dump(metadata, f, indent=2, default=str)
-                logger.info("Results saved to %s", export_path)
-            else:
-                logger.warning("No results to save in %s format.", export_format.upper())
-        elif export_format == "json":
-            if isinstance(export_data, (dict, list)):
-                with (Path(output) / "uniprot_results.json").open("w") as f:
-                    json.dump(export_data, f, indent=2, default=str)
-
-                if isinstance(enriched_data, dict):
-                    for key, value in enriched_data.items():
-                        logger.info("Saving %s results into %s directory", key, output)
-                        json.dump(
-                            value, (Path(output) / f"{key}_results.json").open("w"), indent=2, default=str
-                        )
-
-                with (Path(output) / "metadata.json").open("w") as f:
-                    json.dump(metadata, f, indent=2, default=str)
-                logger.info("Results saved to %s/uniprot_results.json", output)
-            else:
-                logger.warning("No results to save in JSON format.")
-        elif export_format == "xml":
-            if hasattr(export_data, "getroot"):
-                export_data.write(f"{output}/uniprot_results.xml", encoding="utf-8", xml_declaration=True)
-
-                if isinstance(enriched_data, dict):
-                    for key, value in enriched_data.items():
-                        logger.info("Saving %s results into %s directory", key, output)
-                        value.write(f"{output}/{key}_results.xml", encoding="utf-8", xml_declaration=True)
-
-                with (Path(output) / "metadata.json").open("w") as f:
-                    json.dump(metadata, f, indent=2, default=str)
-                logger.info("Results saved to %s/uniprot_results.xml", output)
-            else:
-                logger.warning("No results to save in XML format.")
-        else:
-            logger.warning(export_format)
-            logger.warning("No UniProt data found for the BLAST results.")
+        save_uniprot_results(export_data, enriched_data, metadata, output, export_format, logger)
