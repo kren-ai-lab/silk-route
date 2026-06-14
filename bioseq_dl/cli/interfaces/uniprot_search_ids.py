@@ -58,9 +58,6 @@ def run(
     ),
 ) -> None:
     """Run UniProt search from a list of accession IDs."""
-    # TODO(diego): these CLI options are not yet wired into the download_batch call below
-    # (which currently hardcodes its arguments); kept for API stability until wired.
-    _ = (column, from_db, to_db, batch_size, auto_db)
     logger = log
     raw_export_format = export_format
     try:
@@ -98,9 +95,7 @@ def run(
         "Downloading data using blast results\nfields %s\ncrossref_fields %s\n", fields, crossref_fields
     )
 
-    response, fetch_metadata = instance.download_batch(
-        df, "accession", True, "UniProtKB_AC-ID", "UniProtKB", 5000
-    )
+    response, fetch_metadata = instance.download_batch(df, column, auto_db, from_db, to_db, batch_size)
     metadata["fetch"] = fetch_metadata
 
     # Create folder for output if it does not exist

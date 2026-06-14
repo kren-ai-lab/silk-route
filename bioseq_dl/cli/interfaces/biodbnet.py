@@ -69,7 +69,7 @@ def run_pathways(
     instance = BioDBNetInterface()
 
     df, _ = instance.fetch_single(
-        query={"input": input, "pathways": pathways, "taxonId": taxon_id},
+        query={"pathways": pathways, "taxonId": taxon_id},
         method="getpathways",
         parse=True,
         format="dataframe",
