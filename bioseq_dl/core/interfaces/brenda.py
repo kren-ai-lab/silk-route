@@ -1,7 +1,7 @@
 """BRENDA SOAP API interface."""
 
 import hashlib
-from typing import Any
+from typing import Any, ClassVar
 
 from zeep import Client
 from zeep.helpers import serialize_object
@@ -32,7 +32,7 @@ class BrendaInterface(BaseAPIInterface):
 
     API_NAME = "BRENDA"
     DB_CONFIG = BRENDA
-    METHODS = BRENDA_METHODS
+    METHODS: ClassVar[dict[str, Any]] = BRENDA_METHODS
 
     def __init__(
         self,

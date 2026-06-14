@@ -197,7 +197,7 @@ class KEGGInterface(BaseAPIInterface):
             log.exception("Error fetching data for %s with method %s", query, method)
             return {}
         else:
-            return r  # TODO(diego): check if for other functions we need to return json or text
+            return r if r is not None else {}  # TODO(diego): check json vs text for other functions
 
     def parse(self, data: Any, fields_to_extract: list | dict | None = None, **kwargs: Any) -> dict | list:
         r"""Parse the response from the KEGG API.

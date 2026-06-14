@@ -89,7 +89,7 @@ def elementtree_to_dataframe(
     """
     root = tree.getroot()
     if root is None:
-        return []
+        return pd.DataFrame()
     records = root.findall(record_path)
 
     rows = []
