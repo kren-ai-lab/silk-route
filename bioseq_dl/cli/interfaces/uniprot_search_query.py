@@ -77,19 +77,29 @@ def run(
             )  # re-fetch so root handlers pick new level
             logger.debug("Debug logging enabled")
     except Exception as e:
-        logger.warning(f"Could not configure logging: {e}")
+        logger.warning("Could not configure logging: %s", e)
 
     logger.info(
-        f"Starting UniProt search with query: {query} with parameters fields={fields}, "
-        f"crossref_fields={crossref_fields}, sort={sort}, include_isoform={include_isoform}, "
-        f"concat_results={concat_results}"
+        "Starting UniProt search with query: %s with parameters "
+        "fields=%s, crossref_fields=%s, sort=%s, include_isoform=%s, concat_results=%s",
+        query,
+        fields,
+        crossref_fields,
+        sort,
+        include_isoform,
+        concat_results,
     )
     metadata = {}
     instance = UniprotInterface()
     logger.debug(
-        f"Downloading data using\nquery {query}\nfields {fields}\ncrossref_fields {crossref_fields}\nformat "
-        f"{format}\nsort {sort}\ninclude_isoform "
-        f"{include_isoform}"
+        "Downloading data using\nquery %s\nfields %s\ncrossref_fields %s\n"
+        "format %s\nsort %s\ninclude_isoform %s",
+        query,
+        fields,
+        crossref_fields,
+        format,
+        sort,
+        include_isoform,
     )
     xref_mapping = {v[1]: v[0] for k, v in XREF_MAPPING.items() if v[0] is not None}
     xref = ",".join([xref_mapping[c] for c in crossref_fields.split(",") if c in xref_mapping])
@@ -135,7 +145,7 @@ def run(
             export_dataframe(export_data, export_path, output_format=tabular_format)
             if isinstance(enriched_data, dict):
                 for key, value in enriched_data.items():
-                    logger.info(f"Saving {key} results into {output} directory")
+                    logger.info("Saving %s results into %s directory", key, output)
                     export_dataframe(
                         value,
                         Path(output) / f"{key}_results.{tabular_format}",
@@ -144,7 +154,7 @@ def run(
 
             with (Path(output) / "metadata.json").open("w") as f:
                 json.dump(metadata, f, indent=2, default=str)
-            logger.info(f"Results saved to {export_path}")
+            logger.info("Results saved to %s", export_path)
         else:
             logger.warning("No results to save in %s format.", export_format.upper())
     elif export_format == "json":
@@ -154,12 +164,12 @@ def run(
 
             if isinstance(enriched_data, dict):
                 for key, value in enriched_data.items():
-                    logger.info(f"Saving {key} results into {output} directory")
+                    logger.info("Saving %s results into %s directory", key, output)
                     json.dump(value, (Path(output) / f"{key}_results.json").open("w"), indent=2, default=str)
 
             with (Path(output) / "metadata.json").open("w") as f:
                 json.dump(metadata, f, indent=2, default=str)
-            logger.info(f"Results saved to {output}/uniprot_results.json")
+            logger.info("Results saved to %s/uniprot_results.json", output)
         else:
             logger.warning("No results to save in JSON format.")
     elif export_format == "xml":
@@ -168,12 +178,12 @@ def run(
 
             if isinstance(enriched_data, dict):
                 for key, value in enriched_data.items():
-                    logger.info(f"Saving {key} results into {output} directory")
+                    logger.info("Saving %s results into %s directory", key, output)
                     value.write(f"{output}/{key}_results.xml", encoding="utf-8", xml_declaration=True)
 
             with (Path(output) / "metadata.json").open("w") as f:
                 json.dump(metadata, f, indent=2, default=str)
-            logger.info(f"Results saved to {output}/uniprot_results.xml")
+            logger.info("Results saved to %s/uniprot_results.xml", output)
         else:
             logger.warning("No results to save in XML format.")
     else:

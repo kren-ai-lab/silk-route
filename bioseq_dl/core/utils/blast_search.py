@@ -40,10 +40,10 @@ def download_uniprot_database(
         DB_DIR.mkdir(parents=True, exist_ok=True)
         url = f"{BASE_URL}/{DATABASES[db_name]}.{extension}.gz"
         os.system(f"wget {url} -O {db_path}.gz")  # noqa: S605  # trusted NCBI URL, dev tooling
-        log.info(f"Unzipping {db_path}...")
+        log.info("Unzipping %s...", db_path)
         subprocess.run(["gunzip", db_path], check=True)  # noqa: S603, S607  # trusted local tool, dev tooling
     else:
-        log.info(f"Database {db_name} already exists at {db_path}.")
+        log.info("Database %s already exists at %s.", db_name, db_path)
 
 
 def get_latest_version_url() -> tuple[str, str]:
@@ -74,13 +74,13 @@ def download_and_extract_blast(version: str, url: str) -> None:
     """Download and extract the BLAST+ tarball."""
     tarball_name = url.rsplit("/", maxsplit=1)[-1]
     if not Path(tarball_name).exists():
-        log.info(f"Downloading BLAST+ {version}...")
+        log.info("Downloading BLAST+ %s...", version)
         subprocess.run(["wget", url], check=True)  # noqa: S603, S607  # trusted NCBI URL, dev tooling
 
     log.info("Extracting BLAST+...")
     with tarfile.open(tarball_name, "r:gz") as tar:
         tar.extractall(BLAST_DIR)  # noqa: S202  # trusted NCBI tarball, dev tooling
-    log.info(f"BLAST extracted to: {BLAST_DIR.resolve()}")
+    log.info("BLAST extracted to: %s", BLAST_DIR.resolve())
 
 
 def get_local_blastp_path(version: str) -> Path:
@@ -96,11 +96,11 @@ def check_blast() -> str | None:
     version, url = get_latest_version_url()
     local_blastp = get_local_blastp_path(version)
     if not local_blastp.exists():
-        log.info(f"BLAST {version} not found locally. Installing...")
+        log.info("BLAST %s not found locally. Installing...", version)
         BLAST_DIR.mkdir(exist_ok=True)
         download_and_extract_blast(version, url)
     else:
-        log.info(f"Using already downloaded BLAST {version}.")
+        log.info("Using already downloaded BLAST %s.", version)
     return str(local_blastp)
 
 
@@ -121,7 +121,7 @@ def make_blast_database(db_name: str, db_type: str = "prot", extension: str = "x
             makedb = True
             break
     if makedb:
-        log.info(f"Creating BLAST database for {db_name}...")
+        log.info("Creating BLAST database for %s...", db_name)
         blast_db_cmd = [
             "makeblastdb",
             "-in",
@@ -133,9 +133,9 @@ def make_blast_database(db_name: str, db_type: str = "prot", extension: str = "x
         ]
 
         subprocess.run(blast_db_cmd, check=True)  # noqa: S603  # trusted local BLAST tool, dev tooling
-        log.info(f"BLAST database created at: {DB_DIR / DATABASES[db_name]}")
+        log.info("BLAST database created at: %s", DB_DIR / DATABASES[db_name])
     else:
-        log.info(f"BLAST database already exists at {blast_db_path}. No need to create it again.")
+        log.info("BLAST database already exists at %s. No need to create it again.", blast_db_path)
 
 
 def run_blast(sequences: list[str], db_name: str, blast_type: str = "blastp", evalue: float = 0.001) -> None:

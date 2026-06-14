@@ -80,7 +80,7 @@ class ChEBIInterface(BaseAPIInterface):
     def fetch(self, query: str | dict | list, *, method: str = "compound", **kwargs: Any) -> dict | list:
         """Fetch compound or ontology data from ChEBI."""
         if method not in self.METHODS:
-            log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+            log.error("Method %s is not supported. Available methods: %s", method, list(self.METHODS.keys()))
             return {}
 
         http_method, path_param, parameters, inputs = self.initialize_method_parameters(
@@ -102,7 +102,7 @@ class ChEBIInterface(BaseAPIInterface):
             if isinstance(chebi_ids, str):
                 chebi_ids = [chebi_ids]
             elif not isinstance(chebi_ids, list):
-                log.error(f"Expected '{id_key}' to be str or list, got {type(chebi_ids)}")
+                log.error("Expected '%s' to be str or list, got %s", id_key, type(chebi_ids))
                 return {}
 
             validated_params[id_key] = ",".join(chebi_id for chebi_id in chebi_ids)
@@ -118,7 +118,7 @@ class ChEBIInterface(BaseAPIInterface):
         req = Request(http_method, url, params=validated_params)
         prepared = self.session.prepare_request(req)
 
-        log.debug(f"Prepared url: {prepared.url}")
+        log.debug("Prepared url: %s", prepared.url)
         try:
             response = self.session.send(prepared)
             self._delay()
@@ -127,9 +127,10 @@ class ChEBIInterface(BaseAPIInterface):
                 response = json.loads(response.text)
             except json.JSONDecodeError:
                 log.exception(
-                    f"Failed to decode JSON response for method '{method}' with query '{query}'. Response "
-                    f"text: "
-                    f"{response.text}"
+                    "Failed to decode JSON response for method '%s' with query '%s'. Response text: %s",
+                    method,
+                    query,
+                    response.text,
                 )
                 return {}
 
@@ -142,7 +143,7 @@ class ChEBIInterface(BaseAPIInterface):
                 response = response["results"]
 
         except RequestException:
-            log.exception(f"Error fetching {query} for method '{method}'")
+            log.exception("Error fetching %s for method '%s'", query, method)
             return {}
         else:
             return response

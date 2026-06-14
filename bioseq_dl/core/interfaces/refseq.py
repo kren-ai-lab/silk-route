@@ -117,7 +117,7 @@ class RefSeqInterface(BaseAPIInterface):
         Entrez.email = self.email
 
         if method not in databases:
-            log.error(f"Database '{method}' is not supported. Supported databases: {', '.join(databases)}")
+            log.error("Database '%s' is not supported. Supported databases: %s", method, ", ".join(databases))
             return {}
 
         ids = query.get("id") if isinstance(query, dict) else query

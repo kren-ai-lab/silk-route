@@ -47,7 +47,7 @@ class BioDBNetInterface(BaseAPIInterface):
     def fetch(self, query: str | dict | list, *, method: str = "getpathways", **kwargs: Any) -> dict | list:
         """Fetch data from BioDBNet for the given query."""
         if method not in self.METHODS:
-            log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+            log.error("Method %s is not supported. Available methods: %s", method, list(self.METHODS.keys()))
             return {}
 
         http_method, _, _parameters, inputs = self.initialize_method_parameters(
@@ -64,7 +64,7 @@ class BioDBNetInterface(BaseAPIInterface):
 
         req = Request(method=http_method, url=BIODBNET.API_URL, params=inputs)
         prepared = self.session.prepare_request(req)
-        log.debug(f"Prepared request: {prepared.url}")
+        log.debug("Prepared request: %s", prepared.url)
 
         try:
             response = self.session.send(prepared)
@@ -80,7 +80,7 @@ class BioDBNetInterface(BaseAPIInterface):
                 case _:
                     return response.json()
         except RequestException:
-            log.exception(f"Error fetching {query} for method '{method}'")
+            log.exception("Error fetching %s for method '%s'", query, method)
             return {}
 
     def parse(self, data: list | dict, fields_to_extract: list | dict | None, **_kwargs: Any) -> list | dict:

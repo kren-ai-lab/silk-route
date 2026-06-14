@@ -85,7 +85,7 @@ class BrendaInterface(BaseAPIInterface):
 
         """
         if method not in self.METHODS:
-            log.error(f"method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+            log.error("method %s is not supported. Available methods: %s", method, list(self.METHODS.keys()))
             return []
         if not isinstance(query, dict):
             log.error("Query must be a dictionary with keys matching the method parameters.")
@@ -104,7 +104,7 @@ class BrendaInterface(BaseAPIInterface):
         try:
             validated_params = validate_parameters(inputs, parameters)
         except ValueError:
-            log.exception(f"Invalid parameters for method '{method}'")
+            log.exception("Invalid parameters for method '%s'", method)
             return []
 
         results = []
@@ -126,7 +126,7 @@ class BrendaInterface(BaseAPIInterface):
             results.extend(result if isinstance(result, list) else [result])
 
         except Exception:
-            log.exception(f"Error fetching data for {method} with parameters {query}")
+            log.exception("Error fetching data for %s with parameters %s", method, query)
             return []
 
         return results

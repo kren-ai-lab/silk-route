@@ -61,7 +61,7 @@ class SabiorkInterface(BaseAPIInterface):
         try:
             validated_params = validate_parameters(inputs, parameters)
         except ValueError:
-            log.exception(f"Invalid parameters for method '{method}'")
+            log.exception("Invalid parameters for method '%s'", method)
             return {}
 
         query_string = " AND ".join(
@@ -83,7 +83,7 @@ class SabiorkInterface(BaseAPIInterface):
                 "Tissue",
             ]
         else:
-            log.error(f"Method '{method}' is not implemented.")
+            log.error("Method '%s' is not implemented.", method)
             return {}
 
         url = SABIORK.API_URL + method
@@ -103,7 +103,7 @@ class SabiorkInterface(BaseAPIInterface):
                 return [{results[0][i]: row[i] for i in range(len(results[0]))} for row in results[1:]]
 
         except requests.exceptions.RequestException:
-            log.exception(f"Error fetching prediction for {query}")
+            log.exception("Error fetching prediction for %s", query)
             return {}
         else:
             return response.text

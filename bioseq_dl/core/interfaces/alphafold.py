@@ -130,7 +130,9 @@ class AlphafoldInterface(BaseAPIInterface):
         """
         if method not in self.METHODS:
             log.error(
-                f"Method {method} is not supported. Supported methods are: {', '.join(self.METHODS.keys())}."
+                "Method %s is not supported. Supported methods are: %s.",
+                method,
+                ", ".join(self.METHODS.keys()),
             )
             return {}
 
@@ -142,7 +144,7 @@ class AlphafoldInterface(BaseAPIInterface):
         try:
             validated_params = validate_parameters(inputs, parameters)
         except ValueError:
-            log.exception(f"Invalid parameters for method '{method}'")
+            log.exception("Invalid parameters for method '%s'", method)
             return {}
 
         url = f"{ALPHAFOLD.API_URL}{method}/"
@@ -153,14 +155,14 @@ class AlphafoldInterface(BaseAPIInterface):
 
         req = Request(method=http_method, url=url, params=validated_params)
         prepared = self.session.prepare_request(req)
-        log.debug(f"Fetching prediction for {query} using URL: {prepared.url}")
+        log.debug("Fetching prediction for %s using URL: %s", query, prepared.url)
 
         try:
             response = self.session.send(prepared)
             self._delay()
             response.raise_for_status()
         except RequestException:
-            log.exception(f"Error fetching prediction for {query}")
+            log.exception("Error fetching prediction for %s", query)
             return {}
         else:
             response = response.json()
@@ -186,12 +188,12 @@ class AlphafoldInterface(BaseAPIInterface):
         for ext in self.structures:
             url_key = f"{ext}Url"
             if url_key not in parsed:
-                log.warning(f"{url_key} not found in parsed data. {parsed}")
+                log.warning("%s not found in parsed data. %s", url_key, parsed)
                 continue
 
             structure_url = parsed[url_key]
             if not structure_url:
-                log.warning(f"{url_key} is empty; skipping download. {parsed}")
+                log.warning("%s is empty; skipping download. %s", url_key, parsed)
                 continue
             file_name = structure_url.split("/")[-1]
             file_path = Path(self.output_dir) / file_name
@@ -201,17 +203,17 @@ class AlphafoldInterface(BaseAPIInterface):
 
             # Check if the file already exists
             if file_path.exists():
-                log.info(f"Structure {file_name} already exists. Skipping download.")
+                log.info("Structure %s already exists. Skipping download.", file_name)
                 continue
 
             try:
                 response = self.session.get(structure_url)
                 with file_path.open("wb") as f:
-                    log.info(f"Downloading structure {file_name}...")
+                    log.info("Downloading structure %s...", file_name)
                     f.write(response.content)
 
             except Exception:
-                log.exception(f"Error downloading structure {file_name}")
+                log.exception("Error downloading structure %s", file_name)
 
         return parsed if parsed is not None else {}
 
@@ -260,7 +262,7 @@ class AlphafoldInterface(BaseAPIInterface):
             Path(self.output_dir).mkdir(parents=True)
 
         if extension not in ["csv", "tsv", "json", "parquet"]:
-            log.error(f"Unsupported file extension: {extension}. Use 'csv', 'tsv', 'json', or 'parquet'.")
+            log.error("Unsupported file extension: %s. Use 'csv', 'tsv', 'json', or 'parquet'.", extension)
             return None
 
         if extension == "json":

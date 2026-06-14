@@ -140,10 +140,12 @@ class CrossRefEnricher:
         elif isinstance(query_params, list) and len(query_params) > 1:
             # If is a list of dicts, use batch
             log.debug(
-                f"Batch querying "
-                f"{spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''} with "
-                f"{len(query_params)} queries and method_params: "
-                f"{method_params}"
+                "Batch querying %s:%s%s with %s queries and method_params: %s",
+                spec.database,
+                spec.endpoint,
+                "[" + spec.option + "]" if spec.option else "",
+                len(query_params),
+                method_params,
             )
             result, metadata = instance.fetch_batch(queries=query_params, **method_params)
         # Handle unexpected query_params format
@@ -319,24 +321,30 @@ class CrossRefEnricher:
         metadata = {}
         for spec in self.endpoint_specs:
             log.debug(
-                f"Processing "
-                f"{spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''}..."
+                "Processing %s:%s%s...",
+                spec.database,
+                spec.endpoint,
+                "[" + spec.option + "]" if spec.option else "",
             )
-            log.info(f"Checking availability for interface: {spec.database}")
+            log.info("Checking availability for interface: %s", spec.database)
             self._check_interface_availability(spec.database)
             log.info(
-                f"Checking required columns for "
-                f"{spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''}..."
+                "Checking required columns for %s:%s%s...",
+                spec.database,
+                spec.endpoint,
+                "[" + spec.option + "]" if spec.option else "",
             )
             self._check_required_columns(df, spec)
 
-            log.info(f"Building interface for {spec.database}...")
+            log.info("Building interface for %s...", spec.database)
             instance = self._build_interface(spec.database)
             params = self._prepare_params(spec)
             log.info(
-                f"Prepared params for "
-                f"{spec.database}:{spec.endpoint}{'[' + spec.option + ']' if spec.option else ''}: "
-                f"{params}"
+                "Prepared params for %s:%s%s: %s",
+                spec.database,
+                spec.endpoint,
+                "[" + spec.option + "]" if spec.option else "",
+                params,
             )
 
             processed_data, processed_metadata = self._process_dataframe(df, instance, spec, params, fmt)

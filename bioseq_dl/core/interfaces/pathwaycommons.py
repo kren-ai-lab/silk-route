@@ -67,7 +67,7 @@ class PathwayCommonsInterface(BaseAPIInterface):
     def fetch(self, query: str | dict | list, *, method: str = "SOME_DEFAULT", **kwargs: Any) -> dict | list:
         """Fetch pathway data from PathwayCommons."""
         if method not in self.METHODS:
-            log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+            log.error("Method %s is not supported. Available methods: %s", method, list(self.METHODS.keys()))
             return {}
         if method == "fetch" and "uri" not in query:
             log.error("The 'uri' parameter is required for the 'fetch' method.")
@@ -87,14 +87,14 @@ class PathwayCommonsInterface(BaseAPIInterface):
         try:
             validated_params = validate_parameters(inputs, parameters)
         except ValueError:
-            log.exception(f"Invalid parameters for method '{method}'")
+            log.exception("Invalid parameters for method '%s'", method)
             return {}
 
         if "format" in validated_params and validated_params["format"] not in OUTPUT_FORMATS:
-            log.error(f"Invalid format '{validated_params['format']}'. Allowed formats: {OUTPUT_FORMATS}")
+            log.error("Invalid format '%s'. Allowed formats: %s", validated_params["format"], OUTPUT_FORMATS)
             return {}
         if "pattern" in validated_params and any(p not in PATTERNS for p in validated_params["pattern"]):
-            log.error(f"Invalid pattern '{validated_params['pattern']}'. Allowed patterns: {PATTERNS}")
+            log.error("Invalid pattern '%s'. Allowed patterns: %s", validated_params["pattern"], PATTERNS)
             return {}
 
         url = f"{PATHWAYCOMMONS.API_URL}{method}"
@@ -109,7 +109,7 @@ class PathwayCommonsInterface(BaseAPIInterface):
         )
 
         prepared = self.session.prepare_request(response)
-        log.debug(f"Prepared request: {prepared.url}")
+        log.debug("Prepared request: %s", prepared.url)
 
         try:
             response = self.session.send(prepared)
@@ -124,7 +124,7 @@ class PathwayCommonsInterface(BaseAPIInterface):
                 response = response["@graph"]
 
         except RequestException:
-            log.exception(f"Error fetching data from {url}")
+            log.exception("Error fetching data from %s", url)
             return {}
         else:
             return response

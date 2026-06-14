@@ -122,12 +122,14 @@ class PubChemInterface(BaseAPIInterface):
         kwargs["option"] = option
 
         if method not in self.METHODS:
-            log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+            log.error("Method %s is not supported. Available methods: %s", method, list(self.METHODS.keys()))
             return {}
         if option and option not in OPTIONS.get(method, []):
             log.error(
-                f"Option '{option}' is not valid for method '{method}'. Allowed options: "
-                f"{OPTIONS.get(method, [])}"
+                "Option '%s' is not valid for method '%s'. Allowed options: %s",
+                option,
+                method,
+                OPTIONS.get(method, []),
             )
             return {}
 
@@ -145,7 +147,7 @@ class PubChemInterface(BaseAPIInterface):
         try:
             validated_params = validate_parameters(inputs, parameters)
         except ValueError:
-            log.exception(f"Invalid parameters for method '{method}'")
+            log.exception("Invalid parameters for method '%s'", method)
             return {}
 
         if "name_type" in validated_params and method == "pug/compound":
@@ -222,8 +224,8 @@ class PubChemInterface(BaseAPIInterface):
         response = Request(url=url, method=http_method)
 
         prepared = self.session.prepare_request(response)
-        log.debug(f"Prepared request: {prepared.url}")
-        log.info(f"Prepared request: {prepared.url}")
+        log.debug("Prepared request: %s", prepared.url)
+        log.info("Prepared request: %s", prepared.url)
 
         try:
             response = self.session.send(prepared)
@@ -265,7 +267,7 @@ class PubChemInterface(BaseAPIInterface):
                 response = json.loads(response)
 
         except RequestException:
-            log.exception(f"Error fetching {query} for method '{method}'")
+            log.exception("Error fetching %s for method '%s'", query, method)
             return {}
         else:
             return response

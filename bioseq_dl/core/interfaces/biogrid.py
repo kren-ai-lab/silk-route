@@ -127,7 +127,7 @@ class BioGRIDInterface(BaseAPIInterface):
                     # Convert to list of interactions
                     response = list(response.values())
             case _:
-                log.warning(f"Method {method} not recognized for special parsing. Returning raw response.")
+                log.warning("Method %s not recognized for special parsing. Returning raw response.", method)
 
         return response
 

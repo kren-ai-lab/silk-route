@@ -60,7 +60,7 @@ class PantherInterface(BaseAPIInterface):
         try:
             validated_params = validate_parameters(inputs, parameters)
         except ValueError:
-            log.exception(f"Invalid parameters for method '{method}'")
+            log.exception("Invalid parameters for method '%s'", method)
             return {}
 
         url = f"{PANTHER.API_URL}{method}"
@@ -71,7 +71,7 @@ class PantherInterface(BaseAPIInterface):
 
         req = Request(method=http_method, url=url, params=validated_params)
         prepared = self.session.prepare_request(req)
-        log.debug(f"Prepared request: {prepared.url}")
+        log.debug("Prepared request: %s", prepared.url)
 
         try:
             response = self.session.send(prepared)
@@ -92,7 +92,7 @@ class PantherInterface(BaseAPIInterface):
                     response = response.json()
 
         except RequestException:
-            log.exception(f"Error fetching {query} for method '{method}'")
+            log.exception("Error fetching %s for method '%s'", query, method)
             return {}
         else:
             return response

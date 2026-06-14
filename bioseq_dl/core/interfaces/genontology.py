@@ -81,7 +81,7 @@ class GenOntologyInterface(BaseAPIInterface):
 
         """
         if method not in self.METHODS:
-            log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+            log.error("Method %s is not supported. Available methods: %s", method, list(self.METHODS.keys()))
             return {}
 
         option = kwargs.pop("option", "default")
@@ -94,7 +94,7 @@ class GenOntologyInterface(BaseAPIInterface):
         try:
             validated_params = validate_parameters(inputs, parameters)
         except ValueError:
-            log.exception(f"Invalid parameters for method '{method}'")
+            log.exception("Invalid parameters for method '%s'", method)
             return {}
 
         url = f"{GENONTOLOGY.API_URL}{method.replace('-', '/')}/"
@@ -111,7 +111,7 @@ class GenOntologyInterface(BaseAPIInterface):
         )
 
         prepared = self.session.prepare_request(response)
-        log.debug(f"Prepared request: {prepared.url}")
+        log.debug("Prepared request: %s", prepared.url)
 
         try:
             response = self.session.send(prepared)
@@ -120,7 +120,7 @@ class GenOntologyInterface(BaseAPIInterface):
 
             return response.json()
         except RequestException:
-            log.exception(f"Error fetching data from {url}")
+            log.exception("Error fetching data from %s", url)
             return {}
 
     def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> dict | list:
@@ -186,7 +186,7 @@ class GenOntologyInterface(BaseAPIInterface):
             else:
                 parsed["relationships"] = []
         except Exception:
-            log.exception(f"Error fetching relationships for GO term {parsed.get('goid', '')}")
+            log.exception("Error fetching relationships for GO term %s", parsed.get("goid", ""))
         return parsed
 
     def fetch_single(

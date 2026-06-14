@@ -103,7 +103,7 @@ def run(
             )  # re-fetch so root handlers pick new level
             logger.debug("Debug logging enabled")
     except Exception as e:
-        logger.warning(f"Could not configure logging: {e}")
+        logger.warning("Could not configure logging: %s", e)
 
     df = pd.read_csv(input_file)
 
@@ -116,7 +116,7 @@ def run(
     download_uniprot_database(database, extension)
 
     blastp_path = check_blast()
-    log.info(f"Using blastp at: {blastp_path}")
+    log.info("Using blastp at: %s", blastp_path)
 
     make_blast_database(database, extension=extension)
 
@@ -157,7 +157,7 @@ def run(
 
     # Save to CSV
     blast_path = export_dataframe(df_blast, Path(output) / "blast_results.csv")
-    log.info(f"BLAST results saved to {blast_path}")
+    log.info("BLAST results saved to %s", blast_path)
 
     # Clean up temporary files
     Path("tmp/blast_results.txt").unlink()
@@ -168,7 +168,7 @@ def run(
         log.info("Downloading additional UniProt data...")
         instance = UniprotInterface()
         logger.debug(
-            f"Downloading data using blast results\nfields {fields}\ncrossref_fields {crossref_fields}\n"
+            "Downloading data using blast results\nfields %s\ncrossref_fields %s\n", fields, crossref_fields
         )
 
         response, fetch_metadata = instance.download_batch(
@@ -206,7 +206,7 @@ def run(
                 export_dataframe(export_data, export_path, output_format=tabular_format)
                 if isinstance(enriched_data, dict):
                     for key, value in enriched_data.items():
-                        logger.info(f"Saving {key} results into {output} directory")
+                        logger.info("Saving %s results into %s directory", key, output)
                         export_dataframe(
                             value,
                             Path(output) / f"{key}_results.{tabular_format}",
@@ -215,7 +215,7 @@ def run(
 
                 with (Path(output) / "metadata.json").open("w") as f:
                     json.dump(metadata, f, indent=2, default=str)
-                logger.info(f"Results saved to {export_path}")
+                logger.info("Results saved to %s", export_path)
             else:
                 logger.warning("No results to save in %s format.", export_format.upper())
         elif export_format == "json":
@@ -225,14 +225,14 @@ def run(
 
                 if isinstance(enriched_data, dict):
                     for key, value in enriched_data.items():
-                        logger.info(f"Saving {key} results into {output} directory")
+                        logger.info("Saving %s results into %s directory", key, output)
                         json.dump(
                             value, (Path(output) / f"{key}_results.json").open("w"), indent=2, default=str
                         )
 
                 with (Path(output) / "metadata.json").open("w") as f:
                     json.dump(metadata, f, indent=2, default=str)
-                logger.info(f"Results saved to {output}/uniprot_results.json")
+                logger.info("Results saved to %s/uniprot_results.json", output)
             else:
                 logger.warning("No results to save in JSON format.")
         elif export_format == "xml":
@@ -241,12 +241,12 @@ def run(
 
                 if isinstance(enriched_data, dict):
                     for key, value in enriched_data.items():
-                        logger.info(f"Saving {key} results into {output} directory")
+                        logger.info("Saving %s results into %s directory", key, output)
                         value.write(f"{output}/{key}_results.xml", encoding="utf-8", xml_declaration=True)
 
                 with (Path(output) / "metadata.json").open("w") as f:
                     json.dump(metadata, f, indent=2, default=str)
-                logger.info(f"Results saved to {output}/uniprot_results.xml")
+                logger.info("Results saved to %s/uniprot_results.xml", output)
             else:
                 logger.warning("No results to save in XML format.")
         else:

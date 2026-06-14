@@ -281,14 +281,14 @@ class ChEMBLInterface(BaseAPIInterface):
             if key in query and not check(query[key]):
                 if key == "target_chembl_id":
                     log.error(
-                        f"Invalid target_chembl_id: {query['target_chembl_id']}. It should be a non-empty "
-                        f"string."
+                        "Invalid target_chembl_id: %s. It should be a non-empty string.",
+                        query["target_chembl_id"],
                     )
                     return {}
                 if key == "pchembl_value":
                     log.error(
-                        f"Invalid pchembl_value: {query['pchembl_value']}. It should be a number (int or "
-                        f"float)."
+                        "Invalid pchembl_value: %s. It should be a number (int or float).",
+                        query["pchembl_value"],
                     )
                     return {}
         return None
@@ -387,7 +387,9 @@ class ChEMBLInterface(BaseAPIInterface):
         # Validate method and format
         if method not in self.METHODS:
             log.error(
-                f"Method {method} is not supported. Supported methods are: {', '.join(self.METHODS.keys())}."
+                "Method %s is not supported. Supported methods are: %s.",
+                method,
+                ", ".join(self.METHODS.keys()),
             )
             return {}
 
@@ -401,7 +403,7 @@ class ChEMBLInterface(BaseAPIInterface):
         try:
             validated_params = validate_parameters(inputs, parameters)
         except ValueError:
-            log.exception(f"Invalid parameters for method '{method}'")
+            log.exception("Invalid parameters for method '%s'", method)
             return {}
 
         if method in ["activity", "binding_site"]:
@@ -447,7 +449,7 @@ class ChEMBLInterface(BaseAPIInterface):
                     f"?limit={limit if limit is not None else 20}&q={query_str.replace(' ', '%20')}"
                 )
         else:
-            log.error(f"Method {method} is not implemented in fetch.")
+            log.error("Method %s is not implemented in fetch.", method)
             return {}
 
         return self.fetch_pages(url, method, pages_to_fetch)
@@ -488,22 +490,23 @@ class ChEMBLInterface(BaseAPIInterface):
             # Check presence of required keys
             for key in ("field", "filter_type", "value"):
                 if key not in item:
-                    log.error(f"Filter is missing required key '{key}'.")
+                    log.error("Filter is missing required key '%s'.", key)
                     return False
 
             # Validate types
             if not isinstance(item["field"], str):
-                log.error(f"Filter 'field' must be a string, got {type(item['field']).__name__}.")
+                log.error("Filter 'field' must be a string, got %s.", type(item["field"]).__name__)
                 return False
 
             if not isinstance(item["value"], (str, int, float)):
-                log.error(f"Filter 'value' must be a string or number, got {type(item['value']).__name__}.")
+                log.error("Filter 'value' must be a string or number, got %s.", type(item["value"]).__name__)
                 return False
 
             if not isinstance(item["filter_type"], str) or item["filter_type"] not in allowed_filter_types:
                 log.error(
-                    f"Filter 'filter_type' is not valid: {item['filter_type']}. Allowed: "
-                    f"{sorted(allowed_filter_types)}"
+                    "Filter 'filter_type' is not valid: %s. Allowed: %s",
+                    item["filter_type"],
+                    sorted(allowed_filter_types),
                 )
                 return False
 

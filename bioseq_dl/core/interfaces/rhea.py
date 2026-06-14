@@ -39,7 +39,9 @@ class RheaInterface(BaseAPIInterface):
     def fetch(self, query: str | dict | list, *, method: str = "rhea", **kwargs: Any) -> dict | list:
         """Fetch reaction data from Rhea."""
         if method not in self.METHODS:
-            log.error(f"Method '{method}' is not supported. Available methods: {list(self.METHODS.keys())}")
+            log.error(
+                "Method '%s' is not supported. Available methods: %s", method, list(self.METHODS.keys())
+            )
             return {}
 
         http_method, path_param, parameters, inputs = self.initialize_method_parameters(
@@ -50,7 +52,7 @@ class RheaInterface(BaseAPIInterface):
         try:
             validated_params = validate_parameters(inputs, parameters)
         except ValueError:
-            log.exception(f"Invalid parameters for method '{method}'")
+            log.exception("Invalid parameters for method '%s'", method)
             return {}
 
         url = f"{RHEA.API_URL}{method}/"
@@ -60,14 +62,14 @@ class RheaInterface(BaseAPIInterface):
 
         req = Request(method=http_method, url=url, params=validated_params)
         prepared = self.session.prepare_request(req)
-        log.debug(f"Prepared request: {prepared.url}")
+        log.debug("Prepared request: %s", prepared.url)
 
         try:
             response = self.session.send(prepared)
             self._delay()
             response.raise_for_status()
         except RequestException:
-            log.exception(f"Error fetching prediction for {query}")
+            log.exception("Error fetching prediction for %s", query)
             return {}
         else:
             response = response.json()

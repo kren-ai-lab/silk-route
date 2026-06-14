@@ -148,9 +148,9 @@ class BaseAPIInterface(ABC):
             if packaged_fields:
                 self.configs["fields"] = packaged_fields
 
-        log.debug(f"Parent class BaseAPIInterface initialized. {self.__class__.__name__}")
-        log.debug(f"Cache directory set to: {self.cache_dir}")
-        log.debug(f"Configuration directory set to: {self.config_dir}")
+        log.debug("Parent class BaseAPIInterface initialized. %s", self.__class__.__name__)
+        log.debug("Cache directory set to: %s", self.cache_dir)
+        log.debug("Configuration directory set to: %s", self.config_dir)
 
         Path(self.cache_dir).mkdir(parents=True, exist_ok=True)
 
@@ -186,7 +186,7 @@ class BaseAPIInterface(ABC):
 
         """
         if not Path(config_dir).exists():
-            log.debug(f"Config directory not found, using packaged defaults only: {config_dir}")
+            log.debug("Config directory not found, using packaged defaults only: %s", config_dir)
             return
 
         for entry in Path(config_dir).iterdir():
@@ -196,7 +196,7 @@ class BaseAPIInterface(ABC):
                 try:
                     self.configs[entry.stem] = read_config_file(entry)
                 except Exception:
-                    log.exception(f"Error loading config {entry.name}")
+                    log.exception("Error loading config %s", entry.name)
 
     def _delay(self) -> None:
         """Introduce a random delay between min_wait and max_wait."""
@@ -406,8 +406,11 @@ class BaseAPIInterface(ABC):
         fields_to_extract = kwargs.pop("fields_to_extract", None)
 
         log.debug(
-            f"_maybe_parse called with parse={parse}, format={fmt}, config_key={config_key}, "
-            f"fields_to_extract={fields_to_extract}"
+            "_maybe_parse called with parse=%s, format=%s, config_key=%s, fields_to_extract=%s",
+            parse,
+            fmt,
+            config_key,
+            fields_to_extract,
         )
         if parse:
             if not fields_to_extract and self.use_config:
@@ -417,7 +420,7 @@ class BaseAPIInterface(ABC):
 
                 # 2. If not found, try to get from config
                 if not fields_to_extract and config_key:
-                    log.debug(f"No fields_to_extract resolved from kwargs, trying config_key: {config_key}")
+                    log.debug("No fields_to_extract resolved from kwargs, trying config_key: %s", config_key)
                     fields_to_extract = self.get_config(config_key) or None
 
             if isinstance(data, list):
@@ -570,7 +573,7 @@ class BaseAPIInterface(ABC):
                 for key in group_queries:
                     if key in query and isinstance(query[key], list):
                         inputs[key] = separator.join(query[key])
-                        log.debug(f"Joined {key} with separator '{separator}': {inputs[key]}")
+                        log.debug("Joined %s with separator '%s': %s", key, separator, inputs[key])
                     elif key in query:
                         inputs[key] = query.get(key, "")
                 inputs.update({k: v for k, v in query.items() if k not in group_queries})
@@ -746,7 +749,7 @@ class BaseAPIInterface(ABC):
         # Get method specification
         spec = self._get_method_spec(**kwargs)
         if spec is None:
-            log.error(f"Method '{method}' is not supported")
+            log.error("Method '%s' is not supported", method)
             msg = f"Method '{method}' is not supported. Available: {list(self.METHODS)}"
             raise ValueError(msg)
         log.debug("Checking if multiple queries are supported")
@@ -756,29 +759,29 @@ class BaseAPIInterface(ABC):
         t0 = time.time()
         if isinstance(query, dict) and group_key and isinstance(query.get(group_key), list):
             log.debug("Multiple queries detected in the input.")
-            log.debug(f"Generated a group of queries based on key '{group_key}' with multiple values.")
+            log.debug("Generated a group of queries based on key '%s' with multiple values.", group_key)
             results = {}
             remaining = []
             subqueries = self.decompose_query(query, method, option)
             # Check cache per individual
-            log.debug(f"Subqueries generated: {subqueries}")
+            log.debug("Subqueries generated: %s", subqueries)
             for identifier, subq in subqueries:
-                log.debug(f"Checking cache for identifier: {identifier}")
+                log.debug("Checking cache for identifier: %s", identifier)
                 cache_key = self._make_cache_key(identifier, **kwargs)
                 if self.has_results(cache_key):
-                    log.debug(f"Cache hit for identifier: {identifier}, loading from cache.")
+                    log.debug("Cache hit for identifier: %s, loading from cache.", identifier)
                     metadata["cached_ids"] = [*metadata.get("cached_ids", []), identifier]
                     metadata["cached_subqueries"] = [*metadata.get("cached_subqueries", []), subq]
                     raw = self.load_cache(cache_key)
                     parsed = self._maybe_parse(data=raw, parse=parse, fmt=fmt, **kwargs)
                     results[identifier] = parsed
                 else:
-                    log.debug(f"No cache found for identifier: {identifier}, will fetch.")
+                    log.debug("No cache found for identifier: %s, will fetch.", identifier)
                     remaining.append((identifier, subq))
 
             # If some remain, fetch them together
             if remaining:
-                log.debug(f"Fetching remaining {len(remaining)} subqueries in a single request.")
+                log.debug("Fetching remaining %s subqueries in a single request.", len(remaining))
                 metadata["fetched_ids"] = [identifier for identifier, _ in remaining]
                 metadata["fetched_subqueries"] = [subq for _, subq in remaining]
                 combined = self.merge_dicts([subq for _, subq in remaining])
@@ -788,11 +791,11 @@ class BaseAPIInterface(ABC):
                 for identifier, _ in remaining:
                     partial_result = mapping.get(identifier, [])
                     if not partial_result:
-                        log.debug(f"No results found for identifier {identifier}. Skipping.")
+                        log.debug("No results found for identifier %s. Skipping.", identifier)
                         metadata["failed_ids"] = [*metadata.get("failed_ids", []), identifier]
                         continue
                     log.debug(
-                        f"Fetched {len(partial_result)} items for identifier {identifier}. Caching result."
+                        "Fetched %s items for identifier %s. Caching result.", len(partial_result), identifier
                     )
                     cache_key = self._make_cache_key(identifier, **kwargs)
                     self.save_cache(cache_key, partial_result)
@@ -853,14 +856,14 @@ class BaseAPIInterface(ABC):
         identifier = self._make_identifier(query, spec)
         cache_key = self._make_cache_key(identifier, **kwargs)
         if self.has_results(cache_key):
-            log.debug(f"Cache hit for identifier: {identifier}, loading from cache.")
+            log.debug("Cache hit for identifier: %s, loading from cache.", identifier)
             metadata["cached_ids"] = [identifier]
             metadata["cached_subqueries"] = [query]
             raw = self.load_cache(cache_key)
         else:
             # TODO(diego): Probably is necesary to give the user the option to not save empty results, check
             # if it is a problem in some APIs
-            log.debug(f"No cache found for identifier: {identifier}, fetching from API.")
+            log.debug("No cache found for identifier: %s, fetching from API.", identifier)
             raw = self.fetch(params, *args, **kwargs)
             # Save to cache even if empty, to avoid refetching known empty results
             metadata["fetched_ids"] = [identifier]
@@ -933,7 +936,7 @@ class BaseAPIInterface(ABC):
                         )
                         cached_subquery_results.append((identifier, result))
                     else:
-                        log.debug(f"No cache found for subquery identifier: {identifier}, will fetch.")
+                        log.debug("No cache found for subquery identifier: %s, will fetch.", identifier)
                         missing = True
                         break
 
@@ -944,21 +947,21 @@ class BaseAPIInterface(ABC):
                         metadata["cached_ids"] = [*metadata.get("cached_ids", []), identifier]
                         metadata["cached_subqueries"] = [*metadata.get("cached_subqueries", []), subquery]
                     for _identifier, result in cached_subquery_results:
-                        log.debug(f"Cache hit for subquery identifier: {_identifier}, loading from cache.")
+                        log.debug("Cache hit for subquery identifier: %s, loading from cache.", _identifier)
                         results.append(self._maybe_parse(data=result, parse=parse, fmt=fmt, **kwargs))
 
             else:
                 # No subqueries, use the classic key
                 cache_key = self._make_cache_key(query, **kwargs)
                 if self.has_results(cache_key):
-                    log.debug(f"Cache hit for query at index {i}, loading from cache.")
+                    log.debug("Cache hit for query at index %s, loading from cache.", i)
                     metadata["cached_ids"] = [*metadata.get("cached_ids", []), cache_key]
                     metadata["cached_subqueries"] = [*metadata.get("cached_subqueries", []), query]
                     cached = self.load_cache(cache_key)
                     result = cached.to_dict(orient="records") if isinstance(cached, pd.DataFrame) else cached
                     results.append(self._maybe_parse(data=result, parse=parse, fmt=fmt, **kwargs))
                 else:
-                    log.debug(f"No cache found for query at index {i}, will fetch.")
+                    log.debug("No cache found for query at index %s, will fetch.", i)
                     index_query_map[i] = query
 
         #############################
@@ -976,7 +979,7 @@ class BaseAPIInterface(ABC):
                 for i, query in index_query_map.items()
             }
             for future, i in future_to_index.items():
-                log.debug(f"Waiting for future result for query at index {i}")
+                log.debug("Waiting for future result for query at index %s", i)
                 metadata["fetched_ids"] = [*metadata.get("fetched_ids", []), i]
                 metadata["fetched_subqueries"] = [*metadata.get("fetched_subqueries", []), index_query_map[i]]
                 try:
@@ -989,7 +992,7 @@ class BaseAPIInterface(ABC):
                         results.append(result)
 
                 except Exception:
-                    log.exception(f"Error fetching query at index {i} ({queries[i]})")
+                    log.exception("Error fetching query at index %s (%s)", i, queries[i])
                 self._delay()
         metadata["execution_time"] = time.time() - t0
         metadata["fetched_length"] = sum(len(r) if isinstance(r, list) else 1 for r in results)
@@ -1095,14 +1098,14 @@ class BaseAPIInterface(ABC):
 
         req = Request(method=http_method, url=url, params=validated_params)
         prepared = self.session.prepare_request(req)
-        log.debug(f"Prepared request: {prepared.url}")
+        log.debug("Prepared request: %s", prepared.url)
 
         try:
             response = self.session.send(prepared)
             self._delay()
             response.raise_for_status()
         except RequestException as e:
-            log.exception(f"Error fetching {query} for method '{method}'")
+            log.exception("Error fetching %s for method '%s'", query, method)
             msg = f"Request failed for method '{method}': {e}"
             raise RequestError(msg) from e
         else:

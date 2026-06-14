@@ -86,7 +86,7 @@ class PDBInterface(BaseAPIInterface):
 
         """
         if method not in self.METHODS:
-            log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+            log.error("Method %s is not supported. Available methods: %s", method, list(self.METHODS.keys()))
             return {}
 
         http_method, path_param, parameters, inputs = self.initialize_method_parameters(
@@ -97,7 +97,7 @@ class PDBInterface(BaseAPIInterface):
         try:
             validated_params = validate_parameters(inputs, parameters)
         except ValueError:
-            log.exception(f"Invalid parameters for method '{method}'")
+            log.exception("Invalid parameters for method '%s'", method)
             return {}
 
         url = f"{PDB.API_URL}{method}"
@@ -116,7 +116,7 @@ class PDBInterface(BaseAPIInterface):
         )
 
         prepared = self.session.prepare_request(response)
-        log.debug(f"Prepared request: {prepared.url}")
+        log.debug("Prepared request: %s", prepared.url)
 
         try:
             response = self.session.send(prepared)
@@ -125,7 +125,7 @@ class PDBInterface(BaseAPIInterface):
 
             return response.json()
         except RequestException:
-            log.exception(f"Error fetching data from {url}")
+            log.exception("Error fetching data from %s", url)
             return {}
 
     def fetch_structure(self, pdb_id: str, file_format: str = "pdb") -> str:
@@ -139,13 +139,13 @@ class PDBInterface(BaseAPIInterface):
             str: Path to the downloaded file.
 
         """
-        log.info(f"Fetching structure for {pdb_id} in {file_format} format...")
+        log.info("Fetching structure for %s in %s format...", pdb_id, file_format)
         existing = Path(self.output_dir) / f"{pdb_id}.{file_format}"
         if existing.exists():
-            log.info(f"Structure for {pdb_id} already exists in {file_format} format.")
+            log.info("Structure for %s already exists in %s format.", pdb_id, file_format)
             return str(existing)
 
-        log.info(f"Downloading {pdb_id} in {file_format} format...")
+        log.info("Downloading %s in %s format...", pdb_id, file_format)
 
         if not Path(self.output_dir).exists():
             Path(self.output_dir).mkdir(parents=True)
@@ -161,7 +161,7 @@ class PDBInterface(BaseAPIInterface):
                 f.write(response.content)
             return str(file_path)
         except requests.exceptions.RequestException:
-            log.exception(f"Error downloading structure for {pdb_id}")
+            log.exception("Error downloading structure for %s", pdb_id)
             return ""
 
     def fetch_single(

@@ -125,7 +125,7 @@ class InterproInterface(BaseAPIInterface):
             response.raise_for_status()
 
             if response.status_code == HTTPStatus.NO_CONTENT:
-                log.warning(f"No content returned for URL {next_url}.")
+                log.warning("No content returned for URL %s.", next_url)
                 return {}
 
             data = response.json()
@@ -151,7 +151,7 @@ class InterproInterface(BaseAPIInterface):
                     responses.extend(next_page)
 
         except requests.exceptions.RequestException:
-            log.exception(f"Error fetching next page for method {method}")
+            log.exception("Error fetching next page for method %s", method)
             return {}
         else:
             return responses
@@ -171,7 +171,7 @@ class InterproInterface(BaseAPIInterface):
         pages_to_fetch = kwargs.get("pages_to_fetch", 1)
 
         if method not in self.METHODS:
-            log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+            log.error("Method %s is not supported. Available methods: %s", method, list(self.METHODS.keys()))
             return {}
 
         if not isinstance(query, dict):
@@ -201,8 +201,10 @@ class InterproInterface(BaseAPIInterface):
                     url += f"{f['type']}/{f['db']}/{f['value']}/"
                 else:
                     log.error(
-                        f"Invalid filter: {f}. Valid filters are of type {filter_types} with databases "
-                        f"{db_types[f['type']]}."
+                        "Invalid filter: %s. Valid filters are of type %s with databases %s.",
+                        f,
+                        filter_types,
+                        db_types[f["type"]],
                     )
                     return {}
 
@@ -214,7 +216,7 @@ class InterproInterface(BaseAPIInterface):
             # remove the last '&'
             url = url[:-1]
 
-        log.debug(f"Prepared url: {url}")
+        log.debug("Prepared url: %s", url)
         return self.fetch_pages(url, method, pages_to_fetch)
 
     def parse(self, data: Any, fields_to_extract: list | dict | None, **_kwargs: Any) -> dict | list:

@@ -66,7 +66,9 @@ class StringInterface(BaseAPIInterface):
 
         """
         if method not in self.METHODS:
-            log.error(f"Method '{method}' is not supported. Available methods: {list(self.METHODS.keys())}")
+            log.error(
+                "Method '%s' is not supported. Available methods: %s", method, list(self.METHODS.keys())
+            )
             return {}
 
         http_method, _path_param, parameters, inputs = self.initialize_method_parameters(
@@ -83,8 +85,10 @@ class StringInterface(BaseAPIInterface):
 
         if outfmt not in METHOD_FORMATS[method]:
             log.error(
-                f"Output format {outfmt} is not supported for method {method}. Supported formats are: "
-                f"{', '.join(METHOD_FORMATS[method])}."
+                "Output format %s is not supported for method %s. Supported formats are: %s.",
+                outfmt,
+                method,
+                ", ".join(METHOD_FORMATS[method]),
             )
             return {}
 
@@ -93,7 +97,7 @@ class StringInterface(BaseAPIInterface):
         req = Request(method=http_method, url=url, params=validated_params)
 
         prepared = self.session.prepare_request(req)
-        log.debug(f"Prepared request URL: {prepared.url}")
+        log.debug("Prepared request URL: %s", prepared.url)
 
         try:
             response = self.session.send(prepared)
@@ -102,7 +106,7 @@ class StringInterface(BaseAPIInterface):
 
             return response.json()
         except RequestException:
-            log.exception(f"Error fetching {query} for method '{method}'")
+            log.exception("Error fetching %s for method '%s'", query, method)
             return {}
 
     def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> Any:
@@ -134,6 +138,6 @@ class StringInterface(BaseAPIInterface):
                 "image."
             )
         else:
-            log.error(f"Format {fmt} is not supported. Supported formats are: json, tsv")
+            log.error("Format %s is not supported. Supported formats are: json, tsv", fmt)
             return {}
         return None

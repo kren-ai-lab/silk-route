@@ -85,8 +85,6 @@ ignore = [
     # --- Transitional: legacy style/docs/typing, not enforced yet ---
     # ANN401 (Any type): intentional for passthrough **kwargs and dynamic JSON API responses
     "ANN401",
-    # Logging string style (f-strings in log calls are pervasive and acceptable here)
-    "G003", "G004",
     # Deliberate error-handling style: TRY301 (validate-then-convert-to-Exit) and
     # BLE001 (top-level CLI / best-effort catch-alls) are intentional here.
     "TRY301",

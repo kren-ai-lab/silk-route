@@ -63,7 +63,7 @@ class YourDatabaseInterface(BaseAPIInterface):
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException:
-            log.exception(f"Error fetching {query} for method '{method}'")
+            log.exception("Error fetching %s for method '%s'", query, method)
             return {}
 
     def parse(self, data: dict | list, fields_to_extract: list | dict | None, **kwargs: Any) -> dict | list:

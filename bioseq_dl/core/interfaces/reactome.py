@@ -91,13 +91,16 @@ class ReactomeInterface(BaseAPIInterface):
         secondary_method = "/".join(method.split("-")[1:])
         if primary_method not in methods:
             log.error(
-                f"Method '{primary_method}' is not supported. Supported methods are: {list(methods.keys())}"
+                "Method '%s' is not supported. Supported methods are: %s",
+                primary_method,
+                list(methods.keys()),
             )
             return {}
         if secondary_method not in methods[primary_method]:
             log.error(
-                f"Method '{secondary_method}' is not supported. Supported methods are: "
-                f"{methods[primary_method]}"
+                "Method '%s' is not supported. Supported methods are: %s",
+                secondary_method,
+                methods[primary_method],
             )
             return {}
 
@@ -123,7 +126,7 @@ class ReactomeInterface(BaseAPIInterface):
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException:
-            log.exception(f"Error fetching prediction for {query}")
+            log.exception("Error fetching prediction for %s", query)
             return {}
 
     def parse(self, data: list | dict, fields_to_extract: list | dict | None, **_kwargs: Any) -> list | dict:

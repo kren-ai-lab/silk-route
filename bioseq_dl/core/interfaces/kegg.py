@@ -84,17 +84,19 @@ class KEGGInterface(BaseAPIInterface):
         for key, check in rules.items():
             if key in query and not check(query[key]):
                 if key == "entries":
-                    log.error(f"Invalid entries: {query['entries']}. Must be a string or a list of strings.")
+                    log.error("Invalid entries: %s. Must be a string or a list of strings.", query["entries"])
                     return {}
                 if key == "db":
                     log.error(
-                        f"Invalid database type: {query['db']}. Valid types are: {', '.join(DATABASES)}."
+                        "Invalid database type: %s. Valid types are: %s.", query["db"], ", ".join(DATABASES)
                     )
                     return {}
                 if key == "option":
                     log.error(
-                        f"Invalid option: {query['option']} for method {method}. Supported options are: "
-                        f"{', '.join(METHOD_OPTIONS.get(method, []))}."
+                        "Invalid option: %s for method %s. Supported options are: %s.",
+                        query["option"],
+                        method,
+                        ", ".join(METHOD_OPTIONS.get(method, [])),
                     )
                     return {}
         return None
@@ -123,7 +125,7 @@ class KEGGInterface(BaseAPIInterface):
 
         """
         if not method:
-            log.error("Method must be specified. Supported methods are: " + ", ".join(self.METHODS.keys()))
+            log.error("Method must be specified. Supported methods are: %s", ", ".join(self.METHODS.keys()))
             return {}
 
         _, _, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, **kwargs)
@@ -131,7 +133,7 @@ class KEGGInterface(BaseAPIInterface):
         try:
             validated_params = validate_parameters(inputs, parameters)
         except ValueError:
-            log.exception(f"Invalid parameters for method '{method}'")
+            log.exception("Invalid parameters for method '%s'", method)
             return {}
 
         if method == "pathways":
@@ -151,10 +153,10 @@ class KEGGInterface(BaseAPIInterface):
             if validated_params.get("option"):
                 if method not in METHOD_OPTIONS or validated_params["option"] not in METHOD_OPTIONS[method]:
                     log.error(
-                        f"Option {validated_params['option']} is not supported for method {method}. "
-                        f"Supported "
-                        f"options are: "
-                        f"{', '.join(METHOD_OPTIONS.get(method, []))}."
+                        "Option %s is not supported for method %s. Supported options are: %s.",
+                        validated_params["option"],
+                        method,
+                        ", ".join(METHOD_OPTIONS.get(method, [])),
                     )
                     return {}
                 url += f"/{validated_params['option']}"
@@ -165,7 +167,7 @@ class KEGGInterface(BaseAPIInterface):
             self._delay()
             response.raise_for_status()
             if not response or not hasattr(response, "text"):
-                log.warning(f"No response or invalid response for query {query} with method {method}.")
+                log.warning("No response or invalid response for query %s with method %s.", query, method)
                 return {}
 
             if method == "get":
@@ -192,7 +194,7 @@ class KEGGInterface(BaseAPIInterface):
                 )
 
         except requests.exceptions.RequestException:
-            log.exception(f"Error fetching data for {query} with method {method}")
+            log.exception("Error fetching data for %s with method %s", query, method)
             return {}
         else:
             return r  # TODO(diego): check if for other functions we need to return json or text
@@ -384,5 +386,5 @@ class KEGGInterface(BaseAPIInterface):
 
         if method == "link":
             return data
-        log.error(f"Parsing method '{method}' is not supported.")
+        log.error("Parsing method '%s' is not supported.", method)
         return {}

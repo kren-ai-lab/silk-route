@@ -126,8 +126,8 @@ class UniprotInterface(BaseAPIInterface):
         try:
             response.raise_for_status()
         except requests.HTTPError:
-            log.exception(f"HTTP error occurred: {response.status_code} - {response.text}")
-            log.exception(f"Response JSON: {response.json()}")
+            log.exception("HTTP error occurred: %s - %s", response.status_code, response.text)
+            log.exception("Response JSON: %s", response.json())
             raise
 
     def submit_id_mapping(self, from_db: str, to_db: str, ids: list) -> str:
@@ -143,7 +143,7 @@ class UniprotInterface(BaseAPIInterface):
     def print_progress_batches(self, batch_index: int, size: int, total: int) -> None:
         """Log batch download progress."""
         n_fetched = min((batch_index + 1) * size, total)
-        log.info(f"Fetched: {n_fetched} / {total}")
+        log.info("Fetched: %s / %s", n_fetched, total)
 
     def combine_batches(self, all_results: Any, batch_results: Any, file_format: str) -> Any:
         """Combine incremental batch results into a single accumulated result."""
@@ -250,16 +250,16 @@ class UniprotInterface(BaseAPIInterface):
     def check_id_mapping_results_ready(self, job_id: str) -> bool:
         """Poll until an ID mapping job is complete, then return True."""
         while True:
-            log.debug(f"Checking status for job ID: {job_id}")
+            log.debug("Checking status for job ID: %s", job_id)
             request = self.session.get(f"{API_URL}/idmapping/status/{job_id}", timeout=self.timeout)
             self.check_response(request)
             j = request.json()
             if "jobStatus" in j:
                 if j["jobStatus"] == "RUNNING":
-                    log.info(f"Job is still running. Retrying in {POLLING_INTERVAL}s")
+                    log.info("Job is still running. Retrying in %ss", POLLING_INTERVAL)
                     time.sleep(POLLING_INTERVAL)
                 else:
-                    log.exception(f"Job failed with status: {j['jobStatus']}")
+                    log.exception("Job failed with status: %s", j["jobStatus"])
                     status = j["jobStatus"]
                     raise RequestError(status)
             else:
@@ -325,8 +325,8 @@ class UniprotInterface(BaseAPIInterface):
             id_groups = self.group_ids_by_type(ids)
 
             log.debug(
-                f"Auto db has identified the following ID groups: "
-                f"{ {k: len(v) for k, v in id_groups.items()} }"
+                "Auto db has identified the following ID groups: %s",
+                {k: len(v) for k, v in id_groups.items()},
             )
             for db_type, id_list in id_groups.items():
                 if not id_list or db_type == "unknown":
@@ -373,7 +373,7 @@ class UniprotInterface(BaseAPIInterface):
         job_id = None
         results = []
         total = len(ids)
-        log.info(f"Processing {total} {db_type} IDs in batches of {batch_size}")
+        log.info("Processing %s %s IDs in batches of %s", total, db_type, batch_size)
 
         for batch_index, start in enumerate(range(0, total, batch_size)):
             batch = ids[start : start + batch_size]
@@ -540,7 +540,7 @@ class UniprotInterface(BaseAPIInterface):
                     raise TimeoutError(message) from e
             except requests.exceptions.RequestException as e:
                 if attempt < self.total_retries - 1:
-                    log.info(f"Attempt {attempt + 1} failed: {e}. Retrying...")
+                    log.info("Attempt %s failed: %s. Retrying...", attempt + 1, e)
                     time.sleep(POLLING_INTERVAL)
                 else:
                     message = f"UniProt request failed after all retry attempts: {e}"
@@ -573,7 +573,7 @@ class UniprotInterface(BaseAPIInterface):
         else:
             field_map = self.field_map_base
 
-        log.debug(f"Parsing result with field map: {field_map.keys()}")
+        log.debug("Parsing result with field map: %s", field_map.keys())
         for field, (path, extractor) in field_map.items():
             try:
                 # Navigate through the path (e.g. 'to.proteinDescription...')
@@ -642,7 +642,7 @@ class UniprotInterface(BaseAPIInterface):
                         parsed.append({"uniprot_id": failed_id, "status": "failed"})
                         metadata.append({})
                 else:
-                    log.warning(f"Tried to parse non-dict result: {type(res)}, skipping.")
+                    log.warning("Tried to parse non-dict result: %s, skipping.", type(res))
                     continue
 
         if fmt == "dataframe":

@@ -31,7 +31,7 @@ def save_to_file(
     else:
         output_file = Path(out_dir) / filename / f"{db}_{endpoint}_{option}_results.csv"
     df.to_csv(output_file, index=False)
-    log.info(f"Results for {db} with option {option} saved to {output_file}")
+    log.info("Results for %s with option %s saved to %s", db, option, output_file)
 
 
 @app.command(name="")
@@ -105,12 +105,12 @@ def run(
                 "configuration."
             )
             raise ValueError(msg)
-        log.debug(f"Endpoint specifications: {endpoint_specs}")
+        log.debug("Endpoint specifications: %s", endpoint_specs)
         enricher = CrossRefEnricher(endpoint_specs)
         enriched_data, enriched_metadata = enricher.enrich(df)
 
         if isinstance(enriched_data, pd.DataFrame) and not enriched_data.empty:
-            log.info(f"Crossref enrichment resulted in {len(enriched_data)} rows")
+            log.info("Crossref enrichment resulted in %s rows", len(enriched_data))
 
         # Create output directory if it doesn't exist
         if not Path(out_dir).exists():
@@ -120,14 +120,14 @@ def run(
             filename = Path(input_file).stem
             results_path = Path(out_dir) / f"{filename}_results.csv"
             enriched_data.to_csv(results_path, index=False)
-            log.info(f"Results saved to {results_path}")
+            log.info("Results saved to %s", results_path)
         else:
             log.info("No results to save.")
 
         metadata_path = Path(out_dir) / "metadata.json"
         with metadata_path.open("w") as f:
             json.dump(enriched_metadata, f, indent=2)
-            log.info(f"Metadata saved to {metadata_path}")
+            log.info("Metadata saved to %s", metadata_path)
 
     except typer.BadParameter as e:
         typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)

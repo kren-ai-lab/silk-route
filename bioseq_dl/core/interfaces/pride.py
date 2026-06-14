@@ -65,7 +65,7 @@ class PrideInterface(BaseAPIInterface):
     def fetch(self, query: str | dict | list, *, method: str = "search", **kwargs: Any) -> dict | list:
         """Fetch proteomics data from PRIDE Archive."""
         if method not in self.METHODS:
-            log.error(f"Method '{method}' is not defined in the interface.")
+            log.error("Method '%s' is not defined in the interface.", method)
             return {}
         option = kwargs.pop("option", "default")
 
@@ -77,7 +77,7 @@ class PrideInterface(BaseAPIInterface):
         try:
             validated_params = validate_parameters(inputs, parameters)
         except ValueError:
-            log.exception(f"Invalid parameters for method '{method}'")
+            log.exception("Invalid parameters for method '%s'", method)
             return {}
 
         url = f"{PRIDE.API_URL}{method.replace('-', '/')}"
@@ -100,7 +100,7 @@ class PrideInterface(BaseAPIInterface):
         )
 
         prepared = self.session.prepare_request(response)
-        log.debug(f"Prepared request: {prepared.url}")
+        log.debug("Prepared request: %s", prepared.url)
 
         try:
             response = self.session.send(prepared)
@@ -109,7 +109,7 @@ class PrideInterface(BaseAPIInterface):
 
             return response.json()
         except RequestException:
-            log.exception(f"Error fetching data from {url}")
+            log.exception("Error fetching data from %s", url)
             return {}
 
     def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
