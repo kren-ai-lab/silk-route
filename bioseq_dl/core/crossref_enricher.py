@@ -301,7 +301,7 @@ class CrossRefEnricher:
     def enrich(
         self,
         data: Any,
-        fmt: Literal["dataframe", "json", "xml"] = "dataframe",
+        format: Literal["dataframe", "json", "xml"] = "dataframe",  # noqa: A002
     ) -> tuple[dict, dict]:
         """Enrich the input DataFrame with cross-references from specified endpoints."""
         # For an easier handling, convert input data to DataFrame if needed
@@ -347,16 +347,16 @@ class CrossRefEnricher:
                 params,
             )
 
-            processed_data, processed_metadata = self._process_dataframe(df, instance, spec, params, fmt)
+            processed_data, processed_metadata = self._process_dataframe(df, instance, spec, params, format)
             results.update(
                 {f"{spec.database}_{spec.endpoint}{'_' + spec.option if spec.option else ''}": processed_data}
             )
             metadata_key = f"{spec.database}_{spec.endpoint}{'_' + spec.option if spec.option else ''}"
             metadata.update({metadata_key: processed_metadata})
 
-        if fmt == "dataframe":
+        if format == "dataframe":
             return results, metadata
-        if fmt in ["json", "xml"]:
+        if format in ["json", "xml"]:
             return results, metadata
-        msg = f"Unsupported format: {fmt}"
+        msg = f"Unsupported format: {format}"
         raise ValueError(msg)

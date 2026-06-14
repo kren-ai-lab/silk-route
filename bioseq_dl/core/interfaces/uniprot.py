@@ -607,14 +607,14 @@ class UniprotInterface(BaseAPIInterface):
         self,
         results: dict | list[dict],
         extract_fields: list[str] | None,
-        fmt: Literal["json", "dataframe", "xml"] = "json",
+        format: Literal["json", "dataframe", "xml"] = "json",  # noqa: A002
     ) -> tuple[(pd.DataFrame | list[dict] | bytes | str | ET.ElementTree), dict | list[dict]]:
         """Parse UniProt JSON results into a DataFrame.
 
         Args:
             results (Dict): The JSON results from UniProt.
             extract_fields (Optional[List[str]]): List of fields to extract.
-            fmt (Literal["json", "dataframe", "xml"]): The output format.
+            format (Literal["json", "dataframe", "xml"]): The output format.
 
         """
         parsed = []
@@ -647,11 +647,11 @@ class UniprotInterface(BaseAPIInterface):
                     log.warning("Tried to parse non-dict result: %s, skipping.", type(res))
                     continue
 
-        if fmt == "dataframe":
+        if format == "dataframe":
             return pd.DataFrame(parsed).dropna(axis=1, how="all"), metadata[0] if len(
                 metadata
             ) > 0 else metadata
-        if fmt == "xml":
+        if format == "xml":
             return dict_to_elementtree(parsed, root_tag="results"), metadata[0] if len(
                 metadata
             ) > 0 else metadata
