@@ -91,7 +91,7 @@ def to_str_list(value: Any) -> list[str]:
                 parsed = ast.literal_eval(txt)
                 if isinstance(parsed, (list, tuple)):
                     return [str(x).strip() for x in parsed if str(x).strip()]
-            except Exception:
+            except (ValueError, SyntaxError):
                 pass
         # Fallback: single id
         return [txt]

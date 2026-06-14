@@ -429,7 +429,7 @@ class MainWorkflow:
                 parsed_count if parsed_count is not None else "unknown",
                 type(data).__name__,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # defensive catch-all
             parse_elapsed = time.time() - parse_started
             # Defensive: some upstream parsers may evaluate DataFrames in boolean context
             # (e.g., `if results:`) which raises ValueError("The truth value of a DataFrame is ambiguous").

@@ -236,7 +236,7 @@ class CrossRefEnricher:
                         continue
                     try:
                         df_result = pd.DataFrame(result)
-                    except Exception:  # noqa: S112  # skip records that won't coerce to a DataFrame
+                    except Exception:  # noqa: BLE001, S112  # skip records that won't coerce to a DataFrame
                         continue
                     if df_result.empty:
                         continue
@@ -253,7 +253,7 @@ class CrossRefEnricher:
                 if isinstance(result, dict):
                     try:
                         df_result = pd.DataFrame([result])
-                    except Exception:  # noqa: S112  # skip records that won't coerce to a DataFrame
+                    except Exception:  # noqa: BLE001, S112  # skip records that won't coerce to a DataFrame
                         continue
                     if df_result.empty:
                         continue

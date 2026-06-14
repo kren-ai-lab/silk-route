@@ -113,14 +113,14 @@ def _is_within_allowed_bases(path: Path, allowed_bases: list[Path]) -> bool:
     """Return True if path is inside any of the allowed base directories."""
     try:
         p_res = path.resolve()
-    except Exception:
+    except Exception:  # noqa: BLE001  # defensive catch-all
         return False
     for base in allowed_bases:
         try:
             base_res = base.resolve()
             # using relative_to to ensure proper containment check
             p_res.relative_to(base_res)
-        except Exception:  # noqa: S112  # path not under this base; try next
+        except Exception:  # noqa: BLE001, S112  # path not under this base; try next
             continue
         else:
             return True

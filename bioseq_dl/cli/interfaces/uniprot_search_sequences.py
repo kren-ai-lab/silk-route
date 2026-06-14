@@ -90,7 +90,7 @@ def run(
                 f"Unsupported export format '{raw_export_format}'. Supported formats are: "
                 f"{', '.join(USER_EXPORT_FORMATS)}."
             )
-            raise ValueError(msg)
+            raise ValueError(msg)  # noqa: TRY301  # validate-then-Exit CLI idiom
     except ValueError as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=1) from None
@@ -102,7 +102,7 @@ def run(
                 "bioseq_dl.cli.uniprot_search_query"
             )  # re-fetch so root handlers pick new level
             logger.debug("Debug logging enabled")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001  # defensive catch-all
         logger.warning("Could not configure logging: %s", e)
 
     df = pd.read_csv(input_file)

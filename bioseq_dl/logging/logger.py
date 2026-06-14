@@ -29,7 +29,7 @@ def _resolve_log_dir() -> Path:
 
         cfg = config.get_config()
         return Path(cfg.cache_paths.logs()).expanduser().resolve()
-    except Exception:
+    except Exception:  # noqa: BLE001  # defensive catch-all
         pass
 
     return Path("~/.cache/bioseq_dl/logs").expanduser().resolve()
@@ -134,7 +134,7 @@ class _LoggingManager:
             fh.setLevel(logging.DEBUG)
             fh.setFormatter(formatter)
             handlers.append(fh)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # defensive catch-all
             # Keep console even if the file handler fails; print a clear hint.
             with contextlib.suppress(Exception):
                 sys.stderr.write(

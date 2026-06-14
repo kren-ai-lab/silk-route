@@ -1388,7 +1388,7 @@ def run_workflow(
             configure_logging(level=logging.DEBUG)
             logger = get_logger("bioseq_dl.cli.workflows")
             logger.debug("Debug logging enabled")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001  # defensive catch-all
         logger.warning("Could not configure logging: %s", e)
 
     wf = MainWorkflow(uniprot_interface=UniprotInterface(total_retries=workflow_values["retries"]))
@@ -1415,7 +1415,7 @@ def run_workflow(
         elif workflow_values["mode"] == "query_composition":
             if "," not in workflow_values["query"]:
                 msg = "For query_composition, provide multiple queries as 'query1=label1,query2=label2'."
-                raise ValueError(msg)
+                raise ValueError(msg)  # noqa: TRY301  # validate-then-Exit CLI idiom
             queries = [q.strip() for q in workflow_values["query"].split(",")]
             queries_with_labels = [split_pair(q) for q in queries]
             data, meta = wf.run(
@@ -1435,7 +1435,7 @@ def run_workflow(
             )
         else:
             msg = f"Unsupported workflow mode '{workflow_values['mode']}'."
-            raise ValueError(msg)
+            raise ValueError(msg)  # noqa: TRY301  # validate-then-Exit CLI idiom
     except (TimeoutError, RuntimeError, ValueError) as e:
         error_message = str(e)
         logger.exception(error_message)

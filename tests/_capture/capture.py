@@ -364,7 +364,7 @@ def main(argv: list[str]) -> int:
     for name in selected:
         try:
             CAPTURES[name]()
-        except Exception as e:  # keep going across APIs
+        except Exception as e:  # keep going across APIs  # noqa: BLE001  # defensive catch-all
             print(f"error capturing {name}: {e}")  # noqa: T201
             failed.append(name)
 

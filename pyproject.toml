@@ -85,9 +85,6 @@ ignore = [
     # --- Transitional: legacy style/docs/typing, not enforced yet ---
     # ANN401 (Any type): intentional for passthrough **kwargs and dynamic JSON API responses
     "ANN401",
-    # Deliberate error-handling style: TRY301 (validate-then-convert-to-Exit) and
-    # BLE001 (top-level CLI / best-effort catch-alls) are intentional here.
-    "TRY301",
     # Boolean positional flags: `parse` is an established positional public-API flag on
     # fetch_single/fetch_batch (query, parse=False, *args, **kwargs) across base + all
     # interfaces; making it keyword-only is a breaking signature change. Kept intentionally.
@@ -101,7 +98,6 @@ ignore = [
     "PLR0911", "PLR0915",
 
     # --- Transitional: REAL findings deferred to Phase 2/3 (remove as fixed) ---
-    "BLE001",   # blind except: intentional CLI/defensive catch-alls (see note above)
     "C901",     # complexity: Phase 3 (split base.py / fetch_single)
     "PLR0912",  # too many branches: Phase 3
 ]

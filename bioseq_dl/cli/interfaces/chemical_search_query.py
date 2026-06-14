@@ -196,7 +196,7 @@ def run_compound(
                 "bioseq_dl.cli.uniprot_search_query"
             )  # re-fetch so root handlers pick new level
             logger.debug("Debug logging enabled")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001  # defensive catch-all
         logger.warning("Could not configure logging: %s", e)
 
     if databases.lower() != "all":

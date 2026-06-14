@@ -64,7 +64,7 @@ def run(
         # Check if input file exists
         if not Path(input_file).exists():
             msg = f"Input file {input_file} does not exist."
-            raise FileNotFoundError(msg)
+            raise FileNotFoundError(msg)  # noqa: TRY301  # validate-then-Exit CLI idiom
 
         # Load input file into a DataFrame
         try:
@@ -104,7 +104,7 @@ def run(
                 "No valid endpoint specifications found. Please check your database selections and "
                 "configuration."
             )
-            raise ValueError(msg)
+            raise ValueError(msg)  # noqa: TRY301  # validate-then-Exit CLI idiom
         log.debug("Endpoint specifications: %s", endpoint_specs)
         enricher = CrossRefEnricher(endpoint_specs)
         enriched_data, enriched_metadata = enricher.enrich(df)
@@ -132,6 +132,6 @@ def run(
     except typer.BadParameter as e:
         typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=2) from None
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001  # defensive catch-all
         typer.secho(f"Unexpected error: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from None
