@@ -92,9 +92,6 @@ ignore = [
     "G003", "G004",
     # Exception message style
     "EM101", "EM102", "TRY002", "TRY003", "TRY300", "TRY301", "TRY400",
-    # pathlib migration (deferred; os.path used throughout)
-    "PTH100", "PTH103", "PTH107", "PTH110", "PTH113", "PTH118", "PTH119",
-    "PTH122", "PTH123", "PTH207", "PTH208",
     # Intentional relative imports within the package
     "TID252",
     # Simplifications (deferred; review individually later)

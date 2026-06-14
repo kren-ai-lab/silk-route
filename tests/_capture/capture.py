@@ -26,6 +26,7 @@ import json
 import os
 import sys
 import tempfile
+from pathlib import Path
 
 from tests._helpers import FIXTURES_DIR
 
@@ -91,7 +92,7 @@ def capture_alphafold() -> None:
     from bioseq_dl.core.interfaces.alphafold import AlphafoldInterface
 
     cfg = tempfile.mkdtemp(prefix="bioseq-capture-cfg-")
-    with open(os.path.join(cfg, "init.yml"), "w") as f:
+    with (Path(cfg) / "init.yml").open("w") as f:
         f.write(f"download_folder: {cfg}\n")
     iface = AlphafoldInterface(
         structures=None,

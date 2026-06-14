@@ -13,7 +13,7 @@ This file lives in ``examples/`` on purpose; it is a reference, not part of the 
 
 from __future__ import annotations
 
-import os
+from pathlib import Path
 from typing import Any
 
 import requests
@@ -42,7 +42,7 @@ class YourDatabaseInterface(BaseAPIInterface):
         **kwargs: Any,
     ) -> None:
         if cache_dir:
-            cache_dir = os.path.abspath(cache_dir)
+            cache_dir = str(Path(cache_dir).resolve())
         else:
             cache_dir = YOUR_DATABASE.CACHE_DIR if YOUR_DATABASE and YOUR_DATABASE.CACHE_DIR else ""
 
@@ -51,7 +51,7 @@ class YourDatabaseInterface(BaseAPIInterface):
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
         self.output_dir = output_dir or cache_dir
-        os.makedirs(self.output_dir, exist_ok=True)
+        Path(self.output_dir).mkdir(parents=True, exist_ok=True)
 
     def fetch(self, query: str | dict | list, *, method: str = "SOME_DEFAULT", **kwargs: Any) -> Any:
         url = f"{YOUR_DATABASE.API_URL}{method}/{query}"

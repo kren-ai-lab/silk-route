@@ -1,7 +1,7 @@
 import json
 import logging
-import os
 import shutil
+from pathlib import Path
 from typing import Literal, cast
 
 import pandas as pd
@@ -147,14 +147,14 @@ def run(
     df_blast = df_blast.drop(columns=["subject_id"])
 
     # Create folder for output if it does not exist
-    os.makedirs(output, exist_ok=True)
+    Path(output).mkdir(parents=True, exist_ok=True)
 
     # Save to CSV
-    blast_path = export_dataframe(df_blast, os.path.join(output, "blast_results.csv"))
+    blast_path = export_dataframe(df_blast, Path(output) / "blast_results.csv")
     log.info(f"BLAST results saved to {blast_path}")
 
     # Clean up temporary files
-    os.remove("tmp/blast_results.txt")
+    Path("tmp/blast_results.txt").unlink()
     shutil.rmtree("tmp")
 
     if not no_download:
@@ -171,7 +171,7 @@ def run(
         metadata["fetch"] = fetch_metadata
 
         # Save raw results
-        with open(f"{output}/raw_response.json", "w") as f:
+        with (Path(output) / "raw_response.json").open("w") as f:
             json.dump(response, f, indent=2, default=str)
 
         logger.info("Parsing results...")
@@ -196,33 +196,35 @@ def run(
         if export_format in {"csv", "parquet"}:
             if isinstance(export_data, pd.DataFrame) and not export_data.empty:
                 tabular_format = normalize_export_format(export_format)
-                export_path = os.path.join(output, f"uniprot_results.{tabular_format}")
+                export_path = Path(output) / f"uniprot_results.{tabular_format}"
                 export_dataframe(export_data, export_path, output_format=tabular_format)
                 if isinstance(enriched_data, dict):
                     for key, value in enriched_data.items():
                         logger.info(f"Saving {key} results into {output} directory")
                         export_dataframe(
                             value,
-                            os.path.join(output, f"{key}_results.{tabular_format}"),
+                            Path(output) / f"{key}_results.{tabular_format}",
                             output_format=tabular_format,
                         )
 
-                with open(f"{output}/metadata.json", "w") as f:
+                with (Path(output) / "metadata.json").open("w") as f:
                     json.dump(metadata, f, indent=2, default=str)
                 logger.info(f"Results saved to {export_path}")
             else:
                 logger.warning("No results to save in %s format.", export_format.upper())
         elif export_format == "json":
             if isinstance(export_data, (dict, list)):
-                with open(f"{output}/uniprot_results.json", "w") as f:
+                with (Path(output) / "uniprot_results.json").open("w") as f:
                     json.dump(export_data, f, indent=2, default=str)
 
                 if isinstance(enriched_data, dict):
                     for key, value in enriched_data.items():
                         logger.info(f"Saving {key} results into {output} directory")
-                        json.dump(value, open(f"{output}/{key}_results.json", "w"), indent=2, default=str)
+                        json.dump(
+                            value, (Path(output) / f"{key}_results.json").open("w"), indent=2, default=str
+                        )
 
-                with open(f"{output}/metadata.json", "w") as f:
+                with (Path(output) / "metadata.json").open("w") as f:
                     json.dump(metadata, f, indent=2, default=str)
                 logger.info(f"Results saved to {output}/uniprot_results.json")
             else:
@@ -236,7 +238,7 @@ def run(
                         logger.info(f"Saving {key} results into {output} directory")
                         value.write(f"{output}/{key}_results.xml", encoding="utf-8", xml_declaration=True)
 
-                with open(f"{output}/metadata.json", "w") as f:
+                with (Path(output) / "metadata.json").open("w") as f:
                     json.dump(metadata, f, indent=2, default=str)
                 logger.info(f"Results saved to {output}/uniprot_results.xml")
             else:

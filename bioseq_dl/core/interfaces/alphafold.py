@@ -1,5 +1,5 @@
 import json
-import os
+from pathlib import Path
 from typing import Literal
 
 import pandas as pd
@@ -55,7 +55,7 @@ class AlphafoldInterface(BaseAPIInterface):
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
         self.output_dir = output_dir or download_folder_fallback
-        os.makedirs(self.output_dir, exist_ok=True)
+        Path(self.output_dir).mkdir(parents=True, exist_ok=True)
 
         self.structures = structures
 
@@ -183,19 +183,19 @@ class AlphafoldInterface(BaseAPIInterface):
                 log.warning(f"{url_key} is empty; skipping download. {parsed}")
                 continue
             file_name = structure_url.split("/")[-1]
-            file_path = os.path.join(self.output_dir, file_name)
+            file_path = Path(self.output_dir) / file_name
 
             # Delete the URL from parsed data
             del parsed[url_key]
 
             # Check if the file already exists
-            if os.path.exists(file_path):
+            if file_path.exists():
                 log.info(f"Structure {file_name} already exists. Skipping download.")
                 continue
 
             try:
                 response = self.session.get(structure_url)
-                with open(file_path, "wb") as f:
+                with file_path.open("wb") as f:
                     log.info(f"Downloading structure {file_name}...")
                     f.write(response.content)
 
@@ -243,19 +243,19 @@ class AlphafoldInterface(BaseAPIInterface):
             file_name (str): Name of the file to save the data to.
 
         """
-        if not os.path.exists(self.output_dir):
-            os.makedirs(self.output_dir)
+        if not Path(self.output_dir).exists():
+            Path(self.output_dir).mkdir(parents=True)
 
         if extension not in ["csv", "tsv", "json", "parquet"]:
             log.error(f"Unsupported file extension: {extension}. Use 'csv', 'tsv', 'json', or 'parquet'.")
             return None
 
         if extension == "json":
-            with open(os.path.join(self.output_dir, f"{filename}.{extension}"), "w") as f:
+            with (Path(self.output_dir) / f"{filename}.{extension}").open("w") as f:
                 json.dump(data, f, indent=4)
-            return os.path.join(self.output_dir, f"{filename}.{extension}")
+            return str(Path(self.output_dir) / f"{filename}.{extension}")
 
         df = pd.DataFrame(data)
-        output_path = os.path.join(self.output_dir, f"{filename}.{extension}")
+        output_path = str(Path(self.output_dir) / f"{filename}.{extension}")
         export_dataframe(df, output_path, output_format=extension)
         return output_path

@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -59,7 +59,7 @@ class PDBInterface(BaseAPIInterface):
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
         self.output_dir = output_dir or download_folder_fallback
-        os.makedirs(self.output_dir, exist_ok=True)
+        Path(self.output_dir).mkdir(parents=True, exist_ok=True)
 
         self.batch_size = batch_size
         self.download_structures = download_structures
@@ -130,14 +130,15 @@ class PDBInterface(BaseAPIInterface):
 
         """
         log.info(f"Fetching structure for {pdb_id} in {file_format} format...")
-        if os.path.exists(self.output_dir + f"/{pdb_id}.{file_format}"):
+        existing = Path(self.output_dir) / f"{pdb_id}.{file_format}"
+        if existing.exists():
             log.info(f"Structure for {pdb_id} already exists in {file_format} format.")
-            return self.output_dir + f"/{pdb_id}.{file_format}"
+            return str(existing)
 
         log.info(f"Downloading {pdb_id} in {file_format} format...")
 
-        if not os.path.exists(self.output_dir):
-            os.makedirs(self.output_dir)
+        if not Path(self.output_dir).exists():
+            Path(self.output_dir).mkdir(parents=True)
 
         url = f"{PDB.STRUCTURE_URL}{pdb_id}.{file_format}"
 
@@ -145,10 +146,10 @@ class PDBInterface(BaseAPIInterface):
             response = self.session.get(url)
             self._delay()
             response.raise_for_status()
-            file_path = os.path.join(self.output_dir, f"{pdb_id}.{file_format}")
-            with open(file_path, "wb") as f:
+            file_path = Path(self.output_dir) / f"{pdb_id}.{file_format}"
+            with file_path.open("wb") as f:
                 f.write(response.content)
-            return file_path
+            return str(file_path)
         except requests.exceptions.RequestException as e:
             log.error(f"Error downloading structure for {pdb_id}: {e}")
             return ""

@@ -33,10 +33,10 @@ def download_uniprot_database(
             f"Database {db_name} is not supported. Supported databases are: {', '.join(DATABASES.keys())}."
         )
 
-    db_path = os.path.join(DB_DIR, f"{db_name}.{extension}")
+    db_path = DB_DIR / f"{db_name}.{extension}"
 
-    if not os.path.exists(db_path):
-        os.makedirs(DB_DIR, exist_ok=True)
+    if not db_path.exists():
+        DB_DIR.mkdir(parents=True, exist_ok=True)
         url = f"{BASE_URL}/{DATABASES[db_name]}.{extension}.gz"
         os.system(f"wget {url} -O {db_path}.gz")
         log.info(f"Unzipping {db_path}...")
@@ -103,17 +103,17 @@ def check_blast():
 
 def make_blast_database(db_name: str, db_type: str = "prot", extension: str = "xml"):
     """Create a BLAST database from the Uniprot database."""
-    db_path = os.path.join(DB_DIR, f"{db_name}.{extension}")
-    if not os.path.exists(db_path):
+    db_path = DB_DIR / f"{db_name}.{extension}"
+    if not db_path.exists():
         raise FileNotFoundError(f"Database {db_name} not found at {db_path}. Please download it first.")
 
     # Check if the database is already created
-    blast_db_path = os.path.join(DB_DIR, db_name)
+    blast_db_path = DB_DIR / db_name
     extensions = [".pdb", ".phr", ".pin", ".psq", ".pot", ".psq", ".ptf", ".pto"]
     makedb = False
     # For all extensions check if exists if there is one failing makedb again
     for ext in extensions:
-        if not os.path.exists(blast_db_path + "/db" + ext):
+        if not (blast_db_path / f"db{ext}").exists():
             makedb = True
             break
     if makedb:
@@ -121,30 +121,30 @@ def make_blast_database(db_name: str, db_type: str = "prot", extension: str = "x
         blast_db_cmd = [
             "makeblastdb",
             "-in",
-            db_path,
+            str(db_path),
             "-dbtype",
             db_type,
             "-out",
-            os.path.join(DB_DIR, db_name) + "/db",
+            str(blast_db_path / "db"),
         ]
 
         subprocess.run(blast_db_cmd, check=True)
-        log.info(f"BLAST database created at: {os.path.join(DB_DIR, DATABASES[db_name])}")
+        log.info(f"BLAST database created at: {DB_DIR / DATABASES[db_name]}")
     else:
         log.info(f"BLAST database already exists at {blast_db_path}. No need to create it again.")
 
 
 def run_blast(sequences: list[str], db_name: str, blast_type: str = "blastp", evalue: float = 0.001):
     """Run BLAST search."""
-    blast_db_path = os.path.join(DB_DIR, db_name)
-    if not os.path.exists(blast_db_path):
+    blast_db_path = DB_DIR / db_name
+    if not blast_db_path.exists():
         raise FileNotFoundError(f"Database {db_name} not found at {blast_db_path}. Please download it first.")
 
     # Make tmp directory if it does not exist
-    os.makedirs("tmp", exist_ok=True)
+    Path("tmp").mkdir(parents=True, exist_ok=True)
 
     # Write sequences to a temporary file
-    with open("tmp/sequences.fasta", "w") as f:
+    with Path("tmp/sequences.fasta").open("w") as f:
         f.writelines(f">{i}\n{seq}\n" for i, seq in enumerate(sequences))
 
     blast_cmd = [
@@ -152,7 +152,7 @@ def run_blast(sequences: list[str], db_name: str, blast_type: str = "blastp", ev
         "-query",
         "tmp/sequences.fasta",
         "-db",
-        blast_db_path + "/db",
+        str(blast_db_path / "db"),
         "-outfmt",
         "6 qseqid sseqid pident length evalue bitscore qcovs",
         "-evalue",
@@ -160,16 +160,16 @@ def run_blast(sequences: list[str], db_name: str, blast_type: str = "blastp", ev
     ]
 
     log.info("Running BLAST search...")
-    with open("tmp/blast_results.txt", "w") as f:
+    with Path("tmp/blast_results.txt").open("w") as f:
         subprocess.run(blast_cmd, stdout=f, check=True)
 
     # Clean up temporary file
-    os.remove("tmp/sequences.fasta")
+    Path("tmp/sequences.fasta").unlink()
 
 
 def parse_blast_results(file_path: str, identity_threshold: float = 90.0):
     """Parse BLAST results from a file."""
-    with open(file_path) as f:
+    with Path(file_path).open() as f:
         results = f.readlines()
 
     parsed_results = []

@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 
 import requests
 from requests import Request
@@ -38,7 +38,7 @@ class SabiorkInterface(BaseAPIInterface):
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
         self.output_dir = output_dir or self.cache_dir
-        os.makedirs(self.output_dir, exist_ok=True)
+        Path(self.output_dir).mkdir(parents=True, exist_ok=True)
 
     def fetch(self, query: str | dict | list, *, method: str = "kineticlaws", **kwargs):
         """Fetch data from the Sabio-RK API based on the provided query."""

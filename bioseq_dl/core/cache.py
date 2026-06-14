@@ -42,7 +42,6 @@ Example:
 
 from __future__ import annotations
 
-import glob
 import logging
 import shutil
 import time
@@ -164,7 +163,7 @@ def _expand_targets(provider: CacheProvider, pattern: str | None) -> list[Path]:
             continue
         if pattern:
             try:
-                targets.extend(Path(m) for m in glob.glob(str(p / pattern), recursive=True))
+                targets.extend(p.glob(pattern))
             except Exception:
                 _logger.exception("Error globbing pattern %s under %s", pattern, p)
         else:

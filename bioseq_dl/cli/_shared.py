@@ -10,6 +10,7 @@ either writes the data to ``output`` or prints a short preview.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -48,7 +49,7 @@ def save_or_print(result: Any, output: str | None = None, *, preview_rows: int =
         return
 
     if output:
-        with open(output, "w") as fh:
+        with Path(output).open("w") as fh:
             if isinstance(data, bytes):
                 fh.write(data.decode("utf-8"))
             elif isinstance(data, (dict, list)):

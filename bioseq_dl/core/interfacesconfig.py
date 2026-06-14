@@ -1,6 +1,6 @@
 import json
-import os
 from importlib import resources
+from pathlib import Path
 from typing import Any
 
 import yaml
@@ -12,10 +12,10 @@ def read_config_file(path: str) -> Any:
     Returns ``None`` for unsupported extensions. Shared by ``load_packaged_config``
     and ``BaseAPIInterface._load_all_configs`` so the parse logic lives in one place.
     """
-    ext = os.path.splitext(path)[1].lower()
+    ext = Path(path).suffix.lower()
     if ext not in (".json", ".yaml", ".yml"):
         return None
-    with open(path, encoding="utf-8") as f:
+    with Path(path).open(encoding="utf-8") as f:
         if ext == ".json":
             return json.load(f)
         return yaml.safe_load(f)

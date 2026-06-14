@@ -1,5 +1,5 @@
 # bioseq_dl/cli/uniprot_crossref.py
-import os
+from pathlib import Path
 
 import pandas as pd
 import typer
@@ -19,12 +19,12 @@ CROSS_REF_FIELDS = [xref.lower() for xref in XREF_MAPPING.keys()]
 
 def save_to_file(df, out_dir, filename, db, endpoint, option):
     # Make folder with filename
-    os.makedirs(os.path.join(out_dir, filename), exist_ok=True)
+    (Path(out_dir) / filename).mkdir(parents=True, exist_ok=True)
     # Save the DataFrame to a CSV file
     if option is None:
-        output_file = os.path.join(out_dir, f"{filename}/{db}_{endpoint}_results.csv")
+        output_file = Path(out_dir) / filename / f"{db}_{endpoint}_results.csv"
     else:
-        output_file = os.path.join(out_dir, f"{filename}/{db}_{endpoint}_{option}_results.csv")
+        output_file = Path(out_dir) / filename / f"{db}_{endpoint}_{option}_results.csv"
     df.to_csv(output_file, index=False)
     log.info(f"Results for {db} with option {option} saved to {output_file}")
 
@@ -56,7 +56,7 @@ def run(
 ):
     try:
         # Check if input file exists
-        if not os.path.exists(input):
+        if not Path(input).exists():
             raise FileNotFoundError(f"Input file {input} does not exist.")
 
         # Load input file into a DataFrame
@@ -112,21 +112,23 @@ def run(
             log.info(f"Crossref enrichment resulted in {len(enriched_data)} rows")
 
         # Create output directory if it doesn't exist
-        if not os.path.exists(out_dir):
-            os.makedirs(out_dir)
+        if not Path(out_dir).exists():
+            Path(out_dir).mkdir(parents=True)
 
         if isinstance(enriched_data, pd.DataFrame) and not enriched_data.empty:
-            filename = os.path.splitext(os.path.basename(input))[0]
-            enriched_data.to_csv(os.path.join(out_dir, f"{filename}_results.csv"), index=False)
-            log.info(f"Results saved to {os.path.join(out_dir, f'{filename}_results.csv')}")
+            filename = Path(input).stem
+            results_path = Path(out_dir) / f"{filename}_results.csv"
+            enriched_data.to_csv(results_path, index=False)
+            log.info(f"Results saved to {results_path}")
         else:
             log.info("No results to save.")
 
-        with open(os.path.join(out_dir, "metadata.json"), "w") as f:
+        metadata_path = Path(out_dir) / "metadata.json"
+        with metadata_path.open("w") as f:
             import json
 
             json.dump(enriched_metadata, f, indent=2)
-            log.info(f"Metadata saved to {os.path.join(out_dir, 'metadata.json')}")
+            log.info(f"Metadata saved to {metadata_path}")
 
     except typer.BadParameter as e:
         typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)

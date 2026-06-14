@@ -4,12 +4,12 @@ import hashlib
 import itertools
 import json
 import operator
-import os
 import random
 import re
 import time
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from typing import Any, ClassVar, Literal
 
 import pandas as pd
@@ -94,7 +94,7 @@ class BaseAPIInterface(ABC):
                 cache_dir = "./cache"
         # Always normalize to an absolute path so caches don't land relative to
         # the current working directory (DB_CONFIG/env values may be relative).
-        cache_dir = os.path.abspath(cache_dir)
+        cache_dir = str(Path(cache_dir).resolve())
 
         if config_dir is None and db is not None:
             config_dir = db.CONFIG_DIR
@@ -152,7 +152,7 @@ class BaseAPIInterface(ABC):
         log.debug(f"Cache directory set to: {self.cache_dir}")
         log.debug(f"Configuration directory set to: {self.config_dir}")
 
-        os.makedirs(self.cache_dir, exist_ok=True)
+        Path(self.cache_dir).mkdir(parents=True, exist_ok=True)
 
         # Init session
         self.session = requests.Session()
@@ -172,7 +172,7 @@ class BaseAPIInterface(ABC):
         db = self.DB_CONFIG
         if db is None or not db.CONFIG_DIR:
             return {}
-        subdir = os.path.basename(os.path.normpath(db.CONFIG_DIR))
+        subdir = Path(db.CONFIG_DIR).name
         return load_packaged_config(subdir, "fields.yml") or {}
 
     def _load_all_configs(self, config_dir: str) -> None:
@@ -185,20 +185,18 @@ class BaseAPIInterface(ABC):
             config_dir (str): Directory containing configuration files.
 
         """
-        if not os.path.exists(config_dir):
+        if not Path(config_dir).exists():
             log.debug(f"Config directory not found, using packaged defaults only: {config_dir}")
             return
 
-        for fname in os.listdir(config_dir):
-            path = os.path.join(config_dir, fname)
-            if os.path.isfile(path):
-                name, ext = os.path.splitext(fname)
-                if ext.lower() not in (".json", ".yaml", ".yml"):
+        for entry in Path(config_dir).iterdir():
+            if entry.is_file():
+                if entry.suffix.lower() not in (".json", ".yaml", ".yml"):
                     continue
                 try:
-                    self.configs[name] = read_config_file(path)
+                    self.configs[entry.stem] = read_config_file(entry)
                 except Exception as e:
-                    log.error(f"Error loading config {fname}: {e}")
+                    log.error(f"Error loading config {entry.name}: {e}")
 
     def _delay(self):
         """Introduce a random delay between min_wait and max_wait."""
@@ -337,12 +335,12 @@ class BaseAPIInterface(ABC):
     def _get_cache_path(self, identifier: str) -> str:
         """Generate a cache file path based on the identifier."""
         hashed_key = self._hash_key(identifier)
-        return os.path.join(self.cache_dir, f"{hashed_key}.json")
+        return str(Path(self.cache_dir) / f"{hashed_key}.json")
 
     def has_results(self, identifier: str) -> bool:
         """Check if results for a given identifier are cached."""
         cache_path = self._get_cache_path(identifier)
-        return os.path.exists(cache_path)
+        return Path(cache_path).exists()
 
     def _load_file(self, path: str) -> dict | pd.DataFrame:
         """Load a file from the cache path.
@@ -350,14 +348,14 @@ class BaseAPIInterface(ABC):
         """
         if path.endswith(".csv"):
             return pd.read_csv(path)
-        with open(path) as f:
+        with Path(path).open() as f:
             return json.load(f)
 
     def load_cache(self, identifier: str) -> dict | pd.DataFrame | None:
         """Load cached results for a given identifier."""
         # Try directly loading from the cache
         cache_path = self._get_cache_path(identifier)
-        if os.path.exists(cache_path):
+        if Path(cache_path).exists():
             return self._load_file(cache_path)
 
         return None
@@ -369,10 +367,10 @@ class BaseAPIInterface(ABC):
         if isinstance(data, pd.DataFrame):
             data.to_csv(path, index=False)
         elif isinstance(data, str):
-            with open(path, "w") as f:
+            with Path(path).open("w") as f:
                 f.write(data)
         else:
-            with open(path, "w") as f:
+            with Path(path).open("w") as f:
                 json.dump(data, f)
 
     def get_config(self, key: str) -> dict:

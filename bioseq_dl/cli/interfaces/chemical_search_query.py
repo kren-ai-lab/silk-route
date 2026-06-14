@@ -1,6 +1,6 @@
 import json
 import logging
-import os
+from pathlib import Path
 
 import pandas as pd
 import typer
@@ -192,7 +192,7 @@ def run_compound(
         db_list = AVAILABLE_DATABASES
 
     # Create folder for output if it does not exist
-    os.makedirs(output, exist_ok=True)
+    Path(output).mkdir(parents=True, exist_ok=True)
 
     for db in db_list:
         if db == "pubchem":
@@ -200,7 +200,7 @@ def run_compound(
             result, metadata = pubchem_search_query(query, exact_match=exact_match)
             if isinstance(result, pd.DataFrame) and not result.empty:
                 result.to_csv(f"{output}/pubchem_results.csv", index=False)
-                with open(f"{output}/pubchem_metadata.json", "w") as f:
+                with (Path(output) / "pubchem_metadata.json").open("w") as f:
                     json.dump(metadata, f, indent=2, default=str)
                 log.info(f"Results saved to {output}/pubchem_results.csv")
 
@@ -209,7 +209,7 @@ def run_compound(
             result, metadata = chembl_search_query(query, exact_match=exact_match)
             if isinstance(result, pd.DataFrame) and not result.empty:
                 result.to_csv(f"{output}/chembl_results.csv", index=False)
-                with open(f"{output}/chembl_metadata.json", "w") as f:
+                with (Path(output) / "chembl_metadata.json").open("w") as f:
                     json.dump(metadata, f, indent=2, default=str)
                 log.info(f"Results saved to {output}/chembl_results.csv")
         elif db == "chebi":
@@ -217,7 +217,7 @@ def run_compound(
             result, metadata = chebi_search_query(query)
             if isinstance(result, pd.DataFrame) and not result.empty:
                 result.to_csv(f"{output}/chebi_results.csv", index=False)
-                with open(f"{output}/chebi_metadata.json", "w") as f:
+                with (Path(output) / "chebi_metadata.json").open("w") as f:
                     json.dump(metadata, f, indent=2, default=str)
                 log.info(f"Results saved to {output}/chebi_results.csv")
         else:
