@@ -1,5 +1,7 @@
 """PubChem CLI commands."""
 
+from typing import Any
+
 import typer
 
 from bioseq_dl import PubChemInterface
@@ -30,7 +32,7 @@ def run_compound(
     """Fetch compound data from PubChem."""
     interface = PubChemInterface()
 
-    query = {}
+    query: dict[str, Any] = {}
 
     if cid:
         query["cid"] = [cid.strip() for cid in cid.split(",")]
@@ -83,7 +85,7 @@ def run_gene(
     """Fetch gene data from PubChem."""
     interface = PubChemInterface()
 
-    query = {}
+    query: dict[str, Any] = {}
 
     if genesymbol:
         query["genesymbol"] = [gs.strip() for gs in genesymbol.split(",")]

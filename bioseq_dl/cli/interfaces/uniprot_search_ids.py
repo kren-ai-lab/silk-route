@@ -3,7 +3,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 import pandas as pd
 import typer
@@ -89,7 +89,7 @@ def run(
     if min_identity is not None and "identity" in df.columns:
         df = df[df["identity"] >= min_identity]
 
-    metadata = {}
+    metadata: dict[str, Any] = {}
     log.info("Downloading additional UniProt data...")
     instance = UniprotInterface()
     logger.debug(

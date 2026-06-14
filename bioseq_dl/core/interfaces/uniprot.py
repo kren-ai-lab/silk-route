@@ -368,7 +368,7 @@ class UniprotInterface(BaseAPIInterface):
     ) -> tuple[list[dict], dict]:
         """Procesa un lote de IDs de un tipo específico."""
         downloader = UniprotInterface()
-        metadata = {}
+        metadata: dict[str, Any] = {}
         time_started = time.time()
         job_id = None
         results = []
@@ -445,7 +445,7 @@ class UniprotInterface(BaseAPIInterface):
             "download": download,
             "format": "json",
         }
-        metadata = {}
+        metadata: dict[str, Any] = {}
         response = None
 
         headers = {"Accept": "application/json"}

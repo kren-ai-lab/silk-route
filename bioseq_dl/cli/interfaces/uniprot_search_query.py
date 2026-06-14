@@ -3,7 +3,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 import typer
 
@@ -88,7 +88,7 @@ def run(
         include_isoform,
         concat_results,
     )
-    metadata = {}
+    metadata: dict[str, Any] = {}
     instance = UniprotInterface()
     logger.debug(
         "Downloading data using\nquery %s\nfields %s\ncrossref_fields %s\n"

@@ -628,7 +628,7 @@ class MainWorkflow:
             override = {k: v for k, v in args.items() if v is not None}
             context["searches"]["uniprot"] = {**existing_args, **override}
         else:
-            context: dict[str, Any] = {
+            context = {
                 "searches": {"uniprot": args},
                 "data": {"uniprot": {}},
                 "metadata": {"mode": "query_first", "modality": "protein", "origin": "query"},
@@ -708,7 +708,7 @@ class MainWorkflow:
             "pages_to_fetch": pages_to_fetch,
         }
         if context is None:
-            context: dict[str, Any] = {
+            context = {
                 "searches": {
                     "chembl": args,
                     "uniprot": {

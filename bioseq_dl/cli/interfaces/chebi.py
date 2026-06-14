@@ -1,5 +1,7 @@
 """ChEBI CLI commands."""
 
+from typing import Any
+
 import typer
 
 from bioseq_dl import ChEBIInterface
@@ -22,7 +24,7 @@ def run_compound(
     """Fetch compound information by ChEBI ID."""
     interface = ChEBIInterface()
 
-    query = {}
+    query: dict[str, Any] = {}
 
     query["chebi_id"] = chebi_id
     query["only_ontology_parents"] = only_ontology_parents
@@ -44,7 +46,7 @@ def run_compounds(
 
     ids_list = chebi_ids.split(",")
 
-    query = {}
+    query: dict[str, Any] = {}
     query["chebi_ids"] = ids_list
 
     result = interface.fetch_batch(
@@ -64,7 +66,7 @@ def run_es_search(
     """Perform an Elasticsearch search in the ChEBI database."""
     interface = ChEBIInterface()
 
-    query = {}
+    query: dict[str, Any] = {}
     query["term"] = term
     query["page"] = page
     query["size"] = size
@@ -82,7 +84,7 @@ def run_ontology_children(
     """Fetch ontology children of a given ChEBI ID."""
     interface = ChEBIInterface()
 
-    query = {}
+    query: dict[str, Any] = {}
     query["chebi_id"] = chebi_id
 
     result = interface.fetch_single(method="ontology-children", query=query, parse=True, format="dataframe")
@@ -98,7 +100,7 @@ def run_ontology_parents(
     """Fetch ontology parents of a given ChEBI ID."""
     interface = ChEBIInterface()
 
-    query = {}
+    query: dict[str, Any] = {}
     query["chebi_id"] = chebi_id
 
     result = interface.fetch_single(method="ontology-parents", query=query, parse=True, format="dataframe")

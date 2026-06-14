@@ -1,5 +1,7 @@
 """STRING CLI commands."""
 
+from typing import Any
+
 import typer
 
 from bioseq_dl import StringInterface
@@ -17,7 +19,7 @@ def run_get_string_ids(
     """Fetch STRING IDs for given gene/protein identifiers."""
     interface = StringInterface()
 
-    query = {}
+    query: dict[str, Any] = {}
 
     query["identifiers"] = identifiers.split(",")
     if species:
@@ -37,7 +39,7 @@ def run_interaction_partners(
     """Fetch interaction partners for given STRING IDs."""
     interface = StringInterface()
 
-    query = {}
+    query: dict[str, Any] = {}
 
     query["identifiers"] = identifiers.split(",")
     if species:

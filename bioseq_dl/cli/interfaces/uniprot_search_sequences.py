@@ -4,7 +4,7 @@ import json
 import logging
 import shutil
 from pathlib import Path
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 import pandas as pd
 import typer
@@ -165,7 +165,7 @@ def run(
     shutil.rmtree("tmp")
 
     if not no_download:
-        metadata = {}
+        metadata: dict[str, Any] = {}
         log.info("Downloading additional UniProt data...")
         instance = UniprotInterface()
         logger.debug(

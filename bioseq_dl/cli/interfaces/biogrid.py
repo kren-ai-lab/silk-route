@@ -1,5 +1,7 @@
 """BioGRID CLI commands."""
 
+from typing import Any
+
 import typer
 
 from bioseq_dl import BioGRIDInterface
@@ -29,7 +31,7 @@ def run_interactions(
     """Fetch interaction data from BioGRID database."""
     instance = BioGRIDInterface(api_key=access_key)
 
-    query = {}
+    query: dict[str, Any] = {}
 
     if gene_list:
         query["geneList"] = gene_list.split(",")

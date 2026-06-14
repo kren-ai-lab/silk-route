@@ -1,5 +1,7 @@
 """ChEMBL CLI commands."""
 
+from typing import Any
+
 import typer
 
 from bioseq_dl import ChEMBLInterface
@@ -19,7 +21,7 @@ def run_activity(
     """Fetch activity information by ChEMBL ID."""
     interface = ChEMBLInterface()
 
-    query = {}
+    query: dict[str, Any] = {}
     query["target_chembl_id"] = chembl_id
     if p_value is not None:
         query["p_value"] = p_value
@@ -38,7 +40,7 @@ def run_binding_site(
     """Fetch binding site information by ChEMBL ID."""
     interface = ChEMBLInterface()
 
-    query = {}
+    query: dict[str, Any] = {}
     query["target_chembl_id"] = chembl_id
     result = interface.fetch_single(
         method="binding_site", query=query, pages_to_fetch=1, parse=True, format="dataframe"
