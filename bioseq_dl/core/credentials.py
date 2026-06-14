@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Sequence
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from dotenv import load_dotenv
 
 from bioseq_dl.constants.databases import BASE_CONFIG_DIR
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 ENV_FILE_NAME = ".env"
 PLACEHOLDER_VALUES = {

@@ -73,7 +73,7 @@ class PathwayCommonsInterface(BaseAPIInterface):
             log.error("The 'source' parameter is required for the 'neighborhood' method.")
             return {}
 
-        http_method, path_param, parameters, inputs = self.initialize_method_parameters(
+        http_method, _path_param, parameters, inputs = self.initialize_method_parameters(
             query, method, self.METHODS, **kwargs
         )
 

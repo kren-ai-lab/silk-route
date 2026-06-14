@@ -770,7 +770,7 @@ def build_output_info(
         info["rows"] = len(exported_content)
         info["columns"] = len(exported_content.columns)
         info["column_names"] = [str(column) for column in exported_content.columns]
-    elif isinstance(content, list) or isinstance(content, dict):
+    elif isinstance(content, (list, dict)):
         info["records"] = len(content)
     return info
 
@@ -976,9 +976,7 @@ def calculate_reporting_metrics(
         reporting["unique_sequences"] = unique_sequences
 
     label_counts = count_query_composition_labels(workflow_values, data, output_infos)
-    reporting = fill_nested_label_reporting(reporting, label_counts)
-
-    return reporting
+    return fill_nested_label_reporting(reporting, label_counts)
 
 
 def collect_metadata_errors(value: object, path: tuple[str, ...] = ()) -> list[dict]:
@@ -987,14 +985,14 @@ def collect_metadata_errors(value: object, path: tuple[str, ...] = ()) -> list[d
     if isinstance(value, dict):
         for key, item in value.items():
             key_text = str(key)
-            current_path = path + (key_text,)
+            current_path = (*path, key_text)
             if key_text.lower() == "error" and item:
                 errors.append({"path": ".".join(path), "message": str(item)})
             else:
                 errors.extend(collect_metadata_errors(item, current_path))
     elif isinstance(value, list):
         for index, item in enumerate(value):
-            errors.extend(collect_metadata_errors(item, path + (str(index),)))
+            errors.extend(collect_metadata_errors(item, (*path, str(index))))
     return errors
 
 

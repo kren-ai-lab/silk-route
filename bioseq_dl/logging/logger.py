@@ -21,7 +21,7 @@ def _resolve_log_dir() -> Path:
 
     try:
         # Optional: use project config if available
-        from bioseq_dl.core import config  # type: ignore
+        from bioseq_dl.core import config  # type: ignore[unresolved-import]
 
         cfg = config.get_config()
         return Path(cfg.cache_paths.logs()).expanduser().resolve()

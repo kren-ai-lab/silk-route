@@ -108,7 +108,7 @@ class BrendaInterface(BaseAPIInterface):
             param_list = [f"{k}*{validated_params.get(k, '')}" for k in params]
 
             # Add credentials
-            parameters = [self.email, self.password] + param_list
+            parameters = [self.email, self.password, *param_list]
 
             func = getattr(self.client.service, method)
             result = serialize_object(func(*parameters))

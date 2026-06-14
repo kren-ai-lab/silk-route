@@ -283,6 +283,7 @@ class ChEMBLInterface(BaseAPIInterface):
                         f"Invalid pchembl_value: {query['pchembl_value']}. It should be a number (int or float)."
                     )
                     return {}
+        return None
 
     def fetch_pages(self, next_url: str, method: str, pages_to_fetch: int = 1):
         """Fetch the next page of results from the ChEMBL API.
@@ -520,6 +521,4 @@ class ChEMBLInterface(BaseAPIInterface):
             )
             return {}
 
-        parsed = self._extract_fields(data, fields_to_extract)
-
-        return parsed
+        return self._extract_fields(data, fields_to_extract)

@@ -43,7 +43,7 @@ class BioDBNetInterface(BaseAPIInterface):
             log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
             return {}
 
-        http_method, _, parameters, inputs = self.initialize_method_parameters(
+        http_method, _, _parameters, inputs = self.initialize_method_parameters(
             query, method, self.METHODS, **kwargs
         )
 
@@ -67,10 +67,9 @@ class BioDBNetInterface(BaseAPIInterface):
             match method:
                 case "db2db":
                     response = response.json()
-                    response = [
+                    return [
                         v["outputs"] for k, v in response.items() if isinstance(v, dict) and k not in inputs
                     ]
-                    return response
                 case _:
                     return response.json()
         except RequestException as e:

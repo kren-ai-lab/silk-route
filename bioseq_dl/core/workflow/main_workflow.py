@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import inspect
-import logging
 import time
-from collections.abc import Iterable
-from typing import Any, Literal, cast
-from xml.etree.ElementTree import ElementTree as ET
+import xml.etree.ElementTree as ET
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import pandas as pd
 
@@ -20,6 +18,10 @@ from .query_interpreter import (
     build_default_chembl_interpreter,
     build_default_uniprot_interpreter,
 )
+
+if TYPE_CHECKING:
+    import logging
+    from collections.abc import Iterable
 
 log = get_logger("bioseq_dl.core.workflow.main")
 
@@ -398,7 +400,7 @@ class MainWorkflow:
             )
             parse_elapsed = time.time() - parse_started
             parsed_count = None
-            if isinstance(data, pd.DataFrame) or isinstance(data, list):
+            if isinstance(data, (pd.DataFrame, list)):
                 parsed_count = len(data)
             elif isinstance(data, dict):
                 parsed_count = len(data.get("results", []))

@@ -31,7 +31,7 @@ def list_registered(
     regs = list_caches()
     if not regs:
         log.info("No caches registered.")
-        raise typer.Exit()
+        raise typer.Exit
     log.info("Registered caches:")
     for k, v in regs.items():
         log.info("  %s -> %s", k, getattr(v, "CACHE_DIR", v))
@@ -74,11 +74,11 @@ def clear(
         regs = list_caches()
         if not regs:
             log.info("No caches registered.")
-            raise typer.Exit()
+            raise typer.Exit
         log.info("Registered caches:")
         for k, v in regs.items():
             log.info("  %s -> %s", k, getattr(v, "CACHE_DIR", v))
-        raise typer.Exit()
+        raise typer.Exit
 
     if cache_names and clear_all:
         log.error("Cannot use --name and --all together. Pick one.")
@@ -96,7 +96,7 @@ def clear(
         )
         total = sum(len(v) for v in preview.values())
         if total and not typer.confirm(f"Delete {total} path(s)?"):
-            raise typer.Abort()
+            raise typer.Abort
 
     log.info("Clearing caches (dry_run=%s) - selected=%s", dry_run, selected_names or "ALL")
 

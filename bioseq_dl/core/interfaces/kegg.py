@@ -92,6 +92,7 @@ class KEGGInterface(BaseAPIInterface):
                         f"Invalid option: {query['option']} for method {method}. Supported options are: {', '.join(METHOD_OPTIONS.get(method, []))}."
                     )
                     return {}
+        return None
 
     def fetch(self, query: str | dict | list, *, method: str = "get", **kwargs):
         """Fetch data from the KEGG API.
@@ -214,7 +215,7 @@ class KEGGInterface(BaseAPIInterface):
             log.warning("Tried to parse data but the data is empty or None.")
             return {}
 
-        if method == "get" or method == "pathways":
+        if method in {"get", "pathways"}:
             # Primary field: no indentation, KEGG key + value
             primary_key_val_pattern = re.compile(r"^(\w+)\s+(.+)$")
             # Secondary (nested) field: leading spaces + key + value

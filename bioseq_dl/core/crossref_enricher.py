@@ -294,7 +294,7 @@ class CrossRefEnricher:
     ):
         """Enrich the input DataFrame with cross-references from specified endpoints."""
         # For an easier handling, convert input data to DataFrame if needed
-        if isinstance(data, list) or isinstance(data, dict):
+        if isinstance(data, (list, dict)):
             df = pd.DataFrame(data)
         elif isinstance(data, pd.DataFrame):
             df = data

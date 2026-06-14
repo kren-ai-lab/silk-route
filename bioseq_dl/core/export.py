@@ -3,7 +3,6 @@ from __future__ import annotations
 import datetime as dt
 import json
 from pathlib import Path
-from typing import Union
 
 import pandas as pd
 from pandas.api.types import (
@@ -14,7 +13,7 @@ from pandas.api.types import (
     is_scalar,
 )
 
-PathLike = Union[str, Path]
+PathLike = str | Path
 USER_EXPORT_FORMATS = ("csv", "json", "xml", "parquet")
 DATAFRAME_EXPORT_FORMAT_ERROR = "Unsupported export format 'dataframe'. Use 'csv' instead."
 

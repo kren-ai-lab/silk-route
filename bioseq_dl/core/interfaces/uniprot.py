@@ -6,7 +6,6 @@ import zlib
 from datetime import datetime
 from typing import Literal
 from urllib.parse import parse_qs, urlencode, urlparse
-from xml.etree import ElementTree
 
 import pandas as pd
 import requests
@@ -152,8 +151,7 @@ class UniprotInterface(BaseAPIInterface):
         if compressed:
             decompressed = zlib.decompress(response.content, 16 + zlib.MAX_WBITS)
             if file_format == "json":
-                j = json.loads(decompressed.decode("utf-8"))
-                return j
+                return json.loads(decompressed.decode("utf-8"))
             if file_format == "tsv":
                 return [line for line in decompressed.decode("utf-8").split("\n") if line]
             if file_format == "xlsx":
@@ -176,13 +174,13 @@ class UniprotInterface(BaseAPIInterface):
         return m.groups()[0] if m else ""
 
     def merge_xml_results(self, xml_results):
-        merged_root = ElementTree.fromstring(xml_results[0])
+        merged_root = ET.fromstring(xml_results[0])
         for result in xml_results[1:]:
-            root = ElementTree.fromstring(result)
+            root = ET.fromstring(result)
             for child in root.findall("{http://uniprot.org/uniprot}entry"):
                 merged_root.insert(-1, child)
-        ElementTree.register_namespace("", self.get_xml_namespace(merged_root[0]))
-        return ElementTree.tostring(merged_root, encoding="utf-8", xml_declaration=True)
+        ET.register_namespace("", self.get_xml_namespace(merged_root[0]))
+        return ET.tostring(merged_root, encoding="utf-8", xml_declaration=True)
 
     def get_id_mapping_results_search(self, url):
         parsed = urlparse(url)
@@ -220,6 +218,7 @@ class UniprotInterface(BaseAPIInterface):
             match = re_next_link.match(headers["Link"])
             if match:
                 return match.group(1)
+        return None
 
     def get_batch(self, batch_response, file_format, compressed):
         batch_url = self.get_next_link(batch_response.headers)
@@ -256,6 +255,7 @@ class UniprotInterface(BaseAPIInterface):
                     return db_type
 
                 return ""
+        return None
 
     def group_ids_by_type(self, ids: list[str]) -> dict[str, list[str]]:
         """Agrupa IDs por su tipo detectado"""
@@ -523,6 +523,7 @@ class UniprotInterface(BaseAPIInterface):
                     message = f"UniProt request failed after all retry attempts: {e}"
                     log.error(message)
                     raise RuntimeError(message) from e
+        return None
 
     def adapt_field_map(self, field_map: dict[str, tuple], use_prefix=False):
         """Adapt the field map to include a prefix if needed"""

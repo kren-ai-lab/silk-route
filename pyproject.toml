@@ -98,7 +98,7 @@ ignore = [
     # Intentional relative imports within the package
     "TID252",
     # Simplifications (deferred; review individually later)
-    "SIM102", "SIM103", "SIM105", "SIM115", "SIM118", "SIM201",
+    "SIM102", "SIM105", "SIM115", "SIM118",
     # Boolean flags (common in this API surface; CLI also relies on them)
     "FBT001", "FBT002",
     # Unused args (interface-contract signatures)
@@ -106,13 +106,12 @@ ignore = [
     # TODO formatting / presence
     "TD002", "TD003", "TD004", "FIX002",
     # Misc legacy style
-    "A001", "A002", "E402", "E501", "ICN001", "N817", "PGH003", "PLC0206", "PLC0415",
-    "PLR1714", "RET503", "RET504", "RSE102", "RUF005", "RUF017", "RUF059", "SLF001",
-    "TC003", "UP007", "B905", "B007", "DTZ005", "DTZ006",
+    "A001", "A002", "E402", "E501", "PLC0415", "SLF001",
+    "B905", "B007", "DTZ005", "DTZ006",
     # Complexity / size (deferred to Phase 3 refactor)
     "PLR0911", "PLR0915", "PLR2004",
     # Simplification / perf suggestions (review individually later)
-    "PERF401", "PLW2901", "SIM101", "SIM108", "S110", "TRY004",
+    "PERF401", "PLW2901", "SIM108", "S110", "TRY004",
     # Security rules that are noise in this context (cache hashing, jittered delays,
     # trusted XML/URLs, explicit subprocess in dev tooling)
     "S202", "S310", "S311", "S314", "S324", "S603", "S605", "S607", "S112",

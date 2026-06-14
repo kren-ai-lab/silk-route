@@ -48,13 +48,12 @@ import shutil
 import time
 from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Union
 
 from bioseq_dl.constants import databases as db_consts
 
 _logger = logging.getLogger(__name__)
 
-CacheProvider = Union[str, Path, Callable[[], Iterable[str | Path]], object]
+CacheProvider = str | Path | Callable[[], Iterable[str | Path]] | object
 
 _CACHE_REGISTRY: dict[str, CacheProvider] = {}
 

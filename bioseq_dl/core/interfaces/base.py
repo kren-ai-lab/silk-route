@@ -1,7 +1,9 @@
 import ast
+import functools
 import hashlib
 import itertools
 import json
+import operator
 import os
 import random
 import re
@@ -454,15 +456,11 @@ class BaseAPIInterface(ABC):
         if format == "xml":
             log.debug("Converting result to XML")
             if isinstance(result, dict):
-                xml_bytes = dicttoxml(
-                    result, custom_root="results", item_func=lambda x: "entry", attr_type=False
-                )
-                return xml_bytes
+                return dicttoxml(result, custom_root="results", item_func=lambda x: "entry", attr_type=False)
             if isinstance(result, list):
-                xml_bytes = dicttoxml(
+                return dicttoxml(
                     {"item": result}, custom_root="results", item_func=lambda x: "entry", attr_type=False
                 )
-                return xml_bytes
             log.error("Cannot convert to XML, unsupported type.")
             raise ValueError(f"Cannot convert to XML: unsupported type {type(result)}")
         if format == "json":
@@ -611,9 +609,7 @@ class BaseAPIInterface(ABC):
         if method not in method_definition:
             return False
 
-        if method_definition[method].get("group_queries"):
-            return True
-        return False
+        return bool(method_definition[method].get("group_queries"))
 
     def decompose_query(self, query: dict, method: str, option: str | None) -> list[tuple[str, dict]] | None:
         """Decompose a query into multiple subqueries if any of the identity keys contain lists.
@@ -696,7 +692,9 @@ class BaseAPIInterface(ABC):
         subquery_values = {}
         for identifier, query in subqueries:
             values = self.get_matching_values(query)
-            norm = sum((_normalize_matching_tokens(value) for value in values), [])
+            norm = functools.reduce(
+                operator.iadd, (_normalize_matching_tokens(value) for value in values), []
+            )
             subquery_values[identifier] = norm
 
         for i, item in enumerate(full_result):
@@ -776,8 +774,8 @@ class BaseAPIInterface(ABC):
                 cache_key = self._make_cache_key(identifier, **kwargs)
                 if self.has_results(cache_key):
                     log.debug(f"Cache hit for identifier: {identifier}, loading from cache.")
-                    metadata["cached_ids"] = metadata.get("cached_ids", []) + [identifier]
-                    metadata["cached_subqueries"] = metadata.get("cached_subqueries", []) + [subq]
+                    metadata["cached_ids"] = [*metadata.get("cached_ids", []), identifier]
+                    metadata["cached_subqueries"] = [*metadata.get("cached_subqueries", []), subq]
                     raw = self.load_cache(cache_key)
                     parsed = self._maybe_parse(data=raw, parse=parse, format=format, **kwargs)
                     results[identifier] = parsed
@@ -798,7 +796,7 @@ class BaseAPIInterface(ABC):
                     partial_result = mapping.get(identifier, [])
                     if not partial_result:
                         log.debug(f"No results found for identifier {identifier}. Skipping.")
-                        metadata["failed_ids"] = metadata.get("failed_ids", []) + [identifier]
+                        metadata["failed_ids"] = [*metadata.get("failed_ids", []), identifier]
                         continue
                     log.debug(
                         f"Fetched {len(partial_result)} items for identifier {identifier}. Caching result."
@@ -951,8 +949,8 @@ class BaseAPIInterface(ABC):
                     index_query_map[i] = query
                 else:
                     for identifier, subquery in subqueries:
-                        metadata["cached_ids"] = metadata.get("cached_ids", []) + [identifier]
-                        metadata["cached_subqueries"] = metadata.get("cached_subqueries", []) + [subquery]
+                        metadata["cached_ids"] = [*metadata.get("cached_ids", []), identifier]
+                        metadata["cached_subqueries"] = [*metadata.get("cached_subqueries", []), subquery]
                     for _identifier, result in cached_subquery_results:
                         log.debug(f"Cache hit for subquery identifier: {_identifier}, loading from cache.")
                         results.append(self._maybe_parse(data=result, parse=parse, format=format, **kwargs))
@@ -962,8 +960,8 @@ class BaseAPIInterface(ABC):
                 cache_key = self._make_cache_key(query, **kwargs)
                 if self.has_results(cache_key):
                     log.debug(f"Cache hit for query at index {i}, loading from cache.")
-                    metadata["cached_ids"] = metadata.get("cached_ids", []) + [cache_key]
-                    metadata["cached_subqueries"] = metadata.get("cached_subqueries", []) + [query]
+                    metadata["cached_ids"] = [*metadata.get("cached_ids", []), cache_key]
+                    metadata["cached_subqueries"] = [*metadata.get("cached_subqueries", []), query]
                     cached = self.load_cache(cache_key)
                     result = cached.to_dict(orient="records") if isinstance(cached, pd.DataFrame) else cached
                     results.append(self._maybe_parse(data=result, parse=parse, format=format, **kwargs))
@@ -985,13 +983,10 @@ class BaseAPIInterface(ABC):
                 # Change it to index_query_map.items() if That part is needed
                 for i, query in index_query_map.items()
             }
-            for future in future_to_index:
-                log.debug(f"Waiting for future result for query at index {future_to_index[future]}")
-                metadata["fetched_ids"] = metadata.get("fetched_ids", []) + [future_to_index[future]]
-                metadata["fetched_subqueries"] = metadata.get("fetched_subqueries", []) + [
-                    index_query_map[future_to_index[future]]
-                ]
-                i = future_to_index[future]
+            for future, i in future_to_index.items():
+                log.debug(f"Waiting for future result for query at index {i}")
+                metadata["fetched_ids"] = [*metadata.get("fetched_ids", []), i]
+                metadata["fetched_subqueries"] = [*metadata.get("fetched_subqueries", []), index_query_map[i]]
                 try:
                     result = future.result()
 

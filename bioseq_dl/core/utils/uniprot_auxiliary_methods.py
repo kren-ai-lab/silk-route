@@ -197,7 +197,7 @@ def extract_interactions(comments: list) -> list[dict]:
     extracted = []
     for c in comments if isinstance(comments, list) else []:
         comment_type = c.get("commentType", "")
-        if not comment_type == "INTERACTION":
+        if comment_type != "INTERACTION":
             continue
 
         interactors = c.get("interactions", [])
@@ -226,7 +226,7 @@ def extract_temperature(comments: list) -> list[str]:
     extracted = []
     for c in comments if isinstance(comments, list) else []:
         comment_type = c.get("commentType", "")
-        if not comment_type == "BIOPHYSICOCHEMICAL PROPERTIES":
+        if comment_type != "BIOPHYSICOCHEMICAL PROPERTIES":
             continue
 
         if "temperatureDependence" in c:
@@ -243,7 +243,7 @@ def extract_ph(comments: list) -> list[str]:
     extracted = []
     for c in comments if isinstance(comments, list) else []:
         comment_type = c.get("commentType", "")
-        if not comment_type == "BIOPHYSICOCHEMICAL PROPERTIES":
+        if comment_type != "BIOPHYSICOCHEMICAL PROPERTIES":
             continue
 
         if "phDependence" in c:

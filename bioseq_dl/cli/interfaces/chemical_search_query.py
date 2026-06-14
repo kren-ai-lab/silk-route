@@ -43,7 +43,7 @@ def pubchem_search_query(query: str, exact_match: bool = False) -> tuple[pd.Data
 
     query_type = detect_query_type(query)
 
-    if query_type == "name" or query_type == "inchi" or query_type == "smiles":
+    if query_type in {"name", "inchi", "smiles"}:
         query_dict = [{query_type: query.strip(), "name_type": name_type} for query in query.split(",")]
         log.info(f"Getting CIDs for {query_type.upper()}s: {query_dict}")
         cids_df, pug_metadata = instance.fetch_batch(

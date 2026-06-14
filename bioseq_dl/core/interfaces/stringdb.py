@@ -63,7 +63,7 @@ class StringInterface(BaseAPIInterface):
             log.error(f"Method '{method}' is not supported. Available methods: {list(self.METHODS.keys())}")
             return {}
 
-        http_method, path_param, parameters, inputs = self.initialize_method_parameters(
+        http_method, _path_param, parameters, inputs = self.initialize_method_parameters(
             query, method, self.METHODS, **kwargs
         )
 
@@ -131,3 +131,4 @@ class StringInterface(BaseAPIInterface):
         else:
             log.error(f"Format {fmt} is not supported. Supported formats are: json, tsv")
             return {}
+        return None

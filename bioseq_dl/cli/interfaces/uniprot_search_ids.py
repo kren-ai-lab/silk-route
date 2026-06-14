@@ -143,7 +143,7 @@ def run(
         else:
             logger.warning("No results to save in %s format.", export_format.upper())
     elif export_format == "json":
-        if isinstance(export_data, dict) or isinstance(export_data, list):
+        if isinstance(export_data, (dict, list)):
             with open(f"{output}/uniprot_results.json", "w") as f:
                 json.dump(export_data, f, indent=2, default=str)
 

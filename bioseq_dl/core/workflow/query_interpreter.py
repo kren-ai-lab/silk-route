@@ -265,8 +265,7 @@ class BaseQueryInterpreter:
 
         out = re.sub(r"\b(AND|OR|NOT)\s*(?=\b(AND|OR|NOT)\b)", " ", out, flags=re.IGNORECASE)
         out = re.sub(r"^\s*(AND|OR|NOT)\b\s*", "", out, flags=re.IGNORECASE)
-        out = re.sub(r"\b(AND|OR|NOT)\s*$", "", out, flags=re.IGNORECASE)
-        return out
+        return re.sub(r"\b(AND|OR|NOT)\s*$", "", out, flags=re.IGNORECASE)
 
     def _remove_all_fields(self, text: str) -> str:
         """Remove all fielded queries from the text, except those explicitly
@@ -291,8 +290,7 @@ class BaseQueryInterpreter:
 
         out = re.sub(r"\b(AND|OR|NOT)\s*(?=\b(AND|OR|NOT)\b)", " ", out, flags=re.IGNORECASE)
         out = re.sub(r"^\s*(AND|OR|NOT)\b\s*", "", out, flags=re.IGNORECASE)
-        out = re.sub(r"\b(AND|OR|NOT)\s*$", "", out, flags=re.IGNORECASE)
-        return out
+        return re.sub(r"\b(AND|OR|NOT)\s*$", "", out, flags=re.IGNORECASE)
 
 
 @dataclass
@@ -362,8 +360,7 @@ class UniProtQueryInterpreter(BaseQueryInterpreter):
         # Clean additional whitespace
         processed_query = self._cleanup_whitespace(processed_query)
         # Resolve item values as needed
-        processed_query = self._resolve_query_items(processed_query)
-        return processed_query
+        return self._resolve_query_items(processed_query)
 
     def extract_databases(self, query: str) -> list[str]:
         """There are some special cases where a field implies an enrichment search
@@ -584,8 +581,7 @@ class ChEMBLQueryInterpreter(BaseQueryInterpreter):
         # Clean additional whitespace
         processed_query = self._cleanup_whitespace(processed_query)
         # Resolve item values as needed
-        processed_query = self._resolve_query_items(processed_query)
-        return processed_query
+        return self._resolve_query_items(processed_query)
 
 
 def build_default_chembl_interpreter() -> ChEMBLQueryInterpreter:

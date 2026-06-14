@@ -94,8 +94,7 @@ class SabiorkInterface(BaseAPIInterface):
 
             if method == "kineticlawsExportTsv":
                 results = [line.split("\t") for line in response.text.strip().split("\n")]
-                response = [{results[0][i]: row[i] for i in range(len(results[0]))} for row in results[1:]]
-                return response
+                return [{results[0][i]: row[i] for i in range(len(results[0]))} for row in results[1:]]
 
             return response.text
         except requests.exceptions.RequestException as e:
