@@ -90,7 +90,9 @@ ignore = [
     # Deliberate error-handling style: TRY301 (validate-then-convert-to-Exit) and
     # BLE001 (top-level CLI / best-effort catch-alls) are intentional here.
     "TRY301",
-    # Boolean flags (common in this API surface; CLI also relies on them)
+    # Boolean positional flags: `parse` is an established positional public-API flag on
+    # fetch_single/fetch_batch (query, parse=False, *args, **kwargs) across base + all
+    # interfaces; making it keyword-only is a breaking signature change. Kept intentionally.
     "FBT001", "FBT002",
     # TODO hygiene: author + colon enforced (TD002/TD004). TD003 (issue link)
     # and FIX002 (presence) kept ignored — TODOs are intentional, no issue-link workflow.
