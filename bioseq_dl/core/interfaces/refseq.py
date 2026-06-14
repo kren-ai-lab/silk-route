@@ -76,7 +76,7 @@ class RefSeqInterface(BaseAPIInterface):
 
         self.email = resolve_secret(email, REFSEQ_EMAIL_ENV_VARS)
         if is_valid_secret(self.email):
-            Entrez.email = self.email  # ty: ignore[invalid-assignment]  # biopython stub types email as None
+            Entrez.email = self.email  # ty: ignore[invalid-assignment]  # type: ignore[assignment]  # biopython stub: email typed None
 
     def to_native(self, obj: Any) -> Any:
         """Convert EntrezDict to native Python types.
@@ -114,7 +114,7 @@ class RefSeqInterface(BaseAPIInterface):
             msg = "Missing RefSeq email. Set BIOSEQ_DL_REFSEQ_EMAIL or pass email explicitly."
             raise ValueError(msg)
 
-        Entrez.email = self.email  # ty: ignore[invalid-assignment]  # biopython stub types email as None
+        Entrez.email = self.email  # ty: ignore[invalid-assignment]  # type: ignore[assignment]  # biopython stub: email typed None
 
         if method not in databases:
             log.error("Database '%s' is not supported. Supported databases: %s", method, ", ".join(databases))

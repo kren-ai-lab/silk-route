@@ -67,7 +67,7 @@ def is_missing_parquet_value(value: object) -> bool:
         return True
 
     try:
-        missing = pd.isna(value)
+        missing = pd.isna(value)  # type: ignore[no-matching-overload]  # pandas stub: object arg
     except (TypeError, ValueError):
         return False
 

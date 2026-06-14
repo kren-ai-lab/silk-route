@@ -747,14 +747,16 @@ class MainWorkflow:
         # We extract the UniProt part of the original query
         interpreted_uniprot_query = uniprot_interpreter.interpret(query=query)
 
-        combined_queries: str | list[str] = []
+        combined_queries: str | list[str]
         if chembl_ids_query and isinstance(chembl_ids_query, list):
+            combined_list: list[str] = []
             for chembl_query in chembl_ids_query:
                 if interpreted_uniprot_query:
                     combined_query = f"({interpreted_uniprot_query}) AND {chembl_query}"
                 else:
                     combined_query = chembl_query
-                combined_queries.append(combined_query)
+                combined_list.append(combined_query)
+            combined_queries = combined_list
         else:
             combined_queries = (
                 f"({interpreted_uniprot_query}) AND {chembl_ids_query}"

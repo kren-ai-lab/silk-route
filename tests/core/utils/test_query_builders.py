@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from bioseq_dl.core.utils.query_builders import (
@@ -34,31 +35,31 @@ def test_get_query_builder_unknown_raises():
 
 def test_build_query_rhea():
     builder = get_query_builder("rhea", "rhea")
-    out = builder({"rhea_ids": ["RHEA:1", "RHEA:2"]}, {})  # ty: ignore[invalid-argument-type]  # dict duck-types pd.Series
+    out = builder(pd.Series({"rhea_ids": ["RHEA:1", "RHEA:2"]}), {})
     assert out == [{"query": "RHEA:1"}, {"query": "RHEA:2"}]
 
 
 def test_build_query_rhea_empty_when_missing():
     builder = get_query_builder("rhea", "rhea")
-    assert builder({"other": "x"}, {}) == []  # ty: ignore[invalid-argument-type]  # dict duck-types pd.Series
+    assert builder(pd.Series({"other": "x"}), {}) == []  # ty: ignore[invalid-argument-type]  # dict duck-types pd.Series
 
 
 def test_build_query_biodbnet_db2db_merges_params():
     builder = get_query_builder("biodbnet", "db2db")
-    out = builder({"gene_primary": ["TP53"], "organism_id": ["9606"]}, {"outputs": "genesymbol"})  # ty: ignore[invalid-argument-type]  # dict duck-types pd.Series
+    out = builder(pd.Series({"gene_primary": ["TP53"], "organism_id": ["9606"]}), {"outputs": "genesymbol"})
     assert out == [{"inputValues": ["TP53"], "taxonId": "9606", "outputs": "genesymbol"}]
 
 
 def test_build_query_brenda_filters_invalid_ec():
     builder = get_query_builder("brenda", "getKmValue")
-    out = builder({"ec": ["1.1.1.1", "not-an-ec", "2.7.1"]}, {})  # ty: ignore[invalid-argument-type]  # dict duck-types pd.Series
+    out = builder(pd.Series({"ec": ["1.1.1.1", "not-an-ec", "2.7.1"]}), {})
     assert out == [{"ecNumber": "1.1.1.1"}]
 
 
 def test_chebi_compounds_chunks_in_groups_of_five():
     builder = get_query_builder("chebi", "compounds")
     ids = [str(i) for i in range(12)]
-    out = builder({"chebi_ids": ids}, {})  # ty: ignore[invalid-argument-type]  # dict duck-types pd.Series
+    out = builder(pd.Series({"chebi_ids": ids}), {})
     assert len(out) == 3  # 5 + 5 + 2
     assert out[0]["chebi_ids"] == ids[:5]
     assert out[2]["chebi_ids"] == ids[10:]

@@ -40,7 +40,7 @@ def test_validate_parameters_type_mismatch_raises():
 
 def test_validate_parameters_none_schema_raises():
     with pytest.raises(ValueError, match="schema is not defined"):
-        validate_parameters({}, None)  # ty: ignore[invalid-argument-type]  # robustness test
+        validate_parameters({}, None)  # ty: ignore  # type: ignore[bad-argument-type]
 
 
 def test_validate_parameters_omits_keys_with_none_default():

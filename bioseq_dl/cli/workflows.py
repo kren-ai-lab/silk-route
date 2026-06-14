@@ -748,7 +748,7 @@ def to_json_compatible(value: object) -> object:
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
     try:
-        missing = pd.isna(value)
+        missing = pd.isna(value)  # type: ignore[no-matching-overload]  # pandas stub: object arg
     except (TypeError, ValueError):
         missing = False
     if isinstance(missing, bool) and missing:

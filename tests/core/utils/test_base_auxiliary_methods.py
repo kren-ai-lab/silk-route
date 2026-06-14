@@ -53,4 +53,4 @@ def test_non_string_path_raises_type_error():
 
 
 def test_scalar_data_returns_none_for_path():
-    assert get_nested("not-a-dict", "a") is None  # ty: ignore[invalid-argument-type]  # robustness test
+    assert get_nested("not-a-dict", "a") is None  # ty: ignore  # type: ignore[bad-argument-type]

@@ -119,7 +119,10 @@ class BrendaInterface(BaseAPIInterface):
 
             func = getattr(self.client.service, method)
             result = serialize_object(func(*parameters))
-            result = [dict(entry) for entry in result] if isinstance(result, list) else dict(result)
+            if isinstance(result, list):  # noqa: SIM108  # split for per-branch type:ignore
+                result = [dict(entry) for entry in result]  # type: ignore[no-matching-overload]
+            else:
+                result = dict(result)  # type: ignore[no-matching-overload]  # zeep OrderedDict
 
             self._delay()
 
