@@ -82,8 +82,10 @@ ignore = [
     "N806",
     "PLR0913",
 
-    # --- Transitional: legacy style/docs/typing, not enforced yet ---
-    # ANN401 (Any type): intentional for passthrough **kwargs and dynamic JSON API responses
+    # ANN401 (Any): load-bearing for the generic-interface design — ~82 `**kwargs: Any`
+    # passthroughs plus dynamic JSON `data`, yaml-loader returns, and generic helpers.
+    # Cleanly-typeable sites have been narrowed (to concrete types / `object`); the rest
+    # are intentionally Any. Kept ignored as a deliberate deviation (cf. FBT, TD003).
     "ANN401",
     # Boolean positional flags: `parse` is an established positional public-API flag on
     # fetch_single/fetch_batch (query, parse=False, *args, **kwargs) across base + all

@@ -31,7 +31,7 @@ from bioseq_dl.logging import get_logger
 log = get_logger("bioseq_dl.interfaces.base")
 
 
-def _normalize_matching_tokens(value: Any) -> list[str]:
+def _normalize_matching_tokens(value: object) -> list[str]:
     """Split and lowercase input values for loose token matching."""
     if not value:
         return []
@@ -46,7 +46,7 @@ def _normalize_matching_tokens(value: Any) -> list[str]:
     return [token.lower() for token in re.split(r"[\s:\-/|]", str(value)) if token]
 
 
-def _extract_nested_values(value: Any) -> list[str]:
+def _extract_nested_values(value: object) -> list[str]:
     """Recursively extract string-like values from a nested structure."""
     result = []
     if isinstance(value, dict):

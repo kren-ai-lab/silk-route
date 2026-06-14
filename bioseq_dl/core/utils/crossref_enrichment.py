@@ -12,7 +12,7 @@ from bioseq_dl.logging import get_logger
 log = get_logger("bioseq_dl.core.utils.crossref_enrichment")
 
 
-def normalize_crossref_fields(crossref_fields: Any) -> list[str]:
+def normalize_crossref_fields(crossref_fields: object) -> list[str]:
     """Return cleaned cross-reference field names."""
     if crossref_fields is None:
         return []
@@ -34,7 +34,7 @@ def normalize_crossref_fields(crossref_fields: Any) -> list[str]:
     return fields
 
 
-def is_empty_enrichment_input(data: Any) -> bool:
+def is_empty_enrichment_input(data: object) -> bool:
     """Return whether enrichment input has no records to process."""
     if data is None:
         return True
@@ -49,7 +49,7 @@ def is_empty_enrichment_input(data: Any) -> bool:
     return False
 
 
-def has_enrichment_result_value(value: Any) -> bool:
+def has_enrichment_result_value(value: object) -> bool:
     """Return whether an enrichment result value contains exportable data."""
     if value is None:
         return False

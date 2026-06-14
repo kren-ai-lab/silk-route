@@ -162,7 +162,7 @@ class ChEMBLInterface(BaseAPIInterface):
         return str(value)
 
     @classmethod
-    def extract_ic50_activity_filter(cls, query: Any) -> dict[str, Any] | None:
+    def extract_ic50_activity_filter(cls, query: object) -> dict[str, Any] | None:
         """Extract an IC50 activity filter from an interpreted ChEMBL query.
 
         The workflow interpreter emits IC50 searches as standard_type plus

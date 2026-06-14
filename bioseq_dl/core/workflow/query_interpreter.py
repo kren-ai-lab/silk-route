@@ -76,7 +76,7 @@ class BaseQueryInterpreter:
         msg = "Subclasses must implement this method."
         raise NotImplementedError(msg)
 
-    def _resolve_item(self, prefix: str, value: str, cfg: Any) -> tuple[str, str]:
+    def _resolve_item(self, prefix: str, value: str, cfg: MultiModeFieldConfig) -> tuple[str, str]:
         """Resolve an item value based on the resolver kind specified in the field config."""
         msg = "Subclasses must implement this method."
         raise NotImplementedError(msg)
@@ -324,7 +324,7 @@ class UniProtQueryInterpreter(BaseQueryInterpreter):
     # field's own ``value_map`` (after stripping any surrounding quotes).
     _MAP_RESOLVERS = frozenset({"go_name_map", "keyword_map", "organism_map", "database_map", "function_map"})
 
-    def _resolve_item(self, prefix: str, value: str, cfg: Any) -> tuple[str, str]:
+    def _resolve_item(self, prefix: str, value: str, cfg: MultiModeFieldConfig) -> tuple[str, str]:
         """Resolve a single ``prefix:value`` item against its field configuration.
 
         Map-based resolvers translate a friendly value to its native id via
@@ -549,7 +549,7 @@ class ChEMBLQueryInterpreter(BaseQueryInterpreter):
         """Initialize with a ChEMBL-specific configuration."""
         super().__init__(config)
 
-    def _resolve_item(self, prefix: str, value: str, cfg: Any) -> tuple[str, str]:
+    def _resolve_item(self, prefix: str, value: str, cfg: MultiModeFieldConfig) -> tuple[str, str]:
         """Resolve an item value based on the field configuration.
 
         Currently applies IC50 transforms; no other resolution is implemented for ChEMBL.

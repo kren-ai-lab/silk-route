@@ -32,7 +32,7 @@ log = get_logger("bioseq_dl.core.workflow.main")
 CHEMBL_ID_CHUNK_SIZE = 100
 
 
-def calculate_enrichment_execution_time(enrichment_metadata: Any) -> float:
+def calculate_enrichment_execution_time(enrichment_metadata: object) -> float:
     """Return the total execution time reported by enrichment metadata."""
     if not isinstance(enrichment_metadata, dict):
         return 0.0
