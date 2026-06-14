@@ -8,7 +8,6 @@ import re
 import time
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
-from itertools import permutations
 from typing import Any, ClassVar, Literal
 
 import pandas as pd
@@ -374,9 +373,10 @@ class BaseAPIInterface(ABC):
         return self.configs.get(key, {})
 
     def _resolve_fields_from_kwargs(self, **kwargs) -> dict | None:
-        """Resolve fields_to_extract by matching kwargs against keys in fields.yml.
+        """Resolve fields_to_extract by matching kwargs values against keys in fields.yml.
 
-        Automatically checks if any value in kwargs or combination like f"{value}_{mode}" matches a known config key.
+        Returns the config entry whose key matches the ``method`` (or any string
+        kwarg). Returns ``None`` if nothing matches.
         """
         fields_config = self.get_config("fields") if self.use_config else {}
 
@@ -390,16 +390,9 @@ class BaseAPIInterface(ABC):
         values = [method]
         values.extend([str(v) for v in kwargs.values() if isinstance(v, str)])
 
-        # 1. Check if any value in kwargs matches a known key
         for v in values:
             if v in known_keys:
                 return fields_config[v]
-
-        # 2. Check combinations of values in kwargs
-        for v1, v2 in permutations(values, 2):
-            composite = f"{v1}_{v2}"
-            if composite in known_keys:
-                return fields_config[composite]
 
         return None
 
