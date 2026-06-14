@@ -92,8 +92,6 @@ ignore = [
     # TODO hygiene: author + colon enforced (TD002/TD004). TD003 (issue link)
     # and FIX002 (presence) kept ignored — TODOs are intentional, no issue-link workflow.
     "TD003", "FIX002",
-    # Misc legacy style
-    "S110",
     # Complexity / size (deferred to Phase 3 refactor)
     "PLR0911", "PLR0915",
 

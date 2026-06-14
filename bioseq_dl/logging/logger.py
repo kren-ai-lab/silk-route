@@ -23,14 +23,12 @@ def _resolve_log_dir() -> Path:
     if env_dir:
         return Path(env_dir).expanduser().resolve()
 
-    try:
-        # Optional: use project config if available (avoids a hard dependency)
+    # Optional: use project config if available (avoids a hard dependency)
+    with contextlib.suppress(Exception):
         from bioseq_dl.core import config  # type: ignore[unresolved-import]  # noqa: PLC0415
 
         cfg = config.get_config()
         return Path(cfg.cache_paths.logs()).expanduser().resolve()
-    except Exception:  # noqa: BLE001  # defensive catch-all
-        pass
 
     return Path("~/.cache/bioseq_dl/logs").expanduser().resolve()
 
