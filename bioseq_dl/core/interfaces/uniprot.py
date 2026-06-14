@@ -5,7 +5,7 @@ import re
 import time
 import xml.etree.ElementTree as ET
 import zlib
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator, Mapping
 from datetime import UTC, datetime
 from typing import Any, Literal
 from urllib.parse import parse_qs, urlencode, urlparse
@@ -64,7 +64,7 @@ class UniprotInterface(BaseAPIInterface):
         kwargs.setdefault("use_config", False)
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, total_retries=total_retries, **kwargs)
         self.timeout = timeout
-        self.db_config = {
+        self.db_config: dict[str, dict[str, Any]] = {
             "uniprot": {
                 "patterns": [
                     r"^[A-N,R-Z][0-9][A-Z][A-Z, 0-9][A-Z, 0-9][0-9]$",
@@ -82,7 +82,7 @@ class UniprotInterface(BaseAPIInterface):
         # Remember to add the extractor function if needed.
         # The extractor function should take the data and return the desired value.
         # See utils.py for available extractor functions.
-        self.field_map_base = {
+        self.field_map_base: dict[str, tuple[str, Callable[..., Any]]] = {
             "accession": ("primaryAccession", extract_simple),
             "protein_name": ("proteinDescription.recommendedName.fullName.value", extract_simple),
             "ec": ("proteinDescription.recommendedName.ecNumbers", extract_ec_numbers),
@@ -204,7 +204,7 @@ class UniprotInterface(BaseAPIInterface):
             size = int(query["size"][0])
         else:
             size = 500
-            query["size"] = size
+            query["size"] = [str(size)]
         compressed = query["compressed"][0].lower() == "true" if "compressed" in query else False
         parsed = parsed._replace(query=urlencode(query, doseq=True))
         url = parsed.geturl()
@@ -227,7 +227,7 @@ class UniprotInterface(BaseAPIInterface):
         self.check_response(request)
         return request.json()["redirectURL"]
 
-    def get_next_link(self, headers: dict) -> str | None:
+    def get_next_link(self, headers: Mapping[str, str]) -> str | None:
         """Extract the 'next' link from pagination headers."""
         re_next_link = re.compile(r'<(.+)>; rel="next"')
         if "Link" in headers:
@@ -276,7 +276,7 @@ class UniprotInterface(BaseAPIInterface):
                     return db_type
 
                 return ""
-        return None
+        return ""
 
     def group_ids_by_type(self, ids: list[str]) -> dict[str, list[str]]:
         """Agrupa IDs por su tipo detectado."""
@@ -421,7 +421,7 @@ class UniprotInterface(BaseAPIInterface):
         download: bool | None = False,
         method: str = "uniprotkb",
         timeout: float | None = None,
-    ) -> tuple[dict, dict]:
+    ) -> tuple[dict, dict] | None:
         """Submit a query to the Uniprot stream API.
 
         Args:
@@ -550,7 +550,9 @@ class UniprotInterface(BaseAPIInterface):
                 return payload, metadata
         return None
 
-    def adapt_field_map(self, field_map: dict[str, tuple], use_prefix: bool = False) -> dict:
+    def adapt_field_map(
+        self, field_map: dict[str, tuple[str, Callable[..., Any]]], use_prefix: bool = False
+    ) -> dict[str, tuple[str, Callable[..., Any]]]:
         """Adapt the field map to include a prefix if needed."""
         if not use_prefix:
             return field_map
