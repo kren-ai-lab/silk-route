@@ -103,7 +103,8 @@ class RefSeqInterface(BaseAPIInterface):
         retmode = kwargs.get("retmode", "xml")
 
         if not is_valid_secret(self.email):
-            raise ValueError("Missing RefSeq email. Set BIOSEQ_DL_REFSEQ_EMAIL or pass email explicitly.")
+            msg = "Missing RefSeq email. Set BIOSEQ_DL_REFSEQ_EMAIL or pass email explicitly."
+            raise ValueError(msg)
 
         Entrez.email = self.email
 

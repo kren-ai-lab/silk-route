@@ -57,9 +57,8 @@ def run(
     try:
         export_format = normalize_user_export_format(export_format)
         if export_format is None:
-            raise ValueError(
-                f"Unsupported export format '{raw_export_format}'. Supported formats are: {', '.join(USER_EXPORT_FORMATS)}."
-            )
+            msg = f"Unsupported export format '{raw_export_format}'. Supported formats are: {', '.join(USER_EXPORT_FORMATS)}."
+            raise ValueError(msg)
     except ValueError as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=1) from None

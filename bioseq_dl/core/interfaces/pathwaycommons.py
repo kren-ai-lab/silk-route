@@ -80,8 +80,8 @@ class PathwayCommonsInterface(BaseAPIInterface):
         # Validate and clean parameters
         try:
             validated_params = validate_parameters(inputs, parameters)
-        except ValueError as e:
-            log.error(f"Invalid parameters for method '{method}': {e}")
+        except ValueError:
+            log.exception(f"Invalid parameters for method '{method}'")
             return {}
 
         if "format" in validated_params and validated_params["format"] not in OUTPUT_FORMATS:
@@ -117,10 +117,11 @@ class PathwayCommonsInterface(BaseAPIInterface):
             elif "@graph" in response.keys():
                 response = response["@graph"]
 
-            return response
-        except RequestException as e:
-            log.error(f"Error fetching data from {url}: {e}")
+        except RequestException:
+            log.exception(f"Error fetching data from {url}")
             return {}
+        else:
+            return response
 
     def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
         if not data:

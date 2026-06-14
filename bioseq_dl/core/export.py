@@ -170,12 +170,14 @@ def export_dataframe(
 ) -> Path:
     """Export a DataFrame to CSV, TSV, JSON, XML, or Parquet."""
     if not isinstance(df, pd.DataFrame):
-        raise TypeError("export_dataframe expects a pandas DataFrame.")
+        msg = "export_dataframe expects a pandas DataFrame."
+        raise TypeError(msg)
 
     path = Path(output_path)
     normalized_format = normalize_export_format(output_format or path.suffix)
     if normalized_format is None:
-        raise ValueError(f"Unsupported export format: {output_format or path.suffix}")
+        msg = f"Unsupported export format: {output_format or path.suffix}"
+        raise ValueError(msg)
 
     if not path.suffix:
         path = path.with_suffix(f".{normalized_format}")

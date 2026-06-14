@@ -11,6 +11,7 @@ import pandas as pd
 import requests
 
 from bioseq_dl.constants.databases import DATABASES, UNIPROT
+from bioseq_dl.core.exceptions import RequestError
 from bioseq_dl.core.interfaces.base import BaseAPIInterface
 from bioseq_dl.core.utils.uniprot_auxiliary_methods import (
     extract_active_sites,
@@ -119,8 +120,8 @@ class UniprotInterface(BaseAPIInterface):
         try:
             response.raise_for_status()
         except requests.HTTPError:
-            log.error(f"HTTP error occurred: {response.status_code} - {response.text}")
-            log.error(f"Response JSON: {response.json()}")
+            log.exception(f"HTTP error occurred: {response.status_code} - {response.text}")
+            log.exception(f"Response JSON: {response.json()}")
             raise
 
     def submit_id_mapping(self, from_db: str, to_db: str, ids: list):
@@ -240,7 +241,8 @@ class UniprotInterface(BaseAPIInterface):
                     time.sleep(POLLING_INTERVAL)
                 else:
                     log.exception(f"Job failed with status: {j['jobStatus']}")
-                    raise Exception(j["jobStatus"])
+                    status = j["jobStatus"]
+                    raise RequestError(status)
             else:
                 return bool(j["results"] or j["failedIds"])
 
@@ -496,8 +498,6 @@ class UniprotInterface(BaseAPIInterface):
                     "download": download,
                     "timeout_seconds": effective_timeout,
                 }
-
-                return payload, metadata
             except requests.exceptions.Timeout as e:
                 if attempt < self.total_retries - 1:
                     log.warning(
@@ -513,7 +513,7 @@ class UniprotInterface(BaseAPIInterface):
                         "The query may be too broad or the UniProt API may be slow. "
                         "Try narrowing the query, using --no-enrich, or increasing --uniprot-timeout."
                     )
-                    log.error(message)
+                    log.exception(message)
                     raise TimeoutError(message) from e
             except requests.exceptions.RequestException as e:
                 if attempt < self.total_retries - 1:
@@ -521,8 +521,10 @@ class UniprotInterface(BaseAPIInterface):
                     time.sleep(POLLING_INTERVAL)
                 else:
                     message = f"UniProt request failed after all retry attempts: {e}"
-                    log.error(message)
+                    log.exception(message)
                     raise RuntimeError(message) from e
+            else:
+                return payload, metadata
         return None
 
     def adapt_field_map(self, field_map: dict[str, tuple], use_prefix=False):
@@ -639,7 +641,8 @@ class UniprotInterface(BaseAPIInterface):
         ``submit_stream`` (query search) and ``download_batch`` /
         ``submit_id_mapping`` (id mapping). ``parse`` then shapes the results.
         """
-        raise NotImplementedError(
+        msg = (
             "UniprotInterface does not implement generic fetch(); use submit_stream() "
             "for query search or download_batch()/submit_id_mapping() for id mapping."
         )
+        raise NotImplementedError(msg)

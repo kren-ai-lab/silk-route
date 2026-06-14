@@ -65,10 +65,11 @@ class CrossRefEnricher:
             return
         missing = [c for c in spec.required_columns if c not in df.columns]
         if missing:
-            raise ValueError(
+            msg = (
                 f"Missing required columns for {spec.database}:{spec.endpoint}"
                 f"{'[' + spec.option + ']' if spec.option else ''}: {missing}"
             )
+            raise ValueError(msg)
 
     def _prepare_params(self, spec: EndpointSpec) -> dict[str, Any]:
         """Prepare base params for an endpoint, including auth and 'option' if provided."""
@@ -81,7 +82,8 @@ class CrossRefEnricher:
     def _build_interface(self, database_name: str):
         """Create the correct interface instance with configured max_workers and total_retries."""
         if database_name not in INTERFACE_CLASSES:
-            raise ValueError(f"Unsupported database: {database_name}")
+            msg = f"Unsupported database: {database_name}"
+            raise ValueError(msg)
 
         return INTERFACE_CLASSES[database_name](
             max_workers=self.max_workers, total_retries=self.total_retries
@@ -102,7 +104,8 @@ class CrossRefEnricher:
         key = self._query_builder_key(spec)
         qb = QUERY_BUILDERS.get(key)
         if not qb:
-            raise ValueError(f"No query builder registered for key '{key}'")
+            msg = f"No query builder registered for key '{key}'"
+            raise ValueError(msg)
         return qb
 
     def _search_and_merge(
@@ -285,7 +288,8 @@ class CrossRefEnricher:
                     merged_root.append(item)
 
             return ET.ElementTree(merged_root), all_metadata
-        raise ValueError(f"Unsupported format: {format}")
+        msg = f"Unsupported format: {format}"
+        raise ValueError(msg)
 
     def enrich(
         self,
@@ -303,7 +307,8 @@ class CrossRefEnricher:
         elif isinstance(data, str):
             df = pd.read_json(data)
         else:
-            raise ValueError("Input data must be a pandas DataFrame, list of dicts, or dict.")
+            msg = "Input data must be a pandas DataFrame, list of dicts, or dict."
+            raise TypeError(msg)
 
         results = {}
         metadata = {}
@@ -339,4 +344,5 @@ class CrossRefEnricher:
             return results, metadata
         if format in ["json", "xml"]:
             return results, metadata
-        raise ValueError(f"Unsupported format: {format}")
+        msg = f"Unsupported format: {format}"
+        raise ValueError(msg)

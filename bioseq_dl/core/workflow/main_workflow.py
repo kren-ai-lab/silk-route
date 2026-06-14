@@ -174,13 +174,16 @@ def normalize_chembl_pages_to_fetch(value: int | None) -> int:
     if value is None:
         return -1
     if isinstance(value, bool):
-        raise ValueError("chembl_pages_to_fetch must be -1 or a positive integer.")
+        msg = "chembl_pages_to_fetch must be -1 or a positive integer."
+        raise TypeError(msg)
     try:
         pages_to_fetch = int(value)
     except (TypeError, ValueError) as exc:
-        raise ValueError("chembl_pages_to_fetch must be -1 or a positive integer.") from exc
+        msg = "chembl_pages_to_fetch must be -1 or a positive integer."
+        raise ValueError(msg) from exc
     if pages_to_fetch == 0 or pages_to_fetch < -1:
-        raise ValueError("chembl_pages_to_fetch must be -1 or a positive integer.")
+        msg = "chembl_pages_to_fetch must be -1 or a positive integer."
+        raise ValueError(msg)
     return pages_to_fetch
 
 
@@ -282,9 +285,11 @@ class MainWorkflow:
 
         """
         if not modality:
-            raise ValueError("`modality` is required for MainWorkflow.run")
+            msg = "`modality` is required for MainWorkflow.run"
+            raise ValueError(msg)
         if not mode:
-            raise ValueError("`mode` is required for MainWorkflow.run")
+            msg = "`mode` is required for MainWorkflow.run"
+            raise ValueError(msg)
 
         modality = modality.lower()
         workflow_mode = mode.lower()
@@ -297,7 +302,8 @@ class MainWorkflow:
             return self.query_first(modality=modality, **kwargs)
         if workflow_mode == "query_composition":
             return self.query_composition(modality=modality, **kwargs)
-        raise ValueError(f"Unknown workflow mode: {workflow_mode}")
+        msg = f"Unknown workflow mode: {workflow_mode}"
+        raise ValueError(msg)
 
     # ---- Pipeline step implementations ----
     def _step_fetch_uniprot(self, context: dict) -> None:
@@ -802,7 +808,8 @@ class MainWorkflow:
         # We do a similar approach for PLI, but we use ChEMBL to get the interactions with a target.
         # After that we search UniProt for the target details.
         if not interaction_type:
-            raise ValueError("interaction_type is required for run_interaction")
+            msg = "interaction_type is required for run_interaction"
+            raise ValueError(msg)
 
         export_format = export_format or self.default_export_format
 
@@ -918,7 +925,8 @@ class MainWorkflow:
                 interaction_type=interaction_type,
                 **kwargs,
             )
-        raise ValueError(f"Unknown modality: {modality}")
+        msg = f"Unknown modality: {modality}"
+        raise ValueError(msg)
 
     def query_composition(
         self,
@@ -974,7 +982,8 @@ class MainWorkflow:
                     **kwargs,
                 )
             else:
-                raise ValueError(f"Unknown modality: {modality}")
+                msg = f"Unknown modality: {modality}"
+                raise ValueError(msg)
 
             # Note: Normally, at this point the body of part data should be
             #  {"uniprot": pd.DataFrame(...), "uniprot_enrichment": {...}} for protein modality,

@@ -97,8 +97,8 @@ class ChEBIInterface(BaseAPIInterface):
 
         try:
             validated_params = validate_parameters(inputs, parameters)
-        except (ValueError, TypeError) as e:
-            log.error(f"Parameter validation failed: {e}")
+        except (ValueError, TypeError):
+            log.exception("Parameter validation failed")
             return {}
 
         # Get ids if available
@@ -134,7 +134,7 @@ class ChEBIInterface(BaseAPIInterface):
             try:
                 response = json.loads(response.text)
             except json.JSONDecodeError:
-                log.error(
+                log.exception(
                     f"Failed to decode JSON response for method '{method}' with query '{query}'. Response text: {response.text}"
                 )
                 return {}
@@ -147,10 +147,11 @@ class ChEBIInterface(BaseAPIInterface):
             if isinstance(response, dict) and "results" in response.keys():
                 response = response["results"]
 
-            return response
-        except RequestException as e:
-            log.error(f"Error fetching {query} for method '{method}': {e}")
+        except RequestException:
+            log.exception(f"Error fetching {query} for method '{method}'")
             return {}
+        else:
+            return response
 
     def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
         if not data:

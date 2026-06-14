@@ -125,8 +125,8 @@ class KEGGInterface(BaseAPIInterface):
 
         try:
             validated_params = validate_parameters(inputs, parameters)
-        except ValueError as e:
-            log.error(f"Invalid parameters for method '{method}': {e}")
+        except ValueError:
+            log.exception(f"Invalid parameters for method '{method}'")
             return {}
 
         if method == "pathways":
@@ -183,10 +183,11 @@ class KEGGInterface(BaseAPIInterface):
                     method="get",
                 )
 
-            return r  # TODO check if for other functions we need to return json or text
-        except requests.exceptions.RequestException as e:
-            log.error(f"Error fetching data for {query} with method {method}: {e}")
+        except requests.exceptions.RequestException:
+            log.exception(f"Error fetching data for {query} with method {method}")
             return {}
+        else:
+            return r  # TODO check if for other functions we need to return json or text
 
     def parse(self, data: Any, fields_to_extract: list | dict | None = None, **kwargs) -> dict | list:
         """Parse the response from the KEGG API.

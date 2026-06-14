@@ -86,8 +86,8 @@ class PDBInterface(BaseAPIInterface):
         # Validate and clean parameters
         try:
             validated_params = validate_parameters(inputs, parameters)
-        except ValueError as e:
-            log.error(f"Invalid parameters for method '{method}': {e}")
+        except ValueError:
+            log.exception(f"Invalid parameters for method '{method}'")
             return {}
 
         url = f"{PDB.API_URL}{method}"
@@ -114,8 +114,8 @@ class PDBInterface(BaseAPIInterface):
             response.raise_for_status()
 
             return response.json()
-        except RequestException as e:
-            log.error(f"Error fetching data from {url}: {e}")
+        except RequestException:
+            log.exception(f"Error fetching data from {url}")
             return {}
 
     def fetch_structure(self, pdb_id: str, file_format: str = "pdb") -> str:
@@ -150,8 +150,8 @@ class PDBInterface(BaseAPIInterface):
             with file_path.open("wb") as f:
                 f.write(response.content)
             return str(file_path)
-        except requests.exceptions.RequestException as e:
-            log.error(f"Error downloading structure for {pdb_id}: {e}")
+        except requests.exceptions.RequestException:
+            log.exception(f"Error downloading structure for {pdb_id}")
             return ""
 
     def fetch_single(

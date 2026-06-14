@@ -72,8 +72,8 @@ class BioDBNetInterface(BaseAPIInterface):
                     ]
                 case _:
                     return response.json()
-        except RequestException as e:
-            log.error(f"Error fetching {query} for method '{method}': {e}")
+        except RequestException:
+            log.exception(f"Error fetching {query} for method '{method}'")
             return {}
 
     def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:

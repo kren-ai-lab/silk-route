@@ -131,7 +131,8 @@ def get_query_builder(database, method, option=None):
     key = "_".join([part for part in (database, method, option) if part])
     builder = QUERY_BUILDERS.get(key)
     if builder is None:
-        raise ValueError(f"No query builder registered for endpoint '{key}'")
+        msg = f"No query builder registered for endpoint '{key}'"
+        raise ValueError(msg)
     return builder
 
 

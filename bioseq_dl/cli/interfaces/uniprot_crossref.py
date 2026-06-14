@@ -57,13 +57,15 @@ def run(
     try:
         # Check if input file exists
         if not Path(input).exists():
-            raise FileNotFoundError(f"Input file {input} does not exist.")
+            msg = f"Input file {input} does not exist."
+            raise FileNotFoundError(msg)
 
         # Load input file into a DataFrame
         try:
             df = pd.read_csv(input)
         except Exception as e:
-            raise ValueError(f"Error reading input file {input}: {e}") from e
+            msg = f"Error reading input file {input}: {e}"
+            raise ValueError(msg) from e
 
         endpoints_config = load_packaged_config("uniprot_crossref", "config_endpoints.yml") or {}
 
@@ -101,9 +103,8 @@ def run(
                             )
 
         if not endpoint_specs:
-            raise ValueError(
-                "No valid endpoint specifications found. Please check your database selections and configuration."
-            )
+            msg = "No valid endpoint specifications found. Please check your database selections and configuration."
+            raise ValueError(msg)
         log.debug(f"Endpoint specifications: {endpoint_specs}")
         enricher = CrossRefEnricher(endpoint_specs)
         enriched_data, enriched_metadata = enricher.enrich(df)

@@ -69,8 +69,8 @@ class StringInterface(BaseAPIInterface):
 
         try:
             validated_params = validate_parameters(inputs, parameters)
-        except (ValueError, TypeError) as e:
-            log.error(f"Parameter validation failed: {e}")
+        except (ValueError, TypeError):
+            log.exception("Parameter validation failed")
             return {}
 
         if "format" in validated_params:
@@ -97,8 +97,8 @@ class StringInterface(BaseAPIInterface):
             response.raise_for_status()
 
             return response.json()
-        except RequestException as e:
-            log.error(f"Error fetching {query} for method '{method}': {e}")
+        except RequestException:
+            log.exception(f"Error fetching {query} for method '{method}'")
             return {}
 
     def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs) -> Any:

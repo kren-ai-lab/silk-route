@@ -116,8 +116,8 @@ class ReactomeInterface(BaseAPIInterface):
             self._delay()
             response.raise_for_status()
             return response.json()
-        except requests.exceptions.RequestException as e:
-            log.error(f"Error fetching prediction for {query}: {e}")
+        except requests.exceptions.RequestException:
+            log.exception(f"Error fetching prediction for {query}")
             return {}
 
     def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:

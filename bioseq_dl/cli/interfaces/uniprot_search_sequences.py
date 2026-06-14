@@ -83,9 +83,8 @@ def run(
     try:
         export_format = normalize_user_export_format(export_format)
         if export_format is None:
-            raise ValueError(
-                f"Unsupported export format '{raw_export_format}'. Supported formats are: {', '.join(USER_EXPORT_FORMATS)}."
-            )
+            msg = f"Unsupported export format '{raw_export_format}'. Supported formats are: {', '.join(USER_EXPORT_FORMATS)}."
+            raise ValueError(msg)
     except ValueError as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=1) from None
@@ -103,7 +102,8 @@ def run(
     df = pd.read_csv(input)
 
     if seq_column not in df.columns:
-        raise ValueError(f"Column '{seq_column}' not found in input file.")
+        msg = f"Column '{seq_column}' not found in input file."
+        raise ValueError(msg)
 
     sequences = df[seq_column].dropna().unique().tolist()
 

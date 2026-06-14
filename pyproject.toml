@@ -90,8 +90,9 @@ ignore = [
     "ANN001", "ANN002", "ANN003", "ANN201", "ANN202", "ANN204", "ANN401",
     # Logging string style (f-strings in log calls are pervasive and acceptable here)
     "G003", "G004",
-    # Exception message style
-    "EM101", "EM102", "TRY002", "TRY003", "TRY300", "TRY301", "TRY400",
+    # Deliberate error-handling style: TRY301 (validate-then-convert-to-Exit) and
+    # BLE001 (top-level CLI / best-effort catch-alls) are intentional here.
+    "TRY301",
     # Intentional relative imports within the package
     "TID252",
     # Simplifications (deferred; review individually later)
@@ -108,14 +109,14 @@ ignore = [
     # Complexity / size (deferred to Phase 3 refactor)
     "PLR0911", "PLR0915", "PLR2004",
     # Simplification / perf suggestions (review individually later)
-    "PERF401", "PLW2901", "SIM108", "S110", "TRY004",
+    "PERF401", "PLW2901", "SIM108", "S110",
     # Security rules that are noise in this context (cache hashing, jittered delays,
     # trusted XML/URLs, explicit subprocess in dev tooling)
     "S202", "S310", "S311", "S314", "S324", "S603", "S605", "S607", "S112",
 
     # --- Transitional: REAL findings deferred to Phase 2/3 (remove as fixed) ---
     "ERA001",   # commented-out code: hunt remaining blocks in cleanup
-    "BLE001",   # blind except: Phase 2 error-handling pass (core/exceptions.py)
+    "BLE001",   # blind except: intentional CLI/defensive catch-alls (see note above)
     "C901",     # complexity: Phase 3 (split base.py / fetch_single)
     "PLR0912",  # too many branches: Phase 3
     "B006",     # mutable default arg (crossref_enricher, alphafold)

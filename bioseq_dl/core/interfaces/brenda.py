@@ -86,18 +86,19 @@ class BrendaInterface(BaseAPIInterface):
             return []
 
         if not is_valid_secret(self.email) or self.password is None:
-            raise ValueError(
+            msg = (
                 "Missing BRENDA credentials. Set BIOSEQ_DL_BRENDA_EMAIL and "
                 "BIOSEQ_DL_BRENDA_PASSWORD or pass them explicitly."
             )
+            raise ValueError(msg)
 
         _, _, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, **kwargs)
 
         # Validate and clean parameters
         try:
             validated_params = validate_parameters(inputs, parameters)
-        except ValueError as e:
-            log.error(f"Invalid parameters for method '{method}': {e}")
+        except ValueError:
+            log.exception(f"Invalid parameters for method '{method}'")
             return []
 
         results = []
@@ -118,8 +119,8 @@ class BrendaInterface(BaseAPIInterface):
 
             results.extend(result if isinstance(result, list) else [result])
 
-        except Exception as e:
-            log.error(f"Error fetching data for {method} with parameters {query}: {e}")
+        except Exception:
+            log.exception(f"Error fetching data for {method} with parameters {query}")
             return []
 
         return results

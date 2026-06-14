@@ -43,9 +43,8 @@ class SabiorkInterface(BaseAPIInterface):
     def fetch(self, query: str | dict | list, *, method: str = "kineticlaws", **kwargs):
         """Fetch data from the Sabio-RK API based on the provided query."""
         if method not in self.METHODS:
-            raise ValueError(
-                f"Method '{method}' is not supported. Available methods: {list(self.METHODS.keys())}"
-            )
+            msg = f"Method '{method}' is not supported. Available methods: {list(self.METHODS.keys())}"
+            raise ValueError(msg)
 
         http_method, _, parameters, inputs = self.initialize_method_parameters(
             query, method, self.METHODS, **kwargs
@@ -54,8 +53,8 @@ class SabiorkInterface(BaseAPIInterface):
         # Validate and clean parameters
         try:
             validated_params = validate_parameters(inputs, parameters)
-        except ValueError as e:
-            log.error(f"Invalid parameters for method '{method}': {e}")
+        except ValueError:
+            log.exception(f"Invalid parameters for method '{method}'")
             return {}
 
         query_string = " AND ".join(
@@ -96,10 +95,11 @@ class SabiorkInterface(BaseAPIInterface):
                 results = [line.split("\t") for line in response.text.strip().split("\n")]
                 return [{results[0][i]: row[i] for i in range(len(results[0]))} for row in results[1:]]
 
-            return response.text
-        except requests.exceptions.RequestException as e:
-            log.error(f"Error fetching prediction for {query}: {e}")
+        except requests.exceptions.RequestException:
+            log.exception(f"Error fetching prediction for {query}")
             return {}
+        else:
+            return response.text
 
     def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
         return self._extract_fields(data, fields_to_extract)

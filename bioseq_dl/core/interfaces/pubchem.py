@@ -137,8 +137,8 @@ class PubChemInterface(BaseAPIInterface):
         # Validate and clean parameters
         try:
             validated_params = validate_parameters(inputs, parameters)
-        except ValueError as e:
-            log.error(f"Invalid parameters for method '{method}': {e}")
+        except ValueError:
+            log.exception(f"Invalid parameters for method '{method}'")
             return {}
 
         if "name_type" in validated_params and method == "pug/compound":
@@ -261,10 +261,11 @@ class PubChemInterface(BaseAPIInterface):
                 if isinstance(response, str):
                     response = json.loads(response)
 
-            return response
-        except RequestException as e:
-            log.error(f"Error fetching {query} for method '{method}': {e}")
+        except RequestException:
+            log.exception(f"Error fetching {query} for method '{method}'")
             return {}
+        else:
+            return response
 
     def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
         if not data:

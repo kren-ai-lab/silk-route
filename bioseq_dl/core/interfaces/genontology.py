@@ -88,8 +88,8 @@ class GenOntologyInterface(BaseAPIInterface):
         # Validate and clean parameters
         try:
             validated_params = validate_parameters(inputs, parameters)
-        except ValueError as e:
-            log.error(f"Invalid parameters for method '{method}': {e}")
+        except ValueError:
+            log.exception(f"Invalid parameters for method '{method}'")
             return {}
 
         url = f"{GENONTOLOGY.API_URL}{method.replace('-', '/')}/"
@@ -114,8 +114,8 @@ class GenOntologyInterface(BaseAPIInterface):
             response.raise_for_status()
 
             return response.json()
-        except RequestException as e:
-            log.error(f"Error fetching data from {url}: {e}")
+        except RequestException:
+            log.exception(f"Error fetching data from {url}")
             return {}
 
     def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs) -> dict | list:
@@ -175,8 +175,8 @@ class GenOntologyInterface(BaseAPIInterface):
                 parsed["relationships"] = relationships
             else:
                 parsed["relationships"] = []
-        except Exception as e:
-            log.error(f"Error fetching relationships for GO term {parsed.get('goid', '')}: {e}")
+        except Exception:
+            log.exception(f"Error fetching relationships for GO term {parsed.get('goid', '')}")
         return parsed
 
     def fetch_single(

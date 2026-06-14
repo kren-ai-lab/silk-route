@@ -195,8 +195,8 @@ class BaseAPIInterface(ABC):
                     continue
                 try:
                     self.configs[entry.stem] = read_config_file(entry)
-                except Exception as e:
-                    log.error(f"Error loading config {entry.name}: {e}")
+                except Exception:
+                    log.exception(f"Error loading config {entry.name}")
 
     def _delay(self):
         """Introduce a random delay between min_wait and max_wait."""
@@ -433,9 +433,8 @@ class BaseAPIInterface(ABC):
                 result = []
             else:
                 log.error("Could not parse data. Data must be a list, dictionary, or string.")
-                raise ValueError(
-                    f"Data must be a list, dictionary, or string for parsing. Received: {type(data)}"
-                )
+                msg = f"Data must be a list, dictionary, or string for parsing. Received: {type(data)}"
+                raise ValueError(msg)
         else:
             result = data
 
@@ -450,7 +449,8 @@ class BaseAPIInterface(ABC):
             if result is None or result == []:
                 return pd.DataFrame()
             log.error("Cannot convert to DataFrame, unsupported type.")
-            raise ValueError(f"Cannot convert to DataFrame: unsupported type {type(result)}")
+            msg = f"Cannot convert to DataFrame: unsupported type {type(result)}"
+            raise ValueError(msg)
         if format == "xml":
             log.debug("Converting result to XML")
             if isinstance(result, dict):
@@ -460,7 +460,8 @@ class BaseAPIInterface(ABC):
                     {"item": result}, custom_root="results", item_func=lambda x: "entry", attr_type=False
                 )
             log.error("Cannot convert to XML, unsupported type.")
-            raise ValueError(f"Cannot convert to XML: unsupported type {type(result)}")
+            msg = f"Cannot convert to XML: unsupported type {type(result)}"
+            raise ValueError(msg)
         if format == "json":
             log.debug("Returning result as JSON")
             return result
@@ -474,7 +475,8 @@ class BaseAPIInterface(ABC):
     def _get_method_spec(self, **kwargs) -> dict[str, Any]:
         method = kwargs.get("method")
         if method not in self.METHODS:
-            raise ValueError(f"Unknown method '{method}'")
+            msg = f"Unknown method '{method}'"
+            raise ValueError(msg)
         option = kwargs.get("option")
 
         if option:
@@ -530,18 +532,18 @@ class BaseAPIInterface(ABC):
         self, query: str | dict | list, method: str, method_definition: dict, **kwargs
     ):
         if method not in method_definition:
-            raise ValueError(
-                f"Method '{method}' is not defined in the method definition. Available methods: {list(method_definition.keys())}"
-            )
+            msg = f"Method '{method}' is not defined in the method definition. Available methods: {list(method_definition.keys())}"
+            raise ValueError(msg)
 
         option = kwargs.get("option") if "option" in kwargs else None
 
         method_info = method_definition.get(method, {})
 
         if option and option not in method_info.keys():
-            raise ValueError(
+            msg = (
                 f"Option '{option}' is not valid for method '{method}'. Allowed options: {method_info.keys()}"
             )
+            raise ValueError(msg)
 
         method_info = method_info.get(option, {}) if option else method_info
 
@@ -554,16 +556,16 @@ class BaseAPIInterface(ABC):
         primary_keys = get_primary_keys(parameters)
 
         if not primary_keys:
-            raise ValueError(
-                f"No primary keys defined for method '{method}'. Please check the method definition."
-            )
+            msg = f"No primary keys defined for method '{method}'. Please check the method definition."
+            raise ValueError(msg)
 
         if len(primary_keys) > 1:
             if not isinstance(query, dict):
-                raise ValueError(
+                msg = (
                     f"Query must be a dictionary when multiple primary keys are defined for method '{method}'. "
                     f"Received: {type(query)} with value {query}"
                 )
+                raise ValueError(msg)
 
         inputs = {}
 
@@ -587,7 +589,8 @@ class BaseAPIInterface(ABC):
         elif isinstance(query, str):
             inputs[primary_keys[0]] = query
         else:
-            raise ValueError(f"Unsupported query type: {type(query)}. Expected str, dict, or list.")
+            msg = f"Unsupported query type: {type(query)}. Expected str, dict, or list."
+            raise TypeError(msg)
 
         return http_method, path_param, parameters, inputs
 
@@ -617,13 +620,11 @@ class BaseAPIInterface(ABC):
 
         """
         if method not in self.METHODS:
-            raise ValueError(
-                f"Method '{method}' is not supported. Available methods: {list(self.METHODS.keys())}"
-            )
+            msg = f"Method '{method}' is not supported. Available methods: {list(self.METHODS.keys())}"
+            raise ValueError(msg)
         if option and option not in self.METHODS[method]:
-            raise ValueError(
-                f"Option '{option}' is not valid for method '{method}'. Allowed options: {self.METHODS[method].keys()}"
-            )
+            msg = f"Option '{option}' is not valid for method '{method}'. Allowed options: {self.METHODS[method].keys()}"
+            raise ValueError(msg)
 
         method_spec = self.METHODS[method].get(option, self.METHODS[method])
         param_spec = method_spec.get("parameters", {})
@@ -683,7 +684,8 @@ class BaseAPIInterface(ABC):
         if isinstance(full_result, dict):
             full_result = [full_result]
         elif not isinstance(full_result, list):
-            raise ValueError("Expected full_result to be a list of dicts")
+            msg = "Expected full_result to be a list of dicts"
+            raise TypeError(msg)
 
         mapping = {identifier: [] for identifier, _ in subqueries}
 
@@ -753,7 +755,8 @@ class BaseAPIInterface(ABC):
         spec = self._get_method_spec(**kwargs)
         if spec is None:
             log.error(f"Method '{method}' is not supported")
-            raise ValueError(f"Method '{method}' is not supported. Available: {list(self.METHODS)}")
+            msg = f"Method '{method}' is not supported. Available: {list(self.METHODS)}"
+            raise ValueError(msg)
         log.debug("Checking if multiple queries are supported")
         group_key = spec.get("group_queries", [None])[0]
 
@@ -994,8 +997,8 @@ class BaseAPIInterface(ABC):
                     else:
                         results.append(result)
 
-                except Exception as e:
-                    log.error(f"Error fetching query at index {i} ({queries[i]}): {e}")
+                except Exception:
+                    log.exception(f"Error fetching query at index {i} ({queries[i]})")
                 self._delay()
         metadata["execution_time"] = time.time() - t0
         metadata["fetched_length"] = sum(len(r) if isinstance(r, list) else 1 for r in results)
@@ -1081,7 +1084,8 @@ class BaseAPIInterface(ABC):
         api_url = kwargs.pop("api_url", None)
 
         if not api_url:
-            raise ValueError("API URL must be provided in kwargs.")
+            msg = "API URL must be provided in kwargs."
+            raise ValueError(msg)
         http_method, path_param, parameters, inputs = self.initialize_method_parameters(
             query, method, self.METHODS, **kwargs
         )
@@ -1089,7 +1093,8 @@ class BaseAPIInterface(ABC):
         try:
             validated_params = validate_parameters(inputs, parameters)
         except ValueError as e:
-            raise ValueError(f"Invalid parameters for method '{method}': {e}") from e
+            msg = f"Invalid parameters for method '{method}': {e}"
+            raise ValueError(msg) from e
 
         url = f"{api_url}{method}"
 
@@ -1105,11 +1110,12 @@ class BaseAPIInterface(ABC):
             response = self.session.send(prepared)
             self._delay()
             response.raise_for_status()
-
-            return response
         except RequestException as e:
-            log.error(f"Error fetching {query} for method '{method}': {e}")
-            raise RequestError(f"Request failed for method '{method}': {e}") from e
+            log.exception(f"Error fetching {query} for method '{method}'")
+            msg = f"Request failed for method '{method}': {e}"
+            raise RequestError(msg) from e
+        else:
+            return response
 
     @abstractmethod
     def fetch(self, query: str | dict | list, *, method: str, **kwargs):

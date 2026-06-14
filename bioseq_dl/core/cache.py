@@ -119,9 +119,10 @@ def _is_within_allowed_bases(path: Path, allowed_bases: list[Path]) -> bool:
             base_res = base.resolve()
             # using relative_to to ensure proper containment check
             p_res.relative_to(base_res)
-            return True
         except Exception:
             continue
+        else:
+            return True
     return False
 
 
@@ -134,10 +135,11 @@ def _is_empty_file(file_path: Path) -> bool:
             content: str | bytes = file_path.read_text(encoding="utf-8").strip()
         except UnicodeDecodeError:
             content = file_path.read_bytes().strip()
-        return content in ("", "[]", "{}", b"")
     except OSError:
         _logger.exception("Error checking if file is empty: %s", file_path)
         return False
+    else:
+        return content in ("", "[]", "{}", b"")
 
 
 def _default_allowed_bases() -> list[Path]:

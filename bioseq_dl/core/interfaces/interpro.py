@@ -141,10 +141,11 @@ class InterproInterface(BaseAPIInterface):
                 if next:
                     responses.extend(next)
 
-            return responses
-        except requests.exceptions.RequestException as e:
-            log.error(f"Error fetching next page for method {method}: {e}")
+        except requests.exceptions.RequestException:
+            log.exception(f"Error fetching next page for method {method}")
             return {}
+        else:
+            return responses
 
     def fetch(self, query: str | dict | list, *, method: str = "entry", **kwargs):
         """Fetch data from InterPro API.

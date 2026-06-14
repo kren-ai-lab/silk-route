@@ -107,13 +107,11 @@ class BioGRIDInterface(BaseAPIInterface):
             if not is_valid_secret(access_key) and is_valid_secret(self.api_key):
                 query["accessKey"] = self.api_key
             if not is_valid_secret(query.get("accessKey")):
-                raise ValueError(
-                    "Missing BioGRID API key. Set BIOSEQ_DL_BIOGRID_API_KEY or pass api_key explicitly."
-                )
+                msg = "Missing BioGRID API key. Set BIOSEQ_DL_BIOGRID_API_KEY or pass api_key explicitly."
+                raise ValueError(msg)
         elif not is_valid_secret(self.api_key):
-            raise ValueError(
-                "Missing BioGRID API key. Set BIOSEQ_DL_BIOGRID_API_KEY or pass api_key explicitly."
-            )
+            msg = "Missing BioGRID API key. Set BIOSEQ_DL_BIOGRID_API_KEY or pass api_key explicitly."
+            raise ValueError(msg)
 
         response = super()._do_request(query, method=method, api_url=BIOGRID.API_URL, **kwargs)
         response = response.json() if isinstance(response, requests.models.Response) else response

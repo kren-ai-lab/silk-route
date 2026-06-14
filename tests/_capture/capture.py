@@ -57,7 +57,8 @@ def _capture_raw(api, case, interface, *, as_text=False, **fetch_kwargs):
     interface.session.send = original_send
 
     if "body" not in captured:
-        raise RuntimeError(f"no response captured for {api}/{case}")
+        msg = f"no response captured for {api}/{case}"
+        raise RuntimeError(msg)
     _save(api, case, captured["body"])
 
 

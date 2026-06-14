@@ -42,8 +42,8 @@ class RheaInterface(BaseAPIInterface):
         # Validate and clean parameters
         try:
             validated_params = validate_parameters(inputs, parameters)
-        except ValueError as e:
-            log.error(f"Invalid parameters for method '{method}': {e}")
+        except ValueError:
+            log.exception(f"Invalid parameters for method '{method}'")
             return {}
 
         url = f"{RHEA.API_URL}{method}/"
@@ -59,15 +59,16 @@ class RheaInterface(BaseAPIInterface):
             response = self.session.send(prepared)
             self._delay()
             response.raise_for_status()
+        except RequestException:
+            log.exception(f"Error fetching prediction for {query}")
+            return {}
+        else:
             response = response.json()
 
             if "results" in response:
                 response = response["results"]
 
             return response
-        except RequestException as e:
-            log.error(f"Error fetching prediction for {query}: {e}")
-            return {}
 
     def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
         if not data:

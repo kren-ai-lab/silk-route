@@ -19,7 +19,8 @@ def get_nested(data: dict, path: str, sep: str = ".") -> Any:
         return data
 
     if not isinstance(path, str):
-        raise ValueError(f"Path must be a string, got {type(path).__name__} instead. Value: {path}")
+        msg = f"Path must be a string, got {type(path).__name__} instead. Value: {path}"
+        raise TypeError(msg)
 
     if not isinstance(data, dict):
         return None
@@ -96,7 +97,8 @@ def validate_parameters(inputs: dict, param_schema: dict) -> dict:
 
     """
     if param_schema is None:
-        raise ValueError("Parameter schema is not defined. Please check the method definition.")
+        msg = "Parameter schema is not defined. Please check the method definition."
+        raise ValueError(msg)
 
     valid_keys = set(param_schema.keys())
     provided_keys = set(inputs.keys())
@@ -104,17 +106,19 @@ def validate_parameters(inputs: dict, param_schema: dict) -> dict:
     # Verify invalid keys
     invalid_keys = provided_keys - valid_keys
     if invalid_keys:
-        raise ValueError(f"Invalid parameter(s): {invalid_keys}. Expected: {list(valid_keys)}")
+        msg = f"Invalid parameter(s): {invalid_keys}. Expected: {list(valid_keys)}"
+        raise ValueError(msg)
 
     validated = {}
     for key, (expected_type, default, _) in param_schema.items():
         if key in inputs:
             value = inputs[key]
             if not isinstance(value, expected_type):
-                raise TypeError(
+                msg = (
                     f"Parameter '{key}' should be of type {expected_type.__name__}, "
                     f"got {type(inputs[key]).__name__}: {inputs[key]!r}"
                 )
+                raise TypeError(msg)
             validated[key] = value
         elif default is not None:
             validated[key] = default

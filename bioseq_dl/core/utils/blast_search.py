@@ -29,9 +29,8 @@ def download_uniprot_database(
 
     """
     if db_name not in DATABASES:
-        raise ValueError(
-            f"Database {db_name} is not supported. Supported databases are: {', '.join(DATABASES.keys())}."
-        )
+        msg = f"Database {db_name} is not supported. Supported databases are: {', '.join(DATABASES.keys())}."
+        raise ValueError(msg)
 
     db_path = DB_DIR / f"{db_name}.{extension}"
 
@@ -55,16 +54,18 @@ def get_latest_version_url():
         version = match.group(1)
         tar_name = f"ncbi-blast-{version}-x64-linux.tar.gz"
         return version, BLAST_BASE_URL + tar_name
-    raise RuntimeError("Could not find the latest BLAST version from NCBI.")
+    msg = "Could not find the latest BLAST version from NCBI."
+    raise RuntimeError(msg)
 
 
 def is_blast_installed():
     """Check if 'blastp' is available in the system PATH."""
     try:
         subprocess.run(["blastp", "-version"], check=True, stdout=subprocess.DEVNULL)
-        return True
     except (subprocess.CalledProcessError, FileNotFoundError):
         return False
+    else:
+        return True
 
 
 def download_and_extract_blast(version: str, url: str):
@@ -105,7 +106,8 @@ def make_blast_database(db_name: str, db_type: str = "prot", extension: str = "x
     """Create a BLAST database from the Uniprot database."""
     db_path = DB_DIR / f"{db_name}.{extension}"
     if not db_path.exists():
-        raise FileNotFoundError(f"Database {db_name} not found at {db_path}. Please download it first.")
+        msg = f"Database {db_name} not found at {db_path}. Please download it first."
+        raise FileNotFoundError(msg)
 
     # Check if the database is already created
     blast_db_path = DB_DIR / db_name
@@ -138,7 +140,8 @@ def run_blast(sequences: list[str], db_name: str, blast_type: str = "blastp", ev
     """Run BLAST search."""
     blast_db_path = DB_DIR / db_name
     if not blast_db_path.exists():
-        raise FileNotFoundError(f"Database {db_name} not found at {blast_db_path}. Please download it first.")
+        msg = f"Database {db_name} not found at {blast_db_path}. Please download it first."
+        raise FileNotFoundError(msg)
 
     # Make tmp directory if it does not exist
     Path("tmp").mkdir(parents=True, exist_ok=True)

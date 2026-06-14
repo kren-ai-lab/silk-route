@@ -188,7 +188,8 @@ def check_forbidden_workflow_recipe_keys(value: object) -> None:
 def require_mapping(section_name: str, value: object) -> dict:
     """Return a section as a string-keyed mapping."""
     if not isinstance(value, dict):
-        raise ValueError(f"Workflow YAML section '{section_name}' must be a mapping.")
+        msg = f"Workflow YAML section '{section_name}' must be a mapping."
+        raise TypeError(msg)
     return {str(key): item for key, item in value.items()}
 
 
@@ -203,7 +204,8 @@ def validate_allowed_section_keys(
         if special_errors and key in special_errors:
             raise ValueError(special_errors[key])
         if key not in allowed_keys:
-            raise ValueError(f"Unknown {section_name} YAML key '{key}'.")
+            msg = f"Unknown {section_name} YAML key '{key}'."
+            raise ValueError(msg)
 
 
 def get_rejected_mode_key_message(key: str) -> str | None:
@@ -224,9 +226,8 @@ def validate_descriptor_section_names(workflow_descriptor: dict) -> None:
         if key in OLD_ROOT_KEY_ERRORS:
             raise ValueError(OLD_ROOT_KEY_ERRORS[key])
         if key not in KNOWN_DESCRIPTOR_SECTIONS:
-            raise ValueError(
-                f"Unknown workflow YAML section '{key}'. Allowed sections are: {allowed_sections}."
-            )
+            msg = f"Unknown workflow YAML section '{key}'. Allowed sections are: {allowed_sections}."
+            raise ValueError(msg)
 
 
 def validate_required_section_keys(section_name: str, section: dict, required_keys: set[str]) -> None:
@@ -234,46 +235,51 @@ def validate_required_section_keys(section_name: str, section: dict, required_ke
     missing = sorted(key for key in required_keys if key not in section or section[key] is None)
     if missing:
         missing_text = ", ".join(missing)
-        raise ValueError(
-            f"Workflow YAML section '{section_name}' is missing required key(s): {missing_text}."
-        )
+        msg = f"Workflow YAML section '{section_name}' is missing required key(s): {missing_text}."
+        raise ValueError(msg)
 
 
 def validate_optional_string(section_name: str, key: str, value: object) -> None:
     """Validate an optional string field."""
     if value is not None and not isinstance(value, str):
-        raise ValueError(f"Workflow YAML key '{section_name}.{key}' must be a string or null.")
+        msg = f"Workflow YAML key '{section_name}.{key}' must be a string or null."
+        raise ValueError(msg)
 
 
 def validate_bool(section_name: str, key: str, value: object) -> None:
     """Validate a boolean field."""
     if not isinstance(value, bool):
-        raise ValueError(f"Workflow YAML key '{section_name}.{key}' must be a boolean.")
+        msg = f"Workflow YAML key '{section_name}.{key}' must be a boolean."
+        raise TypeError(msg)
 
 
 def validate_int(section_name: str, key: str, value: object) -> None:
     """Validate an integer field without accepting booleans."""
     if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(f"Workflow YAML key '{section_name}.{key}' must be an integer.")
+        msg = f"Workflow YAML key '{section_name}.{key}' must be an integer."
+        raise TypeError(msg)
 
 
 def validate_numeric_or_null(section_name: str, key: str, value: object) -> None:
     """Validate a numeric or null field without accepting booleans."""
     if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float))):
-        raise ValueError(f"Workflow YAML key '{section_name}.{key}' must be numeric or null.")
+        msg = f"Workflow YAML key '{section_name}.{key}' must be numeric or null."
+        raise ValueError(msg)
 
 
 def validate_pages_to_fetch(section_name: str, key: str, value: object) -> None:
     """Validate a ChEMBL page count where -1 means all pages."""
     validate_int(section_name, key, value)
     if value == 0 or value < -1:
-        raise ValueError(f"Workflow YAML key '{section_name}.{key}' must be -1 or a positive integer.")
+        msg = f"Workflow YAML key '{section_name}.{key}' must be -1 or a positive integer."
+        raise ValueError(msg)
 
 
 def validate_string_list(section_name: str, key: str, value: object) -> None:
     """Validate a list containing only strings."""
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-        raise ValueError(f"Workflow YAML key '{section_name}.{key}' must be a list of strings.")
+        msg = f"Workflow YAML key '{section_name}.{key}' must be a list of strings."
+        raise ValueError(msg)
 
 
 def normalize_optional_field_list(section_name: str, key: str, value: object) -> str | None:
@@ -285,9 +291,8 @@ def normalize_optional_field_list(section_name: str, key: str, value: object) ->
     if isinstance(value, list) and all(isinstance(item, str) for item in value):
         cleaned = [item.strip() for item in value if item.strip()]
         return ",".join(cleaned) if cleaned else None
-    raise ValueError(
-        f"Workflow YAML key '{section_name}.{key}' must be null, a string, or a list of strings."
-    )
+    msg = f"Workflow YAML key '{section_name}.{key}' must be null, a string, or a list of strings."
+    raise ValueError(msg)
 
 
 def is_reporting_value_allowed(value: object) -> bool:
@@ -305,7 +310,8 @@ def validate_reporting_section(reporting: dict) -> None:
     """Validate free-form reporting metrics."""
     for key, value in reporting.items():
         if not is_reporting_value_allowed(value):
-            raise ValueError(f"Workflow YAML key 'reporting.{key}' has an unsupported value type.")
+            msg = f"Workflow YAML key 'reporting.{key}' has an unsupported value type."
+            raise ValueError(msg)
 
 
 def validate_dataset_section(dataset: dict, export_section: dict) -> dict:
@@ -316,17 +322,18 @@ def validate_dataset_section(dataset: dict, export_section: dict) -> dict:
     modality = dataset.get("modality")
     mode = dataset.get("mode")
     if modality not in MODALITIES:
-        raise ValueError(
-            f"Unsupported dataset.modality '{modality}'. Supported modalities are: {', '.join(MODALITIES)}."
-        )
+        msg = f"Unsupported dataset.modality '{modality}'. Supported modalities are: {', '.join(MODALITIES)}."
+        raise ValueError(msg)
     if mode not in MODES:
-        raise ValueError(f"Unsupported dataset.mode '{mode}'. Supported modes are: {', '.join(MODES)}.")
+        msg = f"Unsupported dataset.mode '{mode}'. Supported modes are: {', '.join(MODES)}."
+        raise ValueError(msg)
 
     for key in ("name", "description", "primary_data_source", "interaction_type"):
         validate_optional_string("dataset", key, dataset.get(key))
 
     if not export_section.get("output_dir") and not dataset.get("name"):
-        raise ValueError("dataset.name is required when export.output_dir is not provided.")
+        msg = "dataset.name is required when export.output_dir is not provided."
+        raise ValueError(msg)
     return dict(dataset)
 
 
@@ -337,7 +344,8 @@ def validate_query_section(query_section: dict) -> tuple[dict, str | None, str |
 
     query_value = query_section.get("value")
     if not isinstance(query_value, str) or not query_value.strip():
-        raise ValueError("Workflow YAML key 'query.value' must be a non-empty string.")
+        msg = "Workflow YAML key 'query.value' must be a non-empty string."
+        raise ValueError(msg)
 
     for key in ("description", "filtering_strategy"):
         validate_optional_string("query", key, query_section.get(key))
@@ -400,9 +408,8 @@ def validate_export_section(export_section: dict) -> dict:
     export_format = normalize_user_export_format(export_section.get("format", "csv"))
     if export_format is None:
         raw_format = export_section.get("format", "csv")
-        raise ValueError(
-            f"Unsupported export format '{raw_format}'. Supported formats are: {', '.join(FORMATS)}."
-        )
+        msg = f"Unsupported export format '{raw_format}'. Supported formats are: {', '.join(FORMATS)}."
+        raise ValueError(msg)
 
     for key in ("include_metadata", "include_summary"):
         if key in export_section:
@@ -487,27 +494,32 @@ def load_workflow_recipe(config_path: str | Path) -> dict:
     """Load a workflow descriptor from a YAML file."""
     path = Path(config_path)
     if not path.exists():
-        raise ValueError(f"Workflow YAML file does not exist: {path}")
+        msg = f"Workflow YAML file does not exist: {path}"
+        raise ValueError(msg)
 
     try:
         with path.open("r", encoding="utf-8") as handle:
             loaded = yaml.safe_load(handle)
     except yaml.YAMLError as exc:
-        raise ValueError(f"Invalid workflow YAML in {path}: {exc}") from exc
+        msg = f"Invalid workflow YAML in {path}: {exc}"
+        raise ValueError(msg) from exc
     except OSError as exc:
-        raise ValueError(f"Could not read workflow YAML {path}: {exc}") from exc
+        msg = f"Could not read workflow YAML {path}: {exc}"
+        raise ValueError(msg) from exc
 
     if loaded is None:
         return {}
     if not isinstance(loaded, dict):
-        raise ValueError("Workflow YAML root must be a mapping.")
+        msg = "Workflow YAML root must be a mapping."
+        raise TypeError(msg)
     return loaded
 
 
 def validate_workflow_recipe(recipe: dict) -> dict:
     """Validate and normalize a structured workflow descriptor."""
     if not isinstance(recipe, dict):
-        raise ValueError("Workflow YAML root must be a mapping.")
+        msg = "Workflow YAML root must be a mapping."
+        raise TypeError(msg)
 
     check_forbidden_workflow_recipe_keys(recipe)
     workflow_descriptor = {str(key): value for key, value in recipe.items()}
@@ -516,7 +528,8 @@ def validate_workflow_recipe(recipe: dict) -> dict:
     missing_sections = sorted(REQUIRED_DESCRIPTOR_SECTIONS - set(workflow_descriptor))
     if missing_sections:
         missing = ", ".join(missing_sections)
-        raise ValueError(f"Workflow YAML is missing required top-level section(s): {missing}.")
+        msg = f"Workflow YAML is missing required top-level section(s): {missing}."
+        raise ValueError(msg)
 
     export_section = validate_export_section(require_mapping("export", workflow_descriptor["export"]))
     dataset = validate_dataset_section(
@@ -642,31 +655,31 @@ def validate_merged_workflow_values(values: dict) -> None:
     missing_keys = [key for key in ("output", "query", "modality", "mode") if not values.get(key)]
     if missing_keys:
         missing = ", ".join(missing_keys)
-        raise ValueError(
-            f"Missing required workflow value(s): {missing}. Provide them with CLI options or --config."
-        )
+        msg = f"Missing required workflow value(s): {missing}. Provide them with CLI options or --config."
+        raise ValueError(msg)
 
     if values["modality"] not in MODALITIES:
-        raise ValueError(
+        msg = (
             f"Unsupported modality '{values['modality']}'. Supported modalities are: {', '.join(MODALITIES)}."
         )
+        raise ValueError(msg)
 
     if values["mode"] not in MODES:
-        raise ValueError(
-            f"Unsupported workflow mode '{values['mode']}'. Supported modes are: {', '.join(MODES)}."
-        )
+        msg = f"Unsupported workflow mode '{values['mode']}'. Supported modes are: {', '.join(MODES)}."
+        raise ValueError(msg)
 
     chembl_pages_to_fetch = values.get("chembl_pages_to_fetch", -1)
     if not isinstance(chembl_pages_to_fetch, int) or isinstance(chembl_pages_to_fetch, bool):
-        raise ValueError("chembl_pages_to_fetch must be -1 or a positive integer.")
+        msg = "chembl_pages_to_fetch must be -1 or a positive integer."
+        raise TypeError(msg)
     if chembl_pages_to_fetch == 0 or chembl_pages_to_fetch < -1:
-        raise ValueError("chembl_pages_to_fetch must be -1 or a positive integer.")
+        msg = "chembl_pages_to_fetch must be -1 or a positive integer."
+        raise ValueError(msg)
 
     export_format = normalize_user_export_format(values["export_format"])
     if export_format is None:
-        raise ValueError(
-            f"Unsupported export format '{values['export_format']}'. Supported formats are: {', '.join(FORMATS)}."
-        )
+        msg = f"Unsupported export format '{values['export_format']}'. Supported formats are: {', '.join(FORMATS)}."
+        raise ValueError(msg)
     values["export_format"] = export_format
 
 
@@ -1229,7 +1242,8 @@ def split_pair(s: str) -> tuple[str, str]:
     elif "|" in s:
         q, label = s.split("|", 1)
     else:
-        raise ValueError(f"Invalid format '{s}'. Use 'query=label' or 'query|label'.")
+        msg = f"Invalid format '{s}'. Use 'query=label' or 'query|label'."
+        raise ValueError(msg)
     return q.strip(), label.strip()
 
 
@@ -1381,9 +1395,8 @@ def run_workflow(
             )
         elif workflow_values["mode"] == "query_composition":
             if "," not in workflow_values["query"]:
-                raise ValueError(
-                    "For query_composition, provide multiple queries as 'query1=label1,query2=label2'."
-                )
+                msg = "For query_composition, provide multiple queries as 'query1=label1,query2=label2'."
+                raise ValueError(msg)
             queries = [q.strip() for q in workflow_values["query"].split(",")]
             queries_with_labels = [split_pair(q) for q in queries]
             data, meta = wf.run(
@@ -1402,10 +1415,11 @@ def run_workflow(
                 crossref_fields=workflow_values["crossref_fields"],
             )
         else:
-            raise ValueError(f"Unsupported workflow mode '{workflow_values['mode']}'.")
+            msg = f"Unsupported workflow mode '{workflow_values['mode']}'."
+            raise ValueError(msg)
     except (TimeoutError, RuntimeError, ValueError) as e:
         error_message = str(e)
-        logger.error(error_message)
+        logger.exception(error_message)
         write_failure_reports(workflow_values, error_message, started_at, start_time)
         typer.echo(f"Error: {error_message}", err=True)
         raise typer.Exit(code=1) from None

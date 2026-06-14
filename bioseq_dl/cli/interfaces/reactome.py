@@ -18,7 +18,8 @@ def run_discover(
 
     ids = [i.strip() for i in id.split(",") if i.strip()]
     if not ids:
-        raise typer.BadParameter("No valid identifier provided.")
+        msg = "No valid identifier provided."
+        raise typer.BadParameter(msg)
 
     # data-discover is a single-id endpoint (no group_queries), so each id is its
     # own request: fetch_batch for several, fetch_single for one.

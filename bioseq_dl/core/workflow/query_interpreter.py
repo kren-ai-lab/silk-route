@@ -71,11 +71,13 @@ class BaseQueryInterpreter:
 
         Subclasses MUST implement this method.
         """
-        raise NotImplementedError("Subclasses must implement this method.")
+        msg = "Subclasses must implement this method."
+        raise NotImplementedError(msg)
 
     def _resolve_item(self, prefix: str, value: str, cfg: Any) -> tuple[str, str]:
         """Resolve an item value based on the resolver kind specified in the field config."""
-        raise NotImplementedError("Subclasses must implement this method.")
+        msg = "Subclasses must implement this method."
+        raise NotImplementedError(msg)
 
     # --- Generic helpers useful across interpreters ---
     def _resolve_query_items(self, text: str) -> str:
@@ -225,9 +227,10 @@ class BaseQueryInterpreter:
         """Return True if text can be parsed as float."""
         try:
             float(str(text))
-            return True
         except (ValueError, TypeError):
             return False
+        else:
+            return True
 
     def _expand_field_aliases(self, text: str) -> str:
         """Replace simple prefix aliases like 'taxon:' -> 'taxonomy_id:' based on

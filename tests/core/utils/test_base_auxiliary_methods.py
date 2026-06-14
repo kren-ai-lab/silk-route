@@ -47,8 +47,8 @@ def test_custom_separator_with_list():
     assert get_nested(data, "a/items/v", sep="/") == [1, 2]
 
 
-def test_non_string_path_raises_value_error():
-    with pytest.raises(ValueError):
+def test_non_string_path_raises_type_error():
+    with pytest.raises(TypeError):
         get_nested({"a": 1}, 123)  # type: ignore[arg-type]
 
 

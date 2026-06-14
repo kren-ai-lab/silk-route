@@ -324,8 +324,8 @@ class ChEMBLInterface(BaseAPIInterface):
                     break
 
                 data = response.json()
-            except requests.exceptions.RequestException as e:
-                log.error("Error fetching page for method %s: %s", method, e)
+            except requests.exceptions.RequestException:
+                log.exception("Error fetching page for method %s", method)
                 break
 
             if "activities" in data.keys() and isinstance(data["activities"], list):
@@ -372,7 +372,7 @@ class ChEMBLInterface(BaseAPIInterface):
         try:
             pages_to_fetch = int(pages_to_fetch)
         except (TypeError, ValueError):
-            log.error("pages_to_fetch must be -1 or a positive integer. Received: %s", pages_to_fetch)
+            log.exception("pages_to_fetch must be -1 or a positive integer. Received: %s", pages_to_fetch)
             return {}
         if pages_to_fetch == 0 or pages_to_fetch < -1:
             log.error("pages_to_fetch must be -1 or a positive integer. Received: %s", pages_to_fetch)
@@ -394,8 +394,8 @@ class ChEMBLInterface(BaseAPIInterface):
         # Validate and clean parameters
         try:
             validated_params = validate_parameters(inputs, parameters)
-        except ValueError as e:
-            log.error(f"Invalid parameters for method '{method}': {e}")
+        except ValueError:
+            log.exception(f"Invalid parameters for method '{method}'")
             return {}
 
         if method in ["activity", "binding_site"]:

@@ -131,8 +131,8 @@ class AlphafoldInterface(BaseAPIInterface):
         # Validate and clean parameters
         try:
             validated_params = validate_parameters(inputs, parameters)
-        except ValueError as e:
-            log.error(f"Invalid parameters for method '{method}': {e}")
+        except ValueError:
+            log.exception(f"Invalid parameters for method '{method}'")
             return {}
 
         url = f"{ALPHAFOLD.API_URL}{method}/"
@@ -149,15 +149,16 @@ class AlphafoldInterface(BaseAPIInterface):
             response = self.session.send(prepared)
             self._delay()
             response.raise_for_status()
+        except RequestException:
+            log.exception(f"Error fetching prediction for {query}")
+            return {}
+        else:
             response = response.json()
 
             if "results" in response:
                 response = response["results"]
 
             return response
-        except RequestException as e:
-            log.error(f"Error fetching prediction for {query}: {e}")
-            return {}
 
     def download_structures(self, parsed: dict) -> dict:
         """Download structure files based on parsed prediction info.
@@ -199,8 +200,8 @@ class AlphafoldInterface(BaseAPIInterface):
                     log.info(f"Downloading structure {file_name}...")
                     f.write(response.content)
 
-            except Exception as e:
-                log.error(f"Error downloading structure {file_name}: {e}")
+            except Exception:
+                log.exception(f"Error downloading structure {file_name}")
 
         return parsed if parsed is not None else {}
 
