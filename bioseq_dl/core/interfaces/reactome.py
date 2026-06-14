@@ -13,7 +13,7 @@ from .base import BaseAPIInterface
 
 log = get_logger("bioseq_dl.interfaces.reactome")
 
-# TODO - Need to review other methods besides data-discover
+# TODO(diego): Need to review other methods besides data-discover
 
 
 class ReactomeInterface(BaseAPIInterface):

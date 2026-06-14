@@ -94,8 +94,9 @@ ignore = [
     "FBT001", "FBT002",
     # Unused args (interface-contract signatures)
     "ARG001", "ARG002", "ARG005",
-    # TODO formatting / presence
-    "TD002", "TD003", "TD004", "FIX002",
+    # TODO hygiene: author + colon enforced (TD002/TD004). TD003 (issue link)
+    # and FIX002 (presence) kept ignored — TODOs are intentional, no issue-link workflow.
+    "TD003", "FIX002",
     # Misc legacy style
     "E501", "SLF001",
     "S110",

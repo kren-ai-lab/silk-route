@@ -14,8 +14,8 @@ from .base import BaseAPIInterface
 
 log = get_logger("bioseq_dl.interfaces.interpro")
 
-# TODO add modifiers definitions
-# TODO Because this API uses an unique type of query
+# TODO(diego): add modifiers definitions
+# TODO(diego): Because this API uses an unique type of query
 # I did not updated the METHODS with fetch()
 
 

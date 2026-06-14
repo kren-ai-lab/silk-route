@@ -21,8 +21,8 @@ BIOGRID_ENV_VARS = (
 # Rest documentation: https://wiki.thebiogrid.org/doku.php/biogridrest
 
 
-# TODO add more from docs
-# TODO ISSUES:
+# TODO(diego): add more from docs
+# Known issue:
 # For some reason, running this query:
 # query={  # noqa: ERA001
 #     "accessKey": biogrid_api_key,  # noqa: ERA001

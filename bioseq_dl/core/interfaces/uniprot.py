@@ -597,7 +597,7 @@ class UniprotInterface(BaseAPIInterface):
 
         return parsed, metadata
 
-    # TODO eliminar bytes y str cuando ET este asegurado
+    # TODO(diego): eliminar bytes y str cuando ET este asegurado
     def parse(
         self,
         results: dict | list[dict],

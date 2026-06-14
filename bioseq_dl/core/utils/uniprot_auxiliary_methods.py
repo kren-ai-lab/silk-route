@@ -57,16 +57,6 @@ def extract_references(refs: list) -> list[dict]:
     return extracted
 
 
-# TODO: currently not used, delete if not needed
-def extract_features(features: list) -> list[dict]:
-    """Extract protein features."""
-    return [
-        {"type": f.get("type"), "description": f.get("description", ""), "location": f.get("location", {})}
-        for f in features
-        if isinstance(features, list)
-    ]
-
-
 # For fields ft_mutagen and ft_variant
 def extract_variants(features: list) -> list[dict]:
     """Extract variant information."""

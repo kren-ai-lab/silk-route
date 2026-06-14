@@ -259,12 +259,12 @@ class MainWorkflow:
 
         # NOTE: declarative pipelines and custom step overrides are disabled for now.
         # Future work: reintroduce `self.pipelines` and `self.step_overrides` for custom pipelines.
-        # TODO: Consider normalizing the metadata structure returned by all public methods.
+        # TODO(diego): Consider normalizing the metadata structure returned by all public methods.
         # Currently metadata is a flexible dict that mixes counters, nested parts, and
         # enrichment outputs (sometimes lists/dicts). Plan: decide on a stable schema
         # (e.g. {'mode':..., 'modality':..., 'results':..., 'enrichment':..., 'parts':...}) and migrate
         # query_first/query_composition to always return (data, metadata)
-        # with a consistent metadata shape. Leaving this as a TODO until the CLI/PRISM
+        # with a consistent metadata shape. Deferred until the CLI/PRISM
         # integration decisions are final.
 
     # Public run entry that routes by workflow mode.

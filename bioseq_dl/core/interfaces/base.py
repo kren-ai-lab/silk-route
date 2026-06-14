@@ -439,7 +439,7 @@ class BaseAPIInterface(ABC):
         # Convert to DataFrame if requested
         if fmt == "dataframe":
             log.debug("Converting result to DataFrame")
-            # TODO: Make sure parse method returns a consistent structure
+            # TODO(diego): Make sure parse method returns a consistent structure
             if isinstance(result, list):
                 return pd.DataFrame(result)
             if isinstance(result, dict):
@@ -799,7 +799,7 @@ class BaseAPIInterface(ABC):
                 for data in results.values():
                     df = data if isinstance(data, pd.DataFrame) else pd.DataFrame(data)
                     dfs.append(df)
-                # TODO Check if this line of code works as intended
+                # TODO(diego): Check if this line of code works as intended
                 if dfs:
                     export_df = pd.concat(dfs, ignore_index=True)
                     metadata["data_info"] = self._build_data_info(export_df)
@@ -850,7 +850,7 @@ class BaseAPIInterface(ABC):
             metadata["cached_subqueries"] = [query]
             raw = self.load_cache(cache_key)
         else:
-            # TODO Probably is necesary to give the user the option to not save empty results, check if it is a problem in some APIs
+            # TODO(diego): Probably is necesary to give the user the option to not save empty results, check if it is a problem in some APIs
             log.debug(f"No cache found for identifier: {identifier}, fetching from API.")
             raw = self.fetch(params, *args, **kwargs)
             # Save to cache even if empty, to avoid refetching known empty results

@@ -202,7 +202,7 @@ class CrossRefEnricher:
             all_results.append(result)
             all_metadata = self._merge_metadata(all_metadata, metadata)
 
-        # TODO comprobar si este cambio no es problematico
+        # TODO(diego): comprobar si este cambio no es problematico
         if fmt == "dataframe":
             # Unpack (df, metadata) tuples; metadata currently unused
             dfs = [res[0] if isinstance(res, tuple) else res for res in all_results]
@@ -274,7 +274,7 @@ class CrossRefEnricher:
                     cleaned_results.extend(item)
             return cleaned_results, all_metadata
         if fmt == "xml":
-            # TODO check if this code is correct, i did a lot of changes recently regarding XML exporting
+            # TODO(diego): check if this code is correct, i did a lot of changes recently regarding XML exporting
             # Make final root
             merged_root = Element("results")
 

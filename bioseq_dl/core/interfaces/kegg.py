@@ -15,14 +15,14 @@ from .base import BaseAPIInterface
 log = get_logger("bioseq_dl.interfaces.kegg")
 
 # More info about KEGG API: https://www.kegg.jp/kegg/rest/keggapi.html
-# TODO Solve known problem with KEGG API:
+# TODO(diego): Solve known problem with KEGG API:
 # For the queries that have more than one search like
 # ["hsa:10458", "ece:Z5100"] It saves in cache a response for both entries
 # But if you try to fetch only one of them, it saves another cache file.
 # What it should do is to get the response from the cache file
 # and return it without saving another cache file.
 
-# TODO Should I make the method query for multiple entries or do one entry at a time?
+# TODO(diego): Should I make the method query for multiple entries or do one entry at a time?
 # Doing multiple entries at a time is more efficient, but it requires more complex coding.
 
 
@@ -31,7 +31,7 @@ class KEGGInterface(BaseAPIInterface):
 
     API_NAME = "KEGG"
     DB_CONFIG = KEGG
-    # TODO add more methods from KEGG API. DDI and Link should be added.
+    # TODO(diego): add more methods from KEGG API. DDI and Link should be added.
     METHODS = {
         "get": {
             "http_method": "GET",
@@ -191,7 +191,7 @@ class KEGGInterface(BaseAPIInterface):
             log.exception(f"Error fetching data for {query} with method {method}")
             return {}
         else:
-            return r  # TODO check if for other functions we need to return json or text
+            return r  # TODO(diego): check if for other functions we need to return json or text
 
     def parse(self, data: Any, fields_to_extract: list | dict | None = None, **kwargs: Any) -> dict | list:
         r"""Parse the response from the KEGG API.

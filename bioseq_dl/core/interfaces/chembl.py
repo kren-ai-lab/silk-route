@@ -270,7 +270,7 @@ class ChEMBLInterface(BaseAPIInterface):
             ValueError: If the query parameters are invalid.
 
         """
-        # TODO - Add more validation rules based on the method and query structure.
+        # TODO(diego): Add more validation rules based on the method and query structure.
         rules = {
             "target_chembl_id": lambda v: isinstance(v, str) and v.strip() != "",
             "pchembl_value": lambda v: isinstance(v, (int, float)),
