@@ -777,7 +777,7 @@ class MainWorkflow:
     def run_interaction(
         self,
         query: str,
-        interaction_type: Literal["protein-protein", "protein-ligand"] | None = None,
+        interaction_type: str | None = None,
         export_format: str | None = None,
         **kwargs: Any,
     ) -> tuple[dict, dict]:

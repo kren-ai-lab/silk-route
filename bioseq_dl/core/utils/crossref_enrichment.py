@@ -65,7 +65,7 @@ def has_enrichment_result_value(value: object) -> bool:
 
 
 def run_crossref_enrichment(
-    data: pd.DataFrame | list[dict] | bytes | str | dict,
+    data: Any,
     crossref_fields: list,
     fmt: Literal["dataframe", "json", "xml"] = "json",
     max_workers: int = 4,

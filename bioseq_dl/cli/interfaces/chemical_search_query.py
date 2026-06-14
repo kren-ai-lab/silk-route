@@ -3,6 +3,7 @@
 import json
 import logging
 from pathlib import Path
+from typing import cast
 
 import pandas as pd
 import typer
@@ -147,15 +148,15 @@ def chebi_search_query(query: str) -> tuple[pd.DataFrame, dict]:
     log.info("Fetching data for query: %s", query.strip())
     # This search doesnt require exact match parameter
     # Neither requires specifying the query type
-    query = {"term": query.strip()}
-    export_df, es_search_metadata = instance.fetch_single(
-        query=query, method="es_search", parse=True, format="dataframe"
+    search_query = {"term": query.strip()}
+    es_df, es_search_metadata = instance.fetch_single(
+        query=search_query, method="es_search", parse=True, format="dataframe"
     )
     # Make query for every found chebi_id
-    chebi_ids = export_df["chebi_accession"].tolist()
-    query = {"chebi_ids": chebi_ids}
+    chebi_ids = cast("pd.DataFrame", es_df)["chebi_accession"].tolist()
+    compounds_query = {"chebi_ids": chebi_ids}
     export_df, compounds_metadata = instance.fetch_single(
-        query=query, method="compounds", parse=True, format="dataframe"
+        query=compounds_query, method="compounds", parse=True, format="dataframe"
     )
 
     if es_search_metadata and isinstance(es_search_metadata, dict):

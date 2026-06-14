@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 from xml.etree.ElementTree import Element, ElementTree, fromstring
 
 import pandas as pd
@@ -198,7 +198,7 @@ class CrossRefEnricher:
         spec: EndpointSpec,
         params: dict[str, Any],
         fmt: Literal["dataframe", "json", "xml"] = "dataframe",
-    ) -> tuple[pd.DataFrame | list[dict[str, Any]] | ElementTree[Element[str] | None], dict]:
+    ) -> tuple[pd.DataFrame | list | ElementTree[Element[str] | None], dict]:
         """Apply search-then-merge for every row and vertically concatenate all row-expansions."""
         # Apply row-wise; collect per-row DataFrames
         all_metadata = {}
@@ -288,7 +288,7 @@ class CrossRefEnricher:
 
             for xml_bytes in all_results:
                 # Parse each XML
-                root = fromstring(xml_bytes)  # noqa: S314  # trusted cross-ref API response
+                root = fromstring(cast("str | bytes", xml_bytes))  # noqa: S314  # trusted cross-ref API response
 
                 # Copy all <item> to final root
                 for item in root.findall("item"):
@@ -300,7 +300,7 @@ class CrossRefEnricher:
 
     def enrich(
         self,
-        data: pd.DataFrame | list[dict[str, Any]] | dict[str, Any] | ElementTree | str,
+        data: Any,
         fmt: Literal["dataframe", "json", "xml"] = "dataframe",
     ) -> tuple[dict, dict]:
         """Enrich the input DataFrame with cross-references from specified endpoints."""
