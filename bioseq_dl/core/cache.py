@@ -113,6 +113,25 @@ def _expand_targets(path: Path, pattern: str | None) -> list[Path]:
         return []
 
 
+def _remove_path(path: Path, *, dry_run: bool) -> list[str]:
+    """Remove a file or directory tree; return the path removed."""
+    if not dry_run:
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+    return [str(path)]
+
+
+def _prune_empty_files(directory: Path, *, dry_run: bool) -> list[str]:
+    """Delete empty files anywhere under `directory`; return the paths removed."""
+    empty_files = [f for f in directory.rglob("*") if f.is_file() and _is_empty_file(f)]
+    if not dry_run:
+        for f in empty_files:
+            f.unlink()
+    return [str(f) for f in empty_files]
+
+
 def _delete_target(
     path: Path,
     *,
@@ -133,21 +152,12 @@ def _delete_target(
 
     if empty:
         if path.is_dir():
-            empty_files = [f for f in path.rglob("*") if f.is_file() and _is_empty_file(f)]
-            if not dry_run:
-                for f in empty_files:
-                    f.unlink()
-            return [str(f) for f in empty_files]
+            return _prune_empty_files(path, dry_run=dry_run)
         if not _is_empty_file(path):
             _logger.debug("Skipping non-empty file %s", path)
             return []
 
-    if not dry_run:
-        if path.is_dir():
-            shutil.rmtree(path)
-        else:
-            path.unlink()
-    return [str(path)]
+    return _remove_path(path, dry_run=dry_run)
 
 
 def clear_cache(
