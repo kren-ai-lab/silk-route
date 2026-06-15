@@ -400,18 +400,6 @@ class UniprotInterface(BaseAPIInterface):
 
         return results, metadata
 
-    def show_results(self, results: list[dict], raw: bool = False) -> None:
-        """Display UniProt results in the terminal."""
-        # Deliberate stdout helper for interactive inspection of fetched results.
-        if results:
-            if raw:
-                for result in results:
-                    print(result)  # noqa: T201
-            else:
-                print(f"{len(results)} results to show")  # noqa: T201
-        else:
-            print("No results to show")  # noqa: T201
-
     def submit_stream(
         self,
         query: str,

@@ -61,15 +61,6 @@ class BrendaInterface(BaseAPIInterface):
         self.password = hashlib.sha256(raw_password.encode("utf-8")).hexdigest() if raw_password else None
         self.client = Client(BRENDA.API_URL)
 
-    def show_all_methods(self) -> None:
-        """Print all available SOAP methods from the BRENDA WSDL."""
-        # Deliberate stdout helper for interactive inspection of available SOAP methods.
-        print("Available methods:")  # noqa: T201
-        for service in self.client.wsdl.services.values():
-            for port in service.ports.values():
-                for method_name in port.binding._methods:  # noqa: SLF001  # zeep internal API
-                    print(f"- {method_name}")  # noqa: T201
-
     def fetch(self, query: str | dict | list, *, method: str = "getKmValue", **kwargs: Any) -> dict | list:
         """Fetch data from BRENDA for a given EC number and organism.
 
