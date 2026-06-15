@@ -1,3 +1,5 @@
+"""BRENDA CLI commands."""
+
 import typer
 
 from bioseq_dl import BrendaInterface
@@ -24,7 +26,7 @@ def run_km_values(
         "-o",
         help="Output file to save the fetched data.",
     ),
-):
+) -> None:
     """Fetch Km values from BRENDA database."""
     instance = BrendaInterface(email=email, password=password)
 
@@ -55,7 +57,7 @@ def run_ic50_values(
     ),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
     output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
-):
+) -> None:
     """Fetch IC50 values from BRENDA."""
     instance = BrendaInterface(email=email, password=password)
 
@@ -85,7 +87,7 @@ def run_kcat_km_values(
     ),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
     output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
-):
+) -> None:
     """Fetch kcat/Km values from BRENDA."""
     instance = BrendaInterface(email=email, password=password)
 
@@ -113,7 +115,7 @@ def run_ki_values(
     ki_value_max: str = typer.Option(None, "--ki_value_max", "--kimax", help="Maximum Ki value filter."),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
     output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
-):
+) -> None:
     """Fetch Ki values from BRENDA."""
     instance = BrendaInterface(email=email, password=password)
 
@@ -140,7 +142,7 @@ def run_ph_range(
     ph_range_max: str = typer.Option(None, "--ph_range_max", "--phrmax", help="pH range maximum filter."),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
     output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
-):
+) -> None:
     """Fetch pH range data from BRENDA."""
     instance = BrendaInterface(email=email, password=password)
 
@@ -170,7 +172,7 @@ def run_ph_optimum(
     ),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
     output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
-):
+) -> None:
     """Fetch pH optimum data from BRENDA."""
     instance = BrendaInterface(email=email, password=password)
 
@@ -199,7 +201,7 @@ def run_ph_stability(
     ),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
     output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
-):
+) -> None:
     """Fetch pH stability data from BRENDA."""
     instance = BrendaInterface(email=email, password=password)
 
@@ -224,7 +226,7 @@ def run_cofactor(
     ec_number: str = typer.Option(..., "--ec_number", "-ec", help="EC number of the enzyme."),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
     output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
-):
+) -> None:
     """Fetch cofactor data from BRENDA."""
     instance = BrendaInterface(email=email, password=password)
 
@@ -251,7 +253,7 @@ def run_temperature_optimum(
     ),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
     output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
-):
+) -> None:
     """Fetch temperature optimum data from BRENDA."""
     instance = BrendaInterface(email=email, password=password)
 
@@ -282,7 +284,7 @@ def run_temperature_stability(
     ),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
     output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
-):
+) -> None:
     """Fetch temperature stability data from BRENDA."""
     instance = BrendaInterface(email=email, password=password)
 
@@ -313,7 +315,7 @@ def run_temperature_range(
     ),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
     output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
-):
+) -> None:
     """Fetch temperature range data from BRENDA."""
     instance = BrendaInterface(email=email, password=password)
 

@@ -1,9 +1,11 @@
+"""Shared utility functions for parameter validation and field extraction."""
+
 from typing import Any
 
 ### Useful functions ###
 
 
-def get_nested(data: dict, path: str, sep: str = ".") -> Any:
+def get_nested(data: dict | list, path: str, sep: str = ".") -> Any:
     """Get a nested value from a dictionary or list given a specific path.
 
     Args:
@@ -19,7 +21,8 @@ def get_nested(data: dict, path: str, sep: str = ".") -> Any:
         return data
 
     if not isinstance(path, str):
-        raise ValueError(f"Path must be a string, got {type(path).__name__} instead. Value: {path}")
+        msg = f"Path must be a string, got {type(path).__name__} instead. Value: {path}"
+        raise TypeError(msg)
 
     if not isinstance(data, dict):
         return None
@@ -40,8 +43,9 @@ def get_nested(data: dict, path: str, sep: str = ".") -> Any:
 
 
 def get_feature_keys(data: dict, sep: str = ".") -> dict:
-    """Recursively get all keys in a nested dictionary and get the type of the value.
-    Use dot notation for nested keys.
+    """Recursively get all keys in a nested dictionary and the type of each value.
+
+    Uses dot notation for nested keys.
 
     Args:
         data (dict): The dictionary to extract keys from.
@@ -80,12 +84,11 @@ def get_feature_keys(data: dict, sep: str = ".") -> dict:
 
 
 def validate_parameters(inputs: dict, param_schema: dict) -> dict:
-    """Validates the input parameters against the method definition.
+    """Validate the input parameters against the method definition.
 
     Args:
         inputs (dict): The input parameters to validate.
-        method (str): The method name to validate against.
-        methods_def (dict): The definition of methods and their parameters.
+        param_schema (dict): Schema dict mapping param name to (type, default, is_primary) tuples.
 
     Returns:
         dict: A dictionary of validated parameters.
@@ -96,7 +99,8 @@ def validate_parameters(inputs: dict, param_schema: dict) -> dict:
 
     """
     if param_schema is None:
-        raise ValueError("Parameter schema is not defined. Please check the method definition.")
+        msg = "Parameter schema is not defined. Please check the method definition."
+        raise ValueError(msg)
 
     valid_keys = set(param_schema.keys())
     provided_keys = set(inputs.keys())
@@ -104,17 +108,19 @@ def validate_parameters(inputs: dict, param_schema: dict) -> dict:
     # Verify invalid keys
     invalid_keys = provided_keys - valid_keys
     if invalid_keys:
-        raise ValueError(f"Invalid parameter(s): {invalid_keys}. Expected: {list(valid_keys)}")
+        msg = f"Invalid parameter(s): {invalid_keys}. Expected: {list(valid_keys)}"
+        raise ValueError(msg)
 
     validated = {}
     for key, (expected_type, default, _) in param_schema.items():
         if key in inputs:
             value = inputs[key]
             if not isinstance(value, expected_type):
-                raise TypeError(
+                msg = (
                     f"Parameter '{key}' should be of type {expected_type.__name__}, "
                     f"got {type(inputs[key]).__name__}: {inputs[key]!r}"
                 )
+                raise TypeError(msg)
             validated[key] = value
         elif default is not None:
             validated[key] = default

@@ -1,3 +1,7 @@
+"""STRING CLI commands."""
+
+from typing import Any
+
 import typer
 
 from bioseq_dl import StringInterface
@@ -11,11 +15,11 @@ def run_get_string_ids(
     identifiers: str = typer.Argument(..., help="Comma-separated list of gene/protein identifiers"),
     species: int = typer.Option(None, help="NCBI taxonomy identifier of the species"),
     output_file: str = typer.Option(None, help="Output file to save results"),
-):
+) -> None:
     """Fetch STRING IDs for given gene/protein identifiers."""
     interface = StringInterface()
 
-    query = {}
+    query: dict[str, Any] = {}
 
     query["identifiers"] = identifiers.split(",")
     if species:
@@ -31,11 +35,11 @@ def run_interaction_partners(
     identifiers: str = typer.Argument(..., help="Comma-separated list of STRING IDs"),
     species: int = typer.Option(None, help="NCBI taxonomy identifier of the species"),
     output_file: str = typer.Option(None, help="Output file to save results"),
-):
+) -> None:
     """Fetch interaction partners for given STRING IDs."""
     interface = StringInterface()
 
-    query = {}
+    query: dict[str, Any] = {}
 
     query["identifiers"] = identifiers.split(",")
     if species:

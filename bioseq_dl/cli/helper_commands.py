@@ -1,13 +1,14 @@
+"""Cache management CLI commands."""
+
 import logging
 
 import typer
 
 from bioseq_dl.core.cache import clear_cache, list_caches
+from bioseq_dl.logging import get_logger
 from bioseq_dl.logging.logger import configure_logging
 
 app = typer.Typer(name="cache", help="Cache utility commands for BioSeqDownloader.")
-
-from bioseq_dl.logging import get_logger
 
 
 @app.command("list")
@@ -15,7 +16,7 @@ def list_registered(
     log_level: str = typer.Option(
         "info", "--log", "-l", help="Logging level (debug, info, warning, error, critical)."
     ),
-):
+) -> None:
     """List registered caches."""
     LOG_LEVELS = {
         "debug": logging.DEBUG,
@@ -31,10 +32,10 @@ def list_registered(
     regs = list_caches()
     if not regs:
         log.info("No caches registered.")
-        raise typer.Exit()
+        raise typer.Exit
     log.info("Registered caches:")
     for k, v in regs.items():
-        log.info("  %s -> %s", k, getattr(v, "CACHE_DIR", v))
+        log.info("  %s -> %s", k, v)
 
 
 @app.command("clear")
@@ -54,9 +55,11 @@ def clear(
     log_level: str = typer.Option(
         "info", "--log", "-l", help="Logging level (debug, info, warning, error, critical)."
     ),
-):
-    """Clear cached data. Use --name to specify one or more registered cache names,
-    or --all to clear everything. By default the command runs in --dry-run mode.
+) -> dict:
+    """Clear cached data.
+
+    Use --name to specify one or more registered cache names, or --all to clear everything.
+    By default the command runs in --dry-run mode.
     """
     LOG_LEVELS = {
         "debug": logging.DEBUG,
@@ -74,11 +77,11 @@ def clear(
         regs = list_caches()
         if not regs:
             log.info("No caches registered.")
-            raise typer.Exit()
+            raise typer.Exit
         log.info("Registered caches:")
         for k, v in regs.items():
-            log.info("  %s -> %s", k, getattr(v, "CACHE_DIR", v))
-        raise typer.Exit()
+            log.info("  %s -> %s", k, v)
+        raise typer.Exit
 
     if cache_names and clear_all:
         log.error("Cannot use --name and --all together. Pick one.")
@@ -86,12 +89,23 @@ def clear(
 
     selected_names = None if clear_all else cache_names
 
+    if not dry_run and not force:
+        preview = clear_cache(
+            selected_names=selected_names,
+            dry_run=True,
+            older_than_days=older_than,
+            pattern=pattern,
+            empty=empty,
+        )
+        total = sum(len(v) for v in preview.values())
+        if total and not typer.confirm(f"Delete {total} path(s)?"):
+            raise typer.Abort
+
     log.info("Clearing caches (dry_run=%s) - selected=%s", dry_run, selected_names or "ALL")
 
     results = clear_cache(
         selected_names=selected_names,
         dry_run=dry_run,
-        force=force,
         older_than_days=older_than,
         pattern=pattern,
         empty=empty,

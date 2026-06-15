@@ -1,3 +1,7 @@
+"""Reactome API interface."""
+
+from typing import Any, ClassVar
+
 import requests
 
 from bioseq_dl.constants.databases import REACTOME
@@ -9,13 +13,15 @@ from .base import BaseAPIInterface
 
 log = get_logger("bioseq_dl.interfaces.reactome")
 
-# TODO - Need to review other methods besides data-discover
+# TODO(diego): Need to review other methods besides data-discover
 
 
 class ReactomeInterface(BaseAPIInterface):
+    """Reactome biological pathway database API interface."""
+
     API_NAME = "Reactome"
     DB_CONFIG = REACTOME
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "data-discover": {
             "http_method": "GET",
             "path_param": None,
@@ -27,7 +33,7 @@ class ReactomeInterface(BaseAPIInterface):
         }
     }
 
-    def validate_query(self, query: dict):
+    def validate_query(self, query: dict) -> None:
         """Validate the query parameters.
 
         Args:
@@ -59,14 +65,13 @@ class ReactomeInterface(BaseAPIInterface):
                 log.error(msg)
                 raise ConfigError(msg)
 
-    def fetch(self, query: str | dict | list, *, method: str = "data", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "data", **kwargs: Any) -> dict | list:
         """Download pathways from a given Reactome pathway ID.
 
         Args:
-            pathway_id (str): Reactome pathway ID.
+            query (str|dict|list): Reactome pathway ID or query dict.
             method (str): Method to use for fetching data (e.g., 'discover', 'complex', etc.).
-        kwargs:
-            option (str): Additional options for the method.
+            **kwargs: Supports `option` key for additional method options.
 
         Returns:
             dict: Pathway data.
@@ -84,14 +89,18 @@ class ReactomeInterface(BaseAPIInterface):
 
         primary_method = method.split("-", maxsplit=1)[0]
         secondary_method = "/".join(method.split("-")[1:])
-        if primary_method not in methods.keys():
+        if primary_method not in methods:
             log.error(
-                f"Method '{primary_method}' is not supported. Supported methods are: {list(methods.keys())}"
+                "Method '%s' is not supported. Supported methods are: %s",
+                primary_method,
+                list(methods.keys()),
             )
             return {}
         if secondary_method not in methods[primary_method]:
             log.error(
-                f"Method '{secondary_method}' is not supported. Supported methods are: {methods[primary_method]}"
+                "Method '%s' is not supported. Supported methods are: %s",
+                secondary_method,
+                methods[primary_method],
             )
             return {}
 
@@ -116,11 +125,11 @@ class ReactomeInterface(BaseAPIInterface):
             self._delay()
             response.raise_for_status()
             return response.json()
-        except requests.exceptions.RequestException as e:
-            log.error(f"Error fetching prediction for {query}: {e}")
+        except requests.exceptions.RequestException:
+            log.exception("Error fetching prediction for %s", query)
             return {}
 
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **_kwargs: Any) -> list | dict:
         """Parse the pathway data.
 
         Args:
@@ -128,6 +137,7 @@ class ReactomeInterface(BaseAPIInterface):
             fields_to_extract (list|dict): Fields to keep from the original response.
                 - If list: Keep those keys.
                 - If dict: Maps {desired_name: real_field_name}.
+            **kwargs: Additional keyword arguments.
 
         Returns:
             Union[List, Dict]: Parsed data with specified fields or the entire structure.

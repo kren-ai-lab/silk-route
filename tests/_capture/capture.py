@@ -26,6 +26,7 @@ import json
 import os
 import sys
 import tempfile
+from pathlib import Path
 
 from tests._helpers import FIXTURES_DIR
 
@@ -56,7 +57,8 @@ def _capture_raw(api, case, interface, *, as_text=False, **fetch_kwargs):
     interface.session.send = original_send
 
     if "body" not in captured:
-        raise RuntimeError(f"no response captured for {api}/{case}")
+        msg = f"no response captured for {api}/{case}"
+        raise RuntimeError(msg)
     _save(api, case, captured["body"])
 
 
@@ -91,7 +93,7 @@ def capture_alphafold() -> None:
     from bioseq_dl.core.interfaces.alphafold import AlphafoldInterface
 
     cfg = tempfile.mkdtemp(prefix="bioseq-capture-cfg-")
-    with open(os.path.join(cfg, "init.yml"), "w") as f:
+    with (Path(cfg) / "init.yml").open("w") as f:
         f.write(f"download_folder: {cfg}\n")
     iface = AlphafoldInterface(
         structures=None,
@@ -362,7 +364,7 @@ def main(argv: list[str]) -> int:
     for name in selected:
         try:
             CAPTURES[name]()
-        except Exception as e:  # keep going across APIs
+        except Exception as e:  # keep going across APIs  # noqa: BLE001  # defensive catch-all
             print(f"error capturing {name}: {e}")  # noqa: T201
             failed.append(name)
 

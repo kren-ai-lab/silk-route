@@ -1,3 +1,7 @@
+"""BioDBNet API interface."""
+
+from typing import Any, ClassVar
+
 from requests import Request
 from requests.exceptions import RequestException
 
@@ -10,9 +14,11 @@ log = get_logger("bioseq_dl.interfaces.biodbnet")
 
 
 class BioDBNetInterface(BaseAPIInterface):
+    """BioDBNet biological database network API interface."""
+
     API_NAME = "BioDBNet"
     DB_CONFIG = BIODBNET
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "getpathways": {
             "http_method": "GET",
             "path_param": None,
@@ -38,12 +44,13 @@ class BioDBNetInterface(BaseAPIInterface):
         },
     }
 
-    def fetch(self, query: str | dict | list, *, method: str = "getpathways", **kwargs):
-        if method not in self.METHODS.keys():
-            log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+    def fetch(self, query: str | dict | list, *, method: str = "getpathways", **kwargs: Any) -> dict | list:
+        """Fetch data from BioDBNet for the given query."""
+        if method not in self.METHODS:
+            log.error("Method %s is not supported. Available methods: %s", method, list(self.METHODS.keys()))
             return {}
 
-        http_method, _, parameters, inputs = self.initialize_method_parameters(
+        http_method, _, _parameters, inputs = self.initialize_method_parameters(
             query, method, self.METHODS, **kwargs
         )
 
@@ -57,7 +64,7 @@ class BioDBNetInterface(BaseAPIInterface):
 
         req = Request(method=http_method, url=BIODBNET.API_URL, params=inputs)
         prepared = self.session.prepare_request(req)
-        log.debug(f"Prepared request: {prepared.url}")
+        log.debug("Prepared request: %s", prepared.url)
 
         try:
             response = self.session.send(prepared)
@@ -67,25 +74,26 @@ class BioDBNetInterface(BaseAPIInterface):
             match method:
                 case "db2db":
                     response = response.json()
-                    response = [
+                    return [
                         v["outputs"] for k, v in response.items() if isinstance(v, dict) and k not in inputs
                     ]
-                    return response
                 case _:
                     return response.json()
-        except RequestException as e:
-            log.error(f"Error fetching {query} for method '{method}': {e}")
+        except RequestException:
+            log.exception("Error fetching %s for method '%s'", query, method)
             return {}
 
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
-
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **_kwargs: Any) -> list | dict:
+        """Parse BioDBNet response data."""
         if not data:
             log.warning("Tried to parse data but the data is empty or None.")
             return {}
 
         if not isinstance(data, (dict, list)):
             log.error(
-                "Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object."
+                "Tried to parse data but the type is not supported. Response should be a dict or a "
+                "requests.Response "
+                "object."
             )
             return {}
 

@@ -1,3 +1,7 @@
+"""NCBI RefSeq/Entrez API interface."""
+
+from typing import Any, ClassVar
+
 from Bio import Entrez
 from Bio.Entrez.Parser import DictionaryElement, ListElement, StringElement
 
@@ -18,9 +22,11 @@ REFSEQ_EMAIL_ENV_VARS = (
 
 
 class RefSeqInterface(BaseAPIInterface):
+    """NCBI RefSeq/Entrez nucleotide and protein sequence API interface."""
+
     API_NAME = "RefSeq"
     DB_CONFIG = REFSEQ
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "protein": {
             "http_method": "GET",
             "path_param": None,
@@ -51,15 +57,17 @@ class RefSeqInterface(BaseAPIInterface):
     }
 
     def __init__(
-        self, email: str = "", cache_dir: str | None = None, config_dir: str | None = None, **kwargs
-    ):
+        self, email: str = "", cache_dir: str | None = None, config_dir: str | None = None, **kwargs: Any
+    ) -> None:
         """Initialize the RefSeqInterface class.
 
         Args:
             email (str): Email address for NCBI Entrez.
-            cache_dir (str): Directory to cache API responses. If None, defaults to the cache directory defined in constants.
-            config_dir (str): Directory for configuration files. If None, defaults to the config directory defined in constants.
-            output_dir (str): Directory to save downloaded files. If None, defaults to the cache directory.
+            cache_dir (str): Directory to cache API responses. If None, defaults to the cache directory
+                defined in constants.
+            config_dir (str): Directory for configuration files. If None, defaults to the config directory
+                defined in constants.
+            **kwargs: Passed through to the base class.
 
         """
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
@@ -68,9 +76,9 @@ class RefSeqInterface(BaseAPIInterface):
 
         self.email = resolve_secret(email, REFSEQ_EMAIL_ENV_VARS)
         if is_valid_secret(self.email):
-            Entrez.email = self.email
+            Entrez.email = self.email  # ty: ignore[invalid-assignment]  # type: ignore[assignment]  # biopython stub: email typed None
 
-    def to_native(self, obj):
+    def to_native(self, obj: Any) -> Any:
         """Convert EntrezDict to native Python types.
 
         Args:
@@ -88,13 +96,13 @@ class RefSeqInterface(BaseAPIInterface):
             return str(obj)
         return obj
 
-    def fetch(self, query: str | dict | list, *, method: str = "protein", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "protein", **kwargs: Any) -> dict | list:
         """Fetch data from NCBI Entrez for a given ID.
 
         Args:
-            id (str): ID to fetch data for.
+            query (str|dict|list): ID or query dict to fetch data for.
             method (str): Database to query (default: "protein").
-            retmode (str): Return mode (default: "xml").
+            **kwargs: Supports `retmode` key for return mode (default: "xml").
 
         Returns:
             list: Fetched data.
@@ -103,12 +111,13 @@ class RefSeqInterface(BaseAPIInterface):
         retmode = kwargs.get("retmode", "xml")
 
         if not is_valid_secret(self.email):
-            raise ValueError("Missing RefSeq email. Set BIOSEQ_DL_REFSEQ_EMAIL or pass email explicitly.")
+            msg = "Missing RefSeq email. Set BIOSEQ_DL_REFSEQ_EMAIL or pass email explicitly."
+            raise ValueError(msg)
 
-        Entrez.email = self.email
+        Entrez.email = self.email  # ty: ignore[invalid-assignment]  # type: ignore[assignment]  # biopython stub: email typed None
 
         if method not in databases:
-            log.error(f"Database '{method}' is not supported. Supported databases: {', '.join(databases)}")
+            log.error("Database '%s' is not supported. Supported databases: %s", method, ", ".join(databases))
             return {}
 
         ids = query.get("id") if isinstance(query, dict) else query
@@ -119,11 +128,13 @@ class RefSeqInterface(BaseAPIInterface):
 
         return self.to_native(records)
 
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **_kwargs: Any) -> list | dict:
         """Parse the fetched data into a DataFrame.
 
         Args:
             data (dict): Fetched data from NCBI Entrez.
+            fields_to_extract (list|dict): Fields to extract from the data.
+            **kwargs: Additional keyword arguments.
 
         Returns:
             dict: Parsed data.

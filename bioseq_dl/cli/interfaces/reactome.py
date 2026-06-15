@@ -1,3 +1,5 @@
+"""Reactome CLI commands."""
+
 import typer
 
 from bioseq_dl import ReactomeInterface
@@ -8,17 +10,18 @@ app = typer.Typer(help="Collect data from Reactome database.")
 
 @app.command("discover")
 def run_discover(
-    id: str = typer.Argument(
+    identifier: str = typer.Argument(
         ..., help="Identifier to discover (comma-separated for several), e.g., R-DME-1834941"
     ),
     output_file: str = typer.Option(None, help="Output file to save results"),
-):
+) -> None:
     """Discover data in Reactome using one or more identifiers."""
     interface = ReactomeInterface()
 
-    ids = [i.strip() for i in id.split(",") if i.strip()]
+    ids = [i.strip() for i in identifier.split(",") if i.strip()]
     if not ids:
-        raise typer.BadParameter("No valid identifier provided.")
+        msg = "No valid identifier provided."
+        raise typer.BadParameter(msg)
 
     # data-discover is a single-id endpoint (no group_queries), so each id is its
     # own request: fetch_batch for several, fetch_single for one.

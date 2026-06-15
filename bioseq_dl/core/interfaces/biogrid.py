@@ -1,4 +1,6 @@
-from typing import Any
+"""BioGRID API interface."""
+
+from typing import Any, ClassVar
 
 import requests
 
@@ -19,22 +21,24 @@ BIOGRID_ENV_VARS = (
 # Rest documentation: https://wiki.thebiogrid.org/doku.php/biogridrest
 
 
-# TODO add more from docs
-# TODO ISSUES:
+# TODO(diego): add more from docs
+# Known issue:
 # For some reason, running this query:
-# query={
-#     "accessKey": biogrid_api_key,
-#     "geneList": ['1148170', '1148186', '112090'],
-#     "searchBiogridIds" : True,
+# query={  # noqa: ERA001
+#     "accessKey": biogrid_api_key,  # noqa: ERA001
+#     "geneList": ['1148170', '1148186', '112090'],  # noqa: ERA001
+#     "searchBiogridIds" : True,  # noqa: ERA001
 #     "format": "tab2"
 # },
 # gives an error:
 # Error fetching data for {...}: Extra data: line 1 column 8 (char 7). Tried URL: https://webservice.thebiogrid.org/interactions?accessKey={ACCESS_KEY}&geneList=1148170|1148186|112090&searchBiogridIds=True&format=tab2
 # This error will go to a low priority issue, as it is not as used as the JSON format.
 class BioGRIDInterface(BaseAPIInterface):
+    """BioGRID protein interaction database API interface."""
+
     API_NAME = "BioGRID"
     DB_CONFIG = BIOGRID
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "interactions": {
             "http_method": "GET",
             "path_param": None,
@@ -63,14 +67,15 @@ class BioGRIDInterface(BaseAPIInterface):
         api_key: str | None = None,
         cache_dir: str | None = None,
         config_dir: str | None = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """Initialize the BioGRIDInterface class.
 
         Args:
+            api_key (str): BioGRID API key. Falls back to environment variable.
             cache_dir (str): Directory to cache results.
             config_dir (str): Directory for configuration files.
-            output_dir (str): Directory to save output files.
+            **kwargs: Passed through to the base class.
 
         """
         cache_dir, config_dir = self._resolve_dirs(cache_dir, config_dir)
@@ -90,13 +95,13 @@ class BioGRIDInterface(BaseAPIInterface):
         """
         return super().get_cache_ignore_keys().union({"accessKey"})
 
-    def fetch(self, query: str | dict | list, *, method: str = "interactions", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "interactions", **kwargs: Any) -> dict | list:
         """Fetch data from the BioGRID API.
 
         Args:
             query (str): Query string to search for.
-            **kwargs: Additional parameters for the request.
-            - `method`: Method to use for the request. Default is "interactions".
+            method (str): Method to use for the request. Default is "interactions".
+            **kwargs: Additional parameters passed to the request.
 
         Returns:
             any: response from the API.
@@ -107,28 +112,26 @@ class BioGRIDInterface(BaseAPIInterface):
             if not is_valid_secret(access_key) and is_valid_secret(self.api_key):
                 query["accessKey"] = self.api_key
             if not is_valid_secret(query.get("accessKey")):
-                raise ValueError(
-                    "Missing BioGRID API key. Set BIOSEQ_DL_BIOGRID_API_KEY or pass api_key explicitly."
-                )
+                msg = "Missing BioGRID API key. Set BIOSEQ_DL_BIOGRID_API_KEY or pass api_key explicitly."
+                raise ValueError(msg)
         elif not is_valid_secret(self.api_key):
-            raise ValueError(
-                "Missing BioGRID API key. Set BIOSEQ_DL_BIOGRID_API_KEY or pass api_key explicitly."
-            )
+            msg = "Missing BioGRID API key. Set BIOSEQ_DL_BIOGRID_API_KEY or pass api_key explicitly."
+            raise ValueError(msg)
 
         response = super()._do_request(query, method=method, api_url=BIOGRID.API_URL, **kwargs)
         response = response.json() if isinstance(response, requests.models.Response) else response
         match method:
             case "interactions":
                 # Special case for BioGRID
-                if isinstance(response, dict) and all(str(key).isdigit() for key in response.keys()):
+                if isinstance(response, dict) and all(str(key).isdigit() for key in response):
                     # Convert to list of interactions
                     response = list(response.values())
             case _:
-                log.warning(f"Method {method} not recognized for special parsing. Returning raw response.")
+                log.warning("Method %s not recognized for special parsing. Returning raw response.", method)
 
         return response
 
-    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs) -> dict | list:
+    def parse(self, data: Any, fields_to_extract: list | dict | None, **_kwargs: Any) -> dict | list:
         """Parse the response from the BioGRID API.
 
         Args:
@@ -136,6 +139,7 @@ class BioGRIDInterface(BaseAPIInterface):
             fields_to_extract (List|Dict): Fields to keep from the original response.
                 - If List: Keep those keys.
                 - If Dict: Maps {desired_name: real_field_name}.
+            **kwargs: Additional keyword arguments.
 
         Returns:
             any: Parsed data from the response.
@@ -149,7 +153,9 @@ class BioGRIDInterface(BaseAPIInterface):
             data = data.json()
         elif not isinstance(data, (dict, list)):
             log.error(
-                "Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object."
+                "Tried to parse data but the type is not supported. Response should be a dict or a "
+                "requests.Response "
+                "object."
             )
             return {}
 

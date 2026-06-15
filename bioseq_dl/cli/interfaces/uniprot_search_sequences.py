@@ -1,18 +1,20 @@
+"""UniProt sequence search CLI commands."""
+
 import json
 import logging
-import os
 import shutil
-from typing import Literal, cast
+from pathlib import Path
+from typing import Any, Literal, cast
 
 import pandas as pd
 import typer
 
 from bioseq_dl import UniprotInterface
+from bioseq_dl.cli._shared import save_uniprot_results
 from bioseq_dl.constants.uniprot import DATABASES, VALID_FIELDS, XREF_MAPPING
 from bioseq_dl.core.export import (
     USER_EXPORT_FORMATS,
     export_dataframe,
-    normalize_export_format,
     normalize_parse_format,
     normalize_user_export_format,
 )
@@ -44,7 +46,7 @@ def run(
     extension: str = typer.Option(
         "fasta", "--extension", "-e", help="File extension of the database. Default is 'fasta'."
     ),
-    input: str = typer.Option(..., "--input", "-i", help="File with sequences to run BLAST on."),
+    input_file: str = typer.Option(..., "--input", "-i", help="File with sequences to run BLAST on."),
     seq_column: str = typer.Option("sequences", "--seq-column", "-c", help="Column name with sequences."),
     output: str = typer.Option(..., "-o", "--output", help="Output directory for results"),
     evalue: float = typer.Option(0.001, "--evalue", "-v", help="E-value threshold for BLAST search."),
@@ -77,15 +79,19 @@ def run(
         "--export_format",
         help="Export format: csv, json, xml, parquet. Default is csv.",
     ),
-):
+) -> None:
+    """Run UniProt BLAST-based sequence search."""
     logger = log
     raw_export_format = export_format
     try:
-        export_format = normalize_user_export_format(export_format)
-        if export_format is None:
-            raise ValueError(
-                f"Unsupported export format '{raw_export_format}'. Supported formats are: {', '.join(USER_EXPORT_FORMATS)}."
+        normalized_format = normalize_user_export_format(export_format)
+        if normalized_format is None:
+            msg = (
+                f"Unsupported export format '{raw_export_format}'. Supported formats are: "
+                f"{', '.join(USER_EXPORT_FORMATS)}."
             )
+            raise ValueError(msg)  # noqa: TRY301  # validate-then-Exit CLI idiom
+        export_format = normalized_format
     except ValueError as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=1) from None
@@ -97,20 +103,21 @@ def run(
                 "bioseq_dl.cli.uniprot_search_query"
             )  # re-fetch so root handlers pick new level
             logger.debug("Debug logging enabled")
-    except Exception as e:
-        logger.warning(f"Could not configure logging: {e}")
+    except Exception as e:  # noqa: BLE001  # defensive catch-all
+        logger.warning("Could not configure logging: %s", e)
 
-    df = pd.read_csv(input)
+    df = pd.read_csv(input_file)
 
     if seq_column not in df.columns:
-        raise ValueError(f"Column '{seq_column}' not found in input file.")
+        msg = f"Column '{seq_column}' not found in input file."
+        raise ValueError(msg)
 
     sequences = df[seq_column].dropna().unique().tolist()
 
     download_uniprot_database(database, extension)
 
     blastp_path = check_blast()
-    log.info(f"Using blastp at: {blastp_path}")
+    log.info("Using blastp at: %s", blastp_path)
 
     make_blast_database(database, extension=extension)
 
@@ -119,7 +126,7 @@ def run(
     results = parse_blast_results("tmp/blast_results.txt")
 
     # Convert to DataFrame
-    sequences_df = pd.DataFrame(sequences, columns=[seq_column])
+    sequences_df = pd.DataFrame(sequences, columns=[seq_column])  # ty: ignore[invalid-argument-type]  # pandas stub overload
     sequences_df["id"] = sequences_df.index
 
     df_blast = pd.DataFrame(results)
@@ -147,22 +154,22 @@ def run(
     df_blast = df_blast.drop(columns=["subject_id"])
 
     # Create folder for output if it does not exist
-    os.makedirs(output, exist_ok=True)
+    Path(output).mkdir(parents=True, exist_ok=True)
 
     # Save to CSV
-    blast_path = export_dataframe(df_blast, os.path.join(output, "blast_results.csv"))
-    log.info(f"BLAST results saved to {blast_path}")
+    blast_path = export_dataframe(df_blast, Path(output) / "blast_results.csv")
+    log.info("BLAST results saved to %s", blast_path)
 
     # Clean up temporary files
-    os.remove("tmp/blast_results.txt")
+    Path("tmp/blast_results.txt").unlink()
     shutil.rmtree("tmp")
 
     if not no_download:
-        metadata = {}
+        metadata: dict[str, Any] = {}
         log.info("Downloading additional UniProt data...")
         instance = UniprotInterface()
         logger.debug(
-            f"Downloading data using blast results\nfields {fields}\ncrossref_fields {crossref_fields}\n"
+            "Downloading data using blast results\nfields %s\ncrossref_fields %s\n", fields, crossref_fields
         )
 
         response, fetch_metadata = instance.download_batch(
@@ -171,7 +178,7 @@ def run(
         metadata["fetch"] = fetch_metadata
 
         # Save raw results
-        with open(f"{output}/raw_response.json", "w") as f:
+        with (Path(output) / "raw_response.json").open("w") as f:
             json.dump(response, f, indent=2, default=str)
 
         logger.info("Parsing results...")
@@ -193,54 +200,4 @@ def run(
             )
             metadata["enrichment"] = enriched_metadata
 
-        if export_format in {"csv", "parquet"}:
-            if isinstance(export_data, pd.DataFrame) and not export_data.empty:
-                tabular_format = normalize_export_format(export_format)
-                export_path = os.path.join(output, f"uniprot_results.{tabular_format}")
-                export_dataframe(export_data, export_path, output_format=tabular_format)
-                if isinstance(enriched_data, dict):
-                    for key, value in enriched_data.items():
-                        logger.info(f"Saving {key} results into {output} directory")
-                        export_dataframe(
-                            value,
-                            os.path.join(output, f"{key}_results.{tabular_format}"),
-                            output_format=tabular_format,
-                        )
-
-                with open(f"{output}/metadata.json", "w") as f:
-                    json.dump(metadata, f, indent=2, default=str)
-                logger.info(f"Results saved to {export_path}")
-            else:
-                logger.warning("No results to save in %s format.", export_format.upper())
-        elif export_format == "json":
-            if isinstance(export_data, dict) or isinstance(export_data, list):
-                with open(f"{output}/uniprot_results.json", "w") as f:
-                    json.dump(export_data, f, indent=2, default=str)
-
-                if isinstance(enriched_data, dict):
-                    for key, value in enriched_data.items():
-                        logger.info(f"Saving {key} results into {output} directory")
-                        json.dump(value, open(f"{output}/{key}_results.json", "w"), indent=2, default=str)
-
-                with open(f"{output}/metadata.json", "w") as f:
-                    json.dump(metadata, f, indent=2, default=str)
-                logger.info(f"Results saved to {output}/uniprot_results.json")
-            else:
-                logger.warning("No results to save in JSON format.")
-        elif export_format == "xml":
-            if hasattr(export_data, "getroot"):
-                export_data.write(f"{output}/uniprot_results.xml", encoding="utf-8", xml_declaration=True)
-
-                if isinstance(enriched_data, dict):
-                    for key, value in enriched_data.items():
-                        logger.info(f"Saving {key} results into {output} directory")
-                        value.write(f"{output}/{key}_results.xml", encoding="utf-8", xml_declaration=True)
-
-                with open(f"{output}/metadata.json", "w") as f:
-                    json.dump(metadata, f, indent=2, default=str)
-                logger.info(f"Results saved to {output}/uniprot_results.xml")
-            else:
-                logger.warning("No results to save in XML format.")
-        else:
-            logger.warning(export_format)
-            logger.warning("No UniProt data found for the BLAST results.")
+        save_uniprot_results(export_data, enriched_data, metadata, output, export_format, logger)

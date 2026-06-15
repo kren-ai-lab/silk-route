@@ -1,4 +1,8 @@
-from typing import Any
+"""Gene Ontology API interface."""
+
+from collections.abc import Sequence
+from http import HTTPStatus
+from typing import Any, ClassVar
 
 import pandas as pd
 import requests
@@ -15,9 +19,11 @@ log = get_logger("bioseq_dl.interfaces.genontology")
 
 
 class GenOntologyInterface(BaseAPIInterface):
+    """Gene Ontology API interface."""
+
     API_NAME = "GenOntology"
     DB_CONFIG = GENONTOLOGY
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "ontology-term": {
             "default": {
                 "http_method": "GET",
@@ -62,7 +68,7 @@ class GenOntologyInterface(BaseAPIInterface):
         },
     }
 
-    def fetch(self, query: str | dict | list, *, method: str = "ontology-term", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "ontology-term", **kwargs: Any) -> dict | list:
         """Fetch data from the GenOntology API.
 
         Args:
@@ -75,8 +81,8 @@ class GenOntologyInterface(BaseAPIInterface):
             any: response from the API.
 
         """
-        if method not in self.METHODS.keys():
-            log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+        if method not in self.METHODS:
+            log.error("Method %s is not supported. Available methods: %s", method, list(self.METHODS.keys()))
             return {}
 
         option = kwargs.pop("option", "default")
@@ -88,8 +94,8 @@ class GenOntologyInterface(BaseAPIInterface):
         # Validate and clean parameters
         try:
             validated_params = validate_parameters(inputs, parameters)
-        except ValueError as e:
-            log.error(f"Invalid parameters for method '{method}': {e}")
+        except ValueError:
+            log.exception("Invalid parameters for method '%s'", method)
             return {}
 
         url = f"{GENONTOLOGY.API_URL}{method.replace('-', '/')}/"
@@ -106,7 +112,7 @@ class GenOntologyInterface(BaseAPIInterface):
         )
 
         prepared = self.session.prepare_request(response)
-        log.debug(f"Prepared request: {prepared.url}")
+        log.debug("Prepared request: %s", prepared.url)
 
         try:
             response = self.session.send(prepared)
@@ -114,11 +120,11 @@ class GenOntologyInterface(BaseAPIInterface):
             response.raise_for_status()
 
             return response.json()
-        except RequestException as e:
-            log.error(f"Error fetching data from {url}: {e}")
+        except RequestException:
+            log.exception("Error fetching data from %s", url)
             return {}
 
-    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs) -> dict | list:
+    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> dict | list:
         """Parse the response from the GenOntology API.
 
         Args:
@@ -142,7 +148,9 @@ class GenOntologyInterface(BaseAPIInterface):
             data = data.json()
         elif not isinstance(data, dict):
             log.error(
-                "Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object."
+                "Tried to parse data but the type is not supported. Response should be a dict or a "
+                "requests.Response "
+                "object."
             )
             return {}
 
@@ -168,25 +176,30 @@ class GenOntologyInterface(BaseAPIInterface):
         """
         try:
             rel_response = self.fetch(method="ontology-term", query=parsed.get("goid", ""), option="graph")
-            if isinstance(rel_response, requests.models.Response) and rel_response.status_code == 200:
+            if (
+                isinstance(rel_response, requests.models.Response)
+                and rel_response.status_code == HTTPStatus.OK
+            ):
                 graph_json = rel_response.json()
                 nodes = graph_json.get("topology_graph_json", {}).get("nodes", [])
                 relationships = [node.get("id") for node in nodes if "id" in node]
                 parsed["relationships"] = relationships
             else:
                 parsed["relationships"] = []
-        except Exception as e:
-            log.error(f"Error fetching relationships for GO term {parsed.get('goid', '')}: {e}")
+        except Exception:
+            log.exception("Error fetching relationships for GO term %s", parsed.get("goid", ""))
         return parsed
 
     def fetch_single(
-        self, query: str | dict, parse: bool = False, *args, **kwargs
-    ) -> list | dict | pd.DataFrame:
+        self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
+    ) -> tuple[list | dict | pd.DataFrame | bytes | str, dict]:
+        """Fetch a single record and resolve related ontology terms."""
         option = kwargs.pop("option", "default")
-        return super().fetch_single(*args, query=query, parse=parse, option=option, **kwargs)
+        return super().fetch_single(query, parse, *args, option=option, **kwargs)
 
     def fetch_batch(
-        self, queries: list[str | dict], parse: bool = False, *args, **kwargs
-    ) -> list | pd.DataFrame:
+        self, queries: Sequence[str | dict], parse: bool = False, *args: Any, **kwargs: Any
+    ) -> tuple[list | pd.DataFrame | bytes | str, dict]:
+        """Fetch a batch of records and resolve related ontology terms."""
         option = kwargs.pop("option", "default")
-        return super().fetch_batch(*args, queries=queries, parse=parse, option=option, **kwargs)
+        return super().fetch_batch(queries, parse, *args, option=option, **kwargs)

@@ -1,5 +1,9 @@
+"""PubChem API interface."""
+
 import json
 import urllib.parse
+from collections.abc import Sequence
+from typing import Any, ClassVar
 
 import pandas as pd
 from requests import Request, Response
@@ -21,9 +25,11 @@ log = get_logger("bioseq_dl.interfaces.pubchem")
 
 
 class PubChemInterface(BaseAPIInterface):
+    """PubChem compound and protein database API interface."""
+
     API_NAME = "PubChem"
     DB_CONFIG = PUBCHEM
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "pug/compound": {
             **dict.fromkeys(OPTIONS["pug/compound"], COMPOUND_TEMPLATE),
         },
@@ -104,121 +110,185 @@ class PubChemInterface(BaseAPIInterface):
         },
     }
 
-    def fetch(self, query: str | dict | list, *, method: str = "DEFAULT", **kwargs):
-        option_given = False
-        name_type = None
-        option = kwargs.get("option")
-        if option:
-            option_given = True
-        else:
-            option = "default"  # Default option if not provided
-
-        kwargs["option"] = option
-
-        if method not in self.METHODS:
-            log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
-            return {}
-        if option and option not in OPTIONS.get(method, []):
-            log.error(
-                f"Option '{option}' is not valid for method '{method}'. Allowed options: {OPTIONS.get(method, [])}"
-            )
-            return {}
-
-        http_method, path_param, parameters, inputs = self.initialize_method_parameters(
-            query, method, self.METHODS, **kwargs
-        )
-
-        if option_given and "property" in inputs:
-            log.error("Cannot specify both 'option' and 'property' parameter. Please choose one.")
-            return {}
-
-        option = "default" if option is None else option
-
-        # Validate and clean parameters
-        try:
-            validated_params = validate_parameters(inputs, parameters)
-        except ValueError as e:
-            log.error(f"Invalid parameters for method '{method}': {e}")
-            return {}
-
-        if "name_type" in validated_params and method == "pug/compound":
-            if validated_params["name_type"] not in ["complete", "word"]:
-                log.error(
-                    "Invalid value for 'name_type'. Allowed values are: 'complete', 'word', 'fragment'."
-                )
-                return {}
-            name_type = validated_params.pop("name_type")
-
-        # Validate if one and only one of the main identifiers is provided
+    @staticmethod
+    def _has_exactly_one_identifier(method: str, inputs: dict) -> bool:
+        """Validate that exactly one main identifier is supplied for compound/gene methods."""
         if method == "pug/compound":
-            if (
-                sum(
-                    bool(inputs.get(validated_params))
-                    for validated_params in ["cid", "name", "smiles", "inchi"]
-                )
-                != 1
-            ):
+            keys = ["cid", "name", "smiles", "inchi"]
+            if sum(bool(inputs.get(k)) for k in keys) != 1:
                 log.error("Only one 'cid', 'name', 'smiles', or 'inchi' parameters must be specified.")
-                return {}
+                return False
         elif method == "pug/gene":
-            if (
-                sum(
-                    bool(inputs.get(validated_params))
-                    for validated_params in ["genesymbol", "geneid", "synonym"]
-                )
-                != 1
-            ):
+            keys = ["genesymbol", "geneid", "synonym"]
+            if sum(bool(inputs.get(k)) for k in keys) != 1:
                 log.error("Only one 'genesymbol', 'geneid', or 'synonym' parameters must be specified.")
-                return {}
+                return False
+        return True
 
+    # Envelope key -> nested path to the payload (handled generically below).
+    _PUG_ENVELOPES: ClassVar[dict[str, tuple[str, ...]]] = {
+        "PropertyTable": ("Properties",),
+        "PC_Compounds": (),
+        "IdentifierList": (),
+        "ProteinSummaries": ("ProteinSummary",),
+        "GeneSummaries": ("GeneSummary",),
+    }
+
+    @staticmethod
+    def _build_pug_url(method: str, validated_params: dict, option: str) -> str:
+        """Build a PUG-REST (``pug/``) request URL."""
+        url = f"{PUBCHEM.API_URL}{method}"
+        if "inchi" not in validated_params:
+            for key, value in validated_params.items():
+                url += f"/{key}/{value}" if key != "taxid" else ""
+            if "taxid" in validated_params:
+                url += f"/{validated_params['taxid']}"
+        else:
+            url += "/inchi"
+        if option and option != "default":
+            url += f"/{option}"
+        url += "/json"  # Assuming JSON output for simplicity
+        if "inchi" in validated_params:
+            inchi_url = urllib.parse.quote_plus(str(validated_params.get("inchi", "")))
+            url += f"?inchi={inchi_url}"
+        return url
+
+    @staticmethod
+    def _build_pug_view_url(method: str, validated_params: dict) -> str:
+        """Build a PUG-View (``pug_view/``) request URL."""
+        m = method.replace("pug_view/", "")
+        path_keys = {
+            "compound": "cid",
+            "protein": "accession",
+            "gene": "geneid",
+            "taxonomy": "taxid",
+        }
+        url = f"{PUBCHEM.API_URL}/pug_view/data/{m}"
+        if m == "pathway":
+            url += f"/{validated_params['source']}:{validated_params['id']}"
+        elif m in path_keys:
+            url += f"/{validated_params[path_keys[m]]}"
+        return f"{url}/JSON"  # Assuming JSON output for simplicity
+
+    @classmethod
+    def _build_request_url(
+        cls, method: str, validated_params: dict, option: str, name_type: str | None
+    ) -> str:
+        """Build the PubChem request URL for the given method family and parameters."""
         if method == "autocomplete":
             url = f"{PUBCHEM.API_URL}{method}"
-            for key, value in validated_params.items():
+            for value in validated_params.values():
                 if value is not None:
                     url += f"/{value}"
         elif method.startswith("pug/"):
-            url = f"{PUBCHEM.API_URL}{method}"
-
-            if "inchi" not in validated_params:
-                for key, value in validated_params.items():
-                    url += f"/{key}/{value}" if key != "taxid" else ""
-
-                if "taxid" in validated_params:
-                    url += f"/{validated_params['taxid']}"
-            else:
-                url += "/inchi"
-
-            if option and option != "default":
-                url += f"/{option}"
-            url += "/json"  # Assuming JSON output for simplicity
-
-            if "inchi" in validated_params:
-                inchi_url = urllib.parse.quote_plus(str(validated_params.get("inchi", "")))
-                url += f"?inchi={inchi_url}"
+            url = cls._build_pug_url(method, validated_params, option)
         else:
-            # Method starts with pug_view
-            m = method.replace("pug_view/", "")
-            url = f"{PUBCHEM.API_URL}/pug_view/data/{m}"
-            if m == "compound":
-                url += f"/{validated_params['cid']}"
-            elif m == "protein":
-                url += f"/{validated_params['accession']}"
-            elif m == "gene":
-                url += f"/{validated_params['geneid']}"
-            elif m == "pathway":
-                url += f"/{validated_params['source']}:{validated_params['id']}"
-            elif m == "taxonomy":
-                url += f"/{validated_params['taxid']}"
-            url += "/JSON"  # Assuming JSON output for simplicity
+            url = cls._build_pug_view_url(method, validated_params)
 
         if name_type:
             url += f"?name_type={name_type}"
+        return url
+
+    @classmethod
+    def _unwrap_pug_envelope(
+        cls, response: dict, method: str, option: str, validated_params: dict
+    ) -> dict | list:
+        """Unwrap a single ``pug/`` response envelope into its payload list."""
+        if "InformationList" in response:
+            information = response.get("InformationList", {}).get("Information", [])
+            if method == "gene" and option == "pwaccs":
+                # A little hack to force the response to have a "GeneSymbol" key
+                for r in information:
+                    r["GeneSymbol"] = validated_params.get("genesymbol", [])
+            return information
+        if "Table" in response:
+            # Convert Table response to list of dicts with key:value pairs
+            table = response.get("Table", {})
+            columns = table.get("Columns", {}).get("Column", [])
+            rows = table.get("Row", [])
+            return [dict(zip(columns, row.get("Cell", []), strict=False)) for row in rows]
+        for key, path in cls._PUG_ENVELOPES.items():
+            if key in response:
+                payload = response[key]
+                for step in path:
+                    payload = payload.get(step, []) if isinstance(payload, dict) else payload
+                return payload
+        return response
+
+    @classmethod
+    def _postprocess_pug_response(
+        cls, response: Any, method: str, option: str, validated_params: dict
+    ) -> dict | list | str:
+        """Unwrap the various PubChem response envelopes into a plain list/dict/str."""
+        if method.startswith("pug/") and isinstance(response, dict):
+            return cls._unwrap_pug_envelope(response, method, option, validated_params)
+        if (method.startswith("pug_view/") or method == "autocomplete") and isinstance(response, str):
+            return json.loads(response)
+        return response
+
+    def _resolve_request(
+        self, query: str | dict | list, method: str, kwargs: dict
+    ) -> tuple[str, dict, dict, str, str | None] | None:
+        """Validate the request and return (http_method, inputs, validated_params, option, name_type).
+
+        Returns ``None`` (after logging) if the request is invalid.
+        """
+        option = kwargs.get("option")
+        option_given = bool(option)
+        option = option or "default"
+        kwargs["option"] = option
+
+        if method not in self.METHODS:
+            log.error("Method %s is not supported. Available methods: %s", method, list(self.METHODS.keys()))
+            return None
+        if option and option not in OPTIONS.get(method, []):
+            log.error(
+                "Option '%s' is not valid for method '%s'. Allowed options: %s",
+                option,
+                method,
+                OPTIONS.get(method, []),
+            )
+            return None
+
+        http_method, _path_param, parameters, inputs = self.initialize_method_parameters(
+            query, method, self.METHODS, **kwargs
+        )
+        if option_given and "property" in inputs:
+            log.error("Cannot specify both 'option' and 'property' parameter. Please choose one.")
+            return None
+
+        try:
+            validated_params = validate_parameters(inputs, parameters)
+        except ValueError:
+            log.exception("Invalid parameters for method '%s'", method)
+            return None
+
+        name_type = None
+        if "name_type" in validated_params and method == "pug/compound":
+            if validated_params["name_type"] not in ["complete", "word"]:
+                log.error("Invalid 'name_type'. Allowed values are: 'complete', 'word', 'fragment'.")
+                return None
+            name_type = validated_params.pop("name_type")
+        return http_method, inputs, validated_params, option, name_type
+
+    def fetch(self, query: str | dict | list, *, method: str = "DEFAULT", **kwargs: Any) -> dict | list | str:
+        """Fetch compound or protein data from PubChem."""
+        resolved = self._resolve_request(query, method, kwargs)
+        if resolved is None:
+            return {}
+        http_method, inputs, validated_params, option, name_type = resolved
+
+        # Validate if one and only one of the main identifiers is provided
+        if not self._has_exactly_one_identifier(method, inputs):
+            return {}
+
+        url = self._build_request_url(method, validated_params, option, name_type)
 
         response = Request(url=url, method=http_method)
 
         prepared = self.session.prepare_request(response)
-        log.debug(f"Prepared request: {prepared.url}")
-        log.info(f"Prepared request: {prepared.url}")
+        log.debug("Prepared request: %s", prepared.url)
+        log.info("Prepared request: %s", prepared.url)
 
         try:
             response = self.session.send(prepared)
@@ -230,49 +300,22 @@ class PubChemInterface(BaseAPIInterface):
                 else response.text
             )
 
-            # --------------- Process response based on method and option ---------------
-            if method.startswith("pug/"):
-                # Me pertuba ver tantos elif
-                if isinstance(response, dict) and "PropertyTable" in response:
-                    response = response.get("PropertyTable", {}).get("Properties", [])
-                elif isinstance(response, dict) and "InformationList" in response:
-                    response = response.get("InformationList", {}).get("Information", [])
-                    if method == "gene" and option == "pwaccs":
-                        # A little hack to force the response to have a "GeneSymbol" key
-                        for r in response:
-                            r["GeneSymbol"] = validated_params.get("genesymbol", [])
+            response = self._postprocess_pug_response(response, method, option, validated_params)
 
-                elif isinstance(response, dict) and "Table" in response:
-                    # Convert Table response to list of dicts with key:value pairs
-                    table = response.get("Table", {})
-                    columns = table.get("Columns", {}).get("Column", [])
-                    rows = table.get("Row", [])
-                    response = [dict(zip(columns, row.get("Cell", []))) for row in rows]
-                elif isinstance(response, dict) and "PC_Compounds" in response:
-                    response = response.get("PC_Compounds", [])
-                elif isinstance(response, dict) and "IdentifierList" in response:
-                    response = response.get("IdentifierList", [])
-                elif isinstance(response, dict) and "ProteinSummaries" in response:
-                    response = response.get("ProteinSummaries", {}).get("ProteinSummary", [])
-                elif isinstance(response, dict) and "GeneSummaries" in response:
-                    response = response.get("GeneSummaries", {}).get("GeneSummary", [])
-            elif method.startswith("pug_view/") or method == "autocomplete":
-                # Convert from string to dict if needed
-                if isinstance(response, str):
-                    response = json.loads(response)
-
-            return response
-        except RequestException as e:
-            log.error(f"Error fetching {query} for method '{method}': {e}")
+        except RequestException:
+            log.exception("Error fetching %s for method '%s'", query, method)
             return {}
+        else:
+            return response
 
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
+        """Parse PubChem response data."""
         if not data:
             return {}
         option = kwargs.get("option", "default")
 
         if option:
-            if isinstance(fields_to_extract, dict) and option in fields_to_extract.keys():
+            if isinstance(fields_to_extract, dict) and option in fields_to_extract:
                 fields_to_extract = fields_to_extract.get(option, [])
             else:
                 fields_to_extract = {}
@@ -286,7 +329,9 @@ class PubChemInterface(BaseAPIInterface):
             data = data.json()
         elif not isinstance(data, dict):
             log.error(
-                "Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object."
+                "Tried to parse data but the type is not supported. Response should be a dict or a "
+                "requests.Response "
+                "object."
             )
             return {}
 
@@ -307,13 +352,12 @@ class PubChemInterface(BaseAPIInterface):
         return processed_data
 
     def is_pug_view_record(self, data: dict) -> bool:
+        """Return True if data is a PUG View record (contains 'Record' key)."""
         return all(key in data for key in ["record_type", "record_number", "sections"])
 
     def _proccess_information_value(self, info_value: dict) -> str | list | dict:
         if "StringWithMarkup" in info_value:
-            texts = []
-            for text_entry in info_value["StringWithMarkup"]:
-                texts.append(text_entry.get("String", ""))
+            texts = [text_entry.get("String", "") for text_entry in info_value["StringWithMarkup"]]
             return texts if len(texts) > 1 else texts[0]
         if "Number" in info_value:
             numbers = info_value["Number"]
@@ -332,14 +376,16 @@ class PubChemInterface(BaseAPIInterface):
         return info_value  # Return as is if no known key is found
 
     def process_tocheadings(self, sections: list[dict]) -> dict:
+        """Process PubChem compound sections into a flat dict."""
         headings = {}
         for section in sections:
             if "TOCHeading" in section and "Information" in section:
                 heading = section["TOCHeading"]
-                extracted_values = []
-                for info in section["Information"]:
-                    if "Value" in info:
-                        extracted_values.append(self._proccess_information_value(info["Value"]))
+                extracted_values = [
+                    self._proccess_information_value(info["Value"])
+                    for info in section["Information"]
+                    if "Value" in info
+                ]
 
                 headings[heading] = extracted_values if len(extracted_values) > 1 else extracted_values[0]
 
@@ -350,6 +396,7 @@ class PubChemInterface(BaseAPIInterface):
         return headings
 
     def process_sections(self, data: dict) -> dict:
+        """Fetch a single PubChem record."""
         export_data = {}
         if "record_type" in data and "record_number" in data:
             record_type = data["record_type"]
@@ -363,13 +410,15 @@ class PubChemInterface(BaseAPIInterface):
         return export_data
 
     def fetch_single(
-        self, query: str | dict, parse: bool = False, *args, **kwargs
-    ) -> tuple[list | dict | pd.DataFrame, dict]:
+        self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
+    ) -> tuple[list | dict | pd.DataFrame | bytes | str, dict]:
+        """Fetch a batch of PubChem records."""
         option = kwargs.pop("option", "default")
-        return super().fetch_single(*args, query=query, parse=parse, option=option, **kwargs)
+        return super().fetch_single(query, parse, *args, option=option, **kwargs)
 
     def fetch_batch(
-        self, queries: list[str | dict], parse: bool = False, *args, **kwargs
-    ) -> tuple[list | pd.DataFrame, dict]:
+        self, queries: Sequence[str | dict], parse: bool = False, *args: Any, **kwargs: Any
+    ) -> tuple[list | pd.DataFrame | bytes | str, dict]:
+        """Fetch a batch of PubChem records."""
         option = kwargs.pop("option", "default")
-        return super().fetch_batch(*args, queries=queries, parse=parse, option=option, **kwargs)
+        return super().fetch_batch(queries, parse, *args, option=option, **kwargs)

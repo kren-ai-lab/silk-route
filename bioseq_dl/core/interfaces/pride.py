@@ -1,3 +1,7 @@
+"""PRIDE Archive API interface."""
+
+from typing import Any, ClassVar
+
 import pandas as pd
 from requests import Request, Response
 from requests.exceptions import RequestException
@@ -13,9 +17,11 @@ log = get_logger("bioseq_dl.interfaces.pride")
 
 
 class PrideInterface(BaseAPIInterface):
+    """PRIDE proteomics data archive API interface."""
+
     API_NAME = "PRIDE"
     DB_CONFIG = PRIDE
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "search": {
             "projects": {
                 "http_method": "GET",
@@ -56,9 +62,10 @@ class PrideInterface(BaseAPIInterface):
         },
     }
 
-    def fetch(self, query: str | dict | list, *, method: str = "search", **kwargs):
-        if method not in self.METHODS.keys():
-            log.error(f"Method '{method}' is not defined in the interface.")
+    def fetch(self, query: str | dict | list, *, method: str = "search", **kwargs: Any) -> dict | list:
+        """Fetch proteomics data from PRIDE Archive."""
+        if method not in self.METHODS:
+            log.error("Method '%s' is not defined in the interface.", method)
             return {}
         option = kwargs.pop("option", "default")
 
@@ -69,8 +76,8 @@ class PrideInterface(BaseAPIInterface):
         # Validate and clean parameters
         try:
             validated_params = validate_parameters(inputs, parameters)
-        except ValueError as e:
-            log.error(f"Invalid parameters for method '{method}': {e}")
+        except ValueError:
+            log.exception("Invalid parameters for method '%s'", method)
             return {}
 
         url = f"{PRIDE.API_URL}{method.replace('-', '/')}"
@@ -93,7 +100,7 @@ class PrideInterface(BaseAPIInterface):
         )
 
         prepared = self.session.prepare_request(response)
-        log.debug(f"Prepared request: {prepared.url}")
+        log.debug("Prepared request: %s", prepared.url)
 
         try:
             response = self.session.send(prepared)
@@ -101,12 +108,12 @@ class PrideInterface(BaseAPIInterface):
             response.raise_for_status()
 
             return response.json()
-        except RequestException as e:
-            log.error(f"Error fetching data from {url}: {e}")
+        except RequestException:
+            log.exception("Error fetching data from %s", url)
             return {}
 
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
-
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
+        """Parse PRIDE Archive response data."""
         if not data:
             return {}
 
@@ -114,14 +121,17 @@ class PrideInterface(BaseAPIInterface):
             data = data.json()
         elif not isinstance(data, dict):
             log.error(
-                "Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object."
+                "Tried to parse data but the type is not supported. Response should be a dict or a "
+                "requests.Response "
+                "object."
             )
             return {}
 
         return self._extract_fields(data, fields_to_extract, **kwargs)
 
     def fetch_single(
-        self, query: str | dict, parse: bool = False, *args, **kwargs
-    ) -> list | dict | pd.DataFrame:
+        self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
+    ) -> tuple[list | dict | pd.DataFrame | bytes | str, dict]:
+        """Fetch a single PRIDE record."""
         option = kwargs.pop("option", "default")
-        return super().fetch_single(*args, query=query, parse=parse, option=option, **kwargs)
+        return super().fetch_single(query, parse, *args, option=option, **kwargs)

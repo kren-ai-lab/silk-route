@@ -1,6 +1,9 @@
+"""AlphaFold API interface."""
+
 import json
-import os
-from typing import Literal
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Any, ClassVar, Literal
 
 import pandas as pd
 from requests import Request
@@ -18,9 +21,11 @@ log = get_logger("bioseq_dl.interfaces.alphafold")
 
 
 class AlphafoldInterface(BaseAPIInterface):
+    """AlphaFold structure prediction API interface."""
+
     API_NAME = "Alphafold"
     DB_CONFIG = ALPHAFOLD
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "prediction": {
             "http_method": "GET",
             "path_param": "qualifier",
@@ -34,19 +39,23 @@ class AlphafoldInterface(BaseAPIInterface):
 
     def __init__(
         self,
-        structures: list[Literal["pdb", "cif", "bcif"]] | None = ["pdb"],
+        structures: list[Literal["pdb", "cif", "bcif"]] | None = None,
         cache_dir: str | None = None,
         config_dir: str | None = None,
         output_dir: str | None = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """Initialize the AlphafoldInterface.
 
         Args:
-            structures (List[str]): List of structures extensions to download. Available options are pdb, cif, bcif, none.
-            cache_dir (str): Directory to cache API responses. If None, defaults to the cache directory defined in constants.
-            config_dir (str): Directory for configuration files. If None, defaults to the config directory defined in constants.
+            structures (List[str]): List of structures extensions to download. Available options are pdb, cif,
+                bcif, none.
+            cache_dir (str): Directory to cache API responses. If None, defaults to the cache directory
+                defined in constants.
+            config_dir (str): Directory for configuration files. If None, defaults to the config directory
+                defined in constants.
             output_dir (str): Directory to save downloaded files. If None, defaults to the cache directory.
+            **kwargs: Passed through to the base class.
 
         """
         cache_dir, config_dir = self._resolve_dirs(cache_dir, config_dir)
@@ -55,16 +64,17 @@ class AlphafoldInterface(BaseAPIInterface):
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
         self.output_dir = output_dir or download_folder_fallback
-        os.makedirs(self.output_dir, exist_ok=True)
+        Path(self.output_dir).mkdir(parents=True, exist_ok=True)
 
         self.structures = structures
 
     def fetch_single(
-        self, query: str | dict, parse: bool = False, *args, **kwargs
-    ) -> tuple[list | dict | pd.DataFrame, dict]:
+        self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
+    ) -> tuple[list | dict | pd.DataFrame | bytes | str, dict]:
+        """Fetch a single prediction and optionally download structure files."""
         if not isinstance(query, str):
             log.error("Query must be a string representing a AlphaFold ID.")
-            return {}
+            return {}, {}
 
         result, metadata = super().fetch_single(query, parse, *args, **kwargs)
 
@@ -82,8 +92,9 @@ class AlphafoldInterface(BaseAPIInterface):
         return result, metadata
 
     def fetch_batch(
-        self, queries: list[str | dict], parse: bool = False, *args, **kwargs
-    ) -> tuple[list | pd.DataFrame, dict]:
+        self, queries: Sequence[str | dict], parse: bool = False, *args: Any, **kwargs: Any
+    ) -> tuple[list | pd.DataFrame | bytes | str, dict]:
+        """Fetch a batch of predictions and optionally download structure files."""
         if not isinstance(queries, list) or not isinstance(queries[0], str):
             log.error("Queries must be a list of strings representing AlphaFold IDs.")
             return [], {}
@@ -94,8 +105,7 @@ class AlphafoldInterface(BaseAPIInterface):
         if self.structures:
             for result in results:
                 if isinstance(result, list):
-                    for res in result:
-                        new_results.append(self.download_structures(res))
+                    new_results.extend(self.download_structures(res) for res in result)
                 elif isinstance(result, pd.DataFrame):
                     for _, row in result.iterrows():
                         row_dict = row.to_dict()
@@ -107,20 +117,23 @@ class AlphafoldInterface(BaseAPIInterface):
             return new_results, metadata
         return results, metadata
 
-    def fetch(self, query: str | dict | list, *, method: str = "prediction", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "prediction", **kwargs: Any) -> dict | list:
         """Get prediction for a given UniProt ID.
 
         Args:
             query (str): UniProt ID to fetch prediction for.
             method (str): Method to use for fetching data. Currently only "prediction" is supported.
+            **kwargs: Additional keyword arguments passed to the request builder.
 
         Returns:
             Dict: Prediction data.
 
         """
-        if method not in self.METHODS.keys():
+        if method not in self.METHODS:
             log.error(
-                f"Method {method} is not supported. Supported methods are: {', '.join(self.METHODS.keys())}."
+                "Method %s is not supported. Supported methods are: %s.",
+                method,
+                ", ".join(self.METHODS.keys()),
             )
             return {}
 
@@ -131,8 +144,8 @@ class AlphafoldInterface(BaseAPIInterface):
         # Validate and clean parameters
         try:
             validated_params = validate_parameters(inputs, parameters)
-        except ValueError as e:
-            log.error(f"Invalid parameters for method '{method}': {e}")
+        except ValueError:
+            log.exception("Invalid parameters for method '%s'", method)
             return {}
 
         url = f"{ALPHAFOLD.API_URL}{method}/"
@@ -143,21 +156,22 @@ class AlphafoldInterface(BaseAPIInterface):
 
         req = Request(method=http_method, url=url, params=validated_params)
         prepared = self.session.prepare_request(req)
-        log.debug(f"Fetching prediction for {query} using URL: {prepared.url}")
+        log.debug("Fetching prediction for %s using URL: %s", query, prepared.url)
 
         try:
             response = self.session.send(prepared)
             self._delay()
             response.raise_for_status()
+        except RequestException:
+            log.exception("Error fetching prediction for %s", query)
+            return {}
+        else:
             response = response.json()
 
             if "results" in response:
                 response = response["results"]
 
             return response
-        except RequestException as e:
-            log.error(f"Error fetching prediction for {query}: {e}")
-            return {}
 
     def download_structures(self, parsed: dict) -> dict:
         """Download structure files based on parsed prediction info.
@@ -175,36 +189,36 @@ class AlphafoldInterface(BaseAPIInterface):
         for ext in self.structures:
             url_key = f"{ext}Url"
             if url_key not in parsed:
-                log.warning(f"{url_key} not found in parsed data. {parsed}")
+                log.warning("%s not found in parsed data. %s", url_key, parsed)
                 continue
 
             structure_url = parsed[url_key]
             if not structure_url:
-                log.warning(f"{url_key} is empty; skipping download. {parsed}")
+                log.warning("%s is empty; skipping download. %s", url_key, parsed)
                 continue
             file_name = structure_url.split("/")[-1]
-            file_path = os.path.join(self.output_dir, file_name)
+            file_path = Path(self.output_dir) / file_name
 
             # Delete the URL from parsed data
             del parsed[url_key]
 
             # Check if the file already exists
-            if os.path.exists(file_path):
-                log.info(f"Structure {file_name} already exists. Skipping download.")
+            if file_path.exists():
+                log.info("Structure %s already exists. Skipping download.", file_name)
                 continue
 
             try:
                 response = self.session.get(structure_url)
-                with open(file_path, "wb") as f:
-                    log.info(f"Downloading structure {file_name}...")
+                with file_path.open("wb") as f:
+                    log.info("Downloading structure %s...", file_name)
                     f.write(response.content)
 
-            except Exception as e:
-                log.error(f"Error downloading structure {file_name}: {e}")
+            except Exception:
+                log.exception("Error downloading structure %s", file_name)
 
         return parsed if parsed is not None else {}
 
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **_kwargs: Any) -> list | dict:
         """Parse data by extracting specified fields or returning the entire structure.
 
         Args:
@@ -212,7 +226,8 @@ class AlphafoldInterface(BaseAPIInterface):
             fields_to_extract (List|Dict): Fields to keep from the original response.
                 - If List: Keep those keys.
                 - If Dict: Maps {desired_name: real_field_name}.
-            for more information, see: https://alphafold.ebi.ac.uk/#/public-api/get_predictions_api_prediction__qualifier__get
+            **kwargs: Additional keyword arguments.
+
         Returns:
             Union[List, Dict]: Parsed data with specified fields or the entire structure.
 
@@ -235,27 +250,28 @@ class AlphafoldInterface(BaseAPIInterface):
 
         return self._extract_fields(data, fields_to_extract)
 
-    def save(self, data: list | dict, filename: str, extension: str = "csv"):
+    def save(self, data: list | dict, filename: str, extension: str = "csv") -> str | None:
         """Save the parsed data to a file.
 
         Args:
             data (Union[List, Dict]): Data to save.
-            file_name (str): Name of the file to save the data to.
+            filename (str): Name of the file to save the data to.
+            extension (str): File format. One of csv, tsv, json, parquet.
 
         """
-        if not os.path.exists(self.output_dir):
-            os.makedirs(self.output_dir)
+        if not Path(self.output_dir).exists():
+            Path(self.output_dir).mkdir(parents=True)
 
         if extension not in ["csv", "tsv", "json", "parquet"]:
-            log.error(f"Unsupported file extension: {extension}. Use 'csv', 'tsv', 'json', or 'parquet'.")
+            log.error("Unsupported file extension: %s. Use 'csv', 'tsv', 'json', or 'parquet'.", extension)
             return None
 
         if extension == "json":
-            with open(os.path.join(self.output_dir, f"{filename}.{extension}"), "w") as f:
+            with (Path(self.output_dir) / f"{filename}.{extension}").open("w") as f:
                 json.dump(data, f, indent=4)
-            return os.path.join(self.output_dir, f"{filename}.{extension}")
+            return str(Path(self.output_dir) / f"{filename}.{extension}")
 
         df = pd.DataFrame(data)
-        output_path = os.path.join(self.output_dir, f"{filename}.{extension}")
+        output_path = str(Path(self.output_dir) / f"{filename}.{extension}")
         export_dataframe(df, output_path, output_format=extension)
         return output_path

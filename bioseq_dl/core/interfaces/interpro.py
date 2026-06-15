@@ -1,4 +1,7 @@
-from typing import Any
+"""InterPro API interface."""
+
+from http import HTTPStatus
+from typing import Any, ClassVar
 
 import requests
 
@@ -11,15 +14,17 @@ from .base import BaseAPIInterface
 
 log = get_logger("bioseq_dl.interfaces.interpro")
 
-# TODO add modifiers definitions
-# TODO Because this API uses an unique type of query
+# TODO(diego): add modifiers definitions
+# TODO(diego): Because this API uses an unique type of query
 # I did not updated the METHODS with fetch()
 
 
 class InterproInterface(BaseAPIInterface):
+    """InterPro protein family database API interface."""
+
     API_NAME = "InterPro"
     DB_CONFIG = INTERPRO
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "entry": {
             "http_method": "GET",
             "path_param": None,
@@ -38,7 +43,7 @@ class InterproInterface(BaseAPIInterface):
         }
     }
 
-    def validate_query(self, method: str, query: dict):
+    def validate_query(self, method: str, query: dict) -> None:
         """Validate the query parameters.
 
         Args:
@@ -56,12 +61,12 @@ class InterproInterface(BaseAPIInterface):
             "modifiers": lambda v: isinstance(v, dict),
             # Example of a valid filters:
             # "filters" : [
-            #     {
-            #         "type": "protein",
-            #         "db": "reviewed",
+            #     {  # noqa: ERA001
+            #         "type": "protein",  # noqa: ERA001
+            #         "db": "reviewed",  # noqa: ERA001
             #         "value": "Q29537"
-            #     }
-            # ]
+            #     }  # noqa: ERA001
+            # ]  # noqa: ERA001
             "filters": lambda filters: (
                 isinstance(filters, list)
                 and all(
@@ -101,12 +106,13 @@ class InterproInterface(BaseAPIInterface):
                 log.error(msg)
                 raise ConfigError(msg)
 
-    def fetch_pages(self, next_url: str, method: str, pages_to_fetch: int = 1):
+    def fetch_pages(self, next_url: str, method: str, pages_to_fetch: int = 1) -> dict | list:
         """Fetch the next page of results from the InterPro API.
 
         Args:
             next_url (str): The URL for the next page of results.
             method (str): The method used for the initial request.
+            pages_to_fetch (int): Maximum number of pages to fetch recursively. Default is 1.
 
         Returns:
             dict: The fetched data from the next page.
@@ -118,40 +124,45 @@ class InterproInterface(BaseAPIInterface):
             self._delay()
             response.raise_for_status()
 
-            if response.status_code == 204:
-                log.warning(f"No content returned for URL {next_url}.")
+            if response.status_code == HTTPStatus.NO_CONTENT:
+                log.warning("No content returned for URL %s.", next_url)
                 return {}
 
             data = response.json()
 
-            if not isinstance(data, dict) and "detail" in data.keys():
-                if data["detail"].startswith("There is no data associated with the requested URL"):
-                    return {}
+            if (
+                not isinstance(data, dict)
+                and "detail" in data
+                and data["detail"].startswith("There is no data associated with the requested URL")
+            ):
+                return {}
 
-            if "results" in data.keys() and isinstance(data["results"], list):
+            if "results" in data and isinstance(data["results"], list):
                 responses.extend(data["results"])
             else:
                 responses.append(data)
 
-            next = None
+            next_page = None
             if data.get("next"):
-                next = (
+                next_page = (
                     self.fetch_pages(data["next"], method, pages_to_fetch - 1) if pages_to_fetch > 1 else None
                 )
-                if next:
-                    responses.extend(next)
+                if next_page:
+                    responses.extend(next_page)
 
-            return responses
-        except requests.exceptions.RequestException as e:
-            log.error(f"Error fetching next page for method {method}: {e}")
+        except requests.exceptions.RequestException:
+            log.exception("Error fetching next page for method %s", method)
             return {}
+        else:
+            return responses
 
-    def fetch(self, query: str | dict | list, *, method: str = "entry", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "entry", **kwargs: Any) -> dict | list:
         """Fetch data from InterPro API.
 
         Args:
             query (str|dict|list): The query parameters to fetch data.
             method (str): The method to use for the request.
+            **kwargs: Supports `pages_to_fetch` key for pagination depth.
 
         Returns:
             dict: The fetched data.
@@ -159,13 +170,16 @@ class InterproInterface(BaseAPIInterface):
         """
         pages_to_fetch = kwargs.get("pages_to_fetch", 1)
 
-        if method not in self.METHODS.keys():
-            log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+        if method not in self.METHODS:
+            log.error("Method %s is not supported. Available methods: %s", method, list(self.METHODS.keys()))
             return {}
 
         if not isinstance(query, dict):
             log.error(
-                "Query must be a dictionary containing 'db', 'entry_integration', 'modifiers', 'filter_type', 'filter_db', and 'filter_value' keys."
+                "Query must be a dictionary containing 'db', 'entry_integration', 'modifiers', "
+                "'filter_type', "
+                "'filter_db', and 'filter_value' "
+                "keys."
             )
             return {}
 
@@ -175,23 +189,26 @@ class InterproInterface(BaseAPIInterface):
         # Construct the base URL
         url = f"{INTERPRO.API_URL}{method}/"
 
-        if "db" in query.keys() and query["db"]:
+        if query.get("db"):
             url += f"{query['db']}/"
-        if "id" in query.keys() and query["id"]:
+        if query.get("id"):
             url += f"{query['id']}/"
-        if "entry_integration" in query.keys() and query["entry_integration"]:
+        if query.get("entry_integration"):
             url += f"{query['entry_integration']}/"
-        if "filters" in query.keys() and isinstance(query["filters"], list):
+        if "filters" in query and isinstance(query["filters"], list):
             for f in query["filters"]:
                 if f["type"] in filter_types and f["db"] in db_types[f["type"]] and f["value"]:
                     url += f"{f['type']}/{f['db']}/{f['value']}/"
                 else:
                     log.error(
-                        f"Invalid filter: {f}. Valid filters are of type {filter_types} with databases {db_types[f['type']]}."
+                        "Invalid filter: %s. Valid filters are of type %s with databases %s.",
+                        f,
+                        filter_types,
+                        db_types[f["type"]],
                     )
                     return {}
 
-        if "modifiers" in query.keys() and query["modifiers"]:
+        if query.get("modifiers"):
             url += "?"
             for key, value in query["modifiers"].items():
                 if value is not None and value != "":
@@ -199,10 +216,10 @@ class InterproInterface(BaseAPIInterface):
             # remove the last '&'
             url = url[:-1]
 
-        log.debug(f"Prepared url: {url}")
+        log.debug("Prepared url: %s", url)
         return self.fetch_pages(url, method, pages_to_fetch)
 
-    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs) -> dict | list:
+    def parse(self, data: Any, fields_to_extract: list | dict | None, **_kwargs: Any) -> dict | list:
         """Parse the fetched data.
 
         Args:
@@ -210,6 +227,7 @@ class InterproInterface(BaseAPIInterface):
             fields_to_extract (List|Dict): Fields to keep from the original response.
                 - If List: Keep those keys.
                 - If Dict: Maps {desired_name: real_field_name}.
+            **kwargs: Additional keyword arguments.
 
         Returns:
             dict: The parsed data.

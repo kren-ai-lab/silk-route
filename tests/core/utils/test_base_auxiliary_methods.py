@@ -47,10 +47,10 @@ def test_custom_separator_with_list():
     assert get_nested(data, "a/items/v", sep="/") == [1, 2]
 
 
-def test_non_string_path_raises_value_error():
-    with pytest.raises(ValueError):
-        get_nested({"a": 1}, 123)  # type: ignore[arg-type]
+def test_non_string_path_raises_type_error():
+    with pytest.raises(TypeError):
+        get_nested({"a": 1}, 123)  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
 
 
 def test_scalar_data_returns_none_for_path():
-    assert get_nested("not-a-dict", "a") is None
+    assert get_nested("not-a-dict", "a") is None  # ty: ignore  # type: ignore[bad-argument-type]

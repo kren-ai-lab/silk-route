@@ -1,4 +1,7 @@
+"""ChEBI API interface."""
+
 import json
+from typing import Any, ClassVar
 from urllib.parse import quote
 
 from requests import Request
@@ -18,9 +21,11 @@ log = get_logger("bioseq_dl.interfaces.chebi")
 
 
 class ChEBIInterface(BaseAPIInterface):
+    """ChEBI chemical entity database API interface."""
+
     API_NAME = "ChEBI"
     DB_CONFIG = CHEBI
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "compound": {
             "http_method": "GET",
             "path_param": "chebi_id",
@@ -70,25 +75,12 @@ class ChEBIInterface(BaseAPIInterface):
             "group_queries": [None],
             "separator": None,
         },
-        # Not implemented yet, requires pagination handling
-        # "structure_search": {
-        #     "http_method": "GET",
-        #     "path_param": None,
-        #     "parameters": {
-        #         "smiles": (str, None, True),
-        #         "search_type": (str, "connectivity", False),
-        #         "similarity": (float, 0.7, False),
-        #         "three_star_only": (bool, True, False),
-        #         "page": (int, 1, False),
-        #         "size": (int, 15, False),
-        #         "download": (bool, False, False)
-        #     }
-        # }
     }
 
-    def fetch(self, query: str | dict | list, *, method: str = "compound", **kwargs):
-        if method not in self.METHODS.keys():
-            log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+    def fetch(self, query: str | dict | list, *, method: str = "compound", **kwargs: Any) -> dict | list:
+        """Fetch compound or ontology data from ChEBI."""
+        if method not in self.METHODS:
+            log.error("Method %s is not supported. Available methods: %s", method, list(self.METHODS.keys()))
             return {}
 
         http_method, path_param, parameters, inputs = self.initialize_method_parameters(
@@ -97,8 +89,8 @@ class ChEBIInterface(BaseAPIInterface):
 
         try:
             validated_params = validate_parameters(inputs, parameters)
-        except (ValueError, TypeError) as e:
-            log.error(f"Parameter validation failed: {e}")
+        except (ValueError, TypeError):
+            log.exception("Parameter validation failed")
             return {}
 
         # Get ids if available
@@ -110,10 +102,10 @@ class ChEBIInterface(BaseAPIInterface):
             if isinstance(chebi_ids, str):
                 chebi_ids = [chebi_ids]
             elif not isinstance(chebi_ids, list):
-                log.error(f"Expected '{id_key}' to be str or list, got {type(chebi_ids)}")
+                log.error("Expected '%s' to be str or list, got %s", id_key, type(chebi_ids))
                 return {}
 
-            validated_params[id_key] = ",".join(id for id in chebi_ids)
+            validated_params[id_key] = ",".join(chebi_id for chebi_id in chebi_ids)
 
         # Make URL
         url = f"{CHEBI.API_URL}{method.replace('-', '/')}/"
@@ -126,7 +118,7 @@ class ChEBIInterface(BaseAPIInterface):
         req = Request(http_method, url, params=validated_params)
         prepared = self.session.prepare_request(req)
 
-        log.debug(f"Prepared url: {prepared.url}")
+        log.debug("Prepared url: %s", prepared.url)
         try:
             response = self.session.send(prepared)
             self._delay()
@@ -134,8 +126,11 @@ class ChEBIInterface(BaseAPIInterface):
             try:
                 response = json.loads(response.text)
             except json.JSONDecodeError:
-                log.error(
-                    f"Failed to decode JSON response for method '{method}' with query '{query}'. Response text: {response.text}"
+                log.exception(
+                    "Failed to decode JSON response for method '%s' with query '%s'. Response text: %s",
+                    method,
+                    query,
+                    response.text,
                 )
                 return {}
 
@@ -144,15 +139,17 @@ class ChEBIInterface(BaseAPIInterface):
                 # Convert to list of interactions
                 response = list(response.values())
 
-            if isinstance(response, dict) and "results" in response.keys():
+            if isinstance(response, dict) and "results" in response:
                 response = response["results"]
 
-            return response
-        except RequestException as e:
-            log.error(f"Error fetching {query} for method '{method}': {e}")
+        except RequestException:
+            log.exception("Error fetching %s for method '%s'", query, method)
             return {}
+        else:
+            return response
 
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **_kwargs: Any) -> list | dict:
+        """Parse ChEBI response data."""
         if not data:
             log.warning("Tried to parse data but the data is empty or None.")
             return {}
@@ -161,7 +158,9 @@ class ChEBIInterface(BaseAPIInterface):
             data = data.json()
         elif not isinstance(data, dict):
             log.error(
-                "Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object."
+                "Tried to parse data but the type is not supported. Response should be a dict or a "
+                "requests.Response "
+                "object."
             )
             return {}
 

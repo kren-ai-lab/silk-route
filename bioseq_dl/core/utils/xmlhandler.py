@@ -1,3 +1,5 @@
+"""XML parsing and DataFrame conversion utilities."""
+
 import xml.etree.ElementTree as ET
 from typing import Any
 
@@ -31,6 +33,7 @@ def dict_to_elementtree(
     root_tag: str = "results",
     list_item_tag: str = "item",
 ) -> ET.ElementTree:
+    """Convert an ElementTree XML tree to a flat pandas DataFrame."""
     root = ET.Element(root_tag)
     dict_to_element(data, root, list_item_tag=list_item_tag)
     return ET.ElementTree(root)
@@ -85,6 +88,8 @@ def elementtree_to_dataframe(
     - Containers with repeated <item> -> list[str] or list[dict]
     """
     root = tree.getroot()
+    if root is None:
+        return pd.DataFrame()
     records = root.findall(record_path)
 
     rows = []

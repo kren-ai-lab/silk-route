@@ -2,23 +2,19 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from bioseq_dl.core.cache import (
     _is_empty_file,
-    _resolver_provider_paths,
     clear_cache,
+    list_caches,
     register_cache,
 )
 
 
-class _DBConfigLike:
-    def __init__(self, cache_dir):
-        self.CACHE_DIR = cache_dir
-
-
-def test_resolver_handles_dbconfig_str_and_callable(tmp_path):
-    assert _resolver_provider_paths(_DBConfigLike(str(tmp_path))) == [tmp_path]
-    assert _resolver_provider_paths(str(tmp_path)) == [tmp_path]
-    assert _resolver_provider_paths(lambda: [str(tmp_path / "a")]) == [tmp_path / "a"]
+def test_register_cache_normalizes_to_path(tmp_path):
+    register_cache("unit_norm", str(tmp_path))
+    assert list_caches()["unit_norm"] == Path(tmp_path)
 
 
 def test_clear_cache_dry_run_reports_without_deleting(tmp_path):

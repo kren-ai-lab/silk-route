@@ -1,8 +1,12 @@
+"""Logger factory and global logging configuration."""
+
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import sys
+from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 
 
@@ -19,21 +23,18 @@ def _resolve_log_dir() -> Path:
     if env_dir:
         return Path(env_dir).expanduser().resolve()
 
-    try:
-        # Optional: use project config if available
-        from bioseq_dl.core import config  # type: ignore
+    # Optional: use project config if available (avoids a hard dependency)
+    with contextlib.suppress(Exception):
+        from bioseq_dl.core import config  # ty: ignore  # type: ignore[import]  # noqa: PLC0415
 
         cfg = config.get_config()
         return Path(cfg.cache_paths.logs()).expanduser().resolve()
-    except Exception:
-        pass
 
     return Path("~/.cache/bioseq_dl/logs").expanduser().resolve()
 
 
 class _LoggingManager:
-    """Singleton-like manager that configures root logging once and
-    exposes a small API for obtaining child loggers and adjusting settings.
+    """Configure root logging once and hand out child loggers that propagate to the root handlers.
 
     Key points
     ----------
@@ -62,8 +63,9 @@ class _LoggingManager:
         use_rotation: bool | None = None,
         filename: str | None = None,
     ) -> None:
-        """Update the global logging configuration. Changes are applied lazily
-        (on the next logger access).
+        """Update the global logging configuration.
+
+        Changes are applied lazily (on the next logger access).
 
         Notes
         -----
@@ -116,8 +118,6 @@ class _LoggingManager:
             log_path = self._log_dir / self._filename
 
             if self._use_rotation:
-                from logging.handlers import TimedRotatingFileHandler
-
                 fh = TimedRotatingFileHandler(
                     filename=str(log_path),
                     when="D",
@@ -132,15 +132,13 @@ class _LoggingManager:
             fh.setLevel(logging.DEBUG)
             fh.setFormatter(formatter)
             handlers.append(fh)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # defensive catch-all
             # Keep console even if the file handler fails; print a clear hint.
-            try:
+            with contextlib.suppress(Exception):
                 sys.stderr.write(
                     f"[bioseq_dl.logging] WARNING: Failed to initialize file handler at "
                     f"{self._log_dir!s} ({type(e).__name__}: {e}). Falling back to console only.\n"
                 )
-            except Exception:
-                pass
 
         return handlers
 
@@ -167,8 +165,9 @@ class _LoggingManager:
     # ---------------- Public API ----------------
 
     def get_logger(self, name: str | None = None) -> logging.Logger:
-        """Return a logger. Child loggers PROPAGATE so their messages reach
-        the root handlers configured here.
+        """Return a logger that propagates to root handlers configured here.
+
+        Child loggers keep level=NOTSET so they inherit the root's effective level.
         """
         self._ensure_configured()
         logger = logging.getLogger(name or "")
@@ -218,11 +217,12 @@ def configure_logging(
 
 def get_logger(name: str | None = None) -> logging.Logger:
     """Return a logger for the current module/class.
-    Children should keep level=NOTSET to inherit the root's effective level.
+
+    Children keep level=NOTSET to inherit the root's effective level.
     """
-    _manager._ensure_configured()
+    _manager._ensure_configured()  # noqa: SLF001  # module logging singleton
     logger = logging.getLogger(name or "")
-    logger.disabled = not _manager._enable
+    logger.disabled = not _manager._enable  # noqa: SLF001  # module logging singleton
     logger.setLevel(logging.NOTSET)  # <-- inherit from root
     logger.propagate = True
     return logger

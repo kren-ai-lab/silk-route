@@ -1,3 +1,7 @@
+"""PANTHER API interface."""
+
+from typing import Any, ClassVar
+
 from requests import Request
 from requests.exceptions import RequestException
 from requests.models import Response
@@ -13,11 +17,13 @@ log = get_logger("bioseq_dl.interfaces.panther")
 
 
 class PantherInterface(BaseAPIInterface):
+    """PANTHER gene family annotation and ontology API interface."""
+
     API_NAME = "PANTHER"
     DB_CONFIG = PANTHER
     # Definition of methods for PANTHER API
     # Each parameter is a tuple with (type, default_value, primary_key)
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "geneinfo": {
             "http_method": "POST",
             "path_param": None,
@@ -44,7 +50,8 @@ class PantherInterface(BaseAPIInterface):
         },
     }
 
-    def fetch(self, query: str | dict | list, *, method: str = "geneinfo", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "geneinfo", **kwargs: Any) -> dict | list:
+        """Fetch gene family or MSA data from PANTHER."""
         http_method, path_param, parameters, inputs = self.initialize_method_parameters(
             query, method, self.METHODS, **kwargs
         )
@@ -52,8 +59,8 @@ class PantherInterface(BaseAPIInterface):
         # Validate and clean parameters
         try:
             validated_params = validate_parameters(inputs, parameters)
-        except ValueError as e:
-            log.error(f"Invalid parameters for method '{method}': {e}")
+        except ValueError:
+            log.exception("Invalid parameters for method '%s'", method)
             return {}
 
         url = f"{PANTHER.API_URL}{method}"
@@ -64,7 +71,7 @@ class PantherInterface(BaseAPIInterface):
 
         req = Request(method=http_method, url=url, params=validated_params)
         prepared = self.session.prepare_request(req)
-        log.debug(f"Prepared request: {prepared.url}")
+        log.debug("Prepared request: %s", prepared.url)
 
         try:
             response = self.session.send(prepared)
@@ -84,12 +91,14 @@ class PantherInterface(BaseAPIInterface):
                 case _:
                     response = response.json()
 
-            return response
-        except RequestException as e:
-            log.error(f"Error fetching {query} for method '{method}': {e}")
+        except RequestException:
+            log.exception("Error fetching %s for method '%s'", query, method)
             return {}
+        else:
+            return response
 
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **_kwargs: Any) -> list | dict:
+        """Parse PANTHER response data."""
         if not data:
             log.warning("Tried to parse data but the data is empty or None.")
             return {}
@@ -98,7 +107,9 @@ class PantherInterface(BaseAPIInterface):
             data = data.json()
         elif not isinstance(data, dict):
             log.error(
-                "Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object."
+                "Tried to parse data but the type is not supported. Response should be a dict or a "
+                "requests.Response "
+                "object."
             )
             return {}
 

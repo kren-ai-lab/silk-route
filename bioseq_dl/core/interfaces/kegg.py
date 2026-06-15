@@ -1,5 +1,7 @@
+"""KEGG API interface."""
+
 import re
-from typing import Any
+from typing import Any, ClassVar
 
 import requests
 
@@ -13,22 +15,24 @@ from .base import BaseAPIInterface
 log = get_logger("bioseq_dl.interfaces.kegg")
 
 # More info about KEGG API: https://www.kegg.jp/kegg/rest/keggapi.html
-# TODO Solve known problem with KEGG API:
+# TODO(diego): Solve known problem with KEGG API:
 # For the queries that have more than one search like
 # ["hsa:10458", "ece:Z5100"] It saves in cache a response for both entries
 # But if you try to fetch only one of them, it saves another cache file.
 # What it should do is to get the response from the cache file
 # and return it without saving another cache file.
 
-# TODO Should I make the method query for multiple entries or do one entry at a time?
+# TODO(diego): Should I make the method query for multiple entries or do one entry at a time?
 # Doing multiple entries at a time is more efficient, but it requires more complex coding.
 
 
 class KEGGInterface(BaseAPIInterface):
+    """KEGG pathway and compound database API interface."""
+
     API_NAME = "KEGG"
     DB_CONFIG = KEGG
-    # TODO add more methods from KEGG API. DDI and Link should be added.
-    METHODS = {
+    # TODO(diego): add more methods from KEGG API. DDI and Link should be added.
+    METHODS: ClassVar[dict[str, Any]] = {
         "get": {
             "http_method": "GET",
             "path_param": DATABASES,
@@ -57,9 +61,10 @@ class KEGGInterface(BaseAPIInterface):
     }
 
     def get_subquery_match_keys(self) -> set[str]:
+        """Return keys used to match subqueries across KEGG results."""
         return super().get_subquery_match_keys().union({"entries"})
 
-    def validate_query(self, method: str, query: dict):
+    def validate_query(self, method: str, query: dict) -> None:
         """Validate the query parameters.
 
         Args:
@@ -73,27 +78,30 @@ class KEGGInterface(BaseAPIInterface):
         rules = {
             "entries": lambda v: isinstance(v, (str, list)),
             "db": lambda v: v in DATABASES,
-            #'todb' : lambda v: v in DATABASES,
             "option": lambda v: v in METHOD_OPTIONS.get(method, []),
         }
 
         for key, check in rules.items():
             if key in query and not check(query[key]):
                 if key == "entries":
-                    log.error(f"Invalid entries: {query['entries']}. Must be a string or a list of strings.")
-                    return {}
+                    log.error("Invalid entries: %s. Must be a string or a list of strings.", query["entries"])
+                    return
                 if key == "db":
                     log.error(
-                        f"Invalid database type: {query['db']}. Valid types are: {', '.join(DATABASES)}."
+                        "Invalid database type: %s. Valid types are: %s.", query["db"], ", ".join(DATABASES)
                     )
-                    return {}
+                    return
                 if key == "option":
                     log.error(
-                        f"Invalid option: {query['option']} for method {method}. Supported options are: {', '.join(METHOD_OPTIONS.get(method, []))}."
+                        "Invalid option: %s for method %s. Supported options are: %s.",
+                        query["option"],
+                        method,
+                        ", ".join(METHOD_OPTIONS.get(method, [])),
                     )
-                    return {}
+                    return
+        return
 
-    def fetch(self, query: str | dict | list, *, method: str = "get", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "get", **kwargs: Any) -> dict | list | str:
         """Fetch data from the KEGG API.
 
         Args:
@@ -117,35 +125,38 @@ class KEGGInterface(BaseAPIInterface):
 
         """
         if not method:
-            log.error("Method must be specified. Supported methods are: " + ", ".join(self.METHODS.keys()))
+            log.error("Method must be specified. Supported methods are: %s", ", ".join(self.METHODS.keys()))
             return {}
 
         _, _, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, **kwargs)
 
         try:
             validated_params = validate_parameters(inputs, parameters)
-        except ValueError as e:
-            log.error(f"Invalid parameters for method '{method}': {e}")
+        except ValueError:
+            log.exception("Invalid parameters for method '%s'", method)
             return {}
 
         if method == "pathways":
             url = f"{KEGG.API_URL}/link"
             url += "/pathway"
-            if "entries" in validated_params.keys() and validated_params["entries"]:
+            if validated_params.get("entries"):
                 q = str(validated_params["entries"])
                 url += f"/{q}"
         else:
             url = f"{KEGG.API_URL}{method}"
-            if "db" in validated_params.keys() and validated_params["db"]:
+            if validated_params.get("db"):
                 url += f"/{validated_params['db']}"
-            if "entries" in validated_params.keys() and validated_params["entries"]:
+            if validated_params.get("entries"):
                 q = str(validated_params["entries"])
                 url += f"/{q}"
 
-            if "option" in validated_params.keys() and validated_params["option"]:
+            if validated_params.get("option"):
                 if method not in METHOD_OPTIONS or validated_params["option"] not in METHOD_OPTIONS[method]:
                     log.error(
-                        f"Option {validated_params['option']} is not supported for method {method}. Supported options are: {', '.join(METHOD_OPTIONS.get(method, []))}."
+                        "Option %s is not supported for method %s. Supported options are: %s.",
+                        validated_params["option"],
+                        method,
+                        ", ".join(METHOD_OPTIONS.get(method, [])),
                     )
                     return {}
                 url += f"/{validated_params['option']}"
@@ -156,7 +167,7 @@ class KEGGInterface(BaseAPIInterface):
             self._delay()
             response.raise_for_status()
             if not response or not hasattr(response, "text"):
-                log.warning(f"No response or invalid response for query {query} with method {method}.")
+                log.warning("No response or invalid response for query %s with method %s.", query, method)
                 return {}
 
             if method == "get":
@@ -182,13 +193,14 @@ class KEGGInterface(BaseAPIInterface):
                     method="get",
                 )
 
-            return r  # TODO check if for other functions we need to return json or text
-        except requests.exceptions.RequestException as e:
-            log.error(f"Error fetching data for {query} with method {method}: {e}")
+        except requests.exceptions.RequestException:
+            log.exception("Error fetching data for %s with method %s", query, method)
             return {}
+        else:
+            return r if r is not None else {}  # TODO(diego): check json vs text for other functions
 
-    def parse(self, data: Any, fields_to_extract: list | dict | None = None, **kwargs) -> dict | list:
-        """Parse the response from the KEGG API.
+    def parse(self, data: Any, fields_to_extract: list | dict | None = None, **kwargs: Any) -> dict | list:
+        r"""Parse the response from the KEGG API.
 
         Args:
             data (Any): Raw data from the API response.
@@ -214,7 +226,7 @@ class KEGGInterface(BaseAPIInterface):
             log.warning("Tried to parse data but the data is empty or None.")
             return {}
 
-        if method == "get" or method == "pathways":
+        if method in {"get", "pathways"}:
             # Primary field: no indentation, KEGG key + value
             primary_key_val_pattern = re.compile(r"^(\w+)\s+(.+)$")
             # Secondary (nested) field: leading spaces + key + value
@@ -374,5 +386,5 @@ class KEGGInterface(BaseAPIInterface):
 
         if method == "link":
             return data
-        log.error(f"Parsing method '{method}' is not supported.")
+        log.error("Parsing method '%s' is not supported.", method)
         return {}

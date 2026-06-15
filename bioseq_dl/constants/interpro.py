@@ -1,3 +1,4 @@
+"""InterPro database constants and configuration."""
 ## Docs available at: https://interpro-documentation.readthedocs.io/en/latest/download.html
 ## https://github.com/ProteinsWebTeam/interpro7-api/tree/master/docs
 ## https://www.ebi.ac.uk/interpro/result/download/#

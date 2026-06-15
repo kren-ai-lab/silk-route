@@ -1,9 +1,10 @@
+"""Data export utilities."""
+
 from __future__ import annotations
 
 import datetime as dt
 import json
 from pathlib import Path
-from typing import Union
 
 import pandas as pd
 from pandas.api.types import (
@@ -14,7 +15,7 @@ from pandas.api.types import (
     is_scalar,
 )
 
-PathLike = Union[str, Path]
+PathLike = str | Path
 USER_EXPORT_FORMATS = ("csv", "json", "xml", "parquet")
 DATAFRAME_EXPORT_FORMAT_ERROR = "Unsupported export format 'dataframe'. Use 'csv' instead."
 
@@ -66,7 +67,7 @@ def is_missing_parquet_value(value: object) -> bool:
         return True
 
     try:
-        missing = pd.isna(value)
+        missing = pd.isna(value)  # type: ignore[no-matching-overload]  # pandas stub: object arg
     except (TypeError, ValueError):
         return False
 
@@ -171,12 +172,14 @@ def export_dataframe(
 ) -> Path:
     """Export a DataFrame to CSV, TSV, JSON, XML, or Parquet."""
     if not isinstance(df, pd.DataFrame):
-        raise TypeError("export_dataframe expects a pandas DataFrame.")
+        msg = "export_dataframe expects a pandas DataFrame."
+        raise TypeError(msg)
 
     path = Path(output_path)
     normalized_format = normalize_export_format(output_format or path.suffix)
     if normalized_format is None:
-        raise ValueError(f"Unsupported export format: {output_format or path.suffix}")
+        msg = f"Unsupported export format: {output_format or path.suffix}"
+        raise ValueError(msg)
 
     if not path.suffix:
         path = path.with_suffix(f".{normalized_format}")

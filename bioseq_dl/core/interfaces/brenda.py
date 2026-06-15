@@ -1,5 +1,7 @@
+"""BRENDA SOAP API interface."""
+
 import hashlib
-from typing import Any
+from typing import Any, ClassVar
 
 from zeep import Client
 from zeep.helpers import serialize_object
@@ -26,9 +28,11 @@ BRENDA_PASSWORD_ENV_VARS = (
 
 # For aditional implementations see: https://www.brenda-enzymes.org/soap.php
 class BrendaInterface(BaseAPIInterface):
+    """BRENDA enzyme kinetics database SOAP API interface."""
+
     API_NAME = "BRENDA"
     DB_CONFIG = BRENDA
-    METHODS = BRENDA_METHODS
+    METHODS: ClassVar[dict[str, Any]] = BRENDA_METHODS
 
     def __init__(
         self,
@@ -36,8 +40,8 @@ class BrendaInterface(BaseAPIInterface):
         password: str | None = None,
         cache_dir: str | None = None,
         config_dir: str | None = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """Initialize the BrendaInstance.
 
         Args:
@@ -45,7 +49,7 @@ class BrendaInterface(BaseAPIInterface):
             password (str): Password for BRENDA API.
             cache_dir (str): Directory to cache results.
             config_dir (str): Directory for configuration files.
-            output_dir (str): Directory to save output files.
+            **kwargs: Passed through to the base class.
 
         """
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs, min_wait=2.0, max_wait=5.0)
@@ -57,15 +61,7 @@ class BrendaInterface(BaseAPIInterface):
         self.password = hashlib.sha256(raw_password.encode("utf-8")).hexdigest() if raw_password else None
         self.client = Client(BRENDA.API_URL)
 
-    def show_all_methods(self):
-        # Deliberate stdout helper for interactive inspection of available SOAP methods.
-        print("Available methods:")  # noqa: T201
-        for service in self.client.wsdl.services.values():
-            for port in service.ports.values():
-                for method_name in port.binding._methods.keys():
-                    print(f"- {method_name}")  # noqa: T201
-
-    def fetch(self, query: str | dict | list, *, method: str = "getKmValue", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "getKmValue", **kwargs: Any) -> dict | list:
         """Fetch data from BRENDA for a given EC number and organism.
 
         Args:
@@ -73,31 +69,33 @@ class BrendaInterface(BaseAPIInterface):
                 - `ecNumber`: Enzyme Commission number (e.g., '1.1.1.1').
                 - `organism`: Organism name (e.g., 'Escherichia coli').
             method (str): Name of the method to perform (e.g., 'getKmValue').
+            **kwargs: Additional keyword arguments passed to the request builder.
 
         Returns:
             list: List of results from the BRENDA API.
 
         """
-        if method not in self.METHODS.keys():
-            log.error(f"method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+        if method not in self.METHODS:
+            log.error("method %s is not supported. Available methods: %s", method, list(self.METHODS.keys()))
             return []
         if not isinstance(query, dict):
             log.error("Query must be a dictionary with keys matching the method parameters.")
             return []
 
         if not is_valid_secret(self.email) or self.password is None:
-            raise ValueError(
+            msg = (
                 "Missing BRENDA credentials. Set BIOSEQ_DL_BRENDA_EMAIL and "
                 "BIOSEQ_DL_BRENDA_PASSWORD or pass them explicitly."
             )
+            raise ValueError(msg)
 
         _, _, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, **kwargs)
 
         # Validate and clean parameters
         try:
             validated_params = validate_parameters(inputs, parameters)
-        except ValueError as e:
-            log.error(f"Invalid parameters for method '{method}': {e}")
+        except ValueError:
+            log.exception("Invalid parameters for method '%s'", method)
             return []
 
         results = []
@@ -108,18 +106,21 @@ class BrendaInterface(BaseAPIInterface):
             param_list = [f"{k}*{validated_params.get(k, '')}" for k in params]
 
             # Add credentials
-            parameters = [self.email, self.password] + param_list
+            parameters = [self.email, self.password, *param_list]
 
             func = getattr(self.client.service, method)
             result = serialize_object(func(*parameters))
-            result = [dict(entry) for entry in result] if isinstance(result, list) else dict(result)
+            if isinstance(result, list):  # noqa: SIM108  # split for per-branch type:ignore
+                result = [dict(entry) for entry in result]  # type: ignore[no-matching-overload]
+            else:
+                result = dict(result)  # type: ignore[no-matching-overload]  # zeep OrderedDict
 
             self._delay()
 
             results.extend(result if isinstance(result, list) else [result])
 
-        except Exception as e:
-            log.error(f"Error fetching data for {method} with parameters {query}: {e}")
+        except Exception:
+            log.exception("Error fetching data for %s with parameters %s", method, query)
             return []
 
         return results
@@ -143,13 +144,13 @@ class BrendaInterface(BaseAPIInterface):
             str: Parameters required for the method.
 
         """
-        if method_name not in self.METHODS.keys():
+        if method_name not in self.METHODS:
             return f"method {method_name} is not supported."
 
         params = self.METHODS[method_name]
         return f"Parameters for {method_name}: {', '.join(params)}"
 
-    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs):
+    def parse(self, data: Any, fields_to_extract: list | dict | None, **_kwargs: Any) -> dict | list:
         """Parse the response from the BioGRID API.
 
         Args:
@@ -157,6 +158,7 @@ class BrendaInterface(BaseAPIInterface):
             fields_to_extract (List|Dict): Fields to keep from the original response.
                 - If List: Keep those keys.
                 - If Dict: Maps {desired_name: real_field_name}.
+            **kwargs: Additional keyword arguments.
 
         Returns:
             any: Parsed data from the response.
@@ -168,7 +170,9 @@ class BrendaInterface(BaseAPIInterface):
 
         if not isinstance(data, (dict, list)):
             log.error(
-                "Tried to parse data but the type is not supported. Response should be a dict or a requests.Response object."
+                "Tried to parse data but the type is not supported. Response should be a dict or a "
+                "requests.Response "
+                "object."
             )
             return {}
 

@@ -1,3 +1,5 @@
+"""UniProt database constants and configuration."""
+
 # Constants for UniProt data fields and cross-references
 # Only should be added the fields that are available and defined
 # in the file bioseq_dl/core/interfaces/uniprot.py at line 187
@@ -61,7 +63,6 @@ XREF_MAPPING = {
     "PubChem": (None, "pubchem"),
     "Reactome": ("xref_reactome", "reactome"),
     "Rhea": ("rhea", "rhea"),
-    # "PFAM": ("xref_pfam", None),
     "RefSeq": ("xref_refseq", "refseq"),
     "SABIO-RK": ("xref_sabio-rk", "sabio-rk"),
     "StringDB": ("xref_string", "string"),

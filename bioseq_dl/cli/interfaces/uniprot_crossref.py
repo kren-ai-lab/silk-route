@@ -1,5 +1,8 @@
+"""UniProt cross-reference CLI commands."""
+
 # bioseq_dl/cli/uniprot_crossref.py
-import os
+import json
+from pathlib import Path
 
 import pandas as pd
 import typer
@@ -7,31 +10,33 @@ import typer
 from bioseq_dl.constants.uniprot import XREF_MAPPING
 from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
 from bioseq_dl.core.interfacesconfig import load_packaged_config
+from bioseq_dl.logging import get_logger
 
 app = typer.Typer(help="Search and download cross-references from UniProt.")
 
-from bioseq_dl.logging import get_logger
-
 log = get_logger("bioseq_dl.cli.uniprot_crossref")
 
-CROSS_REF_FIELDS = [xref.lower() for xref in XREF_MAPPING.keys()]
+CROSS_REF_FIELDS = [xref.lower() for xref in XREF_MAPPING]
 
 
-def save_to_file(df, out_dir, filename, db, endpoint, option):
+def save_to_file(
+    df: pd.DataFrame, out_dir: str, filename: str, db: str, endpoint: str, option: str | None
+) -> None:
+    """Run UniProt cross-reference ID mapping."""
     # Make folder with filename
-    os.makedirs(os.path.join(out_dir, filename), exist_ok=True)
+    (Path(out_dir) / filename).mkdir(parents=True, exist_ok=True)
     # Save the DataFrame to a CSV file
     if option is None:
-        output_file = os.path.join(out_dir, f"{filename}/{db}_{endpoint}_results.csv")
+        output_file = Path(out_dir) / filename / f"{db}_{endpoint}_results.csv"
     else:
-        output_file = os.path.join(out_dir, f"{filename}/{db}_{endpoint}_{option}_results.csv")
+        output_file = Path(out_dir) / filename / f"{db}_{endpoint}_{option}_results.csv"
     df.to_csv(output_file, index=False)
-    log.info(f"Results for {db} with option {option} saved to {output_file}")
+    log.info("Results for %s with option %s saved to %s", db, option, output_file)
 
 
 @app.command(name="")
 def run(
-    input: str = typer.Option(
+    input_file: str = typer.Option(
         ...,
         "--input",
         "-i",
@@ -53,17 +58,20 @@ def run(
         + ", ".join(CROSS_REF_FIELDS),
         case_sensitive=False,
     ),
-):
+) -> None:
+    """Run UniProt cross-reference name mapping."""
     try:
         # Check if input file exists
-        if not os.path.exists(input):
-            raise FileNotFoundError(f"Input file {input} does not exist.")
+        if not Path(input_file).exists():
+            msg = f"Input file {input_file} does not exist."
+            raise FileNotFoundError(msg)  # noqa: TRY301  # validate-then-Exit CLI idiom
 
         # Load input file into a DataFrame
         try:
-            df = pd.read_csv(input)
+            df = pd.read_csv(input_file)
         except Exception as e:
-            raise ValueError(f"Error reading input file {input}: {e}") from e
+            msg = f"Error reading input file {input_file}: {e}"
+            raise ValueError(msg) from e
 
         endpoints_config = load_packaged_config("uniprot_crossref", "config_endpoints.yml") or {}
 
@@ -80,57 +88,50 @@ def run(
 
                 for ep_name, ep_info in endpoint_config.get("endpoints", {}).items():
                     if ep_info.get("enabled", False):
-                        if "options" in ep_info:
-                            for ep_option in ep_info.get("options", [None]):
-                                endpoint_specs.append(
-                                    EndpointSpec(
-                                        database=xref,
-                                        endpoint=ep_name,
-                                        option=ep_option,
-                                        params=ep_info.get("params", {}),
-                                    )
-                                )
-                        else:
-                            endpoint_specs.append(
-                                EndpointSpec(
-                                    database=xref,
-                                    endpoint=ep_name,
-                                    option=None,
-                                    params=ep_info.get("params", {}),
-                                )
+                        options = ep_info.get("options", [None]) if "options" in ep_info else [None]
+                        endpoint_specs.extend(
+                            EndpointSpec(
+                                database=xref,
+                                endpoint=ep_name,
+                                option=ep_option,
+                                params=ep_info.get("params", {}),
                             )
+                            for ep_option in options
+                        )
 
         if not endpoint_specs:
-            raise ValueError(
-                "No valid endpoint specifications found. Please check your database selections and configuration."
+            msg = (
+                "No valid endpoint specifications found. Please check your database selections and "
+                "configuration."
             )
-        log.debug(f"Endpoint specifications: {endpoint_specs}")
+            raise ValueError(msg)  # noqa: TRY301  # validate-then-Exit CLI idiom
+        log.debug("Endpoint specifications: %s", endpoint_specs)
         enricher = CrossRefEnricher(endpoint_specs)
         enriched_data, enriched_metadata = enricher.enrich(df)
 
         if isinstance(enriched_data, pd.DataFrame) and not enriched_data.empty:
-            log.info(f"Crossref enrichment resulted in {len(enriched_data)} rows")
+            log.info("Crossref enrichment resulted in %s rows", len(enriched_data))
 
         # Create output directory if it doesn't exist
-        if not os.path.exists(out_dir):
-            os.makedirs(out_dir)
+        if not Path(out_dir).exists():
+            Path(out_dir).mkdir(parents=True)
 
         if isinstance(enriched_data, pd.DataFrame) and not enriched_data.empty:
-            filename = os.path.splitext(os.path.basename(input))[0]
-            enriched_data.to_csv(os.path.join(out_dir, f"{filename}_results.csv"), index=False)
-            log.info(f"Results saved to {os.path.join(out_dir, f'{filename}_results.csv')}")
+            filename = Path(input_file).stem
+            results_path = Path(out_dir) / f"{filename}_results.csv"
+            enriched_data.to_csv(results_path, index=False)
+            log.info("Results saved to %s", results_path)
         else:
             log.info("No results to save.")
 
-        with open(os.path.join(out_dir, "metadata.json"), "w") as f:
-            import json
-
+        metadata_path = Path(out_dir) / "metadata.json"
+        with metadata_path.open("w") as f:
             json.dump(enriched_metadata, f, indent=2)
-            log.info(f"Metadata saved to {os.path.join(out_dir, 'metadata.json')}")
+            log.info("Metadata saved to %s", metadata_path)
 
     except typer.BadParameter as e:
         typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=2) from None
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001  # defensive catch-all
         typer.secho(f"Unexpected error: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from None

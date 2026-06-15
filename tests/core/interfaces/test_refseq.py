@@ -23,7 +23,7 @@ def interface(tmp_path, monkeypatch):
     records = load_fixture("refseq", "protein")
     state = {"reads": 0}
 
-    def fake_efetch(db, id, retmode):
+    def fake_efetch(db, id, retmode):  # noqa: A002  # mirrors Bio.Entrez.efetch(id=...) keyword
         return _FakeHandle()
 
     def fake_read(handle):
@@ -41,7 +41,7 @@ def interface(tmp_path, monkeypatch):
         max_wait=0,
         use_config=False,
     )
-    iface._read_state = state
+    iface._read_state = state  # ty: ignore  # type: ignore[missing-attribute]  # injected state
     return iface
 
 

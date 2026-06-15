@@ -1,3 +1,5 @@
+"""BioSeqDownloader main CLI app."""
+
 import typer
 
 from bioseq_dl.cli.collect_data import api_section as api_app

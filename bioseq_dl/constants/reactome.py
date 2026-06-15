@@ -1,3 +1,5 @@
+"""Reactome database constants and configuration."""
+
 methods = {
     "data": [
         "discover",

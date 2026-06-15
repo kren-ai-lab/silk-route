@@ -25,5 +25,5 @@ def test_import_does_not_pull_heavy_deps() -> None:
     # In a clean interpreter, importing the package must not eagerly import heavy
     # optional backends such as zeep (SOAP, used only by BRENDA).
     code = "import bioseq_dl, sys; assert 'zeep' not in sys.modules"
-    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)  # noqa: S603  # sys.executable, trusted
     assert result.returncode == 0, result.stderr

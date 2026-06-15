@@ -1,3 +1,5 @@
+"""PRIDE CLI commands."""
+
 import typer
 
 from bioseq_dl import PrideInterface
@@ -9,18 +11,18 @@ app = typer.Typer(help="Collect data from PRIDE database.")
 @app.command("search_projects")
 def run_search_projects(
     keyword: str = typer.Argument(..., help="Keyword to search for."),
-    filter: str | None = typer.Option(None, "--filter", help="Filter for the search."),
+    filter_value: str | None = typer.Option(None, "--filter", help="Filter for the search."),
     page: int = typer.Option(0, "--page", help="Page number for pagination."),
     dateGap: str | None = typer.Option(None, "--dateGap", help="Date gap filter."),
     sortDirection: str = typer.Option("DESC", "--sortDirection", help="Sort direction (ASC or DESC)."),
     sortFields: str = typer.Option("submissionDate", "--sortFields", help="Field to sort by."),
     output_file: str | None = typer.Option(None, "--output_file", help="File to save the results."),
-):
+) -> None:
     """Search for projects in the PRIDE database."""
     interface = PrideInterface()
     query = {
         "keyword": keyword,
-        "filter": filter,
+        "filter": filter_value,
         "page": page,
         "dateGap": dateGap,
         "sortDirection": sortDirection,
@@ -37,7 +39,7 @@ def run_search_projects(
 def run_projects(
     projectAccession: str = typer.Argument(..., help="Project accession ID."),
     output_file: str | None = typer.Option(None, "--output_file", help="File to save the results."),
-):
+) -> None:
     """Get details of a specific project by its accession ID."""
     interface = PrideInterface()
     query = {"projectAccession": projectAccession}
@@ -54,7 +56,7 @@ def run_similar_projects(
     page: int = typer.Option(0, "--page", help="Page number for pagination."),
     pageSize: int = typer.Option(10, "--pageSize", help="Number of results per page."),
     output_file: str | None = typer.Option(None, "--output_file", help="File to save the results."),
-):
+) -> None:
     """Get similar projects to a given project accession ID."""
     interface = PrideInterface()
     query = {"accession": accession, "page": page, "pageSize": pageSize}

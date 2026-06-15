@@ -1,3 +1,7 @@
+"""KEGG CLI commands."""
+
+from typing import Any
+
 import typer
 
 from bioseq_dl import KEGGInterface
@@ -23,11 +27,11 @@ def run_get(
         "-o",
         help="Output file to save the fetched data.",
     ),
-):
+) -> None:
     """Fetch data from KEGG database."""
     instance = KEGGInterface()
 
-    query = {}
+    query: dict[str, Any] = {}
 
     if entries:
         query["entries"] = entries.split(",")

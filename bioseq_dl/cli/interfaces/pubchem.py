@@ -1,3 +1,7 @@
+"""PubChem CLI commands."""
+
+from typing import Any
+
 import typer
 
 from bioseq_dl import PubChemInterface
@@ -19,16 +23,16 @@ def run_compound(
     cid: str = typer.Option(None, help="Compound ID (CID)"),
     name: str = typer.Option(None, help="Compound name"),
     smiles: str = typer.Option(None, help="SMILES representation of the compound"),
-    property: str = typer.Option(
-        None, help="Specific property to fetch, e.g., molecularformula, smiles, hbonddonorcount"
+    property_name: str = typer.Option(
+        None, "--property", help="Specific property to fetch, e.g., molecularformula, smiles, hbonddonorcount"
     ),
     option: str = typer.Option("default", help=f"Fetch option (e.g., {', '.join(OPTIONS['pug/compound'])})"),
     output_file: str = typer.Option(None, help="Output file to save results"),
-):
+) -> None:
     """Fetch compound data from PubChem."""
     interface = PubChemInterface()
 
-    query = {}
+    query: dict[str, Any] = {}
 
     if cid:
         query["cid"] = [cid.strip() for cid in cid.split(",")]
@@ -36,8 +40,8 @@ def run_compound(
         query["name"] = name
     if smiles:
         query["smiles"] = smiles
-    if property:
-        query["property"] = [prop.strip() for prop in property.split(",")]
+    if property_name:
+        query["property"] = [prop.strip() for prop in property_name.split(",")]
 
     result = interface.fetch_single(query, method="compound", option=option, parse=True, format="dataframe")
 
@@ -49,7 +53,7 @@ def run_protein(
     accession: str = typer.Argument(..., help="Protein accession number"),
     option: str = typer.Option("summary", help=f"Fetch option (e.g., {', '.join(OPTIONS['pug/protein'])})"),
     output_file: str = typer.Option(None, help="Output file to save results"),
-):
+) -> None:
     """Fetch protein data from PubChem."""
     interface = PubChemInterface()
 
@@ -77,11 +81,11 @@ def run_gene(
     taxid: str = typer.Option(None, help="Taxonomy ID"),
     option: str = typer.Option("summary", help=f"Fetch option (e.g., {', '.join(OPTIONS['pug/gene'])})"),
     output_file: str = typer.Option(None, help="Output file to save results"),
-):
+) -> None:
     """Fetch gene data from PubChem."""
     interface = PubChemInterface()
 
-    query = {}
+    query: dict[str, Any] = {}
 
     if genesymbol:
         query["genesymbol"] = [gs.strip() for gs in genesymbol.split(",")]
@@ -101,7 +105,7 @@ def run_gene(
 def run_compound_view(
     cid: str = typer.Argument(..., help="Compound ID (CID, e.g., 2244)"),
     output_file: str = typer.Option(None, help="Output file to save results"),
-):
+) -> None:
     """Fetch detailed compound data from PubChem."""
     interface = PubChemInterface()
 
@@ -124,7 +128,7 @@ def run_compound_view(
 def run_protein_view(
     accession: str = typer.Argument(..., help="Protein accession number (e.g., P00533)"),
     output_file: str = typer.Option(None, help="Output file to save results"),
-):
+) -> None:
     """Fetch detailed protein data from PubChem."""
     interface = PubChemInterface()
 
@@ -145,7 +149,7 @@ def run_protein_view(
 def run_gene_view(
     geneid: str = typer.Argument(..., help="Gene ID (e.g., EGFR)"),
     output_file: str = typer.Option(None, help="Output file to save results"),
-):
+) -> None:
     """Fetch detailed gene data from PubChem."""
     interface = PubChemInterface()
 
@@ -167,22 +171,22 @@ def run_gene_view(
 @app.command("pug_view-pathway")
 def run_pathway_view(
     source: str = typer.Option("Reactome", help="Pathway source (e.g., Reactome)"),
-    id: str = typer.Option(None, help="Pathway ID (e.g., R-HSA-5673001)"),
+    identifier: str = typer.Option(None, "--id", help="Pathway ID (e.g., R-HSA-5673001)"),
     output_file: str = typer.Option(None, help="Output file to save results"),
-):
+) -> None:
     """Fetch detailed pathway data from PubChem."""
     interface = PubChemInterface()
 
-    if len(id.split(",")) > 1:
+    if len(identifier.split(",")) > 1:
         result = interface.fetch_batch(
-            queries=[{"source": source, "id": pid.strip()} for pid in id.split(",")],
+            queries=[{"source": source, "id": pid.strip()} for pid in identifier.split(",")],
             method="pug_view/pathway",
             parse=True,
             format="dataframe",
         )
     else:
         result = interface.fetch_single(
-            query={"source": source, "id": id.strip()},
+            query={"source": source, "id": identifier.strip()},
             method="pug_view/pathway",
             parse=True,
             format="dataframe",
@@ -195,7 +199,7 @@ def run_pathway_view(
 def run_taxonomy_view(
     taxid: str = typer.Argument(..., help="Taxonomy ID (e.g., 9606)"),
     output_file: str = typer.Option(None, help="Output file to save results"),
-):
+) -> None:
     """Fetch detailed taxonomy data from PubChem."""
     interface = PubChemInterface()
 

@@ -1,5 +1,8 @@
-import os
-from typing import Any
+"""RCSB Protein Data Bank API interface."""
+
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Any, ClassVar
 
 import pandas as pd
 import requests
@@ -22,9 +25,11 @@ log = get_logger("bioseq_dl.interfaces.pdb")
 
 
 class PDBInterface(BaseAPIInterface):
+    """RCSB Protein Data Bank API interface."""
+
     API_NAME = "PDB"
     DB_CONFIG = PDB
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "entry": {
             "http_method": "GET",
             "path_param": "id",
@@ -43,15 +48,20 @@ class PDBInterface(BaseAPIInterface):
         cache_dir: str | None = None,
         config_dir: str | None = None,
         output_dir: str | None = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """Initialize the PDBInterface.
-        Args:.
+
+        Args:
             batch_size (int): Number of entries to process in each batch.
             download_structures (bool): Whether to download structure files. Default is False.
-            cache_dir (str): Directory to cache API responses. If None, defaults to the cache directory defined in constants.
-            config_dir (str): Directory for configuration files. If None, defaults to the config directory defined in constants.
+            cache_dir (str): Directory to cache API responses. If None, defaults to the cache directory
+                defined in constants.
+            config_dir (str): Directory for configuration files. If None, defaults to the config directory
+                defined in constants.
             output_dir (str): Directory to save downloaded files. If None, defaults to the cache directory.
+            **kwargs: Passed through to the base class.
+
         """
         cache_dir, config_dir = self._resolve_dirs(cache_dir, config_dir)
         packaged_init = load_packaged_config("pdb", "init.yml") or {}
@@ -59,24 +69,25 @@ class PDBInterface(BaseAPIInterface):
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
         self.output_dir = output_dir or download_folder_fallback
-        os.makedirs(self.output_dir, exist_ok=True)
+        Path(self.output_dir).mkdir(parents=True, exist_ok=True)
 
         self.batch_size = batch_size
         self.download_structures = download_structures
 
-    def fetch(self, query: str | dict | list, *, method: str = "entry", **kwargs):
+    def fetch(self, query: str | dict | list, *, method: str = "entry", **kwargs: Any) -> dict | list:
         """Run a query to fetch data from the PDB database.
 
         Args:
             query (str): PDB ID to fetch data for.
             method (str): API method to use. Default is "entry".
+            **kwargs: Additional keyword arguments passed to the request builder.
 
         Returns:
             dict: Fetched data for the given PDB ID.
 
         """
-        if method not in self.METHODS.keys():
-            log.error(f"Method {method} is not supported. Available methods: {list(self.METHODS.keys())}")
+        if method not in self.METHODS:
+            log.error("Method %s is not supported. Available methods: %s", method, list(self.METHODS.keys()))
             return {}
 
         http_method, path_param, parameters, inputs = self.initialize_method_parameters(
@@ -86,8 +97,8 @@ class PDBInterface(BaseAPIInterface):
         # Validate and clean parameters
         try:
             validated_params = validate_parameters(inputs, parameters)
-        except ValueError as e:
-            log.error(f"Invalid parameters for method '{method}': {e}")
+        except ValueError:
+            log.exception("Invalid parameters for method '%s'", method)
             return {}
 
         url = f"{PDB.API_URL}{method}"
@@ -106,7 +117,7 @@ class PDBInterface(BaseAPIInterface):
         )
 
         prepared = self.session.prepare_request(response)
-        log.debug(f"Prepared request: {prepared.url}")
+        log.debug("Prepared request: %s", prepared.url)
 
         try:
             response = self.session.send(prepared)
@@ -114,8 +125,8 @@ class PDBInterface(BaseAPIInterface):
             response.raise_for_status()
 
             return response.json()
-        except RequestException as e:
-            log.error(f"Error fetching data from {url}: {e}")
+        except RequestException:
+            log.exception("Error fetching data from %s", url)
             return {}
 
     def fetch_structure(self, pdb_id: str, file_format: str = "pdb") -> str:
@@ -129,15 +140,16 @@ class PDBInterface(BaseAPIInterface):
             str: Path to the downloaded file.
 
         """
-        log.info(f"Fetching structure for {pdb_id} in {file_format} format...")
-        if os.path.exists(self.output_dir + f"/{pdb_id}.{file_format}"):
-            log.info(f"Structure for {pdb_id} already exists in {file_format} format.")
-            return self.output_dir + f"/{pdb_id}.{file_format}"
+        log.info("Fetching structure for %s in %s format...", pdb_id, file_format)
+        existing = Path(self.output_dir) / f"{pdb_id}.{file_format}"
+        if existing.exists():
+            log.info("Structure for %s already exists in %s format.", pdb_id, file_format)
+            return str(existing)
 
-        log.info(f"Downloading {pdb_id} in {file_format} format...")
+        log.info("Downloading %s in %s format...", pdb_id, file_format)
 
-        if not os.path.exists(self.output_dir):
-            os.makedirs(self.output_dir)
+        if not Path(self.output_dir).exists():
+            Path(self.output_dir).mkdir(parents=True)
 
         url = f"{PDB.STRUCTURE_URL}{pdb_id}.{file_format}"
 
@@ -145,25 +157,26 @@ class PDBInterface(BaseAPIInterface):
             response = self.session.get(url)
             self._delay()
             response.raise_for_status()
-            file_path = os.path.join(self.output_dir, f"{pdb_id}.{file_format}")
-            with open(file_path, "wb") as f:
+            file_path = Path(self.output_dir) / f"{pdb_id}.{file_format}"
+            with file_path.open("wb") as f:
                 f.write(response.content)
-            return file_path
-        except requests.exceptions.RequestException as e:
-            log.error(f"Error downloading structure for {pdb_id}: {e}")
+            return str(file_path)
+        except requests.exceptions.RequestException:
+            log.exception("Error downloading structure for %s", pdb_id)
             return ""
 
     def fetch_single(
-        self, query: str | dict | list[str], parse: bool = False, *args, **kwargs
-    ) -> list | dict | pd.DataFrame:
-
+        self, query: str | dict | list[str], parse: bool = False, *args: Any, **kwargs: Any
+    ) -> tuple[list | dict | pd.DataFrame | bytes | str, dict]:
+        """Fetch a single PDB entry and optionally download the structure file."""
         if self.download_structures and query and isinstance(query, str):
             self.fetch_structure(query)
         return super().fetch_single(query, parse, *args, **kwargs)
 
     def fetch_batch(
-        self, queries: list[str | dict], parse: bool = False, *args, **kwargs
-    ) -> list | pd.DataFrame:
+        self, queries: Sequence[str | dict], parse: bool = False, *args: Any, **kwargs: Any
+    ) -> tuple[list | pd.DataFrame | bytes | str, dict]:
+        """Fetch a batch of PDB entries and optionally download structure files."""
         results = super().fetch_batch(queries, parse, *args, **kwargs)
         if self.download_structures:
             for query in queries:
@@ -171,7 +184,7 @@ class PDBInterface(BaseAPIInterface):
                     self.fetch_structure(query)
         return results
 
-    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs):
+    def parse(self, data: Any, fields_to_extract: list | dict | None, **_kwargs: Any) -> dict | list:
         """Parse data by extracting specified fields or returning the entire structure.
 
         Args:
@@ -179,6 +192,7 @@ class PDBInterface(BaseAPIInterface):
             fields_to_extract (list|dict): Fields to keep from the original response.
                 - If list: Keep those keys.
                 - If dict: Maps {desired_name: real_field_name}.
+            **kwargs: Additional keyword arguments.
 
         Returns:
             Union[List, Dict]: Parsed data with specified fields or the entire structure.

@@ -1,4 +1,6 @@
-from typing import Any
+"""STRING protein interaction database API interface."""
+
+from typing import Any, ClassVar
 
 from requests import Request
 from requests.exceptions import RequestException
@@ -16,9 +18,11 @@ log = get_logger("bioseq_dl.interfaces.stringdb")
 
 
 class StringInterface(BaseAPIInterface):
+    """STRING protein-protein interaction database API interface."""
+
     API_NAME = "STRING"
     DB_CONFIG = STRING
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "get_string_ids": {
             "http_method": "GET",
             "path_param": None,
@@ -47,40 +51,44 @@ class StringInterface(BaseAPIInterface):
         # Add other methods as needed
     }
 
-    def fetch(self, query: str | dict | list, *, method: str = "get_string_ids", **kwargs):
+    def fetch(
+        self, query: str | dict | list, *, method: str = "get_string_ids", **kwargs: Any
+    ) -> dict | list:
         """Fetch data from the STRING API.
 
         Args:
             query (str|dict|list): Query parameters for the API.
             method (str): Method to use for the request.
-            outfmt (str): Output format for the response.
+            **kwargs: Additional keyword arguments passed to the request builder.
 
         Returns:
             dict: Parsed response from the API.
 
         """
-        if method not in self.METHODS.keys():
-            log.error(f"Method '{method}' is not supported. Available methods: {list(self.METHODS.keys())}")
+        if method not in self.METHODS:
+            log.error(
+                "Method '%s' is not supported. Available methods: %s", method, list(self.METHODS.keys())
+            )
             return {}
 
-        http_method, path_param, parameters, inputs = self.initialize_method_parameters(
+        http_method, _path_param, parameters, inputs = self.initialize_method_parameters(
             query, method, self.METHODS, **kwargs
         )
 
         try:
             validated_params = validate_parameters(inputs, parameters)
-        except (ValueError, TypeError) as e:
-            log.error(f"Parameter validation failed: {e}")
+        except (ValueError, TypeError):
+            log.exception("Parameter validation failed")
             return {}
 
-        if "format" in validated_params:
-            outfmt = validated_params.pop("format")
-        else:
-            outfmt = "json"
+        outfmt = validated_params.pop("format") if "format" in validated_params else "json"
 
         if outfmt not in METHOD_FORMATS[method]:
             log.error(
-                f"Output format {outfmt} is not supported for method {method}. Supported formats are: {', '.join(METHOD_FORMATS[method])}."
+                "Output format %s is not supported for method %s. Supported formats are: %s.",
+                outfmt,
+                method,
+                ", ".join(METHOD_FORMATS[method]),
             )
             return {}
 
@@ -89,7 +97,7 @@ class StringInterface(BaseAPIInterface):
         req = Request(method=http_method, url=url, params=validated_params)
 
         prepared = self.session.prepare_request(req)
-        log.debug(f"Prepared request URL: {prepared.url}")
+        log.debug("Prepared request URL: %s", prepared.url)
 
         try:
             response = self.session.send(prepared)
@@ -97,11 +105,11 @@ class StringInterface(BaseAPIInterface):
             response.raise_for_status()
 
             return response.json()
-        except RequestException as e:
-            log.error(f"Error fetching {query} for method '{method}': {e}")
+        except RequestException:
+            log.exception("Error fetching %s for method '%s'", query, method)
             return {}
 
-    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs) -> Any:
+    def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> Any:
         """Parse the response from the STRING API.
 
         Args:
@@ -109,7 +117,7 @@ class StringInterface(BaseAPIInterface):
             fields_to_extract (List|Dict): Fields to keep from the original response.
                 - If List: Keep those keys.
                 - If Dict: Maps {desired_name: real_field_name}
-            fmt (str): Format of the response.
+            **kwargs: Supports `fmt` key for response format (default: "json").
 
         Returns:
             dict: Parsed response.
@@ -126,8 +134,10 @@ class StringInterface(BaseAPIInterface):
             return data.text
         if fmt == "image":
             log.error(
-                "Image format is not supported for parsing. Please use the method save_image() to save the image."
+                "Image format is not supported for parsing. Please use the method save_image() to save the "
+                "image."
             )
         else:
-            log.error(f"Format {fmt} is not supported. Supported formats are: json, tsv")
+            log.error("Format %s is not supported. Supported formats are: json, tsv", fmt)
             return {}
+        return None

@@ -1,3 +1,5 @@
+"""BioDBNet CLI commands."""
+
 import pandas as pd
 import typer
 
@@ -11,7 +13,7 @@ app = typer.Typer(help="Fetch data from BioDBNet database.")
 
 @app.command("db2db")
 def run_db2db(
-    input: str = typer.Option(
+    input_type: str = typer.Option(
         "genesymbol", "--input", "-i", help=f"Type of input identifier. Options: {', '.join(biodbnet_inputs)}"
     ),
     value: str = typer.Option(
@@ -32,12 +34,12 @@ def run_db2db(
         "-out",
         help="Output file to save the fetched data.",
     ),
-):
-    """Fetch interaction data from BioGRID database."""
+) -> None:
+    """Convert identifiers between databases using BioDBnet db2db."""
     instance = BioDBNetInterface()
 
     df, _ = instance.fetch_single(
-        query={"input": input, "inputValues": value.split(","), "outputs": outputs, "taxonId": taxon_id},
+        query={"input": input_type, "inputValues": value.split(","), "outputs": outputs, "taxonId": taxon_id},
         method="db2db",
         parse=True,
         format="dataframe",
@@ -62,12 +64,12 @@ def run_pathways(
         "-out",
         help="Output file to save the fetched data.",
     ),
-):
-    """Fetch interaction data from BioGRID database."""
+) -> None:
+    """Fetch pathway annotations for genes via BioDBnet."""
     instance = BioDBNetInterface()
 
     df, _ = instance.fetch_single(
-        query={"input": input, "pathways": pathways, "taxonId": taxon_id},
+        query={"pathways": pathways, "taxonId": taxon_id},
         method="getpathways",
         parse=True,
         format="dataframe",

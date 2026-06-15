@@ -1,3 +1,5 @@
+"""Cross-reference enrichment workflow utilities."""
+
 from typing import Any, Literal
 
 import pandas as pd
@@ -10,7 +12,7 @@ from bioseq_dl.logging import get_logger
 log = get_logger("bioseq_dl.core.utils.crossref_enrichment")
 
 
-def normalize_crossref_fields(crossref_fields: Any) -> list[str]:
+def normalize_crossref_fields(crossref_fields: object) -> list[str]:
     """Return cleaned cross-reference field names."""
     if crossref_fields is None:
         return []
@@ -24,7 +26,7 @@ def normalize_crossref_fields(crossref_fields: Any) -> list[str]:
     fields = []
     for field in raw_fields:
         if not isinstance(field, str):
-            log.warning(f"Ignoring non-string crossref field: {field}")
+            log.warning("Ignoring non-string crossref field: %s", field)
             continue
         cleaned_field = field.strip()
         if cleaned_field:
@@ -32,7 +34,7 @@ def normalize_crossref_fields(crossref_fields: Any) -> list[str]:
     return fields
 
 
-def is_empty_enrichment_input(data: Any) -> bool:
+def is_empty_enrichment_input(data: object) -> bool:
     """Return whether enrichment input has no records to process."""
     if data is None:
         return True
@@ -47,7 +49,7 @@ def is_empty_enrichment_input(data: Any) -> bool:
     return False
 
 
-def has_enrichment_result_value(value: Any) -> bool:
+def has_enrichment_result_value(value: object) -> bool:
     """Return whether an enrichment result value contains exportable data."""
     if value is None:
         return False
@@ -63,12 +65,13 @@ def has_enrichment_result_value(value: Any) -> bool:
 
 
 def run_crossref_enrichment(
-    data: pd.DataFrame | list[dict] | bytes | str | dict,
+    data: Any,
     crossref_fields: list,
-    format: Literal["dataframe", "json", "xml"] = "json",
+    format: Literal["dataframe", "json", "xml"] = "json",  # noqa: A002
     max_workers: int = 4,
     total_retries: int = 3,
 ) -> tuple[Any, dict | list[dict]]:
+    """Run cross-reference enrichment for all configured endpoint specs."""
     crossref_fields = normalize_crossref_fields(crossref_fields)
     if not crossref_fields:
         log.info("Skipping CrossRef enrichment because no cross-reference fields were requested.")
@@ -80,14 +83,17 @@ def run_crossref_enrichment(
 
     # Process crossref fields
     # Some definitions in crossref_fields may contain the database name and the method separated by underscore
-    # For example, "brenda_getOptimumTemperature" should be processed as "brenda" and use the method "getOptimumTemperature"
-    # Another example is giving only the database name "kegg" which means we should use all available methods for that database
+    # For example, "brenda_getOptimumTemperature" should be processed as "brenda" and use the method
+    # "getOptimumTemperature"
+    # Another example is giving only the database name "kegg" which means we should use all available methods
+    # for that database
     # For this reason we will make a new dictionary containing the databases and their methods
-    # As last thing, some fields definitions will have another underscore after the method name, this will indicate the option to use
+    # As last thing, some fields definitions will have another underscore after the method name, this will
+    # indicate the option to use
     # Example: "brenda_getOptimumTemperature_option1" should be processed as:
-    # {"brenda": [{"method": "getOptimumTemperature", "option": "option1"}]}
+    # {"brenda": [{"method": "getOptimumTemperature", "option": "option1"}]}  # noqa: ERA001
     # Special case: "kegg_all" should be processed as:
-    # {"kegg": [{"method": None, "option": None}]}
+    # {"kegg": [{"method": None, "option": None}]}  # noqa: ERA001
 
     processed_crossref_fields = {}
     for field in crossref_fields:
@@ -113,44 +119,37 @@ def run_crossref_enrichment(
             # Plain database name -> use all methods
             processed_crossref_fields.setdefault(field, []).append({"method": None, "option": None})
 
-    log.info(f"Running crossref enrichment for fields: {crossref_fields}")
+    log.info("Running crossref enrichment for fields: %s", crossref_fields)
     endpoints_config = load_packaged_config("uniprot_crossref", "config_endpoints.yml") or {}
 
     endpoint_specs = []
     # Generate the endpoint specs based on selected crossref fields
     for key, (uniprot_field, db_name) in XREF_MAPPING.items():
         if db_name and db_name in processed_crossref_fields:
-            log.debug(f"Processing crossref field: {key} -> db: {db_name}, uniprot_field: {uniprot_field}")
+            log.debug(
+                "Processing crossref field: %s -> db: %s, uniprot_field: %s", key, db_name, uniprot_field
+            )
             if processed_crossref_fields[db_name] == [{"method": None, "option": None}]:
                 # Use all available methods for this database
-                log.debug(f"Using all available methods for database: {db_name}")
+                log.debug("Using all available methods for database: %s", db_name)
                 endpoint_config = endpoints_config.get(db_name)
                 if not isinstance(endpoint_config, dict):
                     continue
 
                 for ep_name, ep_info in endpoint_config.get("endpoints", {}).items():
                     if ep_info.get("enabled", False):
-                        if "options" in ep_info:
-                            for ep_option in ep_info.get("options", [None]):
-                                endpoint_specs.append(
-                                    EndpointSpec(
-                                        database=db_name,
-                                        endpoint=ep_name,
-                                        option=ep_option,
-                                        params=ep_info.get("params", {}),
-                                    )
-                                )
-                        else:
-                            endpoint_specs.append(
-                                EndpointSpec(
-                                    database=db_name,
-                                    endpoint=ep_name,
-                                    option=None,
-                                    params=ep_info.get("params", {}),
-                                )
+                        options = ep_info.get("options", [None]) if "options" in ep_info else [None]
+                        endpoint_specs.extend(
+                            EndpointSpec(
+                                database=db_name,
+                                endpoint=ep_name,
+                                option=ep_option,
+                                params=ep_info.get("params", {}),
                             )
+                            for ep_option in options
+                        )
             else:
-                log.debug(f"Using specified methods for database: {db_name}")
+                log.debug("Using specified methods for database: %s", db_name)
                 for method in processed_crossref_fields[db_name]:
                     method_name = method["method"]
                     option = method["option"]
@@ -170,10 +169,12 @@ def run_crossref_enrichment(
                         )
                     else:
                         log.warning(
-                            f"Method {method_name} for database {db_name} is not enabled or does not exist in config."
+                            "Method %s for database %s is not enabled or does not exist in config.",
+                            method_name,
+                            db_name,
                         )
 
-    log.debug(f"Final endpoint specs: {endpoint_specs}")
+    log.debug("Final endpoint specs: %s", endpoint_specs)
     if not endpoint_specs:
         log.info("Skipping CrossRef enrichment because no endpoint specs were resolved.")
         return {}, {"skipped": True, "reason": "no_endpoint_specs"}

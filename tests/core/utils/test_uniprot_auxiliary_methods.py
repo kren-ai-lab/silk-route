@@ -34,7 +34,7 @@ def test_extract_ec_numbers_from_real_entry():
 
 
 def test_extract_ec_numbers_non_list_returns_empty():
-    assert extract_ec_numbers(None) == []
+    assert extract_ec_numbers(None) == []  # ty: ignore  # type: ignore[bad-argument-type]
 
 
 def test_extract_gene_names_from_real_entry():
@@ -43,7 +43,7 @@ def test_extract_gene_names_from_real_entry():
 
 
 def test_extract_gene_names_non_list_returns_empty():
-    assert extract_gene_names("nope") == []
+    assert extract_gene_names("nope") == []  # ty: ignore  # type: ignore[bad-argument-type]
 
 
 def test_extract_database_terms_from_reaction_comments():

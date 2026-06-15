@@ -1,3 +1,7 @@
+"""Rhea reaction database API interface."""
+
+from typing import Any, ClassVar
+
 from requests import Request
 from requests.exceptions import RequestException
 from requests.models import Response
@@ -13,9 +17,11 @@ log = get_logger("bioseq_dl.interfaces.rhea")
 
 
 class RheaInterface(BaseAPIInterface):
+    """Rhea reaction database API interface."""
+
     API_NAME = "Rhea"
     DB_CONFIG = RHEA
-    METHODS = {
+    METHODS: ClassVar[dict[str, Any]] = {
         "rhea": {
             "http_method": "GET",
             "path_param": None,
@@ -30,9 +36,12 @@ class RheaInterface(BaseAPIInterface):
         }
     }
 
-    def fetch(self, query: str | dict | list, *, method: str = "rhea", **kwargs):
-        if method not in self.METHODS.keys():
-            log.error(f"Method '{method}' is not supported. Available methods: {list(self.METHODS.keys())}")
+    def fetch(self, query: str | dict | list, *, method: str = "rhea", **kwargs: Any) -> dict | list:
+        """Fetch reaction data from Rhea."""
+        if method not in self.METHODS:
+            log.error(
+                "Method '%s' is not supported. Available methods: %s", method, list(self.METHODS.keys())
+            )
             return {}
 
         http_method, path_param, parameters, inputs = self.initialize_method_parameters(
@@ -42,8 +51,8 @@ class RheaInterface(BaseAPIInterface):
         # Validate and clean parameters
         try:
             validated_params = validate_parameters(inputs, parameters)
-        except ValueError as e:
-            log.error(f"Invalid parameters for method '{method}': {e}")
+        except ValueError:
+            log.exception("Invalid parameters for method '%s'", method)
             return {}
 
         url = f"{RHEA.API_URL}{method}/"
@@ -53,23 +62,25 @@ class RheaInterface(BaseAPIInterface):
 
         req = Request(method=http_method, url=url, params=validated_params)
         prepared = self.session.prepare_request(req)
-        log.debug(f"Prepared request: {prepared.url}")
+        log.debug("Prepared request: %s", prepared.url)
 
         try:
             response = self.session.send(prepared)
             self._delay()
             response.raise_for_status()
+        except RequestException:
+            log.exception("Error fetching prediction for %s", query)
+            return {}
+        else:
             response = response.json()
 
             if "results" in response:
                 response = response["results"]
 
             return response
-        except RequestException as e:
-            log.error(f"Error fetching prediction for {query}: {e}")
-            return {}
 
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs) -> list | dict:
+    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
+        """Parse Rhea response data."""
         if not data:
             return {}
 
