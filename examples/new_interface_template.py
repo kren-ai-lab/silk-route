@@ -69,7 +69,3 @@ class YourDatabaseInterface(BaseAPIInterface):
     def parse(self, data: dict | list, fields_to_extract: list | dict | None, **kwargs: Any) -> dict | list:
         """Parse the API response."""
         return self._extract_fields(data, fields_to_extract)
-
-    def query_usage(self) -> str:
-        """Return a usage example string."""
-        return "Describe how to query YourDatabase here."

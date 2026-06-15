@@ -1,7 +1,4 @@
-"""Offline fetch/parse/cache tests for the InterPro interface.
-
-(Regression for the query_usage NameError bug lives in test_interpro.py.)
-"""
+"""Offline fetch/parse/cache tests for the InterPro interface."""
 
 from __future__ import annotations
 
