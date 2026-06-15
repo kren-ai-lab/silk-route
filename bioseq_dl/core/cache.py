@@ -92,10 +92,7 @@ def _resolver_provider_paths(provider: CacheProvider) -> list[Path]:
         provider_fn = cast("Callable[[], Any]", provider)
         out: list[Path] = []
         try:
-            for p in provider_fn():
-                if p is None:
-                    continue
-                out.append(Path(p))
+            out.extend(Path(p) for p in provider_fn() if p is not None)
         except TypeError:
             # provider() might return a single path (not iterable)
             try:

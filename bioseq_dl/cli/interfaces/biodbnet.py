@@ -35,7 +35,7 @@ def run_db2db(
         help="Output file to save the fetched data.",
     ),
 ) -> None:
-    """Fetch interaction data from BioGRID database."""
+    """Convert identifiers between databases using BioDBnet db2db."""
     instance = BioDBNetInterface()
 
     df, _ = instance.fetch_single(
@@ -65,7 +65,7 @@ def run_pathways(
         help="Output file to save the fetched data.",
     ),
 ) -> None:
-    """Fetch interaction data from BioGRID database."""
+    """Fetch pathway annotations for genes via BioDBnet."""
     instance = BioDBNetInterface()
 
     df, _ = instance.fetch_single(

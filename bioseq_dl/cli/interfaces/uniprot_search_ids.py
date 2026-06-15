@@ -111,7 +111,6 @@ def run(
         extract_fields=None,
         format=cast("Literal['json', 'dataframe', 'xml']", parse_format),
     )
-    print(f"type of export_data: {type(export_data)}")
     metadata["parsing"] = parsed_metadata
 
     enriched_data = None
