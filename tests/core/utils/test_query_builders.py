@@ -41,7 +41,7 @@ def test_build_query_rhea():
 
 def test_build_query_rhea_empty_when_missing():
     builder = get_query_builder("rhea", "rhea")
-    assert builder(pd.Series({"other": "x"}), {}) == []  # ty: ignore[invalid-argument-type]  # dict duck-types pd.Series
+    assert builder(pd.Series({"other": "x"}), {}) == []
 
 
 def test_build_query_biodbnet_db2db_merges_params():
