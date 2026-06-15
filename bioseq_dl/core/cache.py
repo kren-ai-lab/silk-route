@@ -1,42 +1,27 @@
 """Cache registry and clear utility.
 
-This module provides a single, well-documented API to register cache locations
-across the project and to clear them in a safe, flexible way. The goal is to
-allow any module to register one or more cache providers (static paths, runtime
-callables or DBConfig objects) and then let callers clear caches using a single
-`clear_cache` function without hardcoding paths in command handlers.
+This module maps cache names to directories and clears them safely. Each
+``DBConfig`` cache directory from ``bioseq_dl.constants.databases`` is registered
+automatically at import; callers can register extra paths with ``register_cache``
+and clear them with a single ``clear_cache`` call instead of hardcoding paths.
 
 API:
-- register_cache(name: str, provider)
-- list_caches() -> dict
+- register_cache(name: str, path: str | Path)
+- list_caches() -> dict[str, Path]
 - clear_cache(selected_names=None, *, dry_run=False, older_than_days=None, empty=False, pattern=None,
   allowed_bases=None)
 
-Provider types supported:
-- str or pathlib.Path -> a single path
-- callable() -> yields/returns an iterable of path-like objects
-- objects with attribute `CACHE_DIR` (e.g. DBConfig instances from dbconfig)
-
 Behavior and safety:
-- At import time the module will attempt to auto-register caches found in
-  `bioseq_dl.constants.databases` by looking for attributes that have a
-  `CACHE_DIR` attribute. This keeps defaults centralized and prevents
-  duplication.
 - `clear_cache` validates that each resolved path is inside one of the
-  `allowed_bases` (by default the module gathers known cache base dirs from the
-  registered providers and from constants). Use `dry_run=True` to preview what
-  would be removed.
-- If removal of a path fails the function logs the error but continues with
-  other entries.
+  `allowed_bases` (by default the registered paths plus the cache dirs from
+  constants). Use `dry_run=True` to preview what would be removed.
+- If removal of a path fails the function logs the error and continues.
 
 Example:
     from bioseq_dl.core.cache import clear_cache, register_cache
 
-    # register dynamic provider (e.g. per-run temporary dir)
-    register_cache('my_tmp', lambda: ["/tmp/my-run-cache"])
-
-    # clear everything registered (dry-run first)
-    clear_cache(dry_run=True)
+    register_cache("my_tmp", "/tmp/my-run-cache")
+    clear_cache(dry_run=True)  # preview
     clear_cache()
 
 """
@@ -46,66 +31,27 @@ from __future__ import annotations
 import logging
 import shutil
 import time
-from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Any, cast
 
 from bioseq_dl.constants import databases as db_consts
 
 _logger = logging.getLogger(__name__)
 
-CacheProvider = str | Path | Callable[[], Iterable[str | Path]] | object
-
-_CACHE_REGISTRY: dict[str, CacheProvider] = {}
+_CACHE_REGISTRY: dict[str, Path] = {}
 
 
-def register_cache(name: str, provider: CacheProvider) -> None:
-    """Register a cache provider under `name`.
+def register_cache(name: str, path: str | Path) -> None:
+    """Register a cache directory under `name`.
 
-    The provider may be:
-      - a path string or Path object
-      - a callable returning an iterable of paths
-      - an object exposing a `CACHE_DIR` attribute (e.g. DBConfig)
-
-    Registering will overwrite any previous provider with the same name.
+    ``path`` is a filesystem path (str or Path). Registering overwrites any
+    previous entry with the same name.
     """
-    _CACHE_REGISTRY[name] = provider
+    _CACHE_REGISTRY[name] = Path(path)
 
 
-def list_caches() -> dict[str, CacheProvider]:
+def list_caches() -> dict[str, Path]:
     """Return a shallow copy of the cache registry."""
     return dict(_CACHE_REGISTRY)
-
-
-def _resolver_provider_paths(provider: CacheProvider) -> list[Path]:
-    """Resolve a provider into a list of Path objects."""
-    if provider is None:
-        return []
-    # DBConfig-like object with CACHE_DIR attribute
-    if hasattr(provider, "CACHE_DIR"):
-        c: Any = getattr(provider, "CACHE_DIR", None)
-        if c:
-            return [Path(c)]
-        return []
-    # callable
-    if callable(provider):
-        provider_fn = cast("Callable[[], Any]", provider)
-        out: list[Path] = []
-        try:
-            out.extend(Path(p) for p in provider_fn() if p is not None)
-        except TypeError:
-            # provider() might return a single path (not iterable)
-            try:
-                single = provider_fn()
-                if single is not None:
-                    out.append(Path(single))
-            except Exception:
-                _logger.exception("Provider callable raised an exception")
-        except Exception:
-            _logger.exception("Provider callable raised an exception")
-        return out
-    # string / Path-like
-    return [Path(cast("str | Path", provider))]
 
 
 def _is_within_allowed_bases(path: Path, allowed_bases: list[Path]) -> bool:
@@ -143,7 +89,7 @@ def _is_empty_file(file_path: Path) -> bool:
 
 
 def _default_allowed_bases() -> list[Path]:
-    """Build the safe-to-delete base dirs from constants and registered providers."""
+    """Build the safe-to-delete base dirs from constants and the registry."""
     bases: list[Path] = []
     base_cache = getattr(db_consts, "BASE_CACHE_DIR", None)
     if base_cache:
@@ -152,25 +98,19 @@ def _default_allowed_bases() -> list[Path]:
         cd = getattr(v, "CACHE_DIR", None)
         if cd:
             bases.append(Path(cd))
-    for provider in _CACHE_REGISTRY.values():
-        bases.extend(_resolver_provider_paths(provider))
+    bases.extend(_CACHE_REGISTRY.values())
     return list(dict.fromkeys(p.resolve() for p in bases))
 
 
-def _expand_targets(provider: CacheProvider, pattern: str | None) -> list[Path]:
-    """Resolve a provider to concrete paths, expanding `pattern` as a glob if given."""
-    targets: list[Path] = []
-    for p in _resolver_provider_paths(provider):
-        if not p:
-            continue
-        if pattern:
-            try:
-                targets.extend(p.glob(pattern))
-            except Exception:
-                _logger.exception("Error globbing pattern %s under %s", pattern, p)
-        else:
-            targets.append(p)
-    return targets
+def _expand_targets(path: Path, pattern: str | None) -> list[Path]:
+    """Return the path itself, or its `pattern` glob matches when given."""
+    if not pattern:
+        return [path]
+    try:
+        return list(path.glob(pattern))
+    except OSError:
+        _logger.exception("Error globbing pattern %s under %s", pattern, path)
+        return []
 
 
 def _delete_target(
@@ -240,13 +180,13 @@ def clear_cache(
 
     report: dict[str, list[str]] = {}
     for name in names:
-        provider = _CACHE_REGISTRY.get(name)
-        if provider is None:
+        cache_path = _CACHE_REGISTRY.get(name)
+        if cache_path is None:
             _logger.warning("Cache name '%s' not registered; skipping", name)
             continue
 
         removed: list[str] = []
-        for path in _expand_targets(provider, pattern):
+        for path in _expand_targets(cache_path, pattern):
             try:
                 removed.extend(
                     _delete_target(
@@ -260,17 +200,14 @@ def clear_cache(
     return report
 
 
-# Initialize default registrations by scanning constants/databases for DBConfig-like objects
+# Register each DBConfig's cache directory found in constants/databases.
 def _init_defaults() -> None:
     for k, v in vars(db_consts).items():
-        # skip private names
         if k.startswith("_"):
             continue
-        # pick up objects that expose CACHE_DIR
-        if hasattr(v, "CACHE_DIR"):
-            cd = v.CACHE_DIR
-            if cd:
-                register_cache(k.lower(), v)
+        cache_dir = getattr(v, "CACHE_DIR", None)
+        if cache_dir:
+            register_cache(k.lower(), cache_dir)
 
 
 _init_defaults()

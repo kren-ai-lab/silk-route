@@ -35,7 +35,7 @@ def list_registered(
         raise typer.Exit
     log.info("Registered caches:")
     for k, v in regs.items():
-        log.info("  %s -> %s", k, getattr(v, "CACHE_DIR", v))
+        log.info("  %s -> %s", k, v)
 
 
 @app.command("clear")
@@ -80,7 +80,7 @@ def clear(
             raise typer.Exit
         log.info("Registered caches:")
         for k, v in regs.items():
-            log.info("  %s -> %s", k, getattr(v, "CACHE_DIR", v))
+            log.info("  %s -> %s", k, v)
         raise typer.Exit
 
     if cache_names and clear_all:
