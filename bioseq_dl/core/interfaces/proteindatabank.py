@@ -4,10 +4,10 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, ClassVar
 
+import niquests
 import pandas as pd
-import requests
-from requests import Request
-from requests.exceptions import RequestException
+from niquests import Request
+from niquests.exceptions import RequestException
 
 from bioseq_dl.constants.databases import PDB
 from bioseq_dl.core.interfacesconfig import load_packaged_config
@@ -159,9 +159,9 @@ class PDBInterface(BaseAPIInterface):
             response.raise_for_status()
             file_path = Path(self.output_dir) / f"{pdb_id}.{file_format}"
             with file_path.open("wb") as f:
-                f.write(response.content)
+                f.write(response.content or b"")
             return str(file_path)
-        except requests.exceptions.RequestException:
+        except niquests.exceptions.RequestException:
             log.exception("Error downloading structure for %s", pdb_id)
             return ""
 

@@ -2,8 +2,8 @@
 
 from typing import Any, ClassVar
 
-from requests import Request
-from requests.exceptions import RequestException
+from niquests import Request
+from niquests.exceptions import RequestException
 
 from bioseq_dl.constants.databases import STRING
 from bioseq_dl.constants.stringdb import METHOD_FORMATS

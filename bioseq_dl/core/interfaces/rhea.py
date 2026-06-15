@@ -2,9 +2,9 @@
 
 from typing import Any, ClassVar
 
-from requests import Request
-from requests.exceptions import RequestException
-from requests.models import Response
+from niquests import Request
+from niquests.exceptions import RequestException
+from niquests.models import Response
 
 # Add the import for your database in constants
 from bioseq_dl.constants.databases import RHEA

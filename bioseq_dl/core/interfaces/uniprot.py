@@ -10,8 +10,8 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 from urllib.parse import parse_qs, urlencode, urlparse
 
+import niquests
 import pandas as pd
-import requests
 
 from bioseq_dl.constants.databases import DATABASES, UNIPROT
 from bioseq_dl.core.exceptions import RequestError
@@ -121,18 +121,18 @@ class UniprotInterface(BaseAPIInterface):
             "keyword": ("keywords", extract_keywords),
         }
 
-    def check_response(self, response: requests.Response) -> None:
+    def check_response(self, response: niquests.Response) -> None:
         """Check for HTTP errors in a UniProt response and re-raise if present."""
         try:
             response.raise_for_status()
-        except requests.HTTPError:
+        except niquests.HTTPError:
             log.exception("HTTP error occurred: %s - %s", response.status_code, response.text)
             log.exception("Response JSON: %s", response.json())
             raise
 
     def submit_id_mapping(self, from_db: str, to_db: str, ids: list) -> str:
         """Submit an ID mapping job and return the job ID."""
-        request = requests.post(
+        request = niquests.post(
             f"{API_URL}/idmapping/run",
             data={"from": from_db, "to": to_db, "ids": ",".join(ids)},
             timeout=self.timeout,
@@ -157,10 +157,11 @@ class UniprotInterface(BaseAPIInterface):
             return all_results + batch_results
         return all_results
 
-    def decode_results(self, response: requests.Response, file_format: str, compressed: bool) -> Any:
+    def decode_results(self, response: niquests.Response, file_format: str, compressed: bool) -> Any:
         """Decode a UniProt API response into JSON, XML, or plain text."""
+        content = response.content or b""
         if compressed:
-            decompressed = zlib.decompress(response.content, 16 + zlib.MAX_WBITS)
+            decompressed = zlib.decompress(content, 16 + zlib.MAX_WBITS)
             if file_format == "json":
                 return json.loads(decompressed.decode("utf-8"))
             if file_format == "tsv":
@@ -170,15 +171,16 @@ class UniprotInterface(BaseAPIInterface):
             if file_format == "xml":
                 return [decompressed.decode("utf-8")]
             return decompressed.decode("utf-8")
+        text = response.text or ""
         if file_format == "json":
             return response.json()
         if file_format == "tsv":
-            return [line for line in response.text.split("\n") if line]
+            return [line for line in text.split("\n") if line]
         if file_format == "xlsx":
-            return [response.content]
+            return [content]
         if file_format == "xml":
-            return [response.text]
-        return response.text
+            return [text]
+        return text
 
     def get_xml_namespace(self, element: ET.Element) -> str:
         """Extract the XML namespace from an element tag."""
@@ -237,7 +239,7 @@ class UniprotInterface(BaseAPIInterface):
         return None
 
     def get_batch(
-        self, batch_response: requests.Response, file_format: str, compressed: bool
+        self, batch_response: niquests.Response, file_format: str, compressed: bool
     ) -> Iterator[Any]:
         """Yield decoded result batches following pagination links."""
         batch_url = self.get_next_link(batch_response.headers)
@@ -422,15 +424,15 @@ class UniprotInterface(BaseAPIInterface):
             timeout (float, optional): Request timeout in seconds. Defaults to the interface timeout.
 
         Returns:
-            requests.Response: The response object.
+            niquests.Response: The response object.
 
         """
         parameters = {
             "query": query,
             "fields": fields,
             "sort": sort,
-            "includeIsoform": include_isoform,
-            "download": download,
+            "includeIsoform": str(include_isoform),
+            "download": str(download),
             "format": "json",
         }
         metadata: dict[str, Any] = {}
@@ -457,7 +459,7 @@ class UniprotInterface(BaseAPIInterface):
                     effective_timeout,
                     started_at,
                 )
-                response = requests.get(
+                response = niquests.get(
                     f"{API_URL}/{method}/stream",
                     params=parameters,
                     headers=headers,
@@ -469,7 +471,9 @@ class UniprotInterface(BaseAPIInterface):
                 elapsed_seconds = time_finished - time_started
                 size_header = response.headers.get("Content-Length")
                 response_size_bytes = (
-                    int(size_header) if size_header and size_header.isdigit() else len(response.content)
+                    int(size_header)
+                    if size_header and size_header.isdigit()
+                    else len(response.content or b"")
                 )
                 payload = response.json()
                 results_count = 0
@@ -509,7 +513,7 @@ class UniprotInterface(BaseAPIInterface):
                     "download": download,
                     "timeout_seconds": effective_timeout,
                 }
-            except requests.exceptions.Timeout as e:
+            except niquests.exceptions.Timeout as e:
                 if attempt < self.total_retries - 1:
                     log.warning(
                         "UniProt stream request timed out after %ss on attempt %s/%s. Retrying...",
@@ -526,7 +530,7 @@ class UniprotInterface(BaseAPIInterface):
                     )
                     log.exception(message)
                     raise TimeoutError(message) from e
-            except requests.exceptions.RequestException as e:
+            except niquests.exceptions.RequestException as e:
                 if attempt < self.total_retries - 1:
                     log.info("Attempt %s failed: %s. Retrying...", attempt + 1, e)
                     time.sleep(POLLING_INTERVAL)

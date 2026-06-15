@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import Any, ClassVar, Literal
 
 import pandas as pd
-from requests import Request
-from requests.exceptions import RequestException
+from niquests import Request
+from niquests.exceptions import RequestException
 
 from bioseq_dl.constants.databases import ALPHAFOLD
 from bioseq_dl.core.export import export_dataframe

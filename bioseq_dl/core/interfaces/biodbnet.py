@@ -2,8 +2,8 @@
 
 from typing import Any, ClassVar
 
-from requests import Request
-from requests.exceptions import RequestException
+from niquests import Request
+from niquests.exceptions import RequestException
 
 from bioseq_dl.constants.databases import BIODBNET
 from bioseq_dl.logging import get_logger
@@ -92,7 +92,7 @@ class BioDBNetInterface(BaseAPIInterface):
         if not isinstance(data, (dict, list)):
             log.error(
                 "Tried to parse data but the type is not supported. Response should be a dict or a "
-                "requests.Response "
+                "niquests.Response "
                 "object."
             )
             return {}

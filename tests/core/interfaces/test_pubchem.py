@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-import responses
+from niquests_mock import startswith
 
 from bioseq_dl.core.interfaces.pubchem import PubChemInterface
 from tests._helpers import load_fixture
@@ -19,15 +19,15 @@ def interface(tmp_path):
     )
 
 
-def test_fetch_builds_url_and_returns_record(interface, mocked_responses):
+def test_fetch_builds_url_and_returns_record(interface, niquests_mock):
     body = load_fixture("pubchem", "pug_view_compound")
-    mocked_responses.add(responses.GET, COMPOUND_URL, json=body, status=200)
+    niquests_mock.get(url=startswith(COMPOUND_URL)).respond(status_code=200, json=body)
 
     result = interface.fetch({"cid": "444444"}, method="pug_view/compound", option="default")
 
     assert result == body
-    assert len(mocked_responses.calls) == 1
-    assert mocked_responses.calls[0].request.url == COMPOUND_URL
+    assert len(niquests_mock.calls) == 1
+    assert niquests_mock.calls[0].request.url == COMPOUND_URL
 
 
 def test_parse_extracts_requested_fields(interface):
@@ -39,13 +39,13 @@ def test_parse_extracts_requested_fields(interface):
     assert parsed == {"title": body["Record"]["RecordTitle"]}
 
 
-def test_fetch_single_round_trips_through_cache(interface, mocked_responses):
+def test_fetch_single_round_trips_through_cache(interface, niquests_mock):
     body = load_fixture("pubchem", "pug_view_compound")
-    mocked_responses.add(responses.GET, COMPOUND_URL, json=body, status=200)
+    niquests_mock.get(url=startswith(COMPOUND_URL)).respond(status_code=200, json=body)
 
     query = {"cid": "444444"}
     first, _ = interface.fetch_single(query, method="pug_view/compound", option="default")
     second, _ = interface.fetch_single(query, method="pug_view/compound", option="default")
 
-    assert len(mocked_responses.calls) == 1
+    assert len(niquests_mock.calls) == 1
     assert first == second

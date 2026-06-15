@@ -6,8 +6,8 @@ from collections.abc import Sequence
 from typing import Any, ClassVar
 
 import pandas as pd
-from requests import Request, Response
-from requests.exceptions import RequestException
+from niquests import Request, Response
+from niquests.exceptions import RequestException
 
 # Add the import for your database in constants
 from bioseq_dl.constants.databases import PUBCHEM
@@ -330,7 +330,7 @@ class PubChemInterface(BaseAPIInterface):
         elif not isinstance(data, dict):
             log.error(
                 "Tried to parse data but the type is not supported. Response should be a dict or a "
-                "requests.Response "
+                "niquests.Response "
                 "object."
             )
             return {}

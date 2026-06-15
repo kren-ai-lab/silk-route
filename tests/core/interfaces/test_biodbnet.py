@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-import responses
+from niquests_mock import startswith
 
 from bioseq_dl.core.interfaces.biodbnet import BioDBNetInterface
 from tests._helpers import load_fixture
@@ -18,15 +18,15 @@ def interface(tmp_path):
     )
 
 
-def test_fetch_builds_url_and_returns_pathways(interface, mocked_responses):
+def test_fetch_builds_url_and_returns_pathways(interface, niquests_mock):
     body = load_fixture("biodbnet", "getpathways")
-    mocked_responses.add(responses.GET, API_URL, json=body, status=200)
+    niquests_mock.get(url=startswith(API_URL)).respond(status_code=200, json=body)
 
     result = interface.fetch({"pathways": "1", "taxonId": "511145"}, method="getpathways")
 
     assert result == body
-    assert len(mocked_responses.calls) == 1
-    sent = mocked_responses.calls[0].request.url
+    assert len(niquests_mock.calls) == 1
+    sent = niquests_mock.calls[0].request.url
     assert sent.startswith(API_URL)
     assert "method=getpathways" in sent
     assert "taxonId=511145" in sent
@@ -39,13 +39,13 @@ def test_parse_extracts_requested_fields(interface):
     assert parsed == {k: body[0][k] for k in ("Name", "Source_Database")}
 
 
-def test_fetch_single_round_trips_through_cache(interface, mocked_responses):
+def test_fetch_single_round_trips_through_cache(interface, niquests_mock):
     body = load_fixture("biodbnet", "getpathways")
-    mocked_responses.add(responses.GET, API_URL, json=body, status=200)
+    niquests_mock.get(url=startswith(API_URL)).respond(status_code=200, json=body)
 
     query = {"pathways": "1", "taxonId": "511145"}
     first, _ = interface.fetch_single(query, method="getpathways")
     second, _ = interface.fetch_single(query, method="getpathways")
 
-    assert len(mocked_responses.calls) == 1
+    assert len(niquests_mock.calls) == 1
     assert first == second

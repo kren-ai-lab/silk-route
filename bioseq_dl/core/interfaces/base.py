@@ -16,12 +16,12 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
+import niquests
 import pandas as pd
-import requests
 from dicttoxml import dicttoxml
-from requests.adapters import HTTPAdapter, Retry
-from requests.exceptions import RequestException
-from requests.models import Request, Response
+from niquests.adapters import HTTPAdapter, Retry
+from niquests.exceptions import RequestException
+from niquests.models import Request, Response
 
 from bioseq_dl.core.dbconfig import DBConfig
 from bioseq_dl.core.exceptions import RequestError
@@ -156,7 +156,7 @@ class BaseAPIInterface(ABC):
         Path(self.cache_dir).mkdir(parents=True, exist_ok=True)
 
         # Init session
-        self.session = requests.Session()
+        self.session = niquests.Session()
         retries = Retry(total=self.total_retries, backoff_factor=0.25, status_forcelist=[500, 502, 503, 504])
         adapter = HTTPAdapter(max_retries=retries)
         self.session.mount("https://", adapter)

@@ -3,7 +3,7 @@
 import re
 from typing import Any, ClassVar
 
-import requests
+import niquests
 
 from bioseq_dl.constants.databases import KEGG
 from bioseq_dl.constants.kegg import DATABASES, METHOD_OPTIONS
@@ -170,8 +170,9 @@ class KEGGInterface(BaseAPIInterface):
                 log.warning("No response or invalid response for query %s with method %s.", query, method)
                 return {}
 
+            text = response.text or ""
             if method == "get":
-                r = response.text.strip()
+                r = text.strip()
                 if r and "///" in r:
                     # Split entries by "///" and remove the last empty entry
                     r = r.split("\n///\n\n")
@@ -179,21 +180,19 @@ class KEGGInterface(BaseAPIInterface):
                 else:
                     r = r.split("\n")
             elif method == "link":
-                r = response.text
                 r = [
                     {"from": line.split("\t")[0], validated_params["db"]: line.split("\t")[1]}
-                    for line in r.split("\n")
+                    for line in text.split("\n")
                     if line
                 ]
             elif method == "pathways":
-                link_response = response.text
-                link_response = [line.split("\t")[1] for line in link_response.split("\n") if line]
+                link_response = [line.split("\t")[1] for line in text.split("\n") if line]
                 r = self.fetch(
                     query=link_response,
                     method="get",
                 )
 
-        except requests.exceptions.RequestException:
+        except niquests.exceptions.RequestException:
             log.exception("Error fetching data for %s with method %s", query, method)
             return {}
         else:

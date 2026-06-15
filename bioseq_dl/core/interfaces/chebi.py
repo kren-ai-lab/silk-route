@@ -4,9 +4,9 @@ import json
 from typing import Any, ClassVar
 from urllib.parse import quote
 
-from requests import Request
-from requests.exceptions import RequestException
-from requests.models import Response
+from niquests import Request
+from niquests.exceptions import RequestException
+from niquests.models import Response
 
 from bioseq_dl.constants.databases import CHEBI
 from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
@@ -124,7 +124,7 @@ class ChEBIInterface(BaseAPIInterface):
             self._delay()
             response.raise_for_status()
             try:
-                response = json.loads(response.text)
+                response = json.loads(response.text or "")
             except json.JSONDecodeError:
                 log.exception(
                     "Failed to decode JSON response for method '%s' with query '%s'. Response text: %s",
@@ -159,7 +159,7 @@ class ChEBIInterface(BaseAPIInterface):
         elif not isinstance(data, dict):
             log.error(
                 "Tried to parse data but the type is not supported. Response should be a dict or a "
-                "requests.Response "
+                "niquests.Response "
                 "object."
             )
             return {}

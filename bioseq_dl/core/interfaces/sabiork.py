@@ -3,8 +3,8 @@
 from pathlib import Path
 from typing import Any, ClassVar
 
-import requests
-from requests import Request
+import niquests
+from niquests import Request
 
 from bioseq_dl.constants.databases import SABIORK
 from bioseq_dl.core.interfaces.base import BaseAPIInterface
@@ -99,14 +99,14 @@ class SabiorkInterface(BaseAPIInterface):
             response.raise_for_status()
 
             if method == "kineticlawsExportTsv":
-                results = [line.split("\t") for line in response.text.strip().split("\n")]
+                results = [line.split("\t") for line in (response.text or "").strip().split("\n")]
                 return [{results[0][i]: row[i] for i in range(len(results[0]))} for row in results[1:]]
 
-        except requests.exceptions.RequestException:
+        except niquests.exceptions.RequestException:
             log.exception("Error fetching prediction for %s", query)
             return {}
         else:
-            return response.text
+            return response.text or ""
 
     def parse(self, data: list | dict, fields_to_extract: list | dict | None, **_kwargs: Any) -> list | dict:
         """Parse SABIO-RK response data."""
