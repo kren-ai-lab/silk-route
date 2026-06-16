@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-import responses
+from niquests_mock import startswith
 
 from bioseq_dl.core.interfaces.interpro import InterproInterface
 from tests._helpers import load_fixture
@@ -18,16 +18,16 @@ def interface(tmp_path):
     )
 
 
-def test_fetch_builds_url_and_wraps_in_list(interface, mocked_responses):
+def test_fetch_builds_url_and_wraps_in_list(interface, niquests_mock):
     body = load_fixture("interpro", "entry")
-    mocked_responses.add(responses.GET, ENTRY_URL, json=body, status=200)
+    niquests_mock.get(url=startswith(ENTRY_URL)).respond(status_code=200, json=body)
 
     result = interface.fetch({"db": "InterPro", "id": "IPR000001"}, method="entry")
 
     # fetch_pages wraps a non-paginated single response in a list.
     assert result == [body]
-    assert len(mocked_responses.calls) == 1
-    assert mocked_responses.calls[0].request.url == ENTRY_URL
+    assert len(niquests_mock.calls) == 1
+    assert niquests_mock.calls[0].request.url == ENTRY_URL
 
 
 def test_parse_extracts_requested_fields(interface):
@@ -39,13 +39,13 @@ def test_parse_extracts_requested_fields(interface):
     assert parsed == {"accession": "IPR000001", "type": "domain"}
 
 
-def test_fetch_single_round_trips_through_cache(interface, mocked_responses):
+def test_fetch_single_round_trips_through_cache(interface, niquests_mock):
     body = load_fixture("interpro", "entry")
-    mocked_responses.add(responses.GET, ENTRY_URL, json=body, status=200)
+    niquests_mock.get(url=startswith(ENTRY_URL)).respond(status_code=200, json=body)
 
     query = {"db": "InterPro", "id": "IPR000001"}
     first, _ = interface.fetch_single(query, method="entry")
     second, _ = interface.fetch_single(query, method="entry")
 
-    assert len(mocked_responses.calls) == 1
+    assert len(niquests_mock.calls) == 1
     assert first == second

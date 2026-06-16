@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-import responses
+from niquests_mock import startswith
 
 from bioseq_dl.core.interfaces.pathwaycommons import PathwayCommonsInterface
 from tests._helpers import load_fixture
@@ -18,15 +18,15 @@ def interface(tmp_path):
     )
 
 
-def test_fetch_unwraps_graph(interface, mocked_responses):
+def test_fetch_unwraps_graph(interface, niquests_mock):
     body = load_fixture("pathwaycommons", "fetch")
-    mocked_responses.add(responses.POST, FETCH_URL, json=body, status=200)
+    niquests_mock.post(url=startswith(FETCH_URL)).respond(status_code=200, json=body)
 
     result = interface.fetch({"uri": ["uniprot:P04637"]}, method="fetch")
 
     # fetch unwraps the JSON-LD "@graph" envelope.
     assert result == body["@graph"]
-    assert len(mocked_responses.calls) == 1
+    assert len(niquests_mock.calls) == 1
 
 
 def test_parse_extracts_requested_fields(interface):
@@ -37,13 +37,13 @@ def test_parse_extracts_requested_fields(interface):
     assert parsed == {k: record[k] for k in ("@id", "@type")}
 
 
-def test_fetch_single_round_trips_through_cache(interface, mocked_responses):
+def test_fetch_single_round_trips_through_cache(interface, niquests_mock):
     body = load_fixture("pathwaycommons", "fetch")
-    mocked_responses.add(responses.POST, FETCH_URL, json=body, status=200)
+    niquests_mock.post(url=startswith(FETCH_URL)).respond(status_code=200, json=body)
 
     query = {"uri": ["uniprot:P04637"]}
     first, _ = interface.fetch_single(query, method="fetch")
     second, _ = interface.fetch_single(query, method="fetch")
 
-    assert len(mocked_responses.calls) == 1
+    assert len(niquests_mock.calls) == 1
     assert first == second

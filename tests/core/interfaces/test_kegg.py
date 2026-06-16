@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-import responses
+from niquests_mock import startswith
 
 from bioseq_dl.core.interfaces.kegg import KEGGInterface
 from tests._helpers import load_fixture
@@ -18,9 +18,9 @@ def interface(tmp_path):
     )
 
 
-def test_fetch_splits_flatfile_entries(interface, mocked_responses):
+def test_fetch_splits_flatfile_entries(interface, niquests_mock):
     text = load_fixture("kegg", "get")
-    mocked_responses.add(responses.GET, GET_URL, body=text, status=200)
+    niquests_mock.get(url=startswith(GET_URL)).respond(status_code=200, text=text)
 
     result = interface.fetch({"entries": "hsa:10458"}, method="get")
 
@@ -29,7 +29,7 @@ def test_fetch_splits_flatfile_entries(interface, mocked_responses):
     assert len(result) == 1
     assert result[0].startswith("ENTRY")
     assert "///" not in result[0]
-    assert mocked_responses.calls[0].request.url == GET_URL
+    assert niquests_mock.calls[0].request.url == GET_URL
 
 
 def test_parse_builds_keyed_entry(interface):
@@ -42,12 +42,12 @@ def test_parse_builds_keyed_entry(interface):
     assert "NAME" in parsed
 
 
-def test_fetch_single_round_trips_through_cache(interface, mocked_responses):
+def test_fetch_single_round_trips_through_cache(interface, niquests_mock):
     text = load_fixture("kegg", "get")
-    mocked_responses.add(responses.GET, GET_URL, body=text, status=200)
+    niquests_mock.get(url=startswith(GET_URL)).respond(status_code=200, text=text)
 
     first, _ = interface.fetch_single({"entries": "hsa:10458"}, method="get")
     second, _ = interface.fetch_single({"entries": "hsa:10458"}, method="get")
 
-    assert len(mocked_responses.calls) == 1
+    assert len(niquests_mock.calls) == 1
     assert first == second

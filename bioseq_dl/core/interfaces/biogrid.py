@@ -2,7 +2,7 @@
 
 from typing import Any, ClassVar
 
-import requests
+import niquests
 
 from bioseq_dl.constants.databases import BIOGRID
 from bioseq_dl.core.credentials import is_valid_secret, load_environment_files, resolve_secret
@@ -119,7 +119,7 @@ class BioGRIDInterface(BaseAPIInterface):
             raise ValueError(msg)
 
         response = super()._do_request(query, method=method, api_url=BIOGRID.API_URL, **kwargs)
-        response = response.json() if isinstance(response, requests.models.Response) else response
+        response = response.json() if isinstance(response, niquests.models.Response) else response
         match method:
             case "interactions":
                 # Special case for BioGRID
@@ -149,12 +149,12 @@ class BioGRIDInterface(BaseAPIInterface):
             log.warning("Tried to parse data but the data is empty or None.")
             return {}
 
-        if isinstance(data, requests.models.Response):
+        if isinstance(data, niquests.models.Response):
             data = data.json()
         elif not isinstance(data, (dict, list)):
             log.error(
                 "Tried to parse data but the type is not supported. Response should be a dict or a "
-                "requests.Response "
+                "niquests.Response "
                 "object."
             )
             return {}

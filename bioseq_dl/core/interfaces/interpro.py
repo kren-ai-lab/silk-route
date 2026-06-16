@@ -3,7 +3,7 @@
 from http import HTTPStatus
 from typing import Any, ClassVar
 
-import requests
+import niquests
 
 from bioseq_dl.constants.databases import INTERPRO
 from bioseq_dl.constants.interpro import db_types, entry_integration_types, filter_types
@@ -150,7 +150,7 @@ class InterproInterface(BaseAPIInterface):
                 if next_page:
                     responses.extend(next_page)
 
-        except requests.exceptions.RequestException:
+        except niquests.exceptions.RequestException:
             log.exception("Error fetching next page for method %s", method)
             return {}
         else:

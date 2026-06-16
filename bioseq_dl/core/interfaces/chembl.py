@@ -5,7 +5,7 @@ from http import HTTPStatus
 from typing import Any, ClassVar
 from urllib.parse import urlencode
 
-import requests
+import niquests
 
 from bioseq_dl.constants.databases import CHEMBL
 from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
@@ -332,7 +332,7 @@ class ChEMBLInterface(BaseAPIInterface):
                     break
 
                 data = response.json()
-            except requests.exceptions.RequestException:
+            except niquests.exceptions.RequestException:
                 log.exception("Error fetching page for method %s", method)
                 break
 
@@ -530,7 +530,7 @@ class ChEMBLInterface(BaseAPIInterface):
             log.warning("Tried to parse data but the data is empty or None.")
             return {}
 
-        if isinstance(data, requests.models.Response):
+        if isinstance(data, niquests.models.Response):
             data = data.json()
         elif not isinstance(data, (dict, list)):
             log.error(

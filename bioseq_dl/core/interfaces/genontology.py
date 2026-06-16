@@ -4,10 +4,10 @@ from collections.abc import Sequence
 from http import HTTPStatus
 from typing import Any, ClassVar
 
+import niquests
 import pandas as pd
-import requests
-from requests import Request
-from requests.exceptions import RequestException
+from niquests import Request
+from niquests.exceptions import RequestException
 
 from bioseq_dl.constants.databases import GENONTOLOGY
 from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
@@ -144,12 +144,12 @@ class GenOntologyInterface(BaseAPIInterface):
             log.warning("Tried to parse data but the data is empty or None.")
             return {}
 
-        if isinstance(data, requests.models.Response):
+        if isinstance(data, niquests.models.Response):
             data = data.json()
         elif not isinstance(data, dict):
             log.error(
                 "Tried to parse data but the type is not supported. Response should be a dict or a "
-                "requests.Response "
+                "niquests.Response "
                 "object."
             )
             return {}
@@ -177,7 +177,7 @@ class GenOntologyInterface(BaseAPIInterface):
         try:
             rel_response = self.fetch(method="ontology-term", query=parsed.get("goid", ""), option="graph")
             if (
-                isinstance(rel_response, requests.models.Response)
+                isinstance(rel_response, niquests.models.Response)
                 and rel_response.status_code == HTTPStatus.OK
             ):
                 graph_json = rel_response.json()

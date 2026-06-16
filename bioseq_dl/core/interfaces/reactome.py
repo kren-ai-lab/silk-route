@@ -2,7 +2,7 @@
 
 from typing import Any, ClassVar
 
-import requests
+import niquests
 
 from bioseq_dl.constants.databases import REACTOME
 from bioseq_dl.constants.reactome import methods
@@ -125,7 +125,7 @@ class ReactomeInterface(BaseAPIInterface):
             self._delay()
             response.raise_for_status()
             return response.json()
-        except requests.exceptions.RequestException:
+        except niquests.exceptions.RequestException:
             log.exception("Error fetching prediction for %s", query)
             return {}
 

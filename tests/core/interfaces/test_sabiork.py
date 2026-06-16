@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-import responses
+from niquests_mock import startswith
 
 from bioseq_dl.core.interfaces.sabiork import SabiorkInterface
 from tests._helpers import load_fixture
@@ -18,9 +18,9 @@ def interface(tmp_path):
     )
 
 
-def test_fetch_parses_tsv_into_records(interface, mocked_responses):
+def test_fetch_parses_tsv_into_records(interface, niquests_mock):
     text = load_fixture("sabiork", "kineticlaws")
-    mocked_responses.add(responses.POST, EXPORT_URL, body=text, status=200)
+    niquests_mock.post(url=startswith(EXPORT_URL)).respond(status_code=200, text=text)
 
     result = interface.fetch({"UniProtKB_AC": "P00330"}, method="kineticlaws")
 
@@ -28,7 +28,7 @@ def test_fetch_parses_tsv_into_records(interface, mocked_responses):
     assert result  # at least one kinetic-law row
     assert result[0]["EntryID"]
     assert "UniprotID" in result[0]
-    assert mocked_responses.calls[0].request.url.startswith(EXPORT_URL)
+    assert niquests_mock.calls[0].request.url.startswith(EXPORT_URL)
 
 
 def test_parse_extracts_requested_fields(interface):
@@ -38,13 +38,13 @@ def test_parse_extracts_requested_fields(interface):
     assert parsed == {"EntryID": "12345", "ECNumber": "1.1.1.1"}
 
 
-def test_fetch_single_round_trips_through_cache(interface, mocked_responses):
+def test_fetch_single_round_trips_through_cache(interface, niquests_mock):
     text = load_fixture("sabiork", "kineticlaws")
-    mocked_responses.add(responses.POST, EXPORT_URL, body=text, status=200)
+    niquests_mock.post(url=startswith(EXPORT_URL)).respond(status_code=200, text=text)
 
     query = {"UniProtKB_AC": "P00330"}
     first, _ = interface.fetch_single(query, method="kineticlaws")
     second, _ = interface.fetch_single(query, method="kineticlaws")
 
-    assert len(mocked_responses.calls) == 1
+    assert len(niquests_mock.calls) == 1
     assert first == second

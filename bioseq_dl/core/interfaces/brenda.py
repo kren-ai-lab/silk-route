@@ -171,7 +171,7 @@ class BrendaInterface(BaseAPIInterface):
         if not isinstance(data, (dict, list)):
             log.error(
                 "Tried to parse data but the type is not supported. Response should be a dict or a "
-                "requests.Response "
+                "niquests.Response "
                 "object."
             )
             return {}
