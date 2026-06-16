@@ -26,7 +26,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "pandas",
+    "pandas>=3.0,<4.0",
     "pyarrow",
     "biopython",
     "zeep",
@@ -35,7 +35,7 @@ dependencies = [
     "typer",
     "dicttoxml",
     "platformdirs>=4.0,<5.0",
-    "niquests>=3.19.1",
+    "niquests>=3.19",
 ]
 
 [project.optional-dependencies]
