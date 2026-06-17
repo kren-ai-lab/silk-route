@@ -3,7 +3,7 @@
 import json
 from typing import Any, ClassVar
 
-from niquests import Request, Response
+from niquests import Request
 from niquests.exceptions import RequestException
 
 # Add the import for your database in constants
@@ -128,20 +128,3 @@ class PathwayCommonsInterface(BaseAPIInterface):
             return {}
         else:
             return response
-
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
-        """Parse PathwayCommons response data."""
-        if not data:
-            return {}
-
-        if isinstance(data, Response):
-            data = data.json()
-        elif not isinstance(data, dict):
-            log.error(
-                "Tried to parse data but the type is not supported. Response should be a dict or a "
-                "niquests.Response "
-                "object."
-            )
-            return {}
-
-        return self._extract_fields(data, fields_to_extract, **kwargs)

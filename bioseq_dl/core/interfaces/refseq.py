@@ -127,24 +127,3 @@ class RefSeqInterface(BaseAPIInterface):
         handle.close()
 
         return self.to_native(records)
-
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **_kwargs: Any) -> list | dict:
-        """Parse the fetched data into a DataFrame.
-
-        Args:
-            data (dict): Fetched data from NCBI Entrez.
-            fields_to_extract (list|dict): Fields to extract from the data.
-            **kwargs: Additional keyword arguments.
-
-        Returns:
-            dict: Parsed data.
-
-        """
-        # Check input data type
-        if not isinstance(data, (list, dict)):
-            log.error(
-                "Tried to parse data but the type is not supported. Data should be a list or a dictionary."
-            )
-            return {}
-
-        return self._extract_fields(data, fields_to_extract)

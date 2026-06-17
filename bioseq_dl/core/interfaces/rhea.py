@@ -4,7 +4,6 @@ from typing import Any, ClassVar
 
 from niquests import Request
 from niquests.exceptions import RequestException
-from niquests.models import Response
 
 # Add the import for your database in constants
 from bioseq_dl.constants.databases import RHEA
@@ -78,18 +77,3 @@ class RheaInterface(BaseAPIInterface):
                 response = response["results"]
 
             return response
-
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
-        """Parse Rhea response data."""
-        if not data:
-            return {}
-
-        if isinstance(data, Response):
-            data = data.json()
-        elif not isinstance(data, (dict, list)):
-            log.error(
-                "Tried to parse data but the type is not supported. Data should be a list or a dictionary."
-            )
-            return {}
-
-        return self._extract_fields(data, fields_to_extract, **kwargs)

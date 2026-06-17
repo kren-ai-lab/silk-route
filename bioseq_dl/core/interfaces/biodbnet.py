@@ -82,19 +82,3 @@ class BioDBNetInterface(BaseAPIInterface):
         except RequestException:
             log.exception("Error fetching %s for method '%s'", query, method)
             return {}
-
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **_kwargs: Any) -> list | dict:
-        """Parse BioDBNet response data."""
-        if not data:
-            log.warning("Tried to parse data but the data is empty or None.")
-            return {}
-
-        if not isinstance(data, (dict, list)):
-            log.error(
-                "Tried to parse data but the type is not supported. Response should be a dict or a "
-                "niquests.Response "
-                "object."
-            )
-            return {}
-
-        return self._extract_fields(data, fields_to_extract)

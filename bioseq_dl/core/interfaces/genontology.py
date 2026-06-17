@@ -139,24 +139,11 @@ class GenOntologyInterface(BaseAPIInterface):
             dict: Parsed response.
 
         """
-        look_for_relationships = kwargs.get("look_for_relationships")
-        if not data:
-            log.warning("Tried to parse data but the data is empty or None.")
-            return {}
+        look_for_relationships = kwargs.pop("look_for_relationships", None)
 
-        if isinstance(data, niquests.models.Response):
-            data = data.json()
-        elif not isinstance(data, dict):
-            log.error(
-                "Tried to parse data but the type is not supported. Response should be a dict or a "
-                "niquests.Response "
-                "object."
-            )
-            return {}
+        parsed = super().parse(data, fields_to_extract, **kwargs)
 
-        parsed = self._extract_fields(data, fields_to_extract)
-
-        if look_for_relationships:
+        if look_for_relationships and parsed:
             if isinstance(parsed, list):
                 parsed = [self.fetch_related_ontology_terms(item) for item in parsed]
             else:

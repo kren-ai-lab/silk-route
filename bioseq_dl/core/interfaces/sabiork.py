@@ -107,7 +107,3 @@ class SabiorkInterface(BaseAPIInterface):
             return {}
         else:
             return response.text or ""
-
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **_kwargs: Any) -> list | dict:
-        """Parse SABIO-RK response data."""
-        return self._extract_fields(data, fields_to_extract)

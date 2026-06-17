@@ -183,26 +183,3 @@ class PDBInterface(BaseAPIInterface):
                 if isinstance(query, str):
                     self.fetch_structure(query)
         return results
-
-    def parse(self, data: Any, fields_to_extract: list | dict | None, **_kwargs: Any) -> dict | list:
-        """Parse data by extracting specified fields or returning the entire structure.
-
-        Args:
-            data (Union[List, Dict]): Data to parse.
-            fields_to_extract (list|dict): Fields to keep from the original response.
-                - If list: Keep those keys.
-                - If dict: Maps {desired_name: real_field_name}.
-            **kwargs: Additional keyword arguments.
-
-        Returns:
-            Union[List, Dict]: Parsed data with specified fields or the entire structure.
-
-        """
-        # Check input data type
-        if not isinstance(data, (list, dict)):
-            log.error(
-                "Tried to parse data but the type is not supported. Data should be a list or a dictionary."
-            )
-            return {}
-
-        return self._extract_fields(data, fields_to_extract)

@@ -1117,7 +1117,38 @@ class BaseAPIInterface(ABC):
         """Fetch raw data from the API for a given query and method."""
         raise NotImplementedError
 
-    @abstractmethod
     def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> Any:
-        """Parse raw API response into the requested format."""
-        raise NotImplementedError
+        """Parse raw API response into the requested format.
+
+        Default implementation: guard the input type (unwrapping a niquests
+        ``Response`` into JSON) and delegate field extraction to
+        ``_extract_fields``. Subclasses with response-specific shaping override
+        this method.
+
+        Args:
+            data (Any): Raw data from the API response (dict, list or Response).
+            fields_to_extract (list|dict|None): Fields to keep from the original
+                response.
+                - If list: Keep those keys.
+                - If dict: Maps {desired_name: real_field_name}.
+            **kwargs: Forwarded to ``_extract_fields`` (e.g. `option`).
+
+        Returns:
+            Any: Parsed data with only the specified fields.
+
+        """
+        if not data:
+            log.warning("Tried to parse data but the data is empty or None.")
+            return {}
+
+        if isinstance(data, Response):
+            data = data.json()
+
+        if not isinstance(data, (dict, list)):
+            log.error(
+                "Tried to parse data but the type is not supported. "
+                "Expected a dict, list or niquests.Response object."
+            )
+            return {}
+
+        return self._extract_fields(data, fields_to_extract, **kwargs)

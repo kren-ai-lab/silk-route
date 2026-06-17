@@ -123,12 +123,12 @@ class StringInterface(BaseAPIInterface):
             dict: Parsed response.
 
         """
-        fmt = kwargs.get("fmt", "json")
+        fmt = kwargs.pop("fmt", "json")
         if not data:
             return {}
 
         if fmt == "json":
-            return self._extract_fields(data, fields_to_extract)
+            return super().parse(data, fields_to_extract, **kwargs)
 
         if fmt == "tsv":
             return data.text
@@ -137,7 +137,7 @@ class StringInterface(BaseAPIInterface):
                 "Image format is not supported for parsing. Please use the method save_image() to save the "
                 "image."
             )
-        else:
-            log.error("Format %s is not supported. Supported formats are: json, tsv", fmt)
-            return {}
-        return None
+            return None
+
+        log.error("Format %s is not supported. Supported formats are: json, tsv", fmt)
+        return {}
