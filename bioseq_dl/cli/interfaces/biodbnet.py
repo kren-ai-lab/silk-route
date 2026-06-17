@@ -13,11 +13,9 @@ app = typer.Typer(help="Fetch data from BioDBNet database.")
 
 @app.command("db2db")
 def run_db2db(
+    value: str = typer.Argument(..., help="Identifier value(s), comma-separated for multiple values."),
     input_type: str = typer.Option(
         "genesymbol", "--input", "-i", help=f"Type of input identifier. Options: {', '.join(biodbnet_inputs)}"
-    ),
-    value: str = typer.Option(
-        ..., "--value", "-v", help="Identifier value(s), comma-separated for multiple values."
     ),
     outputs: str = typer.Option(
         "affyid,genesymbol,go-biologicalprocess",

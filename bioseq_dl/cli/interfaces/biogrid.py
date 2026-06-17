@@ -12,10 +12,10 @@ app = typer.Typer(help="Fetch data from BioGRID database.")
 
 @app.command("interactions")
 def run_interactions(
-    gene_list: str = typer.Option(
-        None, "--gene-list", "-gl", help="Comma-separated list of gene symbols to fetch interactions for."
+    gene_list: str = typer.Argument(
+        ..., help="Comma-separated list of gene symbols to fetch interactions for."
     ),
-    taxon_id: str = typer.Option(
+    taxon_id: int = typer.Option(
         None, "--taxon-id", "-t", help="NCBI Taxonomy ID to filter results by organism."
     ),
     access_key: str = typer.Option(

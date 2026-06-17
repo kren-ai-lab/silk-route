@@ -10,8 +10,8 @@ app = typer.Typer(help="Fetch data from AlphaFold database.")
 
 @app.command("prediction")
 def run_prediction(
-    identifier: str = typer.Option(
-        ..., "--id", "-id", help="UniProt ID of the protein to fetch from AlphaFold."
+    identifier: str = typer.Argument(
+        ..., help="UniProt ID(s) of the protein to fetch from AlphaFold (comma-separated for batch)."
     ),
     download_structures: bool = typer.Option(
         False,
