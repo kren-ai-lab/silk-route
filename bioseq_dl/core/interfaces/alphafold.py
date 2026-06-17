@@ -7,12 +7,10 @@ from typing import Any, ClassVar, Literal
 
 import pandas as pd
 from niquests import Request
-from niquests.exceptions import RequestException
 
 from bioseq_dl.constants.databases import ALPHAFOLD
 from bioseq_dl.core.export import export_dataframe
 from bioseq_dl.core.interfacesconfig import load_packaged_config
-from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
 from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
@@ -113,61 +111,20 @@ class AlphafoldInterface(BaseAPIInterface):
         ]
         return (new_results or results), metadata
 
-    def fetch(self, query: str | dict | list, *, method: str = "prediction", **kwargs: Any) -> dict | list:
-        """Get prediction for a given UniProt ID.
-
-        Args:
-            query (str): UniProt ID to fetch prediction for.
-            method (str): Method to use for fetching data. Currently only "prediction" is supported.
-            **kwargs: Additional keyword arguments passed to the request builder.
-
-        Returns:
-            Dict: Prediction data.
-
-        """
-        if method not in self.METHODS:
-            log.error(
-                "Method %s is not supported. Supported methods are: %s.",
-                method,
-                ", ".join(self.METHODS.keys()),
-            )
-            return {}
-
-        http_method, path_param, parameters, inputs = self.initialize_method_parameters(
-            query, method, self.METHODS, **kwargs
-        )
-
-        # Validate and clean parameters
-        try:
-            validated_params = validate_parameters(inputs, parameters)
-        except ValueError:
-            log.exception("Invalid parameters for method '%s'", method)
-            return {}
-
+    def _build_request(
+        self, *, method: str, http_method: str, path_param: Any, validated_params: dict, **_kwargs: Any
+    ) -> Request:
+        """Build the AlphaFold prediction request URL (`{method}/{qualifier}`)."""
         url = f"{ALPHAFOLD.API_URL}{method}/"
-
         if path_param:
-            path_value = validated_params.pop(path_param)
-            url += f"{path_value}"
+            url += f"{validated_params.pop(path_param)}"
+        return Request(method=http_method, url=url, params=validated_params)
 
-        req = Request(method=http_method, url=url, params=validated_params)
-        prepared = self.session.prepare_request(req)
-        log.debug("Fetching prediction for %s using URL: %s", query, prepared.url)
-
-        try:
-            response = self.session.send(prepared)
-            self._delay()
-            response.raise_for_status()
-        except RequestException:
-            log.exception("Error fetching prediction for %s", query)
-            return {}
-        else:
-            response = response.json()
-
-            if "results" in response:
-                response = response["results"]
-
-            return response
+    def _unwrap_response(self, data: Any, **_kwargs: Any) -> Any:
+        """Unwrap the ``results`` envelope when present."""
+        if isinstance(data, dict) and "results" in data:
+            return data["results"]
+        return data
 
     def download_structures(self, parsed: dict) -> dict:
         """Download structure files based on parsed prediction info.

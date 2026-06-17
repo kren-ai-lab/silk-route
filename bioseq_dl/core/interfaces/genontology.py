@@ -5,10 +5,8 @@ from typing import Any, ClassVar
 
 import niquests
 from niquests import Request
-from niquests.exceptions import RequestException
 
 from bioseq_dl.constants.databases import GENONTOLOGY
-from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
 from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
@@ -67,61 +65,19 @@ class GenOntologyInterface(BaseAPIInterface):
         },
     }
 
-    def fetch(self, query: str | dict | list, *, method: str = "ontology-term", **kwargs: Any) -> dict | list:
-        """Fetch data from the GenOntology API.
-
-        Args:
-            query (str): Query string to search for.
-            method (str): Method to use for the request. Used methods are 'ontology-term' and 'go'.
-            **kwargs: Additional parameters for the request.
-            - `option`: Additional options for the request.
-
-        Returns:
-            any: response from the API.
-
-        """
-        if method not in self.METHODS:
-            log.error("Method %s is not supported. Available methods: %s", method, list(self.METHODS.keys()))
-            return {}
-
-        option = kwargs.pop("option", "default")
-
-        http_method, _, parameters, inputs = self.initialize_method_parameters(
-            query, method, self.METHODS, option=option, **kwargs
-        )
-
-        # Validate and clean parameters
-        try:
-            validated_params = validate_parameters(inputs, parameters)
-        except ValueError:
-            log.exception("Invalid parameters for method '%s'", method)
-            return {}
-
+    def _build_request(
+        self, *, method: str, http_method: str, validated_params: dict, **kwargs: Any
+    ) -> Request:
+        """Build the GenOntology request URL (uppercased GO ids in the path + option suffix)."""
         url = f"{GENONTOLOGY.API_URL}{method.replace('-', '/')}/"
-        for param in validated_params:
-            if param in validated_params:
-                url += f"{validated_params[param].upper().replace(':', '%3A')}"
+        for value in validated_params.values():
+            url += f"{value.upper().replace(':', '%3A')}"
 
+        option = kwargs.get("option")
         if option and option != "default":
             url += f"/{option}"
 
-        response = Request(
-            url=url,
-            method=http_method,
-        )
-
-        prepared = self.session.prepare_request(response)
-        log.debug("Prepared request: %s", prepared.url)
-
-        try:
-            response = self.session.send(prepared)
-            self._delay()
-            response.raise_for_status()
-
-            return response.json()
-        except RequestException:
-            log.exception("Error fetching data from %s", url)
-            return {}
+        return Request(url=url, method=http_method)
 
     def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> dict | list:
         """Parse the response from the GenOntology API.

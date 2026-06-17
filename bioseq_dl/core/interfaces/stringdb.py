@@ -3,11 +3,9 @@
 from typing import Any, ClassVar
 
 from niquests import Request
-from niquests.exceptions import RequestException
 
 from bioseq_dl.constants.databases import STRING
 from bioseq_dl.constants.stringdb import METHOD_FORMATS
-from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
 from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
@@ -51,63 +49,21 @@ class StringInterface(BaseAPIInterface):
         # Add other methods as needed
     }
 
-    def fetch(
-        self, query: str | dict | list, *, method: str = "get_string_ids", **kwargs: Any
-    ) -> dict | list:
-        """Fetch data from the STRING API.
-
-        Args:
-            query (str|dict|list): Query parameters for the API.
-            method (str): Method to use for the request.
-            **kwargs: Additional keyword arguments passed to the request builder.
-
-        Returns:
-            dict: Parsed response from the API.
-
-        """
-        if method not in self.METHODS:
-            log.error(
-                "Method '%s' is not supported. Available methods: %s", method, list(self.METHODS.keys())
-            )
-            return {}
-
-        http_method, _path_param, parameters, inputs = self.initialize_method_parameters(
-            query, method, self.METHODS, **kwargs
-        )
-
-        try:
-            validated_params = validate_parameters(inputs, parameters)
-        except (ValueError, TypeError):
-            log.exception("Parameter validation failed")
-            return {}
-
-        outfmt = validated_params.pop("format") if "format" in validated_params else "json"
+    def _build_request(
+        self, *, method: str, http_method: str, validated_params: dict, **_kwargs: Any
+    ) -> Request:
+        """Build the STRING request URL (`{format}/{method}`), validating the format."""
+        outfmt = validated_params.pop("format", "json")
 
         if outfmt not in METHOD_FORMATS[method]:
-            log.error(
-                "Output format %s is not supported for method %s. Supported formats are: %s.",
-                outfmt,
-                method,
-                ", ".join(METHOD_FORMATS[method]),
+            msg = (
+                f"Output format {outfmt} is not supported for method {method}. "
+                f"Supported formats are: {', '.join(METHOD_FORMATS[method])}."
             )
-            return {}
+            raise ValueError(msg)
 
         url = f"{STRING.API_URL}{outfmt}/{method}"
-
-        req = Request(method=http_method, url=url, params=validated_params)
-
-        prepared = self.session.prepare_request(req)
-        log.debug("Prepared request URL: %s", prepared.url)
-
-        try:
-            response = self.session.send(prepared)
-            self._delay()
-            response.raise_for_status()
-
-            return response.json()
-        except RequestException:
-            log.exception("Error fetching %s for method '%s'", query, method)
-            return {}
+        return Request(method=http_method, url=url, params=validated_params)
 
     def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> Any:
         """Parse the response from the STRING API.

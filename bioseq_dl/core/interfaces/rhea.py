@@ -3,11 +3,9 @@
 from typing import Any, ClassVar
 
 from niquests import Request
-from niquests.exceptions import RequestException
 
 # Add the import for your database in constants
 from bioseq_dl.constants.databases import RHEA
-from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
 from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
@@ -35,45 +33,17 @@ class RheaInterface(BaseAPIInterface):
         }
     }
 
-    def fetch(self, query: str | dict | list, *, method: str = "rhea", **kwargs: Any) -> dict | list:
-        """Fetch reaction data from Rhea."""
-        if method not in self.METHODS:
-            log.error(
-                "Method '%s' is not supported. Available methods: %s", method, list(self.METHODS.keys())
-            )
-            return {}
-
-        http_method, path_param, parameters, inputs = self.initialize_method_parameters(
-            query, method, self.METHODS, **kwargs
-        )
-
-        # Validate and clean parameters
-        try:
-            validated_params = validate_parameters(inputs, parameters)
-        except ValueError:
-            log.exception("Invalid parameters for method '%s'", method)
-            return {}
-
+    def _build_request(
+        self, *, method: str, http_method: str, path_param: Any, validated_params: dict, **_kwargs: Any
+    ) -> Request:
+        """Build the Rhea request URL (`{method}/` + optional path param)."""
         url = f"{RHEA.API_URL}{method}/"
         if path_param:
-            path_value = validated_params.pop(path_param)
-            url += f"{path_value}"
+            url += f"{validated_params.pop(path_param)}"
+        return Request(method=http_method, url=url, params=validated_params)
 
-        req = Request(method=http_method, url=url, params=validated_params)
-        prepared = self.session.prepare_request(req)
-        log.debug("Prepared request: %s", prepared.url)
-
-        try:
-            response = self.session.send(prepared)
-            self._delay()
-            response.raise_for_status()
-        except RequestException:
-            log.exception("Error fetching prediction for %s", query)
-            return {}
-        else:
-            response = response.json()
-
-            if "results" in response:
-                response = response["results"]
-
-            return response
+    def _unwrap_response(self, data: Any, **_kwargs: Any) -> Any:
+        """Unwrap the ``results`` envelope when present."""
+        if isinstance(data, dict) and "results" in data:
+            return data["results"]
+        return data

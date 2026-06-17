@@ -10,7 +10,7 @@ import operator
 import random
 import re
 import time
-from abc import ABC, abstractmethod
+from abc import ABC
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -61,7 +61,7 @@ def _extract_nested_values(value: object) -> list[str]:
     return result
 
 
-class BaseAPIInterface(ABC):
+class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have concrete defaults
     """Abstract base class for all BioSeqDownloader API interfaces."""
 
     API_NAME: ClassVar[str] = "BaseAPI"
@@ -793,8 +793,12 @@ class BaseAPIInterface(ABC):
                 metadata["fetched_subqueries"] = [subq for _, subq in remaining]
                 combined = self.merge_dicts([subq for _, subq in remaining])
                 params = self._prepare_params(combined, spec, **kwargs)
-                full = self.fetch(params, *args, **kwargs)
-                mapping = self.split_results_by_subquery(full, remaining)
+                try:
+                    full = self.fetch(params, *args, **kwargs)
+                except RequestError:
+                    log.exception("Request failed for method '%s'", method)
+                    full = {}
+                mapping = self.split_results_by_subquery(full, remaining) if full else {}
                 for identifier, _ in remaining:
                     partial_result = mapping.get(identifier, [])
                     if not partial_result:
@@ -871,7 +875,11 @@ class BaseAPIInterface(ABC):
             # TODO(diego): Probably is necesary to give the user the option to not save empty results, check
             # if it is a problem in some APIs
             log.debug("No cache found for identifier: %s, fetching from API.", identifier)
-            raw = self.fetch(params, *args, **kwargs)
+            try:
+                raw = self.fetch(params, *args, **kwargs)
+            except RequestError:
+                log.exception("Request failed for identifier %s", identifier)
+                raw = {}
             # Save to cache even if empty, to avoid refetching known empty results
             metadata["fetched_ids"] = [identifier]
             metadata["fetched_subqueries"] = [query]
@@ -1066,29 +1074,55 @@ class BaseAPIInterface(ABC):
 
         return parsed
 
+    def _build_request(
+        self,
+        *,
+        method: str,
+        http_method: str,
+        path_param: str | None,
+        validated_params: dict,
+        **kwargs: Any,
+    ) -> Request:
+        """Assemble the niquests ``Request`` for a fetch.
+
+        Default implementation: ``f"{api_url}{method}"`` plus an optional path
+        parameter, with the remaining validated params as the query string.
+        ``api_url`` must be supplied via kwargs. Subclasses override this to build
+        API-specific URLs (path layouts, option suffixes, POST bodies, …).
+        """
+        api_url = kwargs.get("api_url")
+        if not api_url:
+            msg = "API URL must be provided in kwargs."
+            raise ValueError(msg)
+
+        url = f"{api_url}{method}"
+        if path_param:
+            url += f"{validated_params.pop(path_param)}"
+
+        return Request(method=http_method, url=url, params=validated_params)
+
+    def _unwrap_response(self, data: Any, **_kwargs: Any) -> Any:
+        """Shape a parsed JSON response. Default: return it unchanged."""
+        return data
+
     def _do_request(self, query: str | dict | list, *, method: str, **kwargs: Any) -> Response:
-        """Fetch data from the API based on the provided query and method.
+        """Run a validated HTTP request and return the raw response.
 
         Args:
             query (Union[str, dict, list]): Query to fetch data for.
             method (str): Method to use for fetching data.
-            **kwargs: Supports `api_url` key for the API endpoint URL.
+            **kwargs: Forwarded to ``_build_request`` (e.g. ``api_url``, ``option``).
 
         Returns:
             Response: The raw HTTP response from the API.
 
         Raises:
-            ValueError: If the method is not defined in the METHODS.
-            RequestError: If there is an error during the HTTP request. Raised
-                instead of silently returning an empty result so callers can
-                distinguish a failed request from a successful empty response.
+            ValueError: If the method or parameters are invalid.
+            RequestError: If the HTTP request fails. Raised instead of silently
+                returning an empty result so callers can distinguish a failed
+                request from a successful empty response.
 
         """
-        api_url = kwargs.pop("api_url", None)
-
-        if not api_url:
-            msg = "API URL must be provided in kwargs."
-            raise ValueError(msg)
         http_method, path_param, parameters, inputs = self.initialize_method_parameters(
             query, method, self.METHODS, **kwargs
         )
@@ -1099,13 +1133,13 @@ class BaseAPIInterface(ABC):
             msg = f"Invalid parameters for method '{method}': {e}"
             raise ValueError(msg) from e
 
-        url = f"{api_url}{method}"
-
-        if path_param:
-            path_value = validated_params.pop(path_param)
-            url += f"{path_value}"
-
-        req = Request(method=http_method, url=url, params=validated_params)
+        req = self._build_request(
+            method=method,
+            http_method=http_method,
+            path_param=path_param,
+            validated_params=validated_params,
+            **kwargs,
+        )
         prepared = self.session.prepare_request(req)
         log.debug("Prepared request: %s", prepared.url)
 
@@ -1120,10 +1154,19 @@ class BaseAPIInterface(ABC):
         else:
             return response
 
-    @abstractmethod
     def fetch(self, query: str | dict | list, *, method: str, **kwargs: Any) -> Any:
-        """Fetch raw data from the API for a given query and method."""
-        raise NotImplementedError
+        """Fetch and shape data via the standard request template.
+
+        Runs ``_do_request`` (validate → build → send → raise) and passes the
+        parsed JSON through ``_unwrap_response``. Interfaces customise behaviour
+        by overriding ``_build_request`` / ``_unwrap_response``; outliers with
+        non-standard flows (pagination, SOAP, Entrez, text payloads) override
+        ``fetch`` directly.
+        """
+        if self.DEFAULT_OPTION is not None and "option" not in kwargs:
+            kwargs["option"] = self.DEFAULT_OPTION
+        response = self._do_request(query, method=method, **kwargs)
+        return self._unwrap_response(response.json(), method=method, **kwargs)
 
     def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> Any:
         """Parse raw API response into the requested format.

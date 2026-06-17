@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 from niquests_mock import startswith
 
+from bioseq_dl.core.exceptions import RequestError
 from bioseq_dl.core.interfaces.rhea import RheaInterface
 from tests._helpers import load_fixture
 
@@ -57,7 +58,18 @@ def test_fetch_single_round_trips_through_cache(interface, niquests_mock):
     assert first == second
 
 
-def test_fetch_returns_empty_on_http_error(interface, niquests_mock):
+def test_fetch_raises_on_http_error(interface, niquests_mock):
     niquests_mock.get(url=startswith(API_URL)).respond(status_code=500, json={"error": "boom"})
 
-    assert interface.fetch("RHEA:10000", method="rhea") == {}
+    with pytest.raises(RequestError):
+        interface.fetch("RHEA:10000", method="rhea")
+
+
+def test_fetch_single_records_failed_id_on_http_error(interface, niquests_mock):
+    # fetch() raises, but the high-level fetch_single degrades: empty data + failed_ids.
+    niquests_mock.get(url=startswith(API_URL)).respond(status_code=500, json={"error": "boom"})
+
+    data, metadata = interface.fetch_single("RHEA:10000", method="rhea")
+
+    assert not data
+    assert metadata.get("failed_ids")

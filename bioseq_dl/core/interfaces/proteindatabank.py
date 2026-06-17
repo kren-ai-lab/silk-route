@@ -7,11 +7,9 @@ from typing import Any, ClassVar
 import niquests
 import pandas as pd
 from niquests import Request
-from niquests.exceptions import RequestException
 
 from bioseq_dl.constants.databases import PDB
 from bioseq_dl.core.interfacesconfig import load_packaged_config
-from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
 from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
@@ -74,33 +72,10 @@ class PDBInterface(BaseAPIInterface):
         self.batch_size = batch_size
         self.download_structures = download_structures
 
-    def fetch(self, query: str | dict | list, *, method: str = "entry", **kwargs: Any) -> dict | list:
-        """Run a query to fetch data from the PDB database.
-
-        Args:
-            query (str): PDB ID to fetch data for.
-            method (str): API method to use. Default is "entry".
-            **kwargs: Additional keyword arguments passed to the request builder.
-
-        Returns:
-            dict: Fetched data for the given PDB ID.
-
-        """
-        if method not in self.METHODS:
-            log.error("Method %s is not supported. Available methods: %s", method, list(self.METHODS.keys()))
-            return {}
-
-        http_method, path_param, parameters, inputs = self.initialize_method_parameters(
-            query, method, self.METHODS, **kwargs
-        )
-
-        # Validate and clean parameters
-        try:
-            validated_params = validate_parameters(inputs, parameters)
-        except ValueError:
-            log.exception("Invalid parameters for method '%s'", method)
-            return {}
-
+    def _build_request(
+        self, *, method: str, http_method: str, path_param: Any, validated_params: dict, **_kwargs: Any
+    ) -> Request:
+        """Build the PDB request URL (method + path segments, no query params)."""
         url = f"{PDB.API_URL}{method}"
 
         if path_param:
@@ -111,23 +86,7 @@ class PDBInterface(BaseAPIInterface):
             else:
                 url += f"/{validated_params.pop(path_param)}"
 
-        response = Request(
-            url=url,
-            method=http_method,
-        )
-
-        prepared = self.session.prepare_request(response)
-        log.debug("Prepared request: %s", prepared.url)
-
-        try:
-            response = self.session.send(prepared)
-            self._delay()
-            response.raise_for_status()
-
-            return response.json()
-        except RequestException:
-            log.exception("Error fetching data from %s", url)
-            return {}
+        return Request(url=url, method=http_method)
 
     def fetch_structure(self, pdb_id: str, file_format: str = "pdb") -> str:
         """Download the structure file for a given PDB ID.

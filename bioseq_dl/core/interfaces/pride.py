@@ -3,11 +3,9 @@
 from typing import Any, ClassVar
 
 from niquests import Request
-from niquests.exceptions import RequestException
 
 # Add the import for your database in constants
 from bioseq_dl.constants.databases import PRIDE
-from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
 from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
@@ -62,24 +60,10 @@ class PrideInterface(BaseAPIInterface):
         },
     }
 
-    def fetch(self, query: str | dict | list, *, method: str = "search", **kwargs: Any) -> dict | list:
-        """Fetch proteomics data from PRIDE Archive."""
-        if method not in self.METHODS:
-            log.error("Method '%s' is not defined in the interface.", method)
-            return {}
-        option = kwargs.pop("option", "default")
-
-        http_method, path_param, parameters, inputs = self.initialize_method_parameters(
-            query, method, self.METHODS, option=option, **kwargs
-        )
-
-        # Validate and clean parameters
-        try:
-            validated_params = validate_parameters(inputs, parameters)
-        except ValueError:
-            log.exception("Invalid parameters for method '%s'", method)
-            return {}
-
+    def _build_request(
+        self, *, method: str, http_method: str, path_param: Any, validated_params: dict, **kwargs: Any
+    ) -> Request:
+        """Build the PRIDE request URL (path segments + optional option suffix)."""
         url = f"{PRIDE.API_URL}{method.replace('-', '/')}"
 
         if path_param:
@@ -90,24 +74,8 @@ class PrideInterface(BaseAPIInterface):
             else:
                 url += f"/{validated_params.pop(path_param)}"
 
+        option = kwargs.get("option")
         if option and option != "default":
             url += f"/{option}"
 
-        response = Request(
-            url=url,
-            method=http_method,
-            params=validated_params,
-        )
-
-        prepared = self.session.prepare_request(response)
-        log.debug("Prepared request: %s", prepared.url)
-
-        try:
-            response = self.session.send(prepared)
-            self._delay()
-            response.raise_for_status()
-
-            return response.json()
-        except RequestException:
-            log.exception("Error fetching data from %s", url)
-            return {}
+        return Request(url=url, method=http_method, params=validated_params)

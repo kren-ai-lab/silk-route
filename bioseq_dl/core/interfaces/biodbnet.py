@@ -3,14 +3,10 @@
 from typing import Any, ClassVar
 
 from niquests import Request
-from niquests.exceptions import RequestException
 
 from bioseq_dl.constants.databases import BIODBNET
-from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
-
-log = get_logger("bioseq_dl.interfaces.biodbnet")
 
 
 class BioDBNetInterface(BaseAPIInterface):
@@ -44,41 +40,23 @@ class BioDBNetInterface(BaseAPIInterface):
         },
     }
 
-    def fetch(self, query: str | dict | list, *, method: str = "getpathways", **kwargs: Any) -> dict | list:
-        """Fetch data from BioDBNet for the given query."""
-        if method not in self.METHODS:
-            log.error("Method %s is not supported. Available methods: %s", method, list(self.METHODS.keys()))
-            return {}
+    def _build_request(
+        self, *, method: str, http_method: str, validated_params: dict, **_kwargs: Any
+    ) -> Request:
+        """Build the BioDBNet request.
 
-        http_method, _, _parameters, inputs = self.initialize_method_parameters(
-            query, method, self.METHODS, **kwargs
+        BioDBNet exposes a single REST endpoint and selects the operation via the
+        ``method`` query parameter (rather than a path segment), so the URL is
+        fixed and ``method`` is injected into the params.
+        """
+        return Request(
+            method=http_method,
+            url=BIODBNET.API_URL,
+            params={**validated_params, "method": method},
         )
 
-        inputs.update({"method": method})
-
-        inputs["outputs"] = (
-            ",".join(inputs.get("outputs", []))
-            if isinstance(inputs.get("outputs"), list)
-            else inputs.get("outputs", "")
-        )
-
-        req = Request(method=http_method, url=BIODBNET.API_URL, params=inputs)
-        prepared = self.session.prepare_request(req)
-        log.debug("Prepared request: %s", prepared.url)
-
-        try:
-            response = self.session.send(prepared)
-            self._delay()
-            response.raise_for_status()
-
-            match method:
-                case "db2db":
-                    response = response.json()
-                    return [
-                        v["outputs"] for k, v in response.items() if isinstance(v, dict) and k not in inputs
-                    ]
-                case _:
-                    return response.json()
-        except RequestException:
-            log.exception("Error fetching %s for method '%s'", query, method)
-            return {}
+    def _unwrap_response(self, data: Any, **kwargs: Any) -> Any:
+        """Extract result rows for ``db2db`` (each input id maps to an ``outputs`` dict)."""
+        if kwargs.get("method") == "db2db" and isinstance(data, dict):
+            return [v["outputs"] for v in data.values() if isinstance(v, dict) and "outputs" in v]
+        return data
