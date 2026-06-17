@@ -171,7 +171,7 @@ def run_gene_view(
 @app.command("pug_view-pathway")
 def run_pathway_view(
     source: str = typer.Option("Reactome", help="Pathway source (e.g., Reactome)"),
-    identifier: str = typer.Option(None, "--id", help="Pathway ID (e.g., R-HSA-5673001)"),
+    identifier: str = typer.Option(..., "--id", help="Pathway ID (e.g., R-HSA-5673001)"),
     output_file: str = typer.Option(None, help="Output file to save results"),
 ) -> None:
     """Fetch detailed pathway data from PubChem."""

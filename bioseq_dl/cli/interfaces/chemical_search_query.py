@@ -194,7 +194,7 @@ def run_compound(
         if debug:
             configure_logging(level=logging.DEBUG)
             logger = get_logger(
-                "bioseq_dl.cli.uniprot_search_query"
+                "bioseq_dl.cli.chemical_search_query"
             )  # re-fetch so root handlers pick new level
             logger.debug("Debug logging enabled")
     except Exception as e:  # noqa: BLE001  # defensive catch-all

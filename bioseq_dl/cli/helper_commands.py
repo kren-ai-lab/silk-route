@@ -10,6 +10,19 @@ from bioseq_dl.logging.logger import configure_logging
 
 app = typer.Typer(name="cache", help="Cache utility commands for BioSeqDownloader.")
 
+LOG_LEVELS = {
+    "debug": logging.DEBUG,
+    "info": logging.INFO,
+    "warning": logging.WARNING,
+    "error": logging.ERROR,
+    "critical": logging.CRITICAL,
+}
+
+
+def _setup_logging(log_level: str) -> None:
+    """Configure logging from a CLI level string, defaulting to INFO."""
+    configure_logging(level=LOG_LEVELS.get(log_level.lower(), logging.INFO))
+
 
 @app.command("list")
 def list_registered(
@@ -18,15 +31,7 @@ def list_registered(
     ),
 ) -> None:
     """List registered caches."""
-    LOG_LEVELS = {
-        "debug": logging.DEBUG,
-        "info": logging.INFO,
-        "warning": logging.WARNING,
-        "error": logging.ERROR,
-        "critical": logging.CRITICAL,
-    }
-    logging_level = LOG_LEVELS.get(log_level.lower(), logging.INFO)
-    configure_logging(level=logging_level)
+    _setup_logging(log_level)
 
     log = get_logger("bioseq_dl.cli.cache.list")
     regs = list_caches()
@@ -61,15 +66,7 @@ def clear(
     Use --name to specify one or more registered cache names, or --all to clear everything.
     By default the command runs in --dry-run mode.
     """
-    LOG_LEVELS = {
-        "debug": logging.DEBUG,
-        "info": logging.INFO,
-        "warning": logging.WARNING,
-        "error": logging.ERROR,
-        "critical": logging.CRITICAL,
-    }
-    logging_level = LOG_LEVELS.get(log_level.lower(), logging.INFO)
-    configure_logging(level=logging_level)
+    _setup_logging(log_level)
 
     log = get_logger("bioseq_dl.cli.cache.clear")
 
