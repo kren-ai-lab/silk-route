@@ -5,7 +5,7 @@ from typing import Any
 import typer
 
 from bioseq_dl import PubChemInterface
-from bioseq_dl.cli._shared import format_option, output_option, save_or_print
+from bioseq_dl.cli._shared import fetch_auto, format_option, output_option, save_or_print
 from bioseq_dl.constants.pubchem import OPTIONS
 
 app = typer.Typer(
@@ -59,18 +59,14 @@ def run_protein(
     """Fetch protein data from PubChem."""
     interface = PubChemInterface()
 
-    if len(accession.split(",")) > 1:
-        result = interface.fetch_batch(
-            queries=[acc.strip() for acc in accession.split(",")],
-            method="protein",
-            option=option,
-            parse=True,
-            format="dataframe",
-        )
-    else:
-        result = interface.fetch_single(
-            accession, method="protein", option=option, parse=True, format="dataframe"
-        )
+    result = fetch_auto(
+        interface,
+        [acc.strip() for acc in accession.split(",")],
+        method="protein",
+        option=option,
+        parse=True,
+        format="dataframe",
+    )
 
     save_or_print(result, output, output_format=output_format)
 
@@ -113,17 +109,13 @@ def run_compound_view(
     """Fetch detailed compound data from PubChem."""
     interface = PubChemInterface()
 
-    if len(cid.split(",")) > 1:
-        result = interface.fetch_batch(
-            queries=[c.strip() for c in cid.split(",")],
-            method="pug_view/compound",
-            parse=True,
-            format="dataframe",
-        )
-    else:
-        result = interface.fetch_single(
-            cid.strip(), method="pug_view/compound", parse=True, format="dataframe"
-        )
+    result = fetch_auto(
+        interface,
+        [c.strip() for c in cid.split(",")],
+        method="pug_view/compound",
+        parse=True,
+        format="dataframe",
+    )
 
     save_or_print(result, output, output_format=output_format)
 
@@ -137,15 +129,13 @@ def run_protein_view(
     """Fetch detailed protein data from PubChem."""
     interface = PubChemInterface()
 
-    if len(accession.split(",")) > 1:
-        result = interface.fetch_batch(
-            queries=[acc.strip() for acc in accession.split(",")],
-            method="pug_view/protein",
-            parse=True,
-            format="dataframe",
-        )
-    else:
-        result = interface.fetch_single(accession, method="pug_view/protein", parse=True, format="dataframe")
+    result = fetch_auto(
+        interface,
+        [acc.strip() for acc in accession.split(",")],
+        method="pug_view/protein",
+        parse=True,
+        format="dataframe",
+    )
 
     save_or_print(result, output, output_format=output_format)
 
@@ -159,17 +149,13 @@ def run_gene_view(
     """Fetch detailed gene data from PubChem."""
     interface = PubChemInterface()
 
-    if len(geneid.split(",")) > 1:
-        result = interface.fetch_batch(
-            queries=[gid.strip() for gid in geneid.split(",")],
-            method="pug_view/gene",
-            parse=True,
-            format="dataframe",
-        )
-    else:
-        result = interface.fetch_single(
-            geneid.strip(), method="pug_view/gene", parse=True, format="dataframe"
-        )
+    result = fetch_auto(
+        interface,
+        [gid.strip() for gid in geneid.split(",")],
+        method="pug_view/gene",
+        parse=True,
+        format="dataframe",
+    )
 
     save_or_print(result, output, output_format=output_format)
 
@@ -184,20 +170,13 @@ def run_pathway_view(
     """Fetch detailed pathway data from PubChem."""
     interface = PubChemInterface()
 
-    if len(identifier.split(",")) > 1:
-        result = interface.fetch_batch(
-            queries=[{"source": source, "id": pid.strip()} for pid in identifier.split(",")],
-            method="pug_view/pathway",
-            parse=True,
-            format="dataframe",
-        )
-    else:
-        result = interface.fetch_single(
-            query={"source": source, "id": identifier.strip()},
-            method="pug_view/pathway",
-            parse=True,
-            format="dataframe",
-        )
+    result = fetch_auto(
+        interface,
+        [{"source": source, "id": pid.strip()} for pid in identifier.split(",")],
+        method="pug_view/pathway",
+        parse=True,
+        format="dataframe",
+    )
 
     save_or_print(result, output, output_format=output_format)
 
@@ -211,16 +190,12 @@ def run_taxonomy_view(
     """Fetch detailed taxonomy data from PubChem."""
     interface = PubChemInterface()
 
-    if len(taxid.split(",")) > 1:
-        result = interface.fetch_batch(
-            queries=[tid.strip() for tid in taxid.split(",")],
-            method="pug_view/taxonomy",
-            parse=True,
-            format="dataframe",
-        )
-    else:
-        result = interface.fetch_single(
-            taxid.strip(), method="pug_view/taxonomy", parse=True, format="dataframe"
-        )
+    result = fetch_auto(
+        interface,
+        [tid.strip() for tid in taxid.split(",")],
+        method="pug_view/taxonomy",
+        parse=True,
+        format="dataframe",
+    )
 
     save_or_print(result, output, output_format=output_format)

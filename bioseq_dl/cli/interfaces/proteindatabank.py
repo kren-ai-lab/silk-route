@@ -5,7 +5,7 @@ from pathlib import Path
 import typer
 
 from bioseq_dl import PDBInterface
-from bioseq_dl.cli._shared import format_option, output_option, save_or_print
+from bioseq_dl.cli._shared import fetch_auto, format_option, output_option, save_or_print
 
 app = typer.Typer(help="Collect data from Protein Data Bank (PDB).")
 
@@ -25,11 +25,6 @@ def run_fetch_entry(
         output_dir=str(Path(output).parent) if output else None,
     )
 
-    if len(pdb_id.split(",")) > 1:
-        results = interface.fetch_batch(
-            queries=pdb_id.split(","), method="entry", parse=True, format="dataframe"
-        )
-    else:
-        results = interface.fetch_single(query=pdb_id, method="entry", parse=True, format="dataframe")
+    results = fetch_auto(interface, pdb_id.split(","), method="entry", parse=True, format="dataframe")
 
     save_or_print(results, output, output_format=output_format)

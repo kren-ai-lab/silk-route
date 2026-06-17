@@ -10,7 +10,37 @@ import json
 
 import pandas as pd
 
-from bioseq_dl.cli._shared import save_or_print, unwrap
+from bioseq_dl.cli._shared import fetch_auto, save_or_print, unwrap
+
+
+class _FakeInterface:
+    def __init__(self):
+        self.single = None
+        self.batch = None
+
+    def fetch_single(self, query, method, **kwargs):
+        self.single = (query, method, kwargs)
+        return "single"
+
+    def fetch_batch(self, queries, method, **kwargs):
+        self.batch = (queries, method, kwargs)
+        return "batch"
+
+
+def test_fetch_auto_single_query_calls_fetch_single():
+    fake = _FakeInterface()
+    out = fetch_auto(fake, ["X"], method="m", parse=True)
+    assert out == "single"
+    assert fake.single == ("X", "m", {"parse": True})
+    assert fake.batch is None
+
+
+def test_fetch_auto_multiple_queries_calls_fetch_batch():
+    fake = _FakeInterface()
+    out = fetch_auto(fake, ["X", "Y"], method="m", parse=True)
+    assert out == "batch"
+    assert fake.batch == (["X", "Y"], "m", {"parse": True})
+    assert fake.single is None
 
 
 def test_unwrap_data_metadata_tuple():

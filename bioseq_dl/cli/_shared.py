@@ -27,6 +27,18 @@ _OUTPUT_DIR_HELP = "Output directory for results."
 _FORMAT_HELP = "Output format: csv, json, xml, parquet. Inferred from extension if omitted."
 
 
+def fetch_auto(interface: Any, queries: list[Any], method: str, **kwargs: Any) -> Any:
+    """Dispatch to ``fetch_batch`` for several queries, else ``fetch_single``.
+
+    ``queries`` is the already-split list of per-item queries; callers own the
+    splitting/shaping (comma input, dict wrapping, etc.). This owns only the
+    one-vs-many decision that was previously copy-pasted across commands.
+    """
+    if len(queries) > 1:
+        return interface.fetch_batch(queries=queries, method=method, **kwargs)
+    return interface.fetch_single(query=queries[0], method=method, **kwargs)
+
+
 def output_option(help: str = _OUTPUT_HELP) -> Any:  # noqa: A002  # `help` matches typer's kwarg
     """Build the standard ``--output/-o`` file option (None = print preview)."""
     return typer.Option(None, "--output", "-o", help=help)
