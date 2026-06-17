@@ -224,6 +224,12 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
             "option": "",
         }
 
+    def _stamp_metadata(self, metadata: dict, *, method: str, option: Any) -> None:
+        """Stamp the API/method/option fields shared by every fetch return path."""
+        metadata["api_name"] = self.API_NAME
+        metadata["method"] = method
+        metadata["option"] = option
+
     @staticmethod
     def _build_columns_info(df: pd.DataFrame) -> list[dict]:
         """Build the per-column ``data_info`` block (name / dtype / n_missing)."""
@@ -609,13 +615,6 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
     # gene separately.
     ##################
 
-    def multiple_queries_supported(self, method: str, method_definition: dict) -> bool:
-        """Check if the API method supports multiple queries based on the method definition."""
-        if method not in method_definition:
-            return False
-
-        return bool(method_definition[method].get("group_queries"))
-
     def decompose_query(self, query: dict, method: str, option: str | None) -> list[tuple[str, dict]] | None:
         """Decompose a query into multiple subqueries if any of the identity keys contain lists.
 
@@ -826,9 +825,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                     export_df = pd.concat(dfs, ignore_index=True)
                     metadata["data_info"] = self._build_data_info(export_df)
                     metadata["execution_time"] = time.time() - t0
-                    metadata["api_name"] = self.API_NAME
-                    metadata["method"] = method
-                    metadata["option"] = option
+                    self._stamp_metadata(metadata, method=method, option=option)
 
                     return export_df, metadata
                 return pd.DataFrame(), metadata
@@ -848,9 +845,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                 )
                 metadata["fetched_length"] = len(combined_results)
                 metadata["execution_time"] = time.time() - t0
-                metadata["api_name"] = self.API_NAME
-                metadata["method"] = method
-                metadata["option"] = option
+                self._stamp_metadata(metadata, method=method, option=option)
 
                 return xml_bytes, metadata
 
@@ -892,9 +887,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
 
         metadata["data_info"] = self._build_data_info(parsed)
         metadata["execution_time"] = time.time() - t0
-        metadata["api_name"] = self.API_NAME
-        metadata["method"] = method
-        metadata["option"] = option
+        self._stamp_metadata(metadata, method=method, option=option)
 
         return parsed, metadata
 
@@ -1021,9 +1014,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
             batch_data = results
 
         metadata["data_info"] = self._build_data_info(batch_data)
-        metadata["api_name"] = self.API_NAME
-        metadata["method"] = method
-        metadata["option"] = option
+        self._stamp_metadata(metadata, method=method, option=option)
 
         return batch_data, metadata
 
