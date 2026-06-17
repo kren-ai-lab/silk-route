@@ -23,7 +23,7 @@ from bioseq_dl.core.interfaces.uniprot import UniprotInterface
 from bioseq_dl.core.workflow.main_workflow import MainWorkflow
 from bioseq_dl.logging import configure_logging, get_logger
 
-app = typer.Typer(name="workflow", help="Run predefined data collection workflows.")
+app = typer.Typer(name="workflow", help="Run predefined data fetching workflows.")
 log = get_logger("bioseq_dl.cli.workflows")
 
 

@@ -45,7 +45,7 @@ def run(
     ),
     out_dir: str = typer.Option(
         ...,
-        "--out_dir",
+        "--output-dir",
         "-o",
         help="Output directory for results.",
         case_sensitive=True,
