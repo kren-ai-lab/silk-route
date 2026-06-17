@@ -67,6 +67,10 @@ class BaseAPIInterface(ABC):
     API_NAME: ClassVar[str] = "BaseAPI"
     METHODS: ClassVar[dict[str, Any]] = {}
     DB_CONFIG: ClassVar[DBConfig | None] = None
+    # Default `option` injected into fetch_single/fetch_batch when the caller
+    # omits it. Only set on interfaces whose METHODS are option-keyed (e.g.
+    # {"default": {...}, ...}); leave None otherwise.
+    DEFAULT_OPTION: ClassVar[str | None] = None
 
     cache_key_ignore_args: ClassVar[set[str]] = {
         "parse",
@@ -743,6 +747,8 @@ class BaseAPIInterface(ABC):
         """
         metadata = self._empty_metadata()
         # Extract flags and avoid passing twice to _maybe_parse
+        if self.DEFAULT_OPTION is not None and "option" not in kwargs:
+            kwargs["option"] = self.DEFAULT_OPTION
         fmt = kwargs.pop("format", "json")
         method = kwargs.get("method", "NOT_GIVEN")
         option = kwargs.get("option")
@@ -901,6 +907,8 @@ class BaseAPIInterface(ABC):
 
         """
         metadata = self._empty_metadata()
+        if self.DEFAULT_OPTION is not None and "option" not in kwargs:
+            kwargs["option"] = self.DEFAULT_OPTION
         method = kwargs.get("method", "NOT_GIVEN")
         fmt = kwargs.pop("format", "json")
         option = kwargs.get("option")

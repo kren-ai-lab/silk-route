@@ -2,7 +2,6 @@
 
 from typing import Any, ClassVar
 
-import pandas as pd
 from niquests import Request
 from niquests.exceptions import RequestException
 
@@ -21,6 +20,7 @@ class PrideInterface(BaseAPIInterface):
 
     API_NAME = "PRIDE"
     DB_CONFIG = PRIDE
+    DEFAULT_OPTION: ClassVar[str | None] = "default"
     METHODS: ClassVar[dict[str, Any]] = {
         "search": {
             "projects": {
@@ -111,10 +111,3 @@ class PrideInterface(BaseAPIInterface):
         except RequestException:
             log.exception("Error fetching data from %s", url)
             return {}
-
-    def fetch_single(
-        self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
-    ) -> tuple[list | dict | pd.DataFrame | bytes | str, dict]:
-        """Fetch a single PRIDE record."""
-        option = kwargs.pop("option", "default")
-        return super().fetch_single(query, parse, *args, option=option, **kwargs)

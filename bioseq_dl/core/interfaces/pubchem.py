@@ -2,10 +2,8 @@
 
 import json
 import urllib.parse
-from collections.abc import Sequence
 from typing import Any, ClassVar
 
-import pandas as pd
 from niquests import Request, Response
 from niquests.exceptions import RequestException
 
@@ -29,6 +27,7 @@ class PubChemInterface(BaseAPIInterface):
 
     API_NAME = "PubChem"
     DB_CONFIG = PUBCHEM
+    DEFAULT_OPTION: ClassVar[str | None] = "default"
     METHODS: ClassVar[dict[str, Any]] = {
         "pug/compound": {
             **dict.fromkeys(OPTIONS["pug/compound"], COMPOUND_TEMPLATE),
@@ -408,17 +407,3 @@ class PubChemInterface(BaseAPIInterface):
             export_data.update(headings)
 
         return export_data
-
-    def fetch_single(
-        self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
-    ) -> tuple[list | dict | pd.DataFrame | bytes | str, dict]:
-        """Fetch a batch of PubChem records."""
-        option = kwargs.pop("option", "default")
-        return super().fetch_single(query, parse, *args, option=option, **kwargs)
-
-    def fetch_batch(
-        self, queries: Sequence[str | dict], parse: bool = False, *args: Any, **kwargs: Any
-    ) -> tuple[list | pd.DataFrame | bytes | str, dict]:
-        """Fetch a batch of PubChem records."""
-        option = kwargs.pop("option", "default")
-        return super().fetch_batch(queries, parse, *args, option=option, **kwargs)

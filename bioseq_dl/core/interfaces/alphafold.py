@@ -1,7 +1,7 @@
 """AlphaFold API interface."""
 
 import json
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
@@ -68,6 +68,17 @@ class AlphafoldInterface(BaseAPIInterface):
 
         self.structures = structures
 
+    @staticmethod
+    def _iter_records(result: Any) -> Iterator[dict]:
+        """Yield the individual record dicts contained in a fetch result."""
+        if isinstance(result, list):
+            yield from result
+        elif isinstance(result, pd.DataFrame):
+            for _, row in result.iterrows():
+                yield row.to_dict()
+        elif isinstance(result, dict):
+            yield result
+
     def fetch_single(
         self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
     ) -> tuple[list | dict | pd.DataFrame | bytes | str, dict]:
@@ -79,15 +90,8 @@ class AlphafoldInterface(BaseAPIInterface):
         result, metadata = super().fetch_single(query, parse, *args, **kwargs)
 
         if self.structures:
-            if isinstance(result, list):
-                for res in result:
-                    self.download_structures(res)
-            elif isinstance(result, pd.DataFrame):
-                for _, row in result.iterrows():
-                    row_dict = row.to_dict()
-                    self.download_structures(row_dict)
-            elif isinstance(result, dict):
-                self.download_structures(result)
+            for record in self._iter_records(result):
+                self.download_structures(record)
 
         return result, metadata
 
@@ -101,21 +105,13 @@ class AlphafoldInterface(BaseAPIInterface):
 
         results, metadata = super().fetch_batch(queries, parse, *args, **kwargs)
 
-        new_results = []
-        if self.structures:
-            for result in results:
-                if isinstance(result, list):
-                    new_results.extend(self.download_structures(res) for res in result)
-                elif isinstance(result, pd.DataFrame):
-                    for _, row in result.iterrows():
-                        row_dict = row.to_dict()
-                        new_results.append(self.download_structures(row_dict))
-                elif isinstance(result, dict):
-                    new_results = [self.download_structures(result)]
+        if not self.structures:
+            return results, metadata
 
-        if new_results:
-            return new_results, metadata
-        return results, metadata
+        new_results = [
+            self.download_structures(record) for result in results for record in self._iter_records(result)
+        ]
+        return (new_results or results), metadata
 
     def fetch(self, query: str | dict | list, *, method: str = "prediction", **kwargs: Any) -> dict | list:
         """Get prediction for a given UniProt ID.

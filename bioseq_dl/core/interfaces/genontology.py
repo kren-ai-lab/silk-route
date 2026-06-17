@@ -1,11 +1,9 @@
 """Gene Ontology API interface."""
 
-from collections.abc import Sequence
 from http import HTTPStatus
 from typing import Any, ClassVar
 
 import niquests
-import pandas as pd
 from niquests import Request
 from niquests.exceptions import RequestException
 
@@ -23,6 +21,7 @@ class GenOntologyInterface(BaseAPIInterface):
 
     API_NAME = "GenOntology"
     DB_CONFIG = GENONTOLOGY
+    DEFAULT_OPTION: ClassVar[str | None] = "default"
     METHODS: ClassVar[dict[str, Any]] = {
         "ontology-term": {
             "default": {
@@ -176,17 +175,3 @@ class GenOntologyInterface(BaseAPIInterface):
         except Exception:
             log.exception("Error fetching relationships for GO term %s", parsed.get("goid", ""))
         return parsed
-
-    def fetch_single(
-        self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
-    ) -> tuple[list | dict | pd.DataFrame | bytes | str, dict]:
-        """Fetch a single record and resolve related ontology terms."""
-        option = kwargs.pop("option", "default")
-        return super().fetch_single(query, parse, *args, option=option, **kwargs)
-
-    def fetch_batch(
-        self, queries: Sequence[str | dict], parse: bool = False, *args: Any, **kwargs: Any
-    ) -> tuple[list | pd.DataFrame | bytes | str, dict]:
-        """Fetch a batch of records and resolve related ontology terms."""
-        option = kwargs.pop("option", "default")
-        return super().fetch_batch(queries, parse, *args, option=option, **kwargs)
