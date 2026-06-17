@@ -48,3 +48,9 @@ def test_fetch_single_round_trips_through_cache(interface, niquests_mock):
 
     assert len(niquests_mock.calls) == 1
     assert first == second
+
+
+def test_fetch_returns_empty_on_http_error(interface, niquests_mock):
+    niquests_mock.get(url=startswith(DISCOVER_URL)).respond(status_code=500, json={"error": "boom"})
+
+    assert interface.fetch("R-HSA-109581", method="data-discover") == {}
