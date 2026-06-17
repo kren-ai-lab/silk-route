@@ -8,16 +8,16 @@ from bioseq_dl.cli._shared import format_option, output_option, save_or_print
 app = typer.Typer(help="Fetch data from BRENDA database.")
 
 
-@app.command("KmValues")
+@app.command("km-values")
 def run_km_values(
     email: str = typer.Option(None, "--email", "-e", help="Email address required by BRENDA for access."),
     password: str = typer.Option(None, "--password", "-p", help="Password for BRENDA access (if required)."),
     ec_number: str = typer.Option(
-        ..., "--ec_number", "-ec", help="EC number of the enzyme to fetch Km values for."
+        ..., "--ec-number", "-ec", help="EC number of the enzyme to fetch Km values for."
     ),
-    km_value: str = typer.Option(None, "--km_value", "-km", help="Specific Km value to filter results."),
+    km_value: str = typer.Option(None, "--km-value", "-km", help="Specific Km value to filter results."),
     km_value_max: str = typer.Option(
-        None, "--km_value_max", "-kmmax", help="Maximum Km value to filter results."
+        None, "--km-value-max", "-kmmax", help="Maximum Km value to filter results."
     ),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism name to filter results."),
     output: str = output_option(),
@@ -42,14 +42,14 @@ def run_km_values(
     save_or_print(df, output, output_format=output_format)
 
 
-@app.command("Ic50Values")
+@app.command("ic50-values")
 def run_ic50_values(
     email: str = typer.Option(None, "--email", "-e", help="Email address required by BRENDA for access."),
     password: str = typer.Option(None, "--password", "-p", help="Password for BRENDA access."),
-    ec_number: str = typer.Option(..., "--ec_number", "-ec", help="EC number of the enzyme."),
-    ic50_value: str = typer.Option(None, "--ic50_value", "--ic50", help="IC50 value filter."),
+    ec_number: str = typer.Option(..., "--ec-number", "-ec", help="EC number of the enzyme."),
+    ic50_value: str = typer.Option(None, "--ic50-value", "--ic50", help="IC50 value filter."),
     ic50_value_max: str = typer.Option(
-        None, "--ic50_value_max", "--ic50max", help="Maximum IC50 value filter."
+        None, "--ic50-value-max", "--ic50max", help="Maximum IC50 value filter."
     ),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
     output: str = output_option(),
@@ -73,14 +73,14 @@ def run_ic50_values(
 
 
 # ========= getKcatKmValue → KcatKmValues =========
-@app.command("KcatKmValues")
+@app.command("kcat-km-values")
 def run_kcat_km_values(
     email: str = typer.Option(None, "--email", "-e", help="Email address required by BRENDA for access."),
     password: str = typer.Option(None, "--password", "-p", help="Password for BRENDA access."),
-    ec_number: str = typer.Option(..., "--ec_number", "-ec", help="EC number of the enzyme."),
-    kcat_km_value: str = typer.Option(None, "--kcat_km_value", "--kcatkm", help="kcat/Km value filter."),
+    ec_number: str = typer.Option(..., "--ec-number", "-ec", help="EC number of the enzyme."),
+    kcat_km_value: str = typer.Option(None, "--kcat-km-value", "--kcatkm", help="kcat/Km value filter."),
     kcat_km_value_max: str = typer.Option(
-        None, "--kcat_km_value_max", "--kcatkmmax", help="Maximum kcat/Km value."
+        None, "--kcat-km-value-max", "--kcatkmmax", help="Maximum kcat/Km value."
     ),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
     output: str = output_option(),
@@ -104,13 +104,13 @@ def run_kcat_km_values(
 
 
 # ========= getKiValue → KiValues =========
-@app.command("KiValues")
+@app.command("ki-values")
 def run_ki_values(
     email: str = typer.Option(None, "--email", "-e", help="Email address required by BRENDA for access."),
     password: str = typer.Option(None, "--password", "-p", help="Password for BRENDA access."),
-    ec_number: str = typer.Option(..., "--ec_number", "-ec", help="EC number of the enzyme."),
-    ki_value: str = typer.Option(None, "--ki_value", "--ki", help="Ki value filter."),
-    ki_value_max: str = typer.Option(None, "--ki_value_max", "--kimax", help="Maximum Ki value filter."),
+    ec_number: str = typer.Option(..., "--ec-number", "-ec", help="EC number of the enzyme."),
+    ki_value: str = typer.Option(None, "--ki-value", "--ki", help="Ki value filter."),
+    ki_value_max: str = typer.Option(None, "--ki-value-max", "--kimax", help="Maximum Ki value filter."),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
     output: str = output_option(),
     output_format: str = format_option(),
@@ -132,13 +132,13 @@ def run_ki_values(
     save_or_print(df, output, output_format=output_format)
 
 
-@app.command("PhRange")
+@app.command("ph-range")
 def run_ph_range(
     email: str = typer.Option(None, "--email", "-e", help="Email address required by BRENDA for access."),
     password: str = typer.Option(None, "--password", "-p", help="Password for BRENDA access."),
-    ec_number: str = typer.Option(..., "--ec_number", "-ec", help="EC number of the enzyme."),
-    ph_range: str = typer.Option(None, "--ph_range", "--phr", help="pH range minimum filter."),
-    ph_range_max: str = typer.Option(None, "--ph_range_max", "--phrmax", help="pH range maximum filter."),
+    ec_number: str = typer.Option(..., "--ec-number", "-ec", help="EC number of the enzyme."),
+    ph_range: str = typer.Option(None, "--ph-range", "--phr", help="pH range minimum filter."),
+    ph_range_max: str = typer.Option(None, "--ph-range-max", "--phrmax", help="pH range maximum filter."),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
     output: str = output_option(),
     output_format: str = format_option(),
@@ -161,14 +161,14 @@ def run_ph_range(
 
 
 # ========= getPhOptimum → PhOptimum =========
-@app.command("PhOptimum")
+@app.command("ph-optimum")
 def run_ph_optimum(
     email: str = typer.Option(None, "--email", "-e", help="Email address required by BRENDA for access."),
     password: str = typer.Option(None, "--password", "-p", help="Password for BRENDA access."),
-    ec_number: str = typer.Option(..., "--ec_number", "-ec", help="EC number of the enzyme."),
-    ph_optimum: str = typer.Option(None, "--ph_optimum", "--pho", help="pH optimum minimum filter."),
+    ec_number: str = typer.Option(..., "--ec-number", "-ec", help="EC number of the enzyme."),
+    ph_optimum: str = typer.Option(None, "--ph-optimum", "--pho", help="pH optimum minimum filter."),
     ph_optimum_max: str = typer.Option(
-        None, "--ph_optimum_max", "--phomax", help="pH optimum maximum filter."
+        None, "--ph-optimum-max", "--phomax", help="pH optimum maximum filter."
     ),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
     output: str = output_option(),
@@ -191,14 +191,14 @@ def run_ph_optimum(
     save_or_print(df, output, output_format=output_format)
 
 
-@app.command("PhStability")
+@app.command("ph-stability")
 def run_ph_stability(
     email: str = typer.Option(None, "--email", "-e", help="Email address required by BRENDA for access."),
     password: str = typer.Option(None, "--password", "-p", help="Password for BRENDA access."),
-    ec_number: str = typer.Option(..., "--ec_number", "-ec", help="EC number of the enzyme."),
-    ph_stability: str = typer.Option(None, "--ph_stability", "--phs", help="pH stability minimum filter."),
+    ec_number: str = typer.Option(..., "--ec-number", "-ec", help="EC number of the enzyme."),
+    ph_stability: str = typer.Option(None, "--ph-stability", "--phs", help="pH stability minimum filter."),
     ph_stability_max: str = typer.Option(
-        None, "--ph_stability_max", "--phsmax", help="pH stability maximum filter."
+        None, "--ph-stability-max", "--phsmax", help="pH stability maximum filter."
     ),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
     output: str = output_option(),
@@ -221,11 +221,11 @@ def run_ph_stability(
     save_or_print(df, output, output_format=output_format)
 
 
-@app.command("Cofactor")
+@app.command("cofactor")
 def run_cofactor(
     email: str = typer.Option(None, "--email", "-e", help="Email address required by BRENDA for access."),
     password: str = typer.Option(None, "--password", "-p", help="Password for BRENDA access."),
-    ec_number: str = typer.Option(..., "--ec_number", "-ec", help="EC number of the enzyme."),
+    ec_number: str = typer.Option(..., "--ec-number", "-ec", help="EC number of the enzyme."),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
     output: str = output_option(),
     output_format: str = format_option(),
@@ -243,16 +243,16 @@ def run_cofactor(
     save_or_print(df, output, output_format=output_format)
 
 
-@app.command("TemperatureOptimum")
+@app.command("temperature-optimum")
 def run_temperature_optimum(
     email: str = typer.Option(None, "--email", "-e", help="Email address required by BRENDA for access."),
     password: str = typer.Option(None, "--password", "-p", help="Password for BRENDA access."),
-    ec_number: str = typer.Option(..., "--ec_number", "-ec", help="EC number of the enzyme."),
+    ec_number: str = typer.Option(..., "--ec-number", "-ec", help="EC number of the enzyme."),
     temperature_optimum: str = typer.Option(
-        None, "--temperature_optimum", "--topt", help="Temperature optimum min."
+        None, "--temperature-optimum", "--topt", help="Temperature optimum min."
     ),
     temperature_optimum_max: str = typer.Option(
-        None, "--temperature_optimum_max", "--toptmax", help="Temperature optimum max."
+        None, "--temperature-optimum-max", "--toptmax", help="Temperature optimum max."
     ),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
     output: str = output_option(),
@@ -275,16 +275,16 @@ def run_temperature_optimum(
     save_or_print(df, output, output_format=output_format)
 
 
-@app.command("TemperatureStability")
+@app.command("temperature-stability")
 def run_temperature_stability(
     email: str = typer.Option(None, "--email", "-e", help="Email address required by BRENDA for access."),
     password: str = typer.Option(None, "--password", "-p", help="Password for BRENDA access."),
-    ec_number: str = typer.Option(..., "--ec_number", "-ec", help="EC number of the enzyme."),
+    ec_number: str = typer.Option(..., "--ec-number", "-ec", help="EC number of the enzyme."),
     temperature_stability: str = typer.Option(
-        None, "--temperature_stability", "--tstab", help="Temperature stability min."
+        None, "--temperature-stability", "--tstab", help="Temperature stability min."
     ),
     temperature_stability_max: str = typer.Option(
-        None, "--temperature_stability_max", "--tstabmax", help="Temperature stability max."
+        None, "--temperature-stability-max", "--tstabmax", help="Temperature stability max."
     ),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
     output: str = output_option(),
@@ -307,16 +307,16 @@ def run_temperature_stability(
     save_or_print(df, output, output_format=output_format)
 
 
-@app.command("TemperatureRange")
+@app.command("temperature-range")
 def run_temperature_range(
     email: str = typer.Option(None, "--email", "-e", help="Email address required by BRENDA for access."),
     password: str = typer.Option(None, "--password", "-p", help="Password for BRENDA access."),
-    ec_number: str = typer.Option(..., "--ec_number", "-ec", help="EC number of the enzyme."),
+    ec_number: str = typer.Option(..., "--ec-number", "-ec", help="EC number of the enzyme."),
     temperature_range: str = typer.Option(
-        None, "--temperature_range", "--trng", help="Temperature range min."
+        None, "--temperature-range", "--trng", help="Temperature range min."
     ),
     temperature_range_max: str = typer.Option(
-        None, "--temperature_range_max", "--trngmax", help="Temperature range max."
+        None, "--temperature-range-max", "--trngmax", help="Temperature range max."
     ),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
     output: str = output_option(),

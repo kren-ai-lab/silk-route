@@ -16,14 +16,6 @@ from bioseq_dl.logging import configure_logging, get_logger
 
 log = get_logger("bioseq_dl.cli.chemical_search_query")
 
-app = typer.Typer(
-    help=(
-        "Collect data from chemical databases. A general search interface is provided to query compounds by "
-        "name, CID, SMILES, InChI, or gene "
-        "ID."
-    )
-)
-
 AVAILABLE_DATABASES = ["pubchem", "chembl", "chebi"]
 
 # Gene symbols are short; longer SMILES-like strings exceed this length.
@@ -171,7 +163,6 @@ def chebi_search_query(query: str) -> tuple[pd.DataFrame, dict]:
     return pd.DataFrame(), metadata
 
 
-@app.command("run")
 def run_compound(
     query: str = typer.Argument(
         ...,

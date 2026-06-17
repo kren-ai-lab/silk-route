@@ -5,12 +5,12 @@ import typer
 from bioseq_dl import __version__
 from bioseq_dl.cli.collect_data import fetch_app, search_app
 from bioseq_dl.cli.helper_commands import app as cache_app
-from bioseq_dl.cli.workflows import app as workflow_app
+from bioseq_dl.cli.workflows import run_workflow
 
 app = typer.Typer(name="bioseq-dl", help="Fetch sequences from multiple biological databases")
 app.add_typer(fetch_app, name="fetch", help="Fetch data using API nomenclature.")
 app.add_typer(search_app, name="search", help="Fetch data using general search interfaces.")
-app.add_typer(workflow_app, name="workflow", help="Run predefined data fetching workflows.")
+app.command("workflow", help="Run a predefined data fetching workflow.")(run_workflow)
 app.add_typer(cache_app, name="cache", help="Cache management commands.")
 
 

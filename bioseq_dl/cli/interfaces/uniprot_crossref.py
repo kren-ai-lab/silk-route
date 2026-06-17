@@ -12,8 +12,6 @@ from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
 from bioseq_dl.core.interfacesconfig import load_packaged_config
 from bioseq_dl.logging import get_logger
 
-app = typer.Typer(help="Search and download cross-references from UniProt.")
-
 log = get_logger("bioseq_dl.cli.uniprot_crossref")
 
 CROSS_REF_FIELDS = [xref.lower() for xref in XREF_MAPPING]
@@ -34,7 +32,6 @@ def save_to_file(
     log.info("Results for %s with option %s saved to %s", db, option, output_file)
 
 
-@app.command(name="")
 def run(
     input_file: str = typer.Option(
         ...,

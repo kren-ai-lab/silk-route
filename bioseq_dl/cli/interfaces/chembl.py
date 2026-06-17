@@ -33,7 +33,7 @@ def run_activity(
     save_or_print(result, output, output_format=output_format)
 
 
-@app.command("binding_site")
+@app.command("binding-site")
 def run_binding_site(
     chembl_id: str = typer.Argument(..., help="ChEMBL ID of the compound (e.g., CHEMBL25)"),
     output: str = output_option(),

@@ -104,7 +104,7 @@ def run_gene(
     save_or_print(result, output, output_format=output_format)
 
 
-@app.command("pug_view-compound")
+@app.command("pug-view-compound")
 def run_compound_view(
     cid: str = typer.Argument(..., help="Compound ID (CID, e.g., 2244)"),
     output: str = output_option(),
@@ -128,7 +128,7 @@ def run_compound_view(
     save_or_print(result, output, output_format=output_format)
 
 
-@app.command("pug_view-protein")
+@app.command("pug-view-protein")
 def run_protein_view(
     accession: str = typer.Argument(..., help="Protein accession number (e.g., P00533)"),
     output: str = output_option(),
@@ -150,7 +150,7 @@ def run_protein_view(
     save_or_print(result, output, output_format=output_format)
 
 
-@app.command("pug_view-gene")
+@app.command("pug-view-gene")
 def run_gene_view(
     geneid: str = typer.Argument(..., help="Gene ID (e.g., EGFR)"),
     output: str = output_option(),
@@ -174,7 +174,7 @@ def run_gene_view(
     save_or_print(result, output, output_format=output_format)
 
 
-@app.command("pug_view-pathway")
+@app.command("pug-view-pathway")
 def run_pathway_view(
     source: str = typer.Option("Reactome", help="Pathway source (e.g., Reactome)"),
     identifier: str = typer.Option(..., "--id", help="Pathway ID (e.g., R-HSA-5673001)"),
@@ -202,7 +202,7 @@ def run_pathway_view(
     save_or_print(result, output, output_format=output_format)
 
 
-@app.command("pug_view-taxonomy")
+@app.command("pug-view-taxonomy")
 def run_taxonomy_view(
     taxid: str = typer.Argument(..., help="Taxonomy ID (e.g., 9606)"),
     output: str = output_option(),

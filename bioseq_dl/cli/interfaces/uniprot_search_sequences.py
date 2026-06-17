@@ -30,12 +30,7 @@ from bioseq_dl.logging import configure_logging, get_logger
 
 log = get_logger("bioseq_dl.cli.uniprot_search_sequences")
 
-app = typer.Typer(
-    help="Run BLAST alignment on sequences and [optionaly] download matching sequences from UniProt."
-)
 
-
-@app.command()
 def run(
     database: str = typer.Option(
         ...,
@@ -62,21 +57,21 @@ def run(
     crossref_fields: str = typer.Option(
         "",
         "-xr",
-        "--crossref_fields",
+        "--crossref-fields",
         help="Cross reference fields to include in the output, options: "
         + ", ".join([xref[1] for xref in XREF_MAPPING.values()]),
     ),
     min_identity: float = typer.Option(
-        90.0, "--min_identity", help="Minimum identity threshold for BLAST search."
+        90.0, "--min-identity", help="Minimum identity threshold for BLAST search."
     ),
     min_coverage: float = typer.Option(
-        0.0, "--min_coverage", help="Minimum coverage threshold for BLAST search."
+        0.0, "--min-coverage", help="Minimum coverage threshold for BLAST search."
     ),
     debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
     export_format: str = typer.Option(
         "csv",
         "-ef",
-        "--export_format",
+        "--export-format",
         help="Export format: csv, json, xml, parquet. Default is csv.",
     ),
 ) -> None:

@@ -26,7 +26,7 @@ def run_db2db(
         help=f"Type of output identifier(s). Options: {', '.join(biodbnet_outputs)}",
     ),
     taxon_id: int = typer.Option(
-        None, "--taxon_id", "-t", help="NCBI Taxonomy ID to filter results by organism."
+        None, "--taxon-id", "-t", help="NCBI Taxonomy ID to filter results by organism."
     ),
     output: str = output_option(help="Output file to save the fetched data."),
     output_format: str = format_option(),
@@ -52,7 +52,7 @@ def run_pathways(
         None, "--pathways", "-p", help="Filter results by specific pathway(s), comma-separated."
     ),
     taxon_id: int = typer.Option(
-        None, "--taxon_id", "-t", help="NCBI Taxonomy ID to filter results by organism."
+        None, "--taxon-id", "-t", help="NCBI Taxonomy ID to filter results by organism."
     ),
     output: str = output_option(help="Output file to save the fetched data."),
     output_format: str = format_option(),

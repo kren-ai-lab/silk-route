@@ -10,7 +10,7 @@ from bioseq_dl.cli._shared import format_option, output_option, save_or_print
 app = typer.Typer(help="Fetch data from Pathway Commons.")
 
 
-@app.command("top_pathways")
+@app.command("top-pathways")
 def run_top_pathways(
     query: str = typer.Argument(..., help="Gene or protein identifier to query."),
     organism: str = typer.Option(

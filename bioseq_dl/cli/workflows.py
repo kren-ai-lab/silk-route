@@ -23,7 +23,6 @@ from bioseq_dl.core.interfaces.uniprot import UniprotInterface
 from bioseq_dl.core.workflow.main_workflow import MainWorkflow
 from bioseq_dl.logging import configure_logging, get_logger
 
-app = typer.Typer(name="workflow", help="Run predefined data fetching workflows.")
 log = get_logger("bioseq_dl.cli.workflows")
 
 
@@ -1262,7 +1261,6 @@ def split_pair(s: str) -> tuple[str, str]:
     return q.strip(), label.strip()
 
 
-@app.command(name="run")
 def run_workflow(
     config: Path | None = typer.Option(
         None,

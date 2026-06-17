@@ -58,7 +58,7 @@ def run_compounds(
     save_or_print(result, output, output_format=output_format)
 
 
-@app.command("es_search")
+@app.command("es-search")
 def run_es_search(
     term: str = typer.Argument(..., help="Search term for the ChEBI database"),
     page: int = typer.Option(1, "--page", help="Page number for pagination (default: 1)"),

@@ -16,10 +16,10 @@ def run_interactions(
         None, "--gene-list", "-gl", help="Comma-separated list of gene symbols to fetch interactions for."
     ),
     taxon_id: str = typer.Option(
-        None, "--taxon_id", "-t", help="NCBI Taxonomy ID to filter results by organism."
+        None, "--taxon-id", "-t", help="NCBI Taxonomy ID to filter results by organism."
     ),
     access_key: str = typer.Option(
-        None, "--access_key", "-ak", help="BioGRID API key to make authenticated requests"
+        None, "--access-key", "-ak", help="BioGRID API key to make authenticated requests"
     ),
     output: str = output_option(help="Output file to save the fetched data."),
     output_format: str = format_option(),
