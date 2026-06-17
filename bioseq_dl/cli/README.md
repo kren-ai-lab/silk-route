@@ -1,9 +1,5 @@
 # CLI notes
 
-The CLI was reworked for consistency (taxonomy, output/format flags, logging,
-naming). See `CLI_REFACTOR_PLAN.md` at the repo root for the full record and the
-remaining optional stages.
-
 Conventions (current):
 - Top-level groups: `fetch` (per-database, API nomenclature), `search` (general
   search interfaces), `workflow`, `cache`.
