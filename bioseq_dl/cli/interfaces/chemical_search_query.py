@@ -1,7 +1,6 @@
 """Chemical search query CLI commands."""
 
 import json
-import logging
 from pathlib import Path
 from typing import cast
 
@@ -12,7 +11,7 @@ from bioseq_dl import ChEBIInterface, ChEMBLInterface, PubChemInterface
 from bioseq_dl.cli._shared import output_dir_option
 
 # Pending: Uniprot ID
-from bioseq_dl.logging import configure_logging, get_logger
+from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.cli.chemical_search_query")
 
@@ -178,20 +177,8 @@ def run_compound(
     ),
     output: str = output_dir_option(),
     exact_match: bool = typer.Option(False, help="Use exact match for name searches"),
-    debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
 ) -> None:
     """Fetch compound data from chemical databases."""
-    logger = log
-    try:
-        if debug:
-            configure_logging(level=logging.DEBUG)
-            logger = get_logger(
-                "bioseq_dl.cli.chemical_search_query"
-            )  # re-fetch so root handlers pick new level
-            logger.debug("Debug logging enabled")
-    except Exception as e:  # noqa: BLE001  # defensive catch-all
-        logger.warning("Could not configure logging: %s", e)
-
     if databases.lower() != "all":
         db_list = [db.strip().lower() for db in databases.split(",")]
     else:

@@ -1,7 +1,6 @@
 """UniProt query search CLI commands."""
 
 import json
-import logging
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -16,7 +15,7 @@ from bioseq_dl.core.export import (
     normalize_user_export_format,
 )
 from bioseq_dl.core.utils.crossref_enrichment import run_crossref_enrichment
-from bioseq_dl.logging import configure_logging, get_logger
+from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.cli.uniprot_search_query")
 
@@ -39,7 +38,6 @@ def run(
     concat_results: bool = typer.Option(
         False, "--concat-results", help="Concatenate cross-reference results into a single DataFrame"
     ),
-    debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
     export_format: str = typer.Option(
         "csv",
         "-ef",
@@ -62,16 +60,6 @@ def run(
     except ValueError as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=1) from None
-
-    try:
-        if debug:
-            configure_logging(level=logging.DEBUG)
-            logger = get_logger(
-                "bioseq_dl.cli.uniprot_search_query"
-            )  # re-fetch so root handlers pick new level
-            logger.debug("Debug logging enabled")
-    except Exception as e:  # noqa: BLE001  # defensive catch-all
-        logger.warning("Could not configure logging: %s", e)
 
     logger.info(
         "Starting UniProt search with query: %s with parameters "

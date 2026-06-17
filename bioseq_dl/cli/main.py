@@ -6,6 +6,7 @@ from bioseq_dl import __version__
 from bioseq_dl.cli.collect_data import fetch_app, search_app
 from bioseq_dl.cli.helper_commands import app as cache_app
 from bioseq_dl.cli.workflows import run_workflow
+from bioseq_dl.logging import setup_logging
 
 app = typer.Typer(name="bioseq-dl", help="Fetch sequences from multiple biological databases")
 app.add_typer(fetch_app, name="fetch", help="Fetch data using API nomenclature.")
@@ -26,8 +27,12 @@ def main(
     version: bool = typer.Option(  # noqa: ARG001  # consumed by eager callback
         False, "--version", callback=_version_callback, is_eager=True, help="Show version and exit."
     ),
+    log: str = typer.Option(
+        "info", "--log", "-l", help="Logging level: debug, info, warning, error, critical."
+    ),
 ) -> None:
     """BioSeqDownloader CLI entry point."""
+    setup_logging(log)
     if ctx.invoked_subcommand is None:
         typer.echo("Welcome to BioSeqDownloader! Use --help to see available commands.")
 

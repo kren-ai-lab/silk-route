@@ -1,7 +1,6 @@
 """UniProt sequence search CLI commands."""
 
 import json
-import logging
 import shutil
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -26,7 +25,7 @@ from bioseq_dl.core.utils.blast_search import (
     run_blast,
 )
 from bioseq_dl.core.utils.crossref_enrichment import run_crossref_enrichment
-from bioseq_dl.logging import configure_logging, get_logger
+from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.cli.uniprot_search_sequences")
 
@@ -67,7 +66,6 @@ def run(
     min_coverage: float = typer.Option(
         0.0, "--min-coverage", help="Minimum coverage threshold for BLAST search."
     ),
-    debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
     export_format: str = typer.Option(
         "csv",
         "-ef",
@@ -90,16 +88,6 @@ def run(
     except ValueError as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=1) from None
-
-    try:
-        if debug:
-            configure_logging(level=logging.DEBUG)
-            logger = get_logger(
-                "bioseq_dl.cli.uniprot_search_sequences"
-            )  # re-fetch so root handlers pick new level
-            logger.debug("Debug logging enabled")
-    except Exception as e:  # noqa: BLE001  # defensive catch-all
-        logger.warning("Could not configure logging: %s", e)
 
     df = pd.read_csv(input_file)
 

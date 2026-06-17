@@ -215,6 +215,20 @@ def configure_logging(
     )
 
 
+LOG_LEVELS = {
+    "debug": logging.DEBUG,
+    "info": logging.INFO,
+    "warning": logging.WARNING,
+    "error": logging.ERROR,
+    "critical": logging.CRITICAL,
+}
+
+
+def setup_logging(level: str = "info") -> None:
+    """Configure logging from a CLI level string, defaulting to INFO."""
+    configure_logging(level=LOG_LEVELS.get(level.lower(), logging.INFO))
+
+
 def get_logger(name: str | None = None) -> logging.Logger:
     """Return a logger for the current module/class.
 
