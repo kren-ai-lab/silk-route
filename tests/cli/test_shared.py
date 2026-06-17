@@ -9,8 +9,39 @@ from __future__ import annotations
 import json
 
 import pandas as pd
+import pytest
 
-from bioseq_dl.cli._shared import save_or_print, unwrap
+from bioseq_dl.cli._shared import fetch_auto, save_or_print, unwrap
+
+
+class _FakeInterface:
+    def __init__(self):
+        self.single = None
+        self.batch = None
+
+    def fetch_single(self, query, method, **kwargs):
+        self.single = (query, method, kwargs)
+        return "single"
+
+    def fetch_batch(self, queries, method, **kwargs):
+        self.batch = (queries, method, kwargs)
+        return "batch"
+
+
+def test_fetch_auto_single_query_calls_fetch_single():
+    fake = _FakeInterface()
+    out = fetch_auto(fake, ["X"], method="m", parse=True)
+    assert out == "single"
+    assert fake.single == ("X", "m", {"parse": True})
+    assert fake.batch is None
+
+
+def test_fetch_auto_multiple_queries_calls_fetch_batch():
+    fake = _FakeInterface()
+    out = fetch_auto(fake, ["X", "Y"], method="m", parse=True)
+    assert out == "batch"
+    assert fake.batch == (["X", "Y"], "m", {"parse": True})
+    assert fake.single is None
 
 
 def test_unwrap_data_metadata_tuple():
@@ -47,6 +78,42 @@ def test_save_list_tuple_to_json(tmp_path):
     save_or_print((data, {"api_name": "test"}), str(out))
 
     assert json.loads(out.read_text()) == data
+
+
+def test_save_dataframe_infers_format_from_extension(tmp_path):
+    df = pd.DataFrame({"id": ["X"], "value": [42]})
+    out = tmp_path / "out.json"
+
+    save_or_print((df, {}), str(out))
+
+    assert json.loads(out.read_text()) == [{"id": "X", "value": 42}]
+
+
+def test_save_dataframe_explicit_format_adds_suffix(tmp_path):
+    df = pd.DataFrame({"id": ["X"]})
+    out = tmp_path / "noext"
+
+    save_or_print((df, {}), str(out), output_format="json")
+
+    assert (tmp_path / "noext.json").exists()
+
+
+def test_save_dataframe_defaults_to_csv_without_extension(tmp_path):
+    df = pd.DataFrame({"id": ["X"]})
+    out = tmp_path / "plain"
+
+    save_or_print((df, {}), str(out))
+
+    assert (tmp_path / "plain.csv").exists()
+
+
+def test_save_dataframe_unsupported_format_exits_cleanly(tmp_path):
+    import typer
+
+    df = pd.DataFrame({"id": ["X"]})
+    with pytest.raises(typer.Exit) as exc:
+        save_or_print((df, {}), str(tmp_path / "out.txt"))
+    assert exc.value.exit_code == 1
 
 
 def test_print_preview_does_not_raise(capsys):

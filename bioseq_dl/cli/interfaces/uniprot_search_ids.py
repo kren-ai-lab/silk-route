@@ -1,7 +1,6 @@
 """UniProt ID search CLI commands."""
 
 import json
-import logging
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -9,7 +8,7 @@ import pandas as pd
 import typer
 
 from bioseq_dl import UniprotInterface
-from bioseq_dl.cli._shared import save_uniprot_results
+from bioseq_dl.cli._shared import output_dir_option, save_uniprot_results
 from bioseq_dl.constants.uniprot import VALID_CROSS_REF_FIELDS, VALID_FIELDS
 from bioseq_dl.core.export import (
     USER_EXPORT_FORMATS,
@@ -17,43 +16,39 @@ from bioseq_dl.core.export import (
     normalize_user_export_format,
 )
 from bioseq_dl.core.utils.crossref_enrichment import run_crossref_enrichment
-from bioseq_dl.logging import configure_logging, get_logger
-
-app = typer.Typer(help="Search and download sequences from UniProt using IDs.")
+from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.cli.uniprot_search_ids")
 
 
-@app.command()
 def run(
     input_file: str = typer.Option(..., "-i", "--input", help="CSV file with UniProt IDs"),
     column: str = typer.Option("accession", "-c", "--column", help="Column name with UniProt IDs"),
-    output: str = typer.Option(..., "-o", "--output", help="Output file"),
+    output: str = output_dir_option(),
     from_db: str = typer.Option(
         "UniProtKB_AC-ID",
-        "--from_db",
+        "--from-db",
         help="Database to convert from. Default is UniProtKB_AC-ID (UniProtKB_AC-ID, PDB)",
     ),
-    to_db: str = typer.Option("UniProtKB", "--to_db", help="Database to convert to"),
+    to_db: str = typer.Option("UniProtKB", "--to-db", help="Database to convert to"),
     fields: str = typer.Option(
         ",".join(VALID_FIELDS), "-f", "--fields", help="Fields to include in the output"
     ),
     crossref_fields: str = typer.Option(
         ",".join(VALID_CROSS_REF_FIELDS),
         "-xr",
-        "--crossref_fields",
+        "--crossref-fields",
         help="Cross reference fields to include in the output",
     ),
-    batch_size: int = typer.Option(5000, "-b", "--batch_size", help="Batch size for downloading"),
-    auto_db: bool = typer.Option(False, "-a", "--auto_db", help="Automatically detect database type"),
+    batch_size: int = typer.Option(5000, "-b", "--batch-size", help="Batch size for downloading"),
+    auto_db: bool = typer.Option(False, "-a", "--auto-db", help="Automatically detect database type"),
     min_identity: float = typer.Option(
-        None, "--min_identity", help="Minimum identity threshold for BLAST search."
+        None, "--min-identity", help="Minimum identity threshold for BLAST search."
     ),
-    debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
     export_format: str = typer.Option(
         "csv",
         "-ef",
-        "--export_format",
+        "--export-format",
         help="Export format: csv, json, xml, parquet. Default is csv.",
     ),
 ) -> None:
@@ -72,16 +67,6 @@ def run(
     except ValueError as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=1) from None
-
-    try:
-        if debug:
-            configure_logging(level=logging.DEBUG)
-            logger = get_logger(
-                "bioseq_dl.cli.uniprot_search_query"
-            )  # re-fetch so root handlers pick new level
-            logger.debug("Debug logging enabled")
-    except Exception as e:  # noqa: BLE001  # defensive catch-all
-        logger.warning("Could not configure logging: %s", e)
 
     df = pd.read_csv(input_file)
 

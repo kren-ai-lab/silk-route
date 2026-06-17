@@ -2,7 +2,7 @@
 
 BioSeqDownloader workflow YAML files are structured dataset descriptors for reproducible data acquisition runs. They configure the current workflow CLI, describe the dataset objective, preserve query and execution context, and generate metadata plus a compact run summary.
 
-They are not a generic workflow engine, a multi-step pipeline language, or a plugin system. The current implementation maps a specific set of descriptor fields to `bioseq-dl workflow run` and preserves the rest as descriptive metadata.
+They are not a generic workflow engine, a multi-step pipeline language, or a plugin system. The current implementation maps a specific set of descriptor fields to `bioseq-dl workflow` and preserves the rest as descriptive metadata.
 
 ## Execution Model
 
@@ -31,9 +31,9 @@ When a YAML descriptor and CLI options are both provided, values are resolved in
 Examples:
 
 ```bash
-bioseq-dl workflow run --config examples/protein-dataset-construction.yml
-bioseq-dl workflow run --config examples/protein-dataset-construction.yml -o result_override
-bioseq-dl workflow run --config examples/protein-dataset-construction.yml -e csv
+bioseq-dl workflow --config examples/protein-dataset-construction.yml
+bioseq-dl workflow --config examples/protein-dataset-construction.yml -o result_override
+bioseq-dl workflow --config examples/protein-dataset-construction.yml -e csv
 ```
 
 Validated example descriptors are:

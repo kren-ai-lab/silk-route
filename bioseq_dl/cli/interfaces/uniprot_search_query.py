@@ -1,14 +1,13 @@
 """UniProt query search CLI commands."""
 
 import json
-import logging
 from pathlib import Path
 from typing import Any, Literal, cast
 
 import typer
 
 from bioseq_dl import UniprotInterface
-from bioseq_dl.cli._shared import save_uniprot_results
+from bioseq_dl.cli._shared import output_dir_option, save_uniprot_results
 from bioseq_dl.constants.uniprot import VALID_FIELDS, XREF_MAPPING
 from bioseq_dl.core.export import (
     USER_EXPORT_FORMATS,
@@ -16,18 +15,13 @@ from bioseq_dl.core.export import (
     normalize_user_export_format,
 )
 from bioseq_dl.core.utils.crossref_enrichment import run_crossref_enrichment
-from bioseq_dl.logging import configure_logging, get_logger
+from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.cli.uniprot_search_query")
 
-app = typer.Typer(
-    name="uniprot-search-query", help="Search and download sequences from UniProt using queries."
-)
 
-
-@app.command()
 def run(
-    output: str = typer.Option(..., "-o", "--output", help="Output directory for results"),
+    output: str = output_dir_option(),
     query: str = typer.Option(..., "-q", "--query", help="Query to search for"),
     fields: str = typer.Option(
         ",".join(VALID_FIELDS), "-f", "--fields", help="Fields to include in the output"
@@ -35,20 +29,19 @@ def run(
     crossref_fields: str = typer.Option(
         "",
         "-xr",
-        "--crossref_fields",
+        "--crossref-fields",
         help="Cross reference fields to include in the output, options: "
         + ", ".join([xref[1] for xref in XREF_MAPPING.values()]),
     ),
     sort: str = typer.Option("accession asc", "-s", "--sort", help="Sort order for the results"),
-    include_isoform: bool = typer.Option(False, "--include_isoform", help="Include isoforms in the results"),
+    include_isoform: bool = typer.Option(False, "--include-isoform", help="Include isoforms in the results"),
     concat_results: bool = typer.Option(
-        False, "--concat_results", help="Concatenate cross-reference results into a single DataFrame"
+        False, "--concat-results", help="Concatenate cross-reference results into a single DataFrame"
     ),
-    debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
     export_format: str = typer.Option(
         "csv",
         "-ef",
-        "--export_format",
+        "--export-format",
         help="Export format: csv, json, xml, parquet. Default is csv.",
     ),
 ) -> None:
@@ -67,16 +60,6 @@ def run(
     except ValueError as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=1) from None
-
-    try:
-        if debug:
-            configure_logging(level=logging.DEBUG)
-            logger = get_logger(
-                "bioseq_dl.cli.uniprot_search_query"
-            )  # re-fetch so root handlers pick new level
-            logger.debug("Debug logging enabled")
-    except Exception as e:  # noqa: BLE001  # defensive catch-all
-        logger.warning("Could not configure logging: %s", e)
 
     logger.info(
         "Starting UniProt search with query: %s with parameters "

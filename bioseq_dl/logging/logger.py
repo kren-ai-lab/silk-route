@@ -215,6 +215,27 @@ def configure_logging(
     )
 
 
+LOG_LEVELS = {
+    "debug": logging.DEBUG,
+    "info": logging.INFO,
+    "warning": logging.WARNING,
+    "error": logging.ERROR,
+    "critical": logging.CRITICAL,
+}
+
+
+def setup_logging(level: str = "info") -> None:
+    """Configure logging from a CLI level string (default INFO) and apply it now.
+
+    ``configure_logging`` only marks the manager dirty (handlers are reinstalled
+    lazily on the next ``get_logger``). CLI commands that use module-level loggers
+    created at import time would otherwise never pick up the new level, so we force
+    the root handlers to be (re)installed immediately.
+    """
+    configure_logging(level=LOG_LEVELS.get(level.lower(), logging.INFO))
+    _manager._ensure_configured()  # noqa: SLF001  # apply eagerly for the CLI
+
+
 def get_logger(name: str | None = None) -> logging.Logger:
     """Return a logger for the current module/class.
 

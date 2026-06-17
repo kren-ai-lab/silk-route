@@ -23,7 +23,6 @@ from bioseq_dl.core.interfaces.uniprot import UniprotInterface
 from bioseq_dl.core.workflow.main_workflow import MainWorkflow
 from bioseq_dl.logging import configure_logging, get_logger
 
-app = typer.Typer(name="workflow", help="Run predefined data collection workflows.")
 log = get_logger("bioseq_dl.cli.workflows")
 
 
@@ -727,7 +726,7 @@ def add_id_column_for_export(df: pd.DataFrame, result_label: str, id_column: str
     export_df = df.copy()
     id_values = [f"{result_label}_{index}" for index in range(1, len(export_df) + 1)]
     # pandas accepts a list for the insert value at runtime; the stub types it as scalar/array-like only.
-    export_df.insert(0, id_column, id_values)  # ty: ignore[invalid-argument-type]
+    export_df.insert(0, id_column, id_values)
     return export_df
 
 
@@ -1262,7 +1261,6 @@ def split_pair(s: str) -> tuple[str, str]:
     return q.strip(), label.strip()
 
 
-@app.command(name="run")
 def run_workflow(
     config: Path | None = typer.Option(
         None,

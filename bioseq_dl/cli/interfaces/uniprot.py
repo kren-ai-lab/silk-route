@@ -2,14 +2,17 @@
 
 import typer
 
-from .uniprot_crossref import app as uniprot_crossref_app
-from .uniprot_search_ids import app as uniprot_search_ids_app
-from .uniprot_search_query import app as uniprot_search_query_app
-from .uniprot_search_sequences import app as uniprot_search_sequences_app
+from .uniprot_crossref import run as run_crossrefs
+from .uniprot_search_ids import run as run_by_ids
+from .uniprot_search_query import run as run_by_query
+from .uniprot_search_sequences import run as run_by_sequences
 
-app = typer.Typer(help="Collect data from UniProt database.")
+app = typer.Typer(help="Search and download data from UniProt.")
 
-app.add_typer(uniprot_crossref_app, name="search-crossreferences")
-app.add_typer(uniprot_search_ids_app, name="search-by-ids")
-app.add_typer(uniprot_search_query_app, name="search-by-query")
-app.add_typer(uniprot_search_sequences_app, name="search-by-sequences")
+app.command("by-ids", help="Search and download sequences from UniProt using IDs.")(run_by_ids)
+app.command("by-query", help="Search and download sequences from UniProt using queries.")(run_by_query)
+app.command(
+    "by-sequences",
+    help="Run BLAST alignment on sequences and download matching sequences from UniProt.",
+)(run_by_sequences)
+app.command("crossrefs", help="Search and download cross-references from UniProt.")(run_crossrefs)

@@ -1,7 +1,6 @@
 """UniProt sequence search CLI commands."""
 
 import json
-import logging
 import shutil
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -10,7 +9,7 @@ import pandas as pd
 import typer
 
 from bioseq_dl import UniprotInterface
-from bioseq_dl.cli._shared import save_uniprot_results
+from bioseq_dl.cli._shared import output_dir_option, save_uniprot_results
 from bioseq_dl.constants.uniprot import DATABASES, VALID_FIELDS, XREF_MAPPING
 from bioseq_dl.core.export import (
     USER_EXPORT_FORMATS,
@@ -26,16 +25,11 @@ from bioseq_dl.core.utils.blast_search import (
     run_blast,
 )
 from bioseq_dl.core.utils.crossref_enrichment import run_crossref_enrichment
-from bioseq_dl.logging import configure_logging, get_logger
+from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.cli.uniprot_search_sequences")
 
-app = typer.Typer(
-    help="Run BLAST alignment on sequences and [optionaly] download matching sequences from UniProt."
-)
 
-
-@app.command()
 def run(
     database: str = typer.Option(
         ...,
@@ -48,7 +42,7 @@ def run(
     ),
     input_file: str = typer.Option(..., "--input", "-i", help="File with sequences to run BLAST on."),
     seq_column: str = typer.Option("sequences", "--seq-column", "-c", help="Column name with sequences."),
-    output: str = typer.Option(..., "-o", "--output", help="Output directory for results"),
+    output: str = output_dir_option(),
     evalue: float = typer.Option(0.001, "--evalue", "-v", help="E-value threshold for BLAST search."),
     blast_type: str = typer.Option(
         "blastp", "--blast-type", "-b", help="Type of BLAST to run. Default is 'blastp'."
@@ -62,21 +56,20 @@ def run(
     crossref_fields: str = typer.Option(
         "",
         "-xr",
-        "--crossref_fields",
+        "--crossref-fields",
         help="Cross reference fields to include in the output, options: "
         + ", ".join([xref[1] for xref in XREF_MAPPING.values()]),
     ),
     min_identity: float = typer.Option(
-        90.0, "--min_identity", help="Minimum identity threshold for BLAST search."
+        90.0, "--min-identity", help="Minimum identity threshold for BLAST search."
     ),
     min_coverage: float = typer.Option(
-        0.0, "--min_coverage", help="Minimum coverage threshold for BLAST search."
+        0.0, "--min-coverage", help="Minimum coverage threshold for BLAST search."
     ),
-    debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
     export_format: str = typer.Option(
         "csv",
         "-ef",
-        "--export_format",
+        "--export-format",
         help="Export format: csv, json, xml, parquet. Default is csv.",
     ),
 ) -> None:
@@ -95,16 +88,6 @@ def run(
     except ValueError as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=1) from None
-
-    try:
-        if debug:
-            configure_logging(level=logging.DEBUG)
-            logger = get_logger(
-                "bioseq_dl.cli.uniprot_search_query"
-            )  # re-fetch so root handlers pick new level
-            logger.debug("Debug logging enabled")
-    except Exception as e:  # noqa: BLE001  # defensive catch-all
-        logger.warning("Could not configure logging: %s", e)
 
     df = pd.read_csv(input_file)
 
@@ -126,7 +109,7 @@ def run(
     results = parse_blast_results("tmp/blast_results.txt")
 
     # Convert to DataFrame
-    sequences_df = pd.DataFrame(sequences, columns=[seq_column])  # ty: ignore[invalid-argument-type]  # pandas stub overload
+    sequences_df = pd.DataFrame(sequences, columns=[seq_column])  # pandas stub overload
     sequences_df["id"] = sequences_df.index
 
     df_blast = pd.DataFrame(results)

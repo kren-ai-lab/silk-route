@@ -113,31 +113,31 @@ bioseq-dl --help
 
 **Example 1 - Search antimicrobial proteins (length 50-51) in UniProt:**
 ```bash
-bioseq-dl general-collect uniprot search-by-query run \
+bioseq-dl search uniprot by-query \
 --query "(length:[50 TO 51]) AND antimicrobial AND reviewed:true" \
 --fields accession,protein_name,gene_primary,sequence,ec \
---crossref_fields alphafold,pdb \
---output search_query_test
+--crossref-fields alphafold,pdb \
+--output-dir search_query_test
 ```
 
 **Example 2 - Search UniProt entries by accession IDs:**
 ```bash
-bioseq-dl general-collect uniprot search-by-ids run \
+bioseq-dl search uniprot by-ids \
 --input unknown_ids.csv \
 --column accession \
---output search_ids_test \
---crossref_fields alphafold
+--output-dir search_ids_test \
+--crossref-fields alphafold
 ```
 
 **Example 3 - Experimental BLAST-backed UniProt sequence search:**
 ```bash
-bioseq-dl general-collect uniprot search-by-sequences run \
+bioseq-dl search uniprot by-sequences \
 --database uniprotkb_reviewed \
 --seq-column sequence \
---min_identity 100.0 \
+--min-identity 100.0 \
 --input unknown_sequences.csv \
---output search_sequences_test \
---crossref_fields alphafold
+--output-dir search_sequences_test \
+--crossref-fields alphafold
 ```
 
 This path is exposed by the CLI but is experimental compared with the validated YAML workflow path.
@@ -153,14 +153,14 @@ BioSeqDownloader supports structured YAML descriptors for reproducible workflow 
 Workflow runs can be described with a structured dataset descriptor and executed with:
 
 ```bash
-bioseq-dl workflow run --config examples/protein-dataset-construction.yml
+bioseq-dl workflow --config examples/protein-dataset-construction.yml
 ```
 
 CLI arguments override YAML values, so a descriptor can be reused with a different output directory or export format:
 
 ```bash
-bioseq-dl workflow run --config examples/protein-dataset-construction.yml -o result_override
-bioseq-dl workflow run --config examples/protein-dataset-construction.yml -e csv
+bioseq-dl workflow --config examples/protein-dataset-construction.yml -o result_override
+bioseq-dl workflow --config examples/protein-dataset-construction.yml -e csv
 ```
 
 YAML descriptors use top-level `dataset`, `query`, `resources`, `execution`, `harmonization`, `export`, and `reporting` sections, plus a small allowlist of descriptive integration sections. `dataset.mode` is the workflow execution mode, and the only valid values are `query_first` and `query_composition`. Only part of the descriptor is executable: `dataset.modality`, `dataset.mode`, `query.value`, selected `query` options, supported `execution` options, and `export` options are mapped to the current workflow. `query.value` is the actual API query. `query.description` and `query.filtering_strategy` are descriptive metadata only.
@@ -264,7 +264,7 @@ In YAML, set the execution mode with `dataset.mode`. In the CLI, use `--mode` or
 #### Command Structure
 
 ```bash
-bioseq-dl workflow run [OPTIONS]
+bioseq-dl workflow [OPTIONS]
 ```
 
 ##### Required Options
@@ -290,7 +290,7 @@ bioseq-dl workflow run [OPTIONS]
 Search for proteins with temperature information and export the workflow result:
 
 ```bash
-bioseq-dl workflow run \
+bioseq-dl workflow \
   -o result \
   -q "temperature:*" \
   --modality "protein" \
@@ -320,7 +320,7 @@ result/
 Compare proteins at different temperature optima using labeled queries:
 
 ```bash
-bioseq-dl workflow run \
+bioseq-dl workflow \
   -o workflow_test \
   -q "temperature:99=temp_99,temperature:98=temp_98" \
   --modality "protein" \
@@ -352,7 +352,7 @@ result/
 Classify compounds by bioactivity levels (IC50 ranges):
 
 ```bash
-bioseq-dl workflow run \
+bioseq-dl workflow \
   -o workflow_compound \
   -q "ic50:10-50=active,ic50:50-100=inactive" \
   --modality "compound" \
@@ -393,7 +393,7 @@ If `harmonization.id_column` is set, exported tabular files receive a determinis
 
 **Multi-threading and Performance:**
 ```bash
-bioseq-dl workflow run \
+bioseq-dl workflow \
   -o result \
   -q "temperature:*" \
   -m "protein" \

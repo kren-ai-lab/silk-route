@@ -3,7 +3,7 @@
 import typer
 
 from bioseq_dl import PantherInterface
-from bioseq_dl.cli._shared import save_or_print
+from bioseq_dl.cli._shared import format_option, output_option, save_or_print
 
 app = typer.Typer(help="Fetch data from PANTHER database.")
 
@@ -17,12 +17,8 @@ def run_geneinfo(
         "-tf",
         help="Taxon filter (e.g., '9606' for human).",
     ),
-    output: str = typer.Option(
-        None,
-        "--output",
-        "-o",
-        help="Output file to save the data.",
-    ),
+    output: str = output_option(help="Output file to save the data."),
+    output_format: str = format_option(),
 ) -> None:
     """Run PANTHER gene info lookup."""
     interface = PantherInterface()
@@ -31,7 +27,7 @@ def run_geneinfo(
 
     result = interface.fetch_single(query=query, method="geneinfo", parse=True, format="dataframe")
 
-    save_or_print(result, output)
+    save_or_print(result, output, output_format=output_format)
 
 
 @app.command("familyortholog")
@@ -43,12 +39,8 @@ def run_familyortholog(
         "-tf",
         help="Taxon filter (e.g., '9606' for human).",
     ),
-    output: str = typer.Option(
-        None,
-        "--output",
-        "-o",
-        help="Output file to save the data.",
-    ),
+    output: str = output_option(help="Output file to save the data."),
+    output_format: str = format_option(),
 ) -> None:
     """Run PANTHER family ortholog lookup."""
     interface = PantherInterface()
@@ -57,7 +49,7 @@ def run_familyortholog(
 
     result = interface.fetch_single(query=query, method="familyortholog", parse=True, format="dataframe")
 
-    save_or_print(result, output)
+    save_or_print(result, output, output_format=output_format)
 
 
 @app.command("familymsa")
@@ -69,12 +61,8 @@ def run_familymsa(
         "-tf",
         help="Taxon filter (e.g., '9606' for human).",
     ),
-    output: str = typer.Option(
-        None,
-        "--output",
-        "-o",
-        help="Output file to save the data.",
-    ),
+    output: str = output_option(help="Output file to save the data."),
+    output_format: str = format_option(),
 ) -> None:
     """Run PANTHER family MSA lookup."""
     interface = PantherInterface()
@@ -83,4 +71,4 @@ def run_familymsa(
 
     result = interface.fetch_single(query=query, method="familymsa", parse=True, format="dataframe")
 
-    save_or_print(result, output)
+    save_or_print(result, output, output_format=output_format)
