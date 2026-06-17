@@ -9,7 +9,7 @@ import pandas as pd
 import typer
 
 from bioseq_dl import UniprotInterface
-from bioseq_dl.cli._shared import save_uniprot_results
+from bioseq_dl.cli._shared import output_dir_option, save_uniprot_results
 from bioseq_dl.constants.uniprot import VALID_CROSS_REF_FIELDS, VALID_FIELDS
 from bioseq_dl.core.export import (
     USER_EXPORT_FORMATS,
@@ -28,7 +28,7 @@ log = get_logger("bioseq_dl.cli.uniprot_search_ids")
 def run(
     input_file: str = typer.Option(..., "-i", "--input", help="CSV file with UniProt IDs"),
     column: str = typer.Option("accession", "-c", "--column", help="Column name with UniProt IDs"),
-    output: str = typer.Option(..., "-o", "--output", help="Output file"),
+    output: str = output_dir_option(),
     from_db: str = typer.Option(
         "UniProtKB_AC-ID",
         "--from_db",

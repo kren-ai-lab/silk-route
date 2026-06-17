@@ -3,7 +3,7 @@
 import typer
 
 from bioseq_dl import BrendaInterface
-from bioseq_dl.cli._shared import save_or_print
+from bioseq_dl.cli._shared import format_option, output_option, save_or_print
 
 app = typer.Typer(help="Fetch data from BRENDA database.")
 
@@ -20,12 +20,8 @@ def run_km_values(
         None, "--km_value_max", "-kmmax", help="Maximum Km value to filter results."
     ),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism name to filter results."),
-    output: str = typer.Option(
-        None,
-        "--output",
-        "-o",
-        help="Output file to save the fetched data.",
-    ),
+    output: str = output_option(),
+    output_format: str = format_option(),
 ) -> None:
     """Fetch Km values from BRENDA database."""
     instance = BrendaInterface(email=email, password=password)
@@ -43,7 +39,7 @@ def run_km_values(
 
     df = instance.fetch_single(query=query, method="getKmValue", parse=True, format="dataframe")
 
-    save_or_print(df, output)
+    save_or_print(df, output, output_format=output_format)
 
 
 @app.command("Ic50Values")
@@ -56,7 +52,8 @@ def run_ic50_values(
         None, "--ic50_value_max", "--ic50max", help="Maximum IC50 value filter."
     ),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
-    output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
+    output: str = output_option(),
+    output_format: str = format_option(),
 ) -> None:
     """Fetch IC50 values from BRENDA."""
     instance = BrendaInterface(email=email, password=password)
@@ -72,7 +69,7 @@ def run_ic50_values(
         query["organism"] = organism
 
     df = instance.fetch_single(query=query, method="getIc50Value", parse=True, format="dataframe")
-    save_or_print(df, output)
+    save_or_print(df, output, output_format=output_format)
 
 
 # ========= getKcatKmValue → KcatKmValues =========
@@ -86,7 +83,8 @@ def run_kcat_km_values(
         None, "--kcat_km_value_max", "--kcatkmmax", help="Maximum kcat/Km value."
     ),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
-    output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
+    output: str = output_option(),
+    output_format: str = format_option(),
 ) -> None:
     """Fetch kcat/Km values from BRENDA."""
     instance = BrendaInterface(email=email, password=password)
@@ -102,7 +100,7 @@ def run_kcat_km_values(
         query["organism"] = organism
 
     df = instance.fetch_single(query=query, method="getKcatKmValue", parse=True, format="dataframe")
-    save_or_print(df, output)
+    save_or_print(df, output, output_format=output_format)
 
 
 # ========= getKiValue → KiValues =========
@@ -114,7 +112,8 @@ def run_ki_values(
     ki_value: str = typer.Option(None, "--ki_value", "--ki", help="Ki value filter."),
     ki_value_max: str = typer.Option(None, "--ki_value_max", "--kimax", help="Maximum Ki value filter."),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
-    output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
+    output: str = output_option(),
+    output_format: str = format_option(),
 ) -> None:
     """Fetch Ki values from BRENDA."""
     instance = BrendaInterface(email=email, password=password)
@@ -130,7 +129,7 @@ def run_ki_values(
         query["organism"] = organism
 
     df = instance.fetch_single(query=query, method="getKiValue", parse=True, format="dataframe")
-    save_or_print(df, output)
+    save_or_print(df, output, output_format=output_format)
 
 
 @app.command("PhRange")
@@ -141,7 +140,8 @@ def run_ph_range(
     ph_range: str = typer.Option(None, "--ph_range", "--phr", help="pH range minimum filter."),
     ph_range_max: str = typer.Option(None, "--ph_range_max", "--phrmax", help="pH range maximum filter."),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
-    output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
+    output: str = output_option(),
+    output_format: str = format_option(),
 ) -> None:
     """Fetch pH range data from BRENDA."""
     instance = BrendaInterface(email=email, password=password)
@@ -157,7 +157,7 @@ def run_ph_range(
         query["organism"] = organism
 
     df = instance.fetch_single(query=query, method="getPhRange", parse=True, format="dataframe")
-    save_or_print(df, output)
+    save_or_print(df, output, output_format=output_format)
 
 
 # ========= getPhOptimum → PhOptimum =========
@@ -171,7 +171,8 @@ def run_ph_optimum(
         None, "--ph_optimum_max", "--phomax", help="pH optimum maximum filter."
     ),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
-    output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
+    output: str = output_option(),
+    output_format: str = format_option(),
 ) -> None:
     """Fetch pH optimum data from BRENDA."""
     instance = BrendaInterface(email=email, password=password)
@@ -187,7 +188,7 @@ def run_ph_optimum(
         query["organism"] = organism
 
     df = instance.fetch_single(query=query, method="getPhOptimum", parse=True, format="dataframe")
-    save_or_print(df, output)
+    save_or_print(df, output, output_format=output_format)
 
 
 @app.command("PhStability")
@@ -200,7 +201,8 @@ def run_ph_stability(
         None, "--ph_stability_max", "--phsmax", help="pH stability maximum filter."
     ),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
-    output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
+    output: str = output_option(),
+    output_format: str = format_option(),
 ) -> None:
     """Fetch pH stability data from BRENDA."""
     instance = BrendaInterface(email=email, password=password)
@@ -216,7 +218,7 @@ def run_ph_stability(
         query["organism"] = organism
 
     df = instance.fetch_single(query=query, method="getPhStability", parse=True, format="dataframe")
-    save_or_print(df, output)
+    save_or_print(df, output, output_format=output_format)
 
 
 @app.command("Cofactor")
@@ -225,7 +227,8 @@ def run_cofactor(
     password: str = typer.Option(None, "--password", "-p", help="Password for BRENDA access."),
     ec_number: str = typer.Option(..., "--ec_number", "-ec", help="EC number of the enzyme."),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
-    output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
+    output: str = output_option(),
+    output_format: str = format_option(),
 ) -> None:
     """Fetch cofactor data from BRENDA."""
     instance = BrendaInterface(email=email, password=password)
@@ -237,7 +240,7 @@ def run_cofactor(
         query["organism"] = organism
 
     df = instance.fetch_single(query=query, method="getCofactor", parse=True, format="dataframe")
-    save_or_print(df, output)
+    save_or_print(df, output, output_format=output_format)
 
 
 @app.command("TemperatureOptimum")
@@ -252,7 +255,8 @@ def run_temperature_optimum(
         None, "--temperature_optimum_max", "--toptmax", help="Temperature optimum max."
     ),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
-    output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
+    output: str = output_option(),
+    output_format: str = format_option(),
 ) -> None:
     """Fetch temperature optimum data from BRENDA."""
     instance = BrendaInterface(email=email, password=password)
@@ -268,7 +272,7 @@ def run_temperature_optimum(
         query["organism"] = organism
 
     df = instance.fetch_single(query=query, method="getTemperatureOptimum", parse=True, format="dataframe")
-    save_or_print(df, output)
+    save_or_print(df, output, output_format=output_format)
 
 
 @app.command("TemperatureStability")
@@ -283,7 +287,8 @@ def run_temperature_stability(
         None, "--temperature_stability_max", "--tstabmax", help="Temperature stability max."
     ),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
-    output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
+    output: str = output_option(),
+    output_format: str = format_option(),
 ) -> None:
     """Fetch temperature stability data from BRENDA."""
     instance = BrendaInterface(email=email, password=password)
@@ -299,7 +304,7 @@ def run_temperature_stability(
         query["organism"] = organism
 
     df = instance.fetch_single(query=query, method="getTemperatureStability", parse=True, format="dataframe")
-    save_or_print(df, output)
+    save_or_print(df, output, output_format=output_format)
 
 
 @app.command("TemperatureRange")
@@ -314,7 +319,8 @@ def run_temperature_range(
         None, "--temperature_range_max", "--trngmax", help="Temperature range max."
     ),
     organism: str = typer.Option(None, "--organism", "-org", help="Organism filter."),
-    output: str = typer.Option(None, "--output", "-o", help="CSV file to save results."),
+    output: str = output_option(),
+    output_format: str = format_option(),
 ) -> None:
     """Fetch temperature range data from BRENDA."""
     instance = BrendaInterface(email=email, password=password)
@@ -330,4 +336,4 @@ def run_temperature_range(
         query["organism"] = organism
 
     df = instance.fetch_single(query=query, method="getTemperatureRange", parse=True, format="dataframe")
-    save_or_print(df, output)
+    save_or_print(df, output, output_format=output_format)

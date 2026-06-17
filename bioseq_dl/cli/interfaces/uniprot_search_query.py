@@ -8,7 +8,7 @@ from typing import Any, Literal, cast
 import typer
 
 from bioseq_dl import UniprotInterface
-from bioseq_dl.cli._shared import save_uniprot_results
+from bioseq_dl.cli._shared import output_dir_option, save_uniprot_results
 from bioseq_dl.constants.uniprot import VALID_FIELDS, XREF_MAPPING
 from bioseq_dl.core.export import (
     USER_EXPORT_FORMATS,
@@ -27,7 +27,7 @@ app = typer.Typer(
 
 @app.command()
 def run(
-    output: str = typer.Option(..., "-o", "--output", help="Output directory for results"),
+    output: str = output_dir_option(),
     query: str = typer.Option(..., "-q", "--query", help="Query to search for"),
     fields: str = typer.Option(
         ",".join(VALID_FIELDS), "-f", "--fields", help="Fields to include in the output"

@@ -9,6 +9,7 @@ import pandas as pd
 import typer
 
 from bioseq_dl import ChEBIInterface, ChEMBLInterface, PubChemInterface
+from bioseq_dl.cli._shared import output_dir_option
 
 # Pending: Uniprot ID
 from bioseq_dl.logging import configure_logging, get_logger
@@ -184,7 +185,7 @@ def run_compound(
             "databases."
         ),
     ),
-    output: str = typer.Option(..., help="Output file to save results"),
+    output: str = output_dir_option(),
     exact_match: bool = typer.Option(False, help="Use exact match for name searches"),
     debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
 ) -> None:

@@ -5,7 +5,7 @@ from typing import Any
 import typer
 
 from bioseq_dl import InterproInterface
-from bioseq_dl.cli._shared import save_or_print
+from bioseq_dl.cli._shared import format_option, output_option, save_or_print
 
 app = typer.Typer(help="Fetch data from InterPro database.")
 
@@ -22,12 +22,8 @@ def run_entry(
     filter_taxonomy: str = typer.Option(
         None, "--filter-taxonomy", "-ft", help="Filter results by a specific taxonomy ID."
     ),
-    output: str = typer.Option(
-        None,
-        "--output",
-        "-o",
-        help="Output file to save the fetched data.",
-    ),
+    output: str = output_option(help="Output file to save the fetched data."),
+    output_format: str = format_option(),
 ) -> None:
     """Fetch data from InterPro database."""
     instance = InterproInterface()
@@ -47,4 +43,4 @@ def run_entry(
 
     df = instance.fetch_single(query=query, method="entry", parse=True, format="dataframe")
 
-    save_or_print(df, output)
+    save_or_print(df, output, output_format=output_format)

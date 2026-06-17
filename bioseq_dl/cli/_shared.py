@@ -22,6 +22,26 @@ if TYPE_CHECKING:
     import logging
 
 
+_OUTPUT_HELP = "Output file to save the results. Prints a preview if omitted."
+_OUTPUT_DIR_HELP = "Output directory for results."
+_FORMAT_HELP = "Output format: csv, json, xml, parquet. Inferred from extension if omitted."
+
+
+def output_option(help: str = _OUTPUT_HELP) -> Any:  # noqa: A002  # `help` matches typer's kwarg
+    """Build the standard ``--output/-o`` file option (None = print preview)."""
+    return typer.Option(None, "--output", "-o", help=help)
+
+
+def output_dir_option(help: str = _OUTPUT_DIR_HELP) -> Any:  # noqa: A002
+    """Build the standard ``--output-dir/-o`` directory option (required)."""
+    return typer.Option(..., "--output-dir", "-o", help=help)
+
+
+def format_option(help: str = _FORMAT_HELP) -> Any:  # noqa: A002
+    """Build the standard ``--format/-f`` export-format option."""
+    return typer.Option(None, "--format", "-f", help=help)
+
+
 def unwrap(result: Any) -> Any:
     """Return just the data from a ``(data, metadata)`` fetch result.
 
@@ -33,13 +53,22 @@ def unwrap(result: Any) -> Any:
     return result
 
 
-def save_or_print(result: Any, output: str | None = None, *, preview_rows: int = 5) -> None:
+def save_or_print(
+    result: Any,
+    output: str | None = None,
+    *,
+    output_format: str | None = None,
+    preview_rows: int = 5,
+) -> None:
     """Unpack a fetch result and either save it to ``output`` or print a preview.
 
     Args:
         result: Raw return value of ``fetch_single`` / ``fetch_batch`` (a
             ``(data, metadata)`` tuple) or already-unwrapped data.
         output: Path to save to. If ``None``, a preview is printed instead.
+        output_format: Export format (csv/json/xml/parquet) for DataFrame
+            results. If ``None``, inferred from the ``output`` extension,
+            defaulting to csv. Ignored for non-DataFrame data.
         preview_rows: Number of rows to show when previewing a DataFrame.
 
     """
@@ -47,8 +76,9 @@ def save_or_print(result: Any, output: str | None = None, *, preview_rows: int =
 
     if isinstance(data, pd.DataFrame):
         if output:
-            data.to_csv(output, index=False)
-            typer.echo(f"Results saved to {output}")
+            fmt = output_format or (Path(output).suffix.lstrip(".") or "csv")
+            saved = export_dataframe(data, output, output_format=fmt)
+            typer.echo(f"Results saved to {saved}")
         else:
             typer.echo(data.head(preview_rows))
         return

@@ -5,7 +5,7 @@ from typing import Any
 import typer
 
 from bioseq_dl import PubChemInterface
-from bioseq_dl.cli._shared import save_or_print
+from bioseq_dl.cli._shared import format_option, output_option, save_or_print
 from bioseq_dl.constants.pubchem import OPTIONS
 
 app = typer.Typer(
@@ -27,7 +27,8 @@ def run_compound(
         None, "--property", help="Specific property to fetch, e.g., molecularformula, smiles, hbonddonorcount"
     ),
     option: str = typer.Option("default", help=f"Fetch option (e.g., {', '.join(OPTIONS['pug/compound'])})"),
-    output_file: str = typer.Option(None, help="Output file to save results"),
+    output: str = output_option(),
+    output_format: str = format_option(),
 ) -> None:
     """Fetch compound data from PubChem."""
     interface = PubChemInterface()
@@ -45,14 +46,15 @@ def run_compound(
 
     result = interface.fetch_single(query, method="compound", option=option, parse=True, format="dataframe")
 
-    save_or_print(result, output_file)
+    save_or_print(result, output, output_format=output_format)
 
 
 @app.command("pug-protein")
 def run_protein(
     accession: str = typer.Argument(..., help="Protein accession number"),
     option: str = typer.Option("summary", help=f"Fetch option (e.g., {', '.join(OPTIONS['pug/protein'])})"),
-    output_file: str = typer.Option(None, help="Output file to save results"),
+    output: str = output_option(),
+    output_format: str = format_option(),
 ) -> None:
     """Fetch protein data from PubChem."""
     interface = PubChemInterface()
@@ -70,7 +72,7 @@ def run_protein(
             accession, method="protein", option=option, parse=True, format="dataframe"
         )
 
-    save_or_print(result, output_file)
+    save_or_print(result, output, output_format=output_format)
 
 
 @app.command("pug-gene")
@@ -80,7 +82,8 @@ def run_gene(
     synonym: str = typer.Option(None, help="Gene synonym"),
     taxid: str = typer.Option(None, help="Taxonomy ID"),
     option: str = typer.Option("summary", help=f"Fetch option (e.g., {', '.join(OPTIONS['pug/gene'])})"),
-    output_file: str = typer.Option(None, help="Output file to save results"),
+    output: str = output_option(),
+    output_format: str = format_option(),
 ) -> None:
     """Fetch gene data from PubChem."""
     interface = PubChemInterface()
@@ -98,13 +101,14 @@ def run_gene(
 
     result = interface.fetch_single(query, method="gene", option=option, parse=True, format="dataframe")
 
-    save_or_print(result, output_file)
+    save_or_print(result, output, output_format=output_format)
 
 
 @app.command("pug_view-compound")
 def run_compound_view(
     cid: str = typer.Argument(..., help="Compound ID (CID, e.g., 2244)"),
-    output_file: str = typer.Option(None, help="Output file to save results"),
+    output: str = output_option(),
+    output_format: str = format_option(),
 ) -> None:
     """Fetch detailed compound data from PubChem."""
     interface = PubChemInterface()
@@ -121,13 +125,14 @@ def run_compound_view(
             cid.strip(), method="pug_view/compound", parse=True, format="dataframe"
         )
 
-    save_or_print(result, output_file)
+    save_or_print(result, output, output_format=output_format)
 
 
 @app.command("pug_view-protein")
 def run_protein_view(
     accession: str = typer.Argument(..., help="Protein accession number (e.g., P00533)"),
-    output_file: str = typer.Option(None, help="Output file to save results"),
+    output: str = output_option(),
+    output_format: str = format_option(),
 ) -> None:
     """Fetch detailed protein data from PubChem."""
     interface = PubChemInterface()
@@ -142,13 +147,14 @@ def run_protein_view(
     else:
         result = interface.fetch_single(accession, method="pug_view/protein", parse=True, format="dataframe")
 
-    save_or_print(result, output_file)
+    save_or_print(result, output, output_format=output_format)
 
 
 @app.command("pug_view-gene")
 def run_gene_view(
     geneid: str = typer.Argument(..., help="Gene ID (e.g., EGFR)"),
-    output_file: str = typer.Option(None, help="Output file to save results"),
+    output: str = output_option(),
+    output_format: str = format_option(),
 ) -> None:
     """Fetch detailed gene data from PubChem."""
     interface = PubChemInterface()
@@ -165,14 +171,15 @@ def run_gene_view(
             geneid.strip(), method="pug_view/gene", parse=True, format="dataframe"
         )
 
-    save_or_print(result, output_file)
+    save_or_print(result, output, output_format=output_format)
 
 
 @app.command("pug_view-pathway")
 def run_pathway_view(
     source: str = typer.Option("Reactome", help="Pathway source (e.g., Reactome)"),
     identifier: str = typer.Option(..., "--id", help="Pathway ID (e.g., R-HSA-5673001)"),
-    output_file: str = typer.Option(None, help="Output file to save results"),
+    output: str = output_option(),
+    output_format: str = format_option(),
 ) -> None:
     """Fetch detailed pathway data from PubChem."""
     interface = PubChemInterface()
@@ -192,13 +199,14 @@ def run_pathway_view(
             format="dataframe",
         )
 
-    save_or_print(result, output_file)
+    save_or_print(result, output, output_format=output_format)
 
 
 @app.command("pug_view-taxonomy")
 def run_taxonomy_view(
     taxid: str = typer.Argument(..., help="Taxonomy ID (e.g., 9606)"),
-    output_file: str = typer.Option(None, help="Output file to save results"),
+    output: str = output_option(),
+    output_format: str = format_option(),
 ) -> None:
     """Fetch detailed taxonomy data from PubChem."""
     interface = PubChemInterface()
@@ -215,4 +223,4 @@ def run_taxonomy_view(
             taxid.strip(), method="pug_view/taxonomy", parse=True, format="dataframe"
         )
 
-    save_or_print(result, output_file)
+    save_or_print(result, output, output_format=output_format)

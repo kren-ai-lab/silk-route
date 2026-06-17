@@ -10,7 +10,7 @@ import pandas as pd
 import typer
 
 from bioseq_dl import UniprotInterface
-from bioseq_dl.cli._shared import save_uniprot_results
+from bioseq_dl.cli._shared import output_dir_option, save_uniprot_results
 from bioseq_dl.constants.uniprot import DATABASES, VALID_FIELDS, XREF_MAPPING
 from bioseq_dl.core.export import (
     USER_EXPORT_FORMATS,
@@ -48,7 +48,7 @@ def run(
     ),
     input_file: str = typer.Option(..., "--input", "-i", help="File with sequences to run BLAST on."),
     seq_column: str = typer.Option("sequences", "--seq-column", "-c", help="Column name with sequences."),
-    output: str = typer.Option(..., "-o", "--output", help="Output directory for results"),
+    output: str = output_dir_option(),
     evalue: float = typer.Option(0.001, "--evalue", "-v", help="E-value threshold for BLAST search."),
     blast_type: str = typer.Option(
         "blastp", "--blast-type", "-b", help="Type of BLAST to run. Default is 'blastp'."

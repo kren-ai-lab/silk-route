@@ -49,6 +49,33 @@ def test_save_list_tuple_to_json(tmp_path):
     assert json.loads(out.read_text()) == data
 
 
+def test_save_dataframe_infers_format_from_extension(tmp_path):
+    df = pd.DataFrame({"id": ["X"], "value": [42]})
+    out = tmp_path / "out.json"
+
+    save_or_print((df, {}), str(out))
+
+    assert json.loads(out.read_text()) == [{"id": "X", "value": 42}]
+
+
+def test_save_dataframe_explicit_format_adds_suffix(tmp_path):
+    df = pd.DataFrame({"id": ["X"]})
+    out = tmp_path / "noext"
+
+    save_or_print((df, {}), str(out), output_format="json")
+
+    assert (tmp_path / "noext.json").exists()
+
+
+def test_save_dataframe_defaults_to_csv_without_extension(tmp_path):
+    df = pd.DataFrame({"id": ["X"]})
+    out = tmp_path / "plain"
+
+    save_or_print((df, {}), str(out))
+
+    assert (tmp_path / "plain.csv").exists()
+
+
 def test_print_preview_does_not_raise(capsys):
     df = pd.DataFrame({"a": range(10)})
     # No output path -> should print a preview without raising.

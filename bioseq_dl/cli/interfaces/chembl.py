@@ -5,7 +5,7 @@ from typing import Any
 import typer
 
 from bioseq_dl import ChEMBLInterface
-from bioseq_dl.cli._shared import save_or_print
+from bioseq_dl.cli._shared import format_option, output_option, save_or_print
 
 app = typer.Typer(help="Collect data from the ChEMBL database.")
 
@@ -16,7 +16,8 @@ def run_activity(
     p_value: float = typer.Option(
         None, "--p-value", help="Minimum p-value threshold for filtering activities (optional)"
     ),
-    output: str = typer.Option(None, help="Output file to save the results (optional)"),
+    output: str = output_option(),
+    output_format: str = format_option(),
 ) -> None:
     """Fetch activity information by ChEMBL ID."""
     interface = ChEMBLInterface()
@@ -29,13 +30,14 @@ def run_activity(
         method="activity", query=query, pages_to_fetch=1, parse=True, format="dataframe"
     )
 
-    save_or_print(result, output)
+    save_or_print(result, output, output_format=output_format)
 
 
 @app.command("binding_site")
 def run_binding_site(
     chembl_id: str = typer.Argument(..., help="ChEMBL ID of the compound (e.g., CHEMBL25)"),
-    output: str = typer.Option(None, help="Output file to save the results (optional)"),
+    output: str = output_option(),
+    output_format: str = format_option(),
 ) -> None:
     """Fetch binding site information by ChEMBL ID."""
     interface = ChEMBLInterface()
@@ -46,4 +48,4 @@ def run_binding_site(
         method="binding_site", query=query, pages_to_fetch=1, parse=True, format="dataframe"
     )
 
-    save_or_print(result, output)
+    save_or_print(result, output, output_format=output_format)
