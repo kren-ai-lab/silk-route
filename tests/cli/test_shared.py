@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 
 import pandas as pd
+import pytest
 
 from bioseq_dl.cli._shared import fetch_auto, save_or_print, unwrap
 
@@ -104,6 +105,15 @@ def test_save_dataframe_defaults_to_csv_without_extension(tmp_path):
     save_or_print((df, {}), str(out))
 
     assert (tmp_path / "plain.csv").exists()
+
+
+def test_save_dataframe_unsupported_format_exits_cleanly(tmp_path):
+    import typer
+
+    df = pd.DataFrame({"id": ["X"]})
+    with pytest.raises(typer.Exit) as exc:
+        save_or_print((df, {}), str(tmp_path / "out.txt"))
+    assert exc.value.exit_code == 1
 
 
 def test_print_preview_does_not_raise(capsys):

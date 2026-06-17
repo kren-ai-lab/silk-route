@@ -89,7 +89,11 @@ def save_or_print(
     if isinstance(data, pd.DataFrame):
         if output:
             fmt = output_format or (Path(output).suffix.lstrip(".") or "csv")
-            saved = export_dataframe(data, output, output_format=fmt)
+            try:
+                saved = export_dataframe(data, output, output_format=fmt)
+            except ValueError as e:
+                typer.echo(f"Error: {e}", err=True)
+                raise typer.Exit(code=1) from None
             typer.echo(f"Results saved to {saved}")
         else:
             typer.echo(data.head(preview_rows))

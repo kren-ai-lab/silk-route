@@ -726,7 +726,7 @@ def add_id_column_for_export(df: pd.DataFrame, result_label: str, id_column: str
     export_df = df.copy()
     id_values = [f"{result_label}_{index}" for index in range(1, len(export_df) + 1)]
     # pandas accepts a list for the insert value at runtime; the stub types it as scalar/array-like only.
-    export_df.insert(0, id_column, id_values)  # ty: ignore[invalid-argument-type]
+    export_df.insert(0, id_column, id_values)
     return export_df
 
 
