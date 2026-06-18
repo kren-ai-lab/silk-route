@@ -349,6 +349,44 @@ def validate_query_composition(value: object) -> None:
             raise ValueError(msg)
 
 
+def parse_query_composition_value(query_value: str) -> list[tuple[str, str]]:
+    """Parse executable query-composition pairs from query.value."""
+    pairs = []
+    for raw_part in query_value.split(","):
+        query_part = raw_part.strip()
+        if not query_part:
+            continue
+        if "=" not in query_part:
+            msg = "query.composition does not match executable query.value."
+            raise ValueError(msg)
+        query_text, label = query_part.split("=", 1)
+        query_text = query_text.strip()
+        label = label.strip()
+        if not query_text or not label:
+            msg = "query.composition does not match executable query.value."
+            raise ValueError(msg)
+        pairs.append((query_text, label))
+    if not pairs:
+        msg = "query.composition does not match executable query.value."
+        raise ValueError(msg)
+    return pairs
+
+
+def validate_query_composition_matches_query_value(query_descriptor: dict, mode: str) -> None:
+    """Require preserved query.composition metadata to match executable query.value."""
+    composition = query_descriptor.get("composition")
+    if mode != "query_composition" or composition is None:
+        return
+
+    executable_pairs = parse_query_composition_value(query_descriptor["value"])
+    executable_queries = {query for query, _label in executable_pairs}
+    executable_labels = {label for _query, label in executable_pairs}
+    for item in composition:
+        if item["label"] not in executable_labels or item["value"] not in executable_queries:
+            msg = "query.composition does not match executable query.value."
+            raise ValueError(msg)
+
+
 def normalize_optional_field_list(section_name: str, key: str, value: object) -> str | None:
     """Normalize null, comma-separated string, or string-list fields for workflow calls."""
     if value is None:
@@ -623,6 +661,7 @@ def validate_workflow_recipe(recipe: dict) -> dict:
     query_descriptor, fields, crossref_fields = validate_query_section(
         require_mapping("query", workflow_descriptor["query"])
     )
+    validate_query_composition_matches_query_value(query_descriptor, dataset["mode"])
     execution = validate_execution_section(require_mapping("execution", workflow_descriptor["execution"]))
 
     resources = {}

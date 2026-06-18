@@ -296,6 +296,44 @@ def test_invalid_query_composition_description_is_rejected() -> None:
         validate_workflow_recipe(descriptor)
 
 
+def test_query_composition_matching_query_value_passes_validation() -> None:
+    descriptor = base_workflow_descriptor()
+    descriptor["dataset"]["mode"] = "query_composition"
+    descriptor["query"]["value"] = "gene:TP53=tp53,gene:BRCA1=brca1"
+    descriptor["query"]["composition"] = [
+        {"label": "tp53", "value": "gene:TP53", "description": "TP53 query."},
+        {"label": "brca1", "value": "gene:BRCA1", "description": None},
+    ]
+
+    values = validate_workflow_recipe(descriptor)
+
+    assert values["query_descriptor"]["composition"] == descriptor["query"]["composition"]
+
+
+def test_query_composition_contradicting_query_value_fails_validation() -> None:
+    descriptor = base_workflow_descriptor()
+    descriptor["dataset"]["mode"] = "query_composition"
+    descriptor["query"]["value"] = "gene:TP53=tp53"
+    descriptor["query"]["composition"] = [
+        {"label": "brca1", "value": "gene:BRCA1"},
+    ]
+
+    with pytest.raises(ValueError, match=r"query\.composition does not match executable query\.value"):
+        validate_workflow_recipe(descriptor)
+
+
+def test_query_composition_with_unparsable_query_value_fails_validation() -> None:
+    descriptor = base_workflow_descriptor()
+    descriptor["dataset"]["mode"] = "query_composition"
+    descriptor["query"]["value"] = "gene:TP53"
+    descriptor["query"]["composition"] = [
+        {"label": "tp53", "value": "gene:TP53"},
+    ]
+
+    with pytest.raises(ValueError, match=r"query\.composition does not match executable query\.value"):
+        validate_workflow_recipe(descriptor)
+
+
 def test_schema_version_and_gui_query_metadata_are_preserved_in_outputs() -> None:
     descriptor = build_preserved_metadata_descriptor()
 

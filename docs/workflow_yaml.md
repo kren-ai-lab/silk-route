@@ -42,12 +42,13 @@ When a YAML descriptor and CLI options are both provided, values are resolved in
 Examples:
 
 ```bash
-bioseq-dl workflow run --config examples/protein-dataset-construction.yml
-bioseq-dl workflow run --config examples/protein-dataset-construction.yml -o result_override
-bioseq-dl workflow run --config examples/protein-dataset-construction.yml -e csv
+bioseq-dl workflow run --config examples/workflows/protein_query_first_minimal.yml
+bioseq-dl workflow run --config examples/workflows/protein_query_first_minimal.yml -o result_override
+bioseq-dl workflow run --config examples/workflows/protein_query_first_minimal.yml -e csv
 ```
 
 The organized workflow-v1 examples live under `examples/workflows/`.
+There are no legacy workflow YAML examples outside that directory.
 Use `examples/workflows/full_options_reference.yml` as the tutorial/reference
 descriptor for the full schema surface. It is documentation-oriented and is not
 intended to be executed as a complete workflow.
@@ -74,10 +75,6 @@ Example descriptors:
 | `examples/workflows/invalid/forbidden_version_key.yml` | Invalid old-version-key example | No | No | No | Expected to fail because top-level `version` is forbidden. |
 | `examples/workflows/invalid/unknown_top_level_section.yml` | Invalid unknown-section example | No | No | No | Expected to fail because `resoures` is not a supported section. |
 | `examples/workflows/invalid/invalid_query_composition.yml` | Invalid composition metadata example | No | No | No | Expected to fail because each composition item needs `label` and `value`. |
-| `examples/protein-dataset-construction.yml` | Legacy/simple protein workflow example | Yes | Yes | Yes | Kept for continuity; prefer `examples/workflows/` for curated workflow-v1 examples. |
-| `examples/interaction-aware-dataset-construction.yml` | Legacy/simple interaction workflow example | Yes | Yes | Yes | Kept for continuity; prefer `examples/workflows/` for curated workflow-v1 examples. |
-| `examples/compound-dataset-construction.yml` | Legacy/simple compound workflow example | Yes | Yes | Yes | Kept for continuity; prefer `examples/workflows/` for curated workflow-v1 examples. |
-| `examples/disease_query.yml` | Legacy/simple disease-query example | Yes | Yes | Yes | Kept for continuity; prefer `examples/workflows/` for curated workflow-v1 examples. |
 
 Educational notebooks live under `examples/notebooks/`. The validation and
 metadata walkthrough notebooks are designed to work offline when the local
@@ -175,11 +172,21 @@ or summaries, but they must not be described as execution controls:
 | `query.description` | Preserved descriptive text. |
 | `query.filtering_strategy` | Preserved descriptive text; executable filtering belongs in `query.value`. |
 | `query.builder` | Preserved GUI-oriented metadata only. |
-| `query.composition` | Preserved GUI-oriented metadata only; it does not replace `query.value`. |
+| `query.composition` | Preserved GUI-oriented metadata only; it does not replace `query.value`. If `query.composition` is present, it must match the executable `query.value`. |
 | `harmonization.sequence_column` | Used only for generated unique-sequence reporting when matching tabular output exists. |
 | `reporting` custom fields | Preserved YAML-safe descriptive values unless overwritten by generated reporting. |
 
 Future features are listed in [Future Workflow YAML Features](#future-workflow-yaml-features).
+
+The lightweight schema definition for future GUI or YAML generator tools is
+available through:
+
+```python
+from bioseq_dl.workflow_schema_definition import get_workflow_v1_schema_definition
+```
+
+The future simple GUI is expected to generate YAML only. It will not execute
+workflows unless execution behavior is implemented in a separate task later.
 
 ### `dataset`
 
@@ -208,6 +215,13 @@ Future features are listed in [Future Workflow YAML Features](#future-workflow-y
 `query.value` is the only executable query field. `query.builder` and
 `query.composition` are preserved GUI-oriented metadata for future
 reconstruction and do not affect execution.
+
+When `dataset.mode` is `query_composition` and `query.composition` is present,
+the preserved composition metadata must match the executable comma-separated
+`query.value` pairs. For example,
+`query.value: "gene:TP53=tp53,gene:BRCA1=brca1"` must be described by
+composition items whose labels include `tp53` and `brca1` and whose values
+include `gene:TP53` and `gene:BRCA1`.
 
 ### `resources`
 

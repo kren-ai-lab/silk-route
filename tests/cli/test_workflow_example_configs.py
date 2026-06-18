@@ -13,6 +13,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_DIR = REPO_ROOT / "examples" / "workflows"
 DOCS_PATH = REPO_ROOT / "docs" / "workflow_yaml.md"
 REFERENCE_FILENAME = "full_options_reference.yml"
+REMOVED_LEGACY_WORKFLOW_FILENAMES = {
+    "protein-dataset-construction.yml",
+    "compound-dataset-construction.yml",
+    "interaction-aware-dataset-construction.yml",
+    "disease_query.yml",
+}
 FUTURE_ONLY_SECTIONS = {
     "interaction_retrieval",
     "activity_retrieval",
@@ -138,3 +144,21 @@ def test_workflow_yaml_docs_separate_current_preserved_and_future_fields() -> No
     assert "`query.value` is the only executable query field." in docs
     assert "`query.builder` and" in docs
     assert "`query.composition` are preserved GUI-oriented metadata" in docs
+    assert "If `query.composition` is present, it must match the executable `query.value`." in docs
+
+
+def test_no_old_top_level_workflow_yaml_examples_remain() -> None:
+    top_level_workflow_yaml_files = {
+        path.name
+        for path in (REPO_ROOT / "examples").glob("*.yml")
+        if path.name in REMOVED_LEGACY_WORKFLOW_FILENAMES
+    }
+
+    assert not top_level_workflow_yaml_files
+
+
+def test_canonical_workflow_yaml_examples_live_under_workflows_directory() -> None:
+    canonical_files = [path for path in WORKFLOW_DIR.glob("*.yml") if path.name != REFERENCE_FILENAME]
+
+    assert canonical_files
+    assert all(path.parent == WORKFLOW_DIR for path in canonical_files)
