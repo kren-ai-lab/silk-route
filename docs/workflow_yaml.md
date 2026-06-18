@@ -4,6 +4,17 @@ BioSeqDownloader workflow YAML files are structured dataset descriptors for repr
 
 They are not a generic workflow engine, a multi-step pipeline language, or a plugin system. The current implementation maps a specific set of descriptor fields to `bioseq-dl workflow run` and preserves the rest as descriptive metadata.
 
+Workflow descriptors must declare the frozen schema version:
+
+```yaml
+schema_version: "workflow-v1"
+```
+
+No other schema version is accepted.
+
+The old top-level key `version` is forbidden. Use only
+`schema_version: "workflow-v1"` for the workflow YAML schema marker.
+
 ## Execution Model
 
 The workflow execution strategy is configured with:
@@ -48,6 +59,7 @@ Required top-level sections:
 
 | Section | Type | Role |
 | --- | --- | --- |
+| `schema_version` | string | Required schema marker. Must be exactly `"workflow-v1"`. |
 | `dataset` | mapping | Dataset identity plus executable `modality` and `mode`. |
 | `query` | mapping | Executable query string plus query metadata and fetch options. |
 | `execution` | mapping | Executable workflow controls such as enrichment, retries, and logging. |
@@ -74,6 +86,18 @@ These extension sections are preserved in metadata and run summary output. They 
 
 Unknown top-level sections are rejected. For example, `resoures` fails because the accepted section is `resources`.
 
+The canonical top-level order is:
+
+1. `schema_version`
+2. `dataset`
+3. `query`
+4. `resources`
+5. `execution`
+6. `harmonization`
+7. `export`
+8. `reporting`
+9. Optional descriptive extension sections
+
 ## Field Reference
 
 Field roles:
@@ -98,11 +122,17 @@ Field roles:
 | Field | Type | Required | Default | Role | Internal mapping | Limitations |
 | --- | --- | --- | --- | --- | --- | --- |
 | `value` | non-empty string | Required | none | Executable | Normalized to `workflow_values["query"]` | For `query_first`, this is the query string. For `query_composition`, use comma-separated labeled pairs such as `temperature:99=temp_99,temperature:98=temp_98`. |
+| `builder` | mapping | Optional | omitted | Descriptive GUI metadata | Preserved in descriptor metadata and summary | Intended for future GUI reconstruction. It does not affect execution, and nested values are not constrained yet. |
+| `composition` | list of mappings | Optional | omitted | Descriptive GUI metadata | Preserved in descriptor metadata and summary | Does not replace `query.value`. Each item must include non-empty string `label` and `value`; optional `description` may be a string or null. |
 | `description` | string or null | Optional | `null` | Descriptive | Preserved in metadata and summary | Does not affect query execution. |
 | `filtering_strategy` | string or null | Optional | `null` | Descriptive | Preserved in metadata and summary | Filtering must be encoded in `query.value`; `query.filters` is not supported. |
 | `fields` | null, string, or list of strings | Optional | `null` | Executable | Normalized to `workflow_values["fields"]` and passed to the UniProt fetch as the API `fields` parameter | It controls requested UniProt fields. It is not currently used as a parser column filter. |
 | `crossref_fields` | null, string, or list of strings | Optional | `null` | Executable when enrichment is enabled | Normalized to `workflow_values["crossref_fields"]` and passed to the enrichment path | Used with `execution.enrich`; unavailable or unsupported cross-reference fields may produce no enrichment output. |
 | `include_isoform` | boolean | Optional | `false` | Executable | Normalized to `workflow_values["include_isoform"]` and passed to UniProt fetches | Applies to UniProt requests. |
+
+`query.value` is the only executable query field. `query.builder` and
+`query.composition` are preserved GUI-oriented metadata for future
+reconstruction and do not affect execution.
 
 ### `resources`
 
@@ -169,7 +199,7 @@ These YAML fields are not supported:
 
 | Forbidden field | Reason | Alternative |
 | --- | --- | --- |
-| `version` | Old root key | Use the structured `dataset`, `query`, `execution`, and `export` sections. |
+| `version` | Old root key | Use `schema_version: "workflow-v1"`. |
 | `kind` | Old root key | Use the structured sections. |
 | `workflow` | Old root key | Use the structured sections. |
 | `dispatch_mode` | Removed workflow mode key | Use `dataset.mode` in YAML or `--mode` in the CLI. |
@@ -206,6 +236,7 @@ Workflow runs can produce:
 
 The metadata manifest includes:
 
+- a tool identity block with the tool name, distribution name, import package name, and version;
 - raw workflow metadata returned by the workflow implementation;
 - the original descriptor;
 - the normalized descriptor after CLI overrides and defaults;
@@ -216,6 +247,7 @@ The metadata manifest includes:
 
 The run summary includes:
 
+- the same tool identity block;
 - dataset and query information;
 - execution status, timing, enrichment, retry, and worker settings;
 - export settings;
@@ -236,6 +268,8 @@ If `harmonization.id_column` is set, exported tabular outputs for CSV, Parquet, 
 ## Example: Minimal Protein Query Workflow
 
 ```yaml
+schema_version: "workflow-v1"
+
 dataset:
   name: antimicrobial_reviewed_proteins
   description: Reviewed UniProt protein records retrieved with an antimicrobial query.
@@ -290,6 +324,8 @@ reporting:
 ## Example: Disease-Oriented UniProt Query
 
 ```yaml
+schema_version: "workflow-v1"
+
 dataset:
   name: uniprot_breast_cancer_proteins
   description: Reviewed UniProt protein records associated with breast cancer disease annotations.

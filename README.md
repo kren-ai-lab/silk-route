@@ -148,7 +148,7 @@ Commands that export parsed tabular results can write Parquet files when `parque
 
 ### Workflow YAML descriptors
 
-BioSeqDownloader supports structured YAML descriptors for reproducible workflow runs. These descriptors define dataset, query, execution, harmonization, export, and reporting information. See [`docs/workflow_yaml.md`](docs/workflow_yaml.md) for the full implemented schema, field behavior, forbidden keys, credential policy, and examples.
+BioSeqDownloader supports structured YAML descriptors for reproducible workflow runs. These descriptors must declare `schema_version: "workflow-v1"` and define dataset, query, execution, harmonization, export, and reporting information. See [`docs/workflow_yaml.md`](docs/workflow_yaml.md) for the full implemented schema, field behavior, forbidden keys, credential policy, and examples.
 
 Workflow runs can be described with a structured dataset descriptor and executed with:
 
@@ -163,7 +163,7 @@ bioseq-dl workflow run --config examples/protein-dataset-construction.yml -o res
 bioseq-dl workflow run --config examples/protein-dataset-construction.yml -e csv
 ```
 
-YAML descriptors use top-level `dataset`, `query`, `resources`, `execution`, `harmonization`, `export`, and `reporting` sections, plus a small allowlist of descriptive integration sections. `dataset.mode` is the workflow execution mode, and the only valid values are `query_first` and `query_composition`. Only part of the descriptor is executable: `dataset.modality`, `dataset.mode`, `query.value`, selected `query` options, supported `execution` options, and `export` options are mapped to the current workflow. `query.value` is the actual API query. `query.description` and `query.filtering_strategy` are descriptive metadata only.
+YAML descriptors use top-level `schema_version`, `dataset`, `query`, `resources`, `execution`, `harmonization`, `export`, and `reporting` sections, plus a small allowlist of descriptive integration sections. `dataset.mode` is the workflow execution mode, and the only valid values are `query_first` and `query_composition`. Only part of the descriptor is executable: `dataset.modality`, `dataset.mode`, `query.value`, selected `query` options, supported `execution` options, and `export` options are mapped to the current workflow. `query.value` is the actual API query. `query.builder`, `query.composition`, `query.description`, and `query.filtering_strategy` are descriptive metadata only.
 
 `resources`, allowed domain-specific integration sections, and most harmonization/reporting fields are preserved in `metadata.json` and `run_summary.yml` unless the current workflow already supports that behavior. `execution.merge_results` is descriptor metadata only; it does not currently trigger automatic result merging. Credentials must be provided through `.env` or environment variables, not YAML.
 
@@ -171,11 +171,13 @@ ChEMBL workflow fetches retrieve all available pages by default. In YAML, `execu
 
 For IC50 queries, the ChEMBL workflow enforces `standard_type = IC50` and numeric `standard_value` constraints for requested ranges. `standard_units` is preserved when returned by ChEMBL, but the workflow does not currently constrain units to nM.
 
-Allowed top-level descriptor sections are: `dataset`, `query`, `resources`, `execution`, `harmonization`, `export`, `reporting`, `interaction_retrieval`, `activity_retrieval`, `chemical_metadata_integration`, `protein_target_integration`, `temperature_enrichment`, and `cross_source_integration`.
+Allowed top-level descriptor sections are: `schema_version`, `dataset`, `query`, `resources`, `execution`, `harmonization`, `export`, `reporting`, `interaction_retrieval`, `activity_retrieval`, `chemical_metadata_integration`, `protein_target_integration`, `temperature_enrichment`, and `cross_source_integration`.
 
 Validated example descriptors are available at `examples/protein-dataset-construction.yml`, `examples/interaction-aware-dataset-construction.yml`, and `examples/compound-dataset-construction.yml`.
 
 ```yaml
+schema_version: "workflow-v1"
+
 dataset:
   name: antimicrobial_reviewed_proteins
   description: Reviewed UniProt protein records retrieved with an antimicrobial query.

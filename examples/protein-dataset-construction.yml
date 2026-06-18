@@ -1,3 +1,5 @@
+schema_version: "workflow-v1"
+
 dataset:
   name: antimicrobial_reviewed_proteins
   description: Reviewed UniProt protein records retrieved with an antimicrobial query.
