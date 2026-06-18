@@ -1,0 +1,31 @@
+schema_version: "workflow-v1"
+
+dataset:
+  name: protein_query_first_minimal
+  description: Small reviewed human protein query for a minimal protein workflow.
+  modality: protein
+  mode: query_first
+  primary_data_source: uniprot
+
+query:
+  value: "gene:TP53 AND reviewed:true AND organism:human"
+  description: Small UniProt-compatible reviewed human TP53 protein query.
+  filtering_strategy: >
+    query.value is the executable query string used by the workflow.
+
+execution:
+  enrich: false
+  max_workers: 2
+  total_retries: 1
+  debug: false
+
+harmonization:
+  id_column: "_id"
+
+export:
+  output_dir: "examples/results/protein_query_first_minimal"
+  format: csv
+  include_metadata: true
+  include_summary: true
+  manifest_file: "metadata.json"
+  summary_file: "run_summary.yml"

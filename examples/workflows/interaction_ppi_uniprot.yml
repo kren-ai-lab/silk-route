@@ -1,0 +1,35 @@
+schema_version: "workflow-v1"
+
+dataset:
+  name: interaction_ppi_uniprot
+  description: Protein-protein interaction workflow seeded by a small UniProt query.
+  modality: interaction
+  mode: query_first
+  interaction_type: protein-protein
+  primary_data_source: uniprot
+
+query:
+  value: "reviewed:true AND gene:TP53"
+  description: Small UniProt seed query for protein-protein interaction retrieval.
+  filtering_strategy: >
+    UniProt records provide identifiers used by the current interaction
+    workflow path. External interaction services may require credentials or
+    service availability depending on the interface; do not store credentials
+    in YAML.
+
+execution:
+  enrich: true
+  max_workers: 2
+  total_retries: 1
+  debug: false
+
+harmonization:
+  id_column: "_id"
+
+export:
+  output_dir: "examples/results/interaction_ppi_uniprot"
+  format: csv
+  include_metadata: true
+  include_summary: true
+  manifest_file: "metadata.json"
+  summary_file: "run_summary.yml"

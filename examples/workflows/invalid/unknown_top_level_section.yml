@@ -1,0 +1,21 @@
+# Invalid example: "resoures" is misspelled and is not an allowed top-level section.
+schema_version: "workflow-v1"
+
+dataset:
+  name: invalid_unknown_top_level_section
+  modality: protein
+  mode: query_first
+
+query:
+  value: "reviewed:true"
+
+resoures:
+  primary:
+    - uniprot
+
+execution:
+  enrich: false
+
+export:
+  output_dir: "examples/results/invalid_unknown_top_level_section"
+  format: csv
