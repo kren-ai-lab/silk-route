@@ -185,8 +185,25 @@ available through:
 from bioseq_dl.workflow_schema_definition import get_workflow_v1_schema_definition
 ```
 
-The future simple GUI is expected to generate YAML only. It will not execute
-workflows unless execution behavior is implemented in a separate task later.
+The optional first-iteration NiceGUI interface generates YAML only. It does not
+execute workflows, call APIs, collect credentials, or build advanced queries.
+Install it with the optional GUI extra and run:
+
+```bash
+pip install -e ".[gui]"
+bioseq-dl-gui
+```
+
+It can also be run as a module:
+
+```bash
+python -m bioseq_dl.gui.nicegui_app
+```
+
+The GUI writes `schema_version: "workflow-v1"` automatically. The only
+executable query field it exposes is `query.value`; `query.builder` and
+`query.composition` remain reserved for later query-builder work. Review the
+generated YAML before long-running or broad queries.
 
 ### `dataset`
 

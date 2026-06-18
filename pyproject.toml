@@ -45,6 +45,9 @@ dev = [
     "taskipy>=1.14",
     "ty>=0.0.30",
 ]
+gui = [
+    "nicegui",
+]
 tests = [
     "pytest>=9.0",
     "pytest-cov>=7.1",
@@ -53,6 +56,7 @@ tests = [
 
 [project.scripts]
 bioseq-dl = "bioseq_dl.cli.main:app"
+bioseq-dl-gui = "bioseq_dl.gui.nicegui_app:main"
 
 [project.urls]
 Homepage = "https://github.com/kren-ai-lab/BioSeqDownloader"
