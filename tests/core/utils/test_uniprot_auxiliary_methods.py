@@ -70,6 +70,12 @@ def test_extract_keywords():
     assert extract_keywords(kws) == ["Transferase", "Mitochondrion"]
 
 
+def test_extract_keywords_non_list_returns_empty():
+    # Regression: a non-list input must return [] rather than raising.
+    assert extract_keywords(None) == []  # ty: ignore[invalid-argument-type]  # type: ignore[arg-type]
+    assert extract_keywords({"name": "x"}) == []  # ty: ignore[invalid-argument-type]  # type: ignore[arg-type]
+
+
 def test_extract_references():
     refs = [
         {

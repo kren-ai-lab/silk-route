@@ -238,4 +238,4 @@ def extract_domains(domains: list) -> list[dict]:
 
 def extract_keywords(keywords: list) -> list[str]:
     """Extract keywords."""
-    return [kw.get("name", "") for kw in keywords if isinstance(keywords, list)]
+    return [kw.get("name", "") for kw in keywords] if isinstance(keywords, list) else []
