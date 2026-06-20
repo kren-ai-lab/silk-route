@@ -141,7 +141,6 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         self.use_config = use_config
 
         self.configs: dict[str, dict] = {}
-        self.fields_config: dict[str, dict] = {}
 
         if self.use_config:
             # Optional user-provided extra configs (never required).
@@ -754,10 +753,6 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
 
         # Get method specification
         spec = self._get_method_spec(**kwargs)
-        if spec is None:
-            log.error("Method '%s' is not supported", method)
-            msg = f"Method '{method}' is not supported. Available: {list(self.METHODS)}"
-            raise ValueError(msg)
         log.debug("Checking if multiple queries are supported")
         group_key = spec.get("group_queries", [None])[0]
 

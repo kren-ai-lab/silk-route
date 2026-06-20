@@ -259,40 +259,6 @@ class ChEMBLInterface(BaseAPIInterface):
             params[max_key] = cls._format_filter_number(max_value)
         return params
 
-    # DEPRECATED - Use validate_parameters instead
-    def validate_query(self, method: str, query: dict) -> None:  # noqa: ARG002  # deprecated; signature kept
-        """Validate the query parameters.
-
-        Args:
-            method (str): The method to validate against.
-            query (dict): The query parameters to validate.
-
-        Raises:
-            ValueError: If the query parameters are invalid.
-
-        """
-        # TODO(diego): Add more validation rules based on the method and query structure.
-        rules = {
-            "target_chembl_id": lambda v: isinstance(v, str) and v.strip() != "",
-            "pchembl_value": lambda v: isinstance(v, (int, float)),
-        }
-
-        for key, check in rules.items():
-            if key in query and not check(query[key]):
-                if key == "target_chembl_id":
-                    log.error(
-                        "Invalid target_chembl_id: %s. It should be a non-empty string.",
-                        query["target_chembl_id"],
-                    )
-                    return
-                if key == "pchembl_value":
-                    log.error(
-                        "Invalid pchembl_value: %s. It should be a number (int or float).",
-                        query["pchembl_value"],
-                    )
-                    return
-        return
-
     def fetch_pages(self, next_url: str, method: str, pages_to_fetch: int = 1) -> dict | list:
         """Fetch the next page of results from the ChEMBL API.
 

@@ -64,43 +64,6 @@ class KEGGInterface(BaseAPIInterface):
         """Return keys used to match subqueries across KEGG results."""
         return super().get_subquery_match_keys().union({"entries"})
 
-    def validate_query(self, method: str, query: dict) -> None:
-        """Validate the query parameters.
-
-        Args:
-            method (str): The method to validate against.
-            query (Union[str, tuple, dict]): The query parameters to validate.
-
-        Raises:
-            ValueError: If the query parameters are invalid.
-
-        """
-        rules = {
-            "entries": lambda v: isinstance(v, (str, list)),
-            "db": lambda v: v in DATABASES,
-            "option": lambda v: v in METHOD_OPTIONS.get(method, []),
-        }
-
-        for key, check in rules.items():
-            if key in query and not check(query[key]):
-                if key == "entries":
-                    log.error("Invalid entries: %s. Must be a string or a list of strings.", query["entries"])
-                    return
-                if key == "db":
-                    log.error(
-                        "Invalid database type: %s. Valid types are: %s.", query["db"], ", ".join(DATABASES)
-                    )
-                    return
-                if key == "option":
-                    log.error(
-                        "Invalid option: %s for method %s. Supported options are: %s.",
-                        query["option"],
-                        method,
-                        ", ".join(METHOD_OPTIONS.get(method, [])),
-                    )
-                    return
-        return
-
     def fetch(self, query: str | dict | list, *, method: str = "get", **kwargs: Any) -> dict | list | str:
         """Fetch data from the KEGG API.
 

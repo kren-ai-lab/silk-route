@@ -9,7 +9,7 @@ import typer
 
 from bioseq_dl import UniprotInterface
 from bioseq_dl.cli._shared import output_dir_option, save_uniprot_results
-from bioseq_dl.constants.uniprot import VALID_CROSS_REF_FIELDS, VALID_FIELDS
+from bioseq_dl.constants.uniprot import VALID_CROSS_REF_FIELDS
 from bioseq_dl.core.export import (
     USER_EXPORT_FORMATS,
     normalize_parse_format,
@@ -31,9 +31,6 @@ def run(
         help="Database to convert from. Default is UniProtKB_AC-ID (UniProtKB_AC-ID, PDB)",
     ),
     to_db: str = typer.Option("UniProtKB", "--to-db", help="Database to convert to"),
-    fields: str = typer.Option(
-        ",".join(VALID_FIELDS), "-f", "--fields", help="Fields to include in the output"
-    ),
     crossref_fields: str = typer.Option(
         ",".join(VALID_CROSS_REF_FIELDS),
         "-xr",
@@ -77,9 +74,7 @@ def run(
     metadata: dict[str, Any] = {}
     log.info("Downloading additional UniProt data...")
     instance = UniprotInterface()
-    logger.debug(
-        "Downloading data using blast results\nfields %s\ncrossref_fields %s\n", fields, crossref_fields
-    )
+    logger.debug("Downloading data using blast results\ncrossref_fields %s\n", crossref_fields)
 
     response, fetch_metadata = instance.download_batch(df, column, auto_db, from_db, to_db, batch_size)
     metadata["fetch"] = fetch_metadata

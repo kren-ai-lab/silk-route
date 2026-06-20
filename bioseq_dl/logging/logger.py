@@ -162,30 +162,6 @@ class _LoggingManager:
             self._install_root_handlers()
             self._configured = True
 
-    # ---------------- Public API ----------------
-
-    def get_logger(self, name: str | None = None) -> logging.Logger:
-        """Return a logger that propagates to root handlers configured here.
-
-        Child loggers keep level=NOTSET so they inherit the root's effective level.
-        """
-        self._ensure_configured()
-        logger = logging.getLogger(name or "")
-        logger.disabled = not self._enable
-        logger.setLevel(self._level)
-        logger.propagate = True  # <-- critical: let messages reach root handlers
-        return logger
-
-    def set_level(self, level: int) -> None:
-        """Set the global logging level and trigger reconfiguration."""
-        self._level = level
-        self._configured = False
-
-    def enable(self, enable: bool = True) -> None:
-        """Enable/disable logging globally and trigger reconfiguration."""
-        self._enable = enable
-        self._configured = False
-
 
 _manager = _LoggingManager()
 
@@ -247,13 +223,3 @@ def get_logger(name: str | None = None) -> logging.Logger:
     logger.setLevel(logging.NOTSET)  # <-- inherit from root
     logger.propagate = True
     return logger
-
-
-def set_level(level: int) -> None:
-    """Update the global logging level (e.g., logging.DEBUG)."""
-    _manager.set_level(level)
-
-
-def enable_logging(enable: bool = True) -> None:
-    """Enable or disable logging globally (same as BIOSEQ_DL_LOGGING=0)."""
-    _manager.enable(enable)

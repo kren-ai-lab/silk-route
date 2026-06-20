@@ -7,8 +7,6 @@ from platformdirs import user_cache_dir, user_config_dir
 
 from bioseq_dl.core.dbconfig import DBConfig
 
-POLLING_INTERVAL = 3
-
 APP_NAME = "bioseq_dl"
 
 DATABASES = {

@@ -10,7 +10,7 @@ import typer
 
 from bioseq_dl import UniprotInterface
 from bioseq_dl.cli._shared import output_dir_option, save_uniprot_results
-from bioseq_dl.constants.uniprot import DATABASES, VALID_FIELDS, XREF_MAPPING
+from bioseq_dl.constants.uniprot import DATABASES, XREF_MAPPING
 from bioseq_dl.core.export import (
     USER_EXPORT_FORMATS,
     export_dataframe,
@@ -49,9 +49,6 @@ def run(
     ),
     no_download: bool = typer.Option(
         False, "--no-download", "-u", help="If set, will not download information from UniProt after BLAST."
-    ),
-    fields: str = typer.Option(
-        ",".join(VALID_FIELDS), "-f", "--fields", help="Fields to include in the output"
     ),
     crossref_fields: str = typer.Option(
         "",
@@ -151,9 +148,7 @@ def run(
         metadata: dict[str, Any] = {}
         log.info("Downloading additional UniProt data...")
         instance = UniprotInterface()
-        logger.debug(
-            "Downloading data using blast results\nfields %s\ncrossref_fields %s\n", fields, crossref_fields
-        )
+        logger.debug("Downloading data using blast results\ncrossref_fields %s\n", crossref_fields)
 
         response, fetch_metadata = instance.download_batch(
             df_blast, "accession", True, "UniProtKB_AC-ID", "UniProtKB", 5000

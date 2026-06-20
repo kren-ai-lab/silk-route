@@ -917,7 +917,6 @@ class MainWorkflow:
         if modality == "interaction":
             return self.run_interaction(
                 query=query,
-                modality_type=None,
                 export_format=export_format,
                 enrich=enrich,
                 crossref_endpoint_specs=crossref_endpoint_specs,
