@@ -59,8 +59,9 @@ def extract_references(refs: list) -> list[dict]:
 
 def _format_location(feature: dict) -> str:
     """Format a feature's start/end as 'start', 'start-end', or '' when absent."""
-    start_pos = feature.get("location", "").get("start", "").get("value")
-    end_pos = feature.get("location", "").get("end", "").get("value")
+    location = feature.get("location") or {}
+    start_pos = location.get("start", {}).get("value")
+    end_pos = location.get("end", {}).get("value")
     if start_pos and end_pos:
         return start_pos if start_pos == end_pos else f"{start_pos}-{end_pos}"
     return ""
@@ -76,8 +77,9 @@ def extract_variants(features: list) -> list[dict]:
             vtype = feature.get("type")
             feature_id = feature.get("featureId", "")
             location = _format_location(feature)
-            original_seq = feature.get("alternativeSequence", "").get("originalSequence", "")
-            alt_seqs = feature.get("alternativeSequence", []).get("alternativeSequences", [])
+            alt_seq = feature.get("alternativeSequence") or {}
+            original_seq = alt_seq.get("originalSequence", "")
+            alt_seqs = alt_seq.get("alternativeSequences", [])
             description = feature.get("description", "")
 
             extracted.append(

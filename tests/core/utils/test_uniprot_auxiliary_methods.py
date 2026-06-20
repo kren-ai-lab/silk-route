@@ -161,6 +161,21 @@ def test_extract_variants():
     assert out[0]["originalSequence"] == "R"
 
 
+def test_extract_variants_missing_location_and_altseq():
+    # Regression: a feature without location/alternativeSequence must not crash.
+    out = extract_variants([{"type": "Mutagenesis", "featureId": "FT_002"}])
+    assert out == [
+        {
+            "type": "Mutagenesis",
+            "id": "FT_002",
+            "location": "",
+            "originalSequence": "",
+            "alternativeSequences": [],
+            "description": "",
+        }
+    ]
+
+
 def test_extract_interactions():
     comments = [
         {
