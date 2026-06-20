@@ -1397,46 +1397,31 @@ def run_workflow(
     start_time = time.perf_counter()
 
     try:
-        if workflow_values["mode"] == "query_first":
-            data, meta = wf.run(
-                mode=workflow_values["mode"],
-                modality=workflow_values["modality"],
-                export_format=workflow_values["export_format"],
-                query=workflow_values["query"],
-                fields=workflow_values["fields"],
-                enrich=workflow_values["enrich"],
-                max_workers=workflow_values["workers"],
-                total_retries=workflow_values["retries"],
-                chembl_pages_to_fetch=workflow_values["chembl_pages_to_fetch"],
-                uniprot_timeout=workflow_values["uniprot_timeout"],
-                include_isoform=workflow_values["include_isoform"],
-                interaction_type=workflow_values["interaction_type"],
-                crossref_fields=workflow_values["crossref_fields"],
-            )
-        elif workflow_values["mode"] == "query_composition":
+        # Both modes call wf.run() with the same kwargs, differing only in how the
+        # query is passed (single ``query`` vs labeled ``queries_with_labels``).
+        run_kwargs: dict[str, Any] = {
+            "mode": workflow_values["mode"],
+            "modality": workflow_values["modality"],
+            "export_format": workflow_values["export_format"],
+            "fields": workflow_values["fields"],
+            "enrich": workflow_values["enrich"],
+            "max_workers": workflow_values["workers"],
+            "total_retries": workflow_values["retries"],
+            "chembl_pages_to_fetch": workflow_values["chembl_pages_to_fetch"],
+            "uniprot_timeout": workflow_values["uniprot_timeout"],
+            "include_isoform": workflow_values["include_isoform"],
+            "interaction_type": workflow_values["interaction_type"],
+            "crossref_fields": workflow_values["crossref_fields"],
+        }
+        if workflow_values["mode"] == "query_composition":
             if "," not in workflow_values["query"]:
                 msg = "For query_composition, provide multiple queries as 'query1=label1,query2=label2'."
                 raise ValueError(msg)  # noqa: TRY301  # validate-then-Exit CLI idiom
             queries = [q.strip() for q in workflow_values["query"].split(",")]
-            queries_with_labels = [split_pair(q) for q in queries]
-            data, meta = wf.run(
-                mode=workflow_values["mode"],
-                modality=workflow_values["modality"],
-                export_format=workflow_values["export_format"],
-                queries_with_labels=queries_with_labels,
-                fields=workflow_values["fields"],
-                enrich=workflow_values["enrich"],
-                max_workers=workflow_values["workers"],
-                total_retries=workflow_values["retries"],
-                chembl_pages_to_fetch=workflow_values["chembl_pages_to_fetch"],
-                uniprot_timeout=workflow_values["uniprot_timeout"],
-                include_isoform=workflow_values["include_isoform"],
-                interaction_type=workflow_values["interaction_type"],
-                crossref_fields=workflow_values["crossref_fields"],
-            )
+            run_kwargs["queries_with_labels"] = [split_pair(q) for q in queries]
         else:
-            msg = f"Unsupported workflow mode '{workflow_values['mode']}'."
-            raise ValueError(msg)  # noqa: TRY301  # validate-then-Exit CLI idiom
+            run_kwargs["query"] = workflow_values["query"]
+        data, meta = wf.run(**run_kwargs)
     except (TimeoutError, RuntimeError, ValueError) as e:
         error_message = str(e)
         logger.exception(error_message)
