@@ -71,6 +71,12 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
     # omits it. Only set on interfaces whose METHODS are option-keyed (e.g.
     # {"default": {...}, ...}); leave None otherwise.
     DEFAULT_OPTION: ClassVar[str | None] = None
+    # Suffix appended after ``{api_url}{method}`` by the default ``_build_request``
+    # (e.g. ``"/"`` for APIs whose endpoints are ``{method}/{id}``).
+    _METHOD_SUFFIX: ClassVar[str] = ""
+    # Response envelope keys the default ``_unwrap_response`` unwraps, in order;
+    # the first present key's value is returned. Empty = return data unchanged.
+    _RESPONSE_ENVELOPE_KEYS: ClassVar[tuple[str, ...]] = ()
 
     cache_key_ignore_args: ClassVar[set[str]] = {
         "parse",
@@ -105,6 +111,22 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
             config_dir = db.CONFIG_DIR
 
         return cache_dir, config_dir
+
+    def _resolve_output_dir(self, output_dir: str | None, *, init_subdir: str | None = None) -> str:
+        """Resolve a download output dir and ensure it exists.
+
+        Precedence: explicit ``output_dir`` > packaged ``init.yml`` ``download_folder``
+        (when ``init_subdir`` is given) > ``self.cache_dir``. Shared by the
+        file-downloading interfaces (AlphaFold / PDB / SABIO-RK). Call after
+        ``super().__init__`` so ``self.cache_dir`` is set.
+        """
+        fallback = self.cache_dir
+        if init_subdir:
+            packaged_init = load_packaged_config(init_subdir, "init.yml") or {}
+            fallback = packaged_init.get("download_folder") or self.cache_dir
+        out_dir = output_dir or fallback
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
+        return out_dir
 
     def __init__(
         self,
@@ -228,6 +250,11 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         metadata["api_name"] = self.API_NAME
         metadata["method"] = method
         metadata["option"] = option
+
+    def _apply_default_option(self, kwargs: dict) -> None:
+        """Inject ``DEFAULT_OPTION`` into ``kwargs`` when the caller omitted ``option``."""
+        if self.DEFAULT_OPTION is not None:
+            kwargs.setdefault("option", self.DEFAULT_OPTION)
 
     @staticmethod
     def _build_columns_info(df: pd.DataFrame) -> list[dict]:
@@ -745,8 +772,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         """
         metadata = self._empty_metadata()
         # Extract flags and avoid passing twice to _maybe_parse
-        if self.DEFAULT_OPTION is not None and "option" not in kwargs:
-            kwargs["option"] = self.DEFAULT_OPTION
+        self._apply_default_option(kwargs)
         fmt = kwargs.pop("format", "json")
         method = kwargs.get("method", "NOT_GIVEN")
         option = kwargs.get("option")
@@ -903,8 +929,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
 
         """
         metadata = self._empty_metadata()
-        if self.DEFAULT_OPTION is not None and "option" not in kwargs:
-            kwargs["option"] = self.DEFAULT_OPTION
+        self._apply_default_option(kwargs)
         method = kwargs.get("method", "NOT_GIVEN")
         fmt = kwargs.pop("format", "json")
         option = kwargs.get("option")
@@ -1071,25 +1096,54 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
     ) -> Request:
         """Assemble the niquests ``Request`` for a fetch.
 
-        Default implementation: ``f"{api_url}{method}"`` plus an optional path
-        parameter, with the remaining validated params as the query string.
-        ``api_url`` must be supplied via kwargs. Subclasses override this to build
-        API-specific URLs (path layouts, option suffixes, POST bodies, …).
+        Default implementation: ``f"{api_url}{method}{_METHOD_SUFFIX}"`` plus an
+        optional path parameter, with the remaining validated params as the query
+        string. ``api_url`` is taken from kwargs, falling back to
+        ``DB_CONFIG.API_URL``. Subclasses override this to build API-specific URLs
+        (path layouts, option suffixes, POST bodies, …) or set ``_METHOD_SUFFIX``.
         """
-        api_url = kwargs.get("api_url")
+        api_url = kwargs.get("api_url") or (self.DB_CONFIG.API_URL if self.DB_CONFIG else None)
         if not api_url:
-            msg = "API URL must be provided in kwargs."
+            msg = "API URL must be provided in kwargs or via DB_CONFIG."
             raise ValueError(msg)
 
-        url = f"{api_url}{method}"
+        url = f"{api_url}{method}{self._METHOD_SUFFIX}"
         if path_param:
             url += f"{validated_params.pop(path_param)}"
 
         return Request(method=http_method, url=url, params=validated_params)
 
-    def _unwrap_response(self, data: Any, **_kwargs: Any) -> Any:
-        """Shape a parsed JSON response. Default: return it unchanged."""
+    @staticmethod
+    def _unwrap_envelope(data: Any, *keys: str) -> Any:
+        """Return the first present envelope key's value from a dict, else ``data``."""
+        if isinstance(data, dict):
+            for key in keys:
+                if key in data:
+                    return data[key]
         return data
+
+    @staticmethod
+    def _append_path_params(url: str, path_param: Any, validated_params: dict) -> str:
+        """Append ``/``-prefixed path segment(s) for a str or list ``path_param``.
+
+        Shared by the PRIDE/PDB ``_build_request`` overrides. Not used by the
+        default ``_build_request`` (whose scalar branch omits the leading slash).
+        """
+        if not path_param:
+            return url
+        if isinstance(path_param, list):
+            return (
+                url
+                + "/"
+                + "/".join(
+                    str(validated_params.pop(param)) for param in path_param if param in validated_params
+                )
+            )
+        return url + f"/{validated_params.pop(path_param)}"
+
+    def _unwrap_response(self, data: Any, **_kwargs: Any) -> Any:
+        """Shape a parsed JSON response by unwrapping ``_RESPONSE_ENVELOPE_KEYS``."""
+        return self._unwrap_envelope(data, *self._RESPONSE_ENVELOPE_KEYS)
 
     def _do_request(self, query: str | dict | list, *, method: str, **kwargs: Any) -> Response:
         """Run a validated HTTP request and return the raw response.
@@ -1149,8 +1203,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         non-standard flows (pagination, SOAP, Entrez, text payloads) override
         ``fetch`` directly.
         """
-        if self.DEFAULT_OPTION is not None and "option" not in kwargs:
-            kwargs["option"] = self.DEFAULT_OPTION
+        self._apply_default_option(kwargs)
         response = self._do_request(query, method=method, **kwargs)
         return self._unwrap_response(response.json(), method=method, **kwargs)
 

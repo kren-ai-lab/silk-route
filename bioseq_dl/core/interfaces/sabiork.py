@@ -1,6 +1,5 @@
 """SABIO-RK kinetics database API interface."""
 
-from pathlib import Path
 from typing import Any, ClassVar
 
 import niquests
@@ -42,8 +41,7 @@ class SabiorkInterface(BaseAPIInterface):
     ) -> None:
         """Initialize the SabiorkInterface."""
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
-        self.output_dir = output_dir or self.cache_dir
-        Path(self.output_dir).mkdir(parents=True, exist_ok=True)
+        self.output_dir = self._resolve_output_dir(output_dir)
 
     def fetch(
         self, query: str | dict | list, *, method: str = "kineticlaws", **kwargs: Any

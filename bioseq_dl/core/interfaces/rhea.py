@@ -2,8 +2,6 @@
 
 from typing import Any, ClassVar
 
-from niquests import Request
-
 # Add the import for your database in constants
 from bioseq_dl.constants.databases import RHEA
 from bioseq_dl.logging import get_logger
@@ -18,6 +16,9 @@ class RheaInterface(BaseAPIInterface):
 
     API_NAME = "Rhea"
     DB_CONFIG = RHEA
+    # Endpoints are ``{method}/{id}``; responses wrap rows in a ``results`` key.
+    _METHOD_SUFFIX: ClassVar[str] = "/"
+    _RESPONSE_ENVELOPE_KEYS: ClassVar[tuple[str, ...]] = ("results",)
     METHODS: ClassVar[dict[str, Any]] = {
         "rhea": {
             "http_method": "GET",
@@ -32,18 +33,3 @@ class RheaInterface(BaseAPIInterface):
             "separator": None,
         }
     }
-
-    def _build_request(
-        self, *, method: str, http_method: str, path_param: Any, validated_params: dict, **_kwargs: Any
-    ) -> Request:
-        """Build the Rhea request URL (`{method}/` + optional path param)."""
-        url = f"{RHEA.API_URL}{method}/"
-        if path_param:
-            url += f"{validated_params.pop(path_param)}"
-        return Request(method=http_method, url=url, params=validated_params)
-
-    def _unwrap_response(self, data: Any, **_kwargs: Any) -> Any:
-        """Unwrap the ``results`` envelope when present."""
-        if isinstance(data, dict) and "results" in data:
-            return data["results"]
-        return data

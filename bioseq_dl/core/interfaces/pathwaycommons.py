@@ -20,6 +20,8 @@ class PathwayCommonsInterface(BaseAPIInterface):
 
     API_NAME = "PathwayCommons"
     DB_CONFIG = PATHWAYCOMMONS
+    # Responses wrap results in ``searchHit`` or a JSON-LD ``@graph`` envelope.
+    _RESPONSE_ENVELOPE_KEYS: ClassVar[tuple[str, ...]] = ("searchHit", "@graph")
     METHODS: ClassVar[dict[str, Any]] = {
         "fetch": {
             "http_method": "POST",
@@ -88,12 +90,3 @@ class PathwayCommonsInterface(BaseAPIInterface):
         url = f"{PATHWAYCOMMONS.API_URL}{method}"
         headers = {"accept": "*/*", "Content-Type": "application/json"}
         return Request(url=url, headers=headers, method=http_method, data=json.dumps(validated_params))
-
-    def _unwrap_response(self, data: Any, **_kwargs: Any) -> Any:
-        """Unwrap the ``searchHit`` / JSON-LD ``@graph`` envelope when present."""
-        if isinstance(data, dict):
-            if "searchHit" in data:
-                return data["searchHit"]
-            if "@graph" in data:
-                return data["@graph"]
-        return data

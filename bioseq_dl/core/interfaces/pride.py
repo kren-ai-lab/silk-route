@@ -65,14 +65,7 @@ class PrideInterface(BaseAPIInterface):
     ) -> Request:
         """Build the PRIDE request URL (path segments + optional option suffix)."""
         url = f"{PRIDE.API_URL}{method.replace('-', '/')}"
-
-        if path_param:
-            if isinstance(path_param, list):
-                url += "/" + "/".join(
-                    str(validated_params.pop(param)) for param in path_param if param in validated_params
-                )
-            else:
-                url += f"/{validated_params.pop(path_param)}"
+        url = self._append_path_params(url, path_param, validated_params)
 
         option = kwargs.get("option")
         if option and option != "default":

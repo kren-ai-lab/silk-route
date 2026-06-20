@@ -2,8 +2,6 @@
 
 from typing import Any, ClassVar
 
-from niquests import Request
-
 # Add the import for your database in constants
 from bioseq_dl.constants.databases import PANTHER
 from bioseq_dl.logging import get_logger
@@ -46,15 +44,6 @@ class PantherInterface(BaseAPIInterface):
             "separator": ",",
         },
     }
-
-    def _build_request(
-        self, *, method: str, http_method: str, path_param: Any, validated_params: dict, **_kwargs: Any
-    ) -> Request:
-        """Build the PANTHER request URL (`{method}` + optional path param)."""
-        url = f"{PANTHER.API_URL}{method}"
-        if path_param:
-            url += f"{validated_params.pop(path_param)}"
-        return Request(method=http_method, url=url, params=validated_params)
 
     def _unwrap_response(self, data: Any, **kwargs: Any) -> Any:
         """Drill into the per-method nested value PANTHER wraps results in."""

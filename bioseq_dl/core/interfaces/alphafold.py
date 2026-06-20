@@ -6,11 +6,9 @@ from pathlib import Path
 from typing import Any, ClassVar, Literal
 
 import pandas as pd
-from niquests import Request
 
 from bioseq_dl.constants.databases import ALPHAFOLD
 from bioseq_dl.core.export import export_dataframe
-from bioseq_dl.core.interfacesconfig import load_packaged_config
 from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
@@ -23,6 +21,9 @@ class AlphafoldInterface(BaseAPIInterface):
 
     API_NAME = "Alphafold"
     DB_CONFIG = ALPHAFOLD
+    # Endpoints are ``{method}/{qualifier}``; responses wrap rows in ``results``.
+    _METHOD_SUFFIX: ClassVar[str] = "/"
+    _RESPONSE_ENVELOPE_KEYS: ClassVar[tuple[str, ...]] = ("results",)
     METHODS: ClassVar[dict[str, Any]] = {
         "prediction": {
             "http_method": "GET",
@@ -56,13 +57,8 @@ class AlphafoldInterface(BaseAPIInterface):
             **kwargs: Passed through to the base class.
 
         """
-        cache_dir, config_dir = self._resolve_dirs(cache_dir, config_dir)
-        packaged_init = load_packaged_config("alphafold", "init.yml") or {}
-        download_folder_fallback = packaged_init.get("download_folder") or cache_dir
-
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
-        self.output_dir = output_dir or download_folder_fallback
-        Path(self.output_dir).mkdir(parents=True, exist_ok=True)
+        self.output_dir = self._resolve_output_dir(output_dir, init_subdir="alphafold")
 
         self.structures = structures
 
@@ -110,21 +106,6 @@ class AlphafoldInterface(BaseAPIInterface):
             self.download_structures(record) for result in results for record in self._iter_records(result)
         ]
         return (new_results or results), metadata
-
-    def _build_request(
-        self, *, method: str, http_method: str, path_param: Any, validated_params: dict, **_kwargs: Any
-    ) -> Request:
-        """Build the AlphaFold prediction request URL (`{method}/{qualifier}`)."""
-        url = f"{ALPHAFOLD.API_URL}{method}/"
-        if path_param:
-            url += f"{validated_params.pop(path_param)}"
-        return Request(method=http_method, url=url, params=validated_params)
-
-    def _unwrap_response(self, data: Any, **_kwargs: Any) -> Any:
-        """Unwrap the ``results`` envelope when present."""
-        if isinstance(data, dict) and "results" in data:
-            return data["results"]
-        return data
 
     def download_structures(self, parsed: dict) -> dict:
         """Download structure files based on parsed prediction info.

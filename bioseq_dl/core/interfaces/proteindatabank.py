@@ -9,7 +9,6 @@ import pandas as pd
 from niquests import Request
 
 from bioseq_dl.constants.databases import PDB
-from bioseq_dl.core.interfacesconfig import load_packaged_config
 from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
@@ -61,13 +60,8 @@ class PDBInterface(BaseAPIInterface):
             **kwargs: Passed through to the base class.
 
         """
-        cache_dir, config_dir = self._resolve_dirs(cache_dir, config_dir)
-        packaged_init = load_packaged_config("pdb", "init.yml") or {}
-        download_folder_fallback = packaged_init.get("download_folder") or cache_dir
-
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
-        self.output_dir = output_dir or download_folder_fallback
-        Path(self.output_dir).mkdir(parents=True, exist_ok=True)
+        self.output_dir = self._resolve_output_dir(output_dir, init_subdir="pdb")
 
         self.batch_size = batch_size
         self.download_structures = download_structures
@@ -77,15 +71,7 @@ class PDBInterface(BaseAPIInterface):
     ) -> Request:
         """Build the PDB request URL (method + path segments, no query params)."""
         url = f"{PDB.API_URL}{method}"
-
-        if path_param:
-            if isinstance(path_param, list):
-                url += "/" + "/".join(
-                    str(validated_params.pop(param)) for param in path_param if param in validated_params
-                )
-            else:
-                url += f"/{validated_params.pop(path_param)}"
-
+        url = self._append_path_params(url, path_param, validated_params)
         return Request(url=url, method=http_method)
 
     def fetch_structure(self, pdb_id: str, file_format: str = "pdb") -> str:

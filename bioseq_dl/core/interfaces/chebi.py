@@ -138,8 +138,7 @@ class ChEBIInterface(BaseAPIInterface):
                 # Convert to list of interactions
                 response = list(response.values())
 
-            if isinstance(response, dict) and "results" in response:
-                response = response["results"]
+            response = self._unwrap_envelope(response, "results")
 
         except RequestException:
             log.exception("Error fetching %s for method '%s'", query, method)
