@@ -284,16 +284,10 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         else:
             df = pd.DataFrame([data])
 
-        if isinstance(data, list):
-            total_entries = len(data)
-        elif isinstance(data, pd.DataFrame):
-            total_entries = data.shape[0]
-        elif data is None:
-            total_entries = 0
-        else:
-            total_entries = len(df)
+        # The DataFrame view above faithfully represents the row count for every
+        # input shape (list, dict, scalar, None), so derive the count from it.
         return {
-            "total_entries": total_entries,
+            "total_entries": df.shape[0],
             "data_type": type(data).__name__,
             "columns": cls._build_columns_info(df),
         }
@@ -351,20 +345,11 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         else:
             base = json.dumps(input_obj, sort_keys=True)
 
-        # Filter kwargs to exclude cache_key_ignore_args
+        # Include relevant kwargs (like 'operation') in the cache key, excluding
+        # cache_key_ignore_args. Empty parts drop out of the join.
         relevant_kwargs = self._filter_dict_keys(kwargs)
-        extra = ""
-
-        # Include relevant kwargs (like 'operation') in the cache key
-        if relevant_kwargs:
-            extra = "_".join(f"{v}" for _, v in relevant_kwargs.items())
-
-        if base and extra:
-            return f"{base}_{extra}"
-        if base:
-            return base
-        # A rarer case where input_obj is empty or None
-        return extra
+        extra = "_".join(map(str, relevant_kwargs.values()))
+        return "_".join(part for part in (base, extra) if part)
 
     def _hash_key(self, key: str) -> str:
         return hashlib.md5(key.encode("utf-8"), usedforsecurity=False).hexdigest()
@@ -501,10 +486,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
             log.error("Cannot convert to XML, unsupported type.")
             msg = f"Cannot convert to XML: unsupported type {type(result)}"
             raise ValueError(msg)
-        if fmt == "json":
-            log.debug("Returning result as JSON")
-            return result
-
+        # json (and any other format) returns the result unchanged.
         return result
 
     ##################

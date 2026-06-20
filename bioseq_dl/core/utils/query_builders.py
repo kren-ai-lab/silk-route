@@ -7,7 +7,6 @@ query are present, and return a list of query parameters for the corresponding A
 
 import ast
 from collections.abc import Callable
-from functools import partial
 from typing import Any
 
 import numpy as np
@@ -105,6 +104,11 @@ def to_str_list(value: Any) -> list[str]:
 QUERY_BUILDERS = {}
 
 
+def _query_builder_key(database: str, method: str, option: str | None = None) -> str:
+    """Build the ``QUERY_BUILDERS`` registry key from its parts."""
+    return "_".join([part for part in (database, method, option) if part])
+
+
 def register_query_builder(
     database: str, method: str, option: str | None = None
 ) -> Callable[[QueryBuilder], QueryBuilder]:
@@ -125,21 +129,17 @@ def register_query_builder(
             ...
 
     """
-    return partial(_register_query_builder, database=database, method=method, option=option)
 
+    def decorator(func: QueryBuilder) -> QueryBuilder:
+        QUERY_BUILDERS[_query_builder_key(database, method, option)] = func
+        return func
 
-def _register_query_builder(
-    func: QueryBuilder, *, database: str, method: str, option: str | None = None
-) -> QueryBuilder:
-    """Store a query builder function and return it unchanged."""
-    key = "_".join([part for part in (database, method, option) if part])
-    QUERY_BUILDERS[key] = func
-    return func
+    return decorator
 
 
 def get_query_builder(database: str, method: str, option: str | None = None) -> QueryBuilder:
     """Return the registered query builder for a database endpoint."""
-    key = "_".join([part for part in (database, method, option) if part])
+    key = _query_builder_key(database, method, option)
     builder = QUERY_BUILDERS.get(key)
     if builder is None:
         msg = f"No query builder registered for endpoint '{key}'"
@@ -150,10 +150,7 @@ def get_query_builder(database: str, method: str, option: str | None = None) -> 
 @register_query_builder("alphafold", "prediction")
 def build_query_alphafold_prediction(row: pd.Series, _params: dict) -> list:
     """Build AlphaFold prediction queries from 'alphafold_ids' column."""
-    alphafold_ids = to_str_list(row.get("alphafold_ids"))
-    if alphafold_ids:
-        return alphafold_ids
-    return []
+    return to_str_list(row.get("alphafold_ids"))
 
 
 @register_query_builder("biodbnet", "db2db")
@@ -251,10 +248,7 @@ def build_query_chebi_ontology(row: pd.Series, params: dict) -> list:
 @register_query_builder("go", "ontology-term")
 def build_query_go(row: pd.Series, _params: dict) -> list:
     """Build Gene Ontology queries from 'go_terms' column."""
-    go_terms = to_str_list(row.get("go_terms"))
-    if go_terms:
-        return go_terms
-    return []
+    return to_str_list(row.get("go_terms"))
 
 
 @register_query_builder("interpro", "entry")
@@ -349,10 +343,7 @@ def build_query_pathwaycommons_neighborhood(row: pd.Series, params: dict) -> lis
 @register_query_builder("pdb", "entry")
 def build_query_pdb(row: pd.Series, _params: dict) -> list:
     """Build PDB entry queries from 'pdb_ids' column."""
-    pdb = to_str_list(row.get("pdb_ids"))
-    if pdb:
-        return pdb
-    return []
+    return to_str_list(row.get("pdb_ids"))
 
 
 @register_query_builder("pubchem", "compound", "summary")
@@ -380,10 +371,7 @@ def build_query_pubchem_protein(row: pd.Series, params: dict) -> list:
 @register_query_builder("reactome", "data-discover")
 def build_query_reactome(row: pd.Series, _params: dict) -> list:
     """Build Reactome data-discover queries from 'reactome_ids' column."""
-    ids_raw = to_str_list(row.get("reactome_ids"))
-    if ids_raw:
-        return ids_raw
-    return []
+    return to_str_list(row.get("reactome_ids"))
 
 
 @register_query_builder("rhea", "rhea")
@@ -398,10 +386,7 @@ def build_query_rhea(row: pd.Series, params: dict) -> list:
 @register_query_builder("refseq", "protein")
 def build_query_refseq(row: pd.Series, _params: dict) -> list:
     """Build RefSeq protein queries from 'refseq_ids' column."""
-    ids_raw = to_str_list(row.get("refseq_ids"))
-    if ids_raw:
-        return ids_raw
-    return []
+    return to_str_list(row.get("refseq_ids"))
 
 
 @register_query_builder("sabio-rk", "kineticlaws")

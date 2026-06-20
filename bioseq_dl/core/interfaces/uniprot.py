@@ -160,24 +160,19 @@ class UniprotInterface(BaseAPIInterface):
     def decode_results(self, response: niquests.Response, file_format: str, compressed: bool) -> Any:
         """Decode a UniProt API response into JSON, XML, or plain text."""
         content = response.content or b""
-        if compressed:
-            decompressed = zlib.decompress(content, 16 + zlib.MAX_WBITS)
-            if file_format == "json":
-                return json.loads(decompressed.decode("utf-8"))
-            if file_format == "tsv":
-                return [line for line in decompressed.decode("utf-8").split("\n") if line]
-            if file_format == "xlsx":
-                return [decompressed]
-            if file_format == "xml":
-                return [decompressed.decode("utf-8")]
-            return decompressed.decode("utf-8")
-        text = response.text or ""
+        raw = zlib.decompress(content, 16 + zlib.MAX_WBITS) if compressed else content
+
+        # xlsx is binary: never UTF-8-decode it.
+        if file_format == "xlsx":
+            return [raw]
+
+        # Decode text only now (xlsx already returned), keeping the original
+        # source per branch: response.json()/response.text for uncompressed.
+        text = raw.decode("utf-8") if compressed else (response.text or "")
         if file_format == "json":
-            return response.json()
+            return json.loads(text) if compressed else response.json()
         if file_format == "tsv":
             return [line for line in text.split("\n") if line]
-        if file_format == "xlsx":
-            return [content]
         if file_format == "xml":
             return [text]
         return text
@@ -609,46 +604,34 @@ class UniprotInterface(BaseAPIInterface):
             format (Literal["json", "dataframe", "xml"]): The output format.
 
         """
-        parsed = []
-        metadata = []
+        parsed: list = []
+        metadata: list = []
 
-        # Process successful results
-        if isinstance(results, dict):
-            for result in results.get("results", []):
+        def _accumulate(res: dict) -> None:
+            """Collect parsed results + failed-id placeholders from one results dict."""
+            for result in res.get("results", []):
                 p, m = self._parse_result(result, extract_fields)
                 parsed.append(p)
                 metadata.append(m)
-
-            # Process failed IDs
-            for failed_id in results.get("failedIds", []):
+            for failed_id in res.get("failedIds", []):
                 parsed.append({"uniprot_id": failed_id, "status": "failed"})
                 metadata.append({})
+
+        if isinstance(results, dict):
+            _accumulate(results)
         elif isinstance(results, list):
             for res in results:
                 if isinstance(res, dict):
-                    for result in res.get("results", []):
-                        p, m = self._parse_result(result, extract_fields)
-                        parsed.append(p)
-                        metadata.append(m)
-
-                    # Process failed IDs
-                    for failed_id in res.get("failedIds", []):
-                        parsed.append({"uniprot_id": failed_id, "status": "failed"})
-                        metadata.append({})
+                    _accumulate(res)
                 else:
                     log.warning("Tried to parse non-dict result: %s, skipping.", type(res))
-                    continue
 
+        meta_out = metadata[0] if metadata else metadata
         if format == "dataframe":
-            return pd.DataFrame(parsed).dropna(axis=1, how="all"), metadata[0] if len(
-                metadata
-            ) > 0 else metadata
+            return pd.DataFrame(parsed).dropna(axis=1, how="all"), meta_out
         if format == "xml":
-            return dict_to_elementtree(parsed, root_tag="results"), metadata[0] if len(
-                metadata
-            ) > 0 else metadata
-
-        return parsed, metadata[0] if len(metadata) > 0 else metadata
+            return dict_to_elementtree(parsed, root_tag="results"), meta_out
+        return parsed, meta_out
 
     def fetch(self, query: str | dict | list, *, method: str = "uniprotkb", **kwargs: Any) -> Any:
         """UniProt does not use the generic fetch machinery.

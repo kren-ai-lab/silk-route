@@ -33,7 +33,7 @@ def dict_to_elementtree(
     root_tag: str = "results",
     list_item_tag: str = "item",
 ) -> ET.ElementTree:
-    """Convert an ElementTree XML tree to a flat pandas DataFrame."""
+    """Convert a dict/list/scalar value into an ``ElementTree`` rooted at ``root_tag``."""
     root = ET.Element(root_tag)
     dict_to_element(data, root, list_item_tag=list_item_tag)
     return ET.ElementTree(root)
@@ -41,7 +41,17 @@ def dict_to_elementtree(
 
 def _xml_is_leaf(element: ET.Element) -> bool:
     """Return whether an XML element has no child elements."""
-    return len(list(element)) == 0
+    return len(element) == 0
+
+
+def _children_map(element: ET.Element) -> dict[str, str]:
+    """Map each child tag to its leaf text, or serialized XML for non-leaf children."""
+    return {
+        child.tag: (child.text or "").strip()
+        if _xml_is_leaf(child)
+        else ET.tostring(child, encoding="unicode")
+        for child in element
+    }
 
 
 def _parse_xml_container(element: ET.Element, list_item_tag: str) -> Any:
@@ -52,27 +62,12 @@ def _parse_xml_container(element: ET.Element, list_item_tag: str) -> Any:
         if all(_xml_is_leaf(item) for item in items):
             return [(item.text or "").strip() for item in items if (item.text or "").strip()]
 
-        output = []
-        for item in items:
-            parsed_item = {}
-            for child in list(item):
-                parsed_item[child.tag] = (
-                    (child.text or "").strip()
-                    if _xml_is_leaf(child)
-                    else ET.tostring(child, encoding="unicode")
-                )
-            output.append(parsed_item)
-        return output
+        return [_children_map(item) for item in items]
 
     if _xml_is_leaf(element):
         return (element.text or "").strip()
 
-    parsed = {}
-    for child in list(element):
-        parsed[child.tag] = (
-            (child.text or "").strip() if _xml_is_leaf(child) else ET.tostring(child, encoding="unicode")
-        )
-    return parsed
+    return _children_map(element)
 
 
 def elementtree_to_dataframe(

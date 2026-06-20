@@ -38,7 +38,7 @@ def test_attach_label_compound_missing_chembl_returns_empty():
 
 def test_attach_label_unknown_modality_or_non_dict_returns_empty():
     assert attach_label_to_part({"uniprot": pd.DataFrame()}, "L1", "bogus") == {}
-    assert attach_label_to_part("not-a-dict", "L1", "protein") == {}  # type: ignore[arg-type]
+    assert attach_label_to_part("not-a-dict", "L1", "protein") == {}  # ty: ignore[invalid-argument-type]  # type: ignore[arg-type]
 
 
 def test_attach_label_existing_label_column_preserved_as_original():

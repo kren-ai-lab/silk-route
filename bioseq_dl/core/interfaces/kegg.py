@@ -14,6 +14,22 @@ from .base import BaseAPIInterface
 
 log = get_logger("bioseq_dl.interfaces.kegg")
 
+
+def _add(container: dict, key: str, value: Any, *, as_list: bool = False) -> None:
+    """Insert ``value`` at ``key``, promoting to a list when the key already exists.
+
+    With ``as_list=True`` the first value is stored as a single-element list (used
+    for nested secondary keys that usually repeat).
+    """
+    existing = container.get(key)
+    if existing is None:
+        container[key] = [value] if as_list else value
+    elif isinstance(existing, list):
+        existing.append(value)
+    else:
+        container[key] = [existing, value]
+
+
 # More info about KEGG API: https://www.kegg.jp/kegg/rest/keggapi.html
 # TODO(diego): Solve known problem with KEGG API:
 # For the queries that have more than one search like
@@ -224,13 +240,7 @@ class KEGGInterface(BaseAPIInterface):
                             current_subkey = None
                             current_key = key
 
-                            existing = parsed_entry.get(key)
-                            if existing is None:
-                                parsed_entry[key] = value
-                            elif isinstance(existing, list):
-                                existing.append(value)
-                            else:
-                                parsed_entry[key] = [existing, value]
+                            _add(parsed_entry, key, value)
 
                             continue
                     # Proper secondary key (nested)
@@ -243,13 +253,7 @@ class KEGGInterface(BaseAPIInterface):
                             current_subkey = None
                             current_key = key
 
-                            existing = parsed_entry.get(key)
-                            if existing is None:
-                                parsed_entry[key] = value
-                            elif isinstance(existing, list):
-                                existing.append(value)
-                            else:
-                                parsed_entry[key] = [existing, value]
+                            _add(parsed_entry, key, value)
 
                             continue
                     else:
@@ -265,13 +269,7 @@ class KEGGInterface(BaseAPIInterface):
 
                         # For secondary keys (like ELEMENT), we store as list by default,
                         # because they usually appear multiple times.
-                        existing = parent_dict.get(key)
-                        if existing is None:
-                            parent_dict[key] = [value]
-                        elif isinstance(existing, list):
-                            existing.append(value)
-                        else:
-                            parent_dict[key] = [existing, value]
+                        _add(parent_dict, key, value, as_list=True)
 
                         current_subkey = key
                         current_key = key
@@ -285,13 +283,7 @@ class KEGGInterface(BaseAPIInterface):
                     current_subkey = None
                     current_key = key
 
-                    existing = parsed_entry.get(key)
-                    if existing is None:
-                        parsed_entry[key] = value
-                    elif isinstance(existing, list):
-                        existing.append(value)
-                    else:
-                        parsed_entry[key] = [existing, value]
+                    _add(parsed_entry, key, value)
 
                     continue
 
