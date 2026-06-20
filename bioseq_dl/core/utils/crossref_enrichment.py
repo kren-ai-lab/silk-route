@@ -5,7 +5,7 @@ from typing import Any, Literal
 import pandas as pd
 
 from bioseq_dl.constants.uniprot import XREF_MAPPING
-from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
+from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec, specs_for_database
 from bioseq_dl.core.interfacesconfig import load_packaged_config
 from bioseq_dl.logging import get_logger
 
@@ -132,22 +132,7 @@ def run_crossref_enrichment(
             if processed_crossref_fields[db_name] == [{"method": None, "option": None}]:
                 # Use all available methods for this database
                 log.debug("Using all available methods for database: %s", db_name)
-                endpoint_config = endpoints_config.get(db_name)
-                if not isinstance(endpoint_config, dict):
-                    continue
-
-                for ep_name, ep_info in endpoint_config.get("endpoints", {}).items():
-                    if ep_info.get("enabled", False):
-                        options = ep_info.get("options", [None]) if "options" in ep_info else [None]
-                        endpoint_specs.extend(
-                            EndpointSpec(
-                                database=db_name,
-                                endpoint=ep_name,
-                                option=ep_option,
-                                params=ep_info.get("params", {}),
-                            )
-                            for ep_option in options
-                        )
+                endpoint_specs.extend(specs_for_database(endpoints_config.get(db_name), db_name))
             else:
                 log.debug("Using specified methods for database: %s", db_name)
                 for method in processed_crossref_fields[db_name]:
@@ -190,10 +175,7 @@ def run_crossref_enrichment(
     elif not isinstance(enriched_metadata, dict):
         enriched_metadata = {"details": enriched_metadata}
 
-    if (isinstance(enriched_data, pd.DataFrame) and not enriched_data.empty) or (
-        isinstance(enriched_data, list) and len(enriched_data) > 0
-    ):
-        return enriched_data, enriched_metadata
+    # enrich() always returns a dict keyed by endpoint; filter to exportable values.
     if isinstance(enriched_data, dict):
         enriched_data = {
             label: value for label, value in enriched_data.items() if has_enrichment_result_value(value)

@@ -15,6 +15,9 @@ from .base import BaseAPIInterface
 
 log = get_logger("bioseq_dl.interfaces.chembl")
 
+# Envelope keys whose list value holds the paginated records, in priority order.
+_PAGINATED_LIST_KEYS = ("activities", "binding_sites", "molecules", "targets", "assays")
+
 # For the moment, only activity is necessary, but more methods can be added later.
 
 # The main methods that are used in the webUI version of ChEMBL are 'Target', 'Assay', 'Cell Line' and
@@ -259,40 +262,6 @@ class ChEMBLInterface(BaseAPIInterface):
             params[max_key] = cls._format_filter_number(max_value)
         return params
 
-    # DEPRECATED - Use validate_parameters instead
-    def validate_query(self, method: str, query: dict) -> None:  # noqa: ARG002  # deprecated; signature kept
-        """Validate the query parameters.
-
-        Args:
-            method (str): The method to validate against.
-            query (dict): The query parameters to validate.
-
-        Raises:
-            ValueError: If the query parameters are invalid.
-
-        """
-        # TODO(diego): Add more validation rules based on the method and query structure.
-        rules = {
-            "target_chembl_id": lambda v: isinstance(v, str) and v.strip() != "",
-            "pchembl_value": lambda v: isinstance(v, (int, float)),
-        }
-
-        for key, check in rules.items():
-            if key in query and not check(query[key]):
-                if key == "target_chembl_id":
-                    log.error(
-                        "Invalid target_chembl_id: %s. It should be a non-empty string.",
-                        query["target_chembl_id"],
-                    )
-                    return
-                if key == "pchembl_value":
-                    log.error(
-                        "Invalid pchembl_value: %s. It should be a number (int or float).",
-                        query["pchembl_value"],
-                    )
-                    return
-        return
-
     def fetch_pages(self, next_url: str, method: str, pages_to_fetch: int = 1) -> dict | list:
         """Fetch the next page of results from the ChEMBL API.
 
@@ -336,16 +305,10 @@ class ChEMBLInterface(BaseAPIInterface):
                 log.exception("Error fetching page for method %s", method)
                 break
 
-            if "activities" in data and isinstance(data["activities"], list):
-                responses.extend(data["activities"])
-            elif "binding_sites" in data and isinstance(data["binding_sites"], list):
-                responses.extend(data["binding_sites"])
-            elif "molecules" in data and isinstance(data["molecules"], list):
-                responses.extend(data["molecules"])
-            elif "targets" in data and isinstance(data["targets"], list):
-                responses.extend(data["targets"])
-            elif "assays" in data and isinstance(data["assays"], list):
-                responses.extend(data["assays"])
+            for resp_key in _PAGINATED_LIST_KEYS:
+                if isinstance(data, dict) and isinstance(data.get(resp_key), list):
+                    responses.extend(data[resp_key])
+                    break
             else:
                 responses.append(data)
 
@@ -380,9 +343,7 @@ class ChEMBLInterface(BaseAPIInterface):
         except (TypeError, ValueError):
             log.exception("pages_to_fetch must be -1 or a positive integer. Received: %s", pages_to_fetch)
             return {}
-        if pages_to_fetch == 0 or pages_to_fetch < -1:
-            log.error("pages_to_fetch must be -1 or a positive integer. Received: %s", pages_to_fetch)
-            return {}
+        # Bounds (0 / <-1) are enforced by fetch_pages, which every path below routes through.
 
         # Validate method and format
         if method not in self.METHODS:

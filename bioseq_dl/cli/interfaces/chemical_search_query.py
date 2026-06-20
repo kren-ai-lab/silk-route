@@ -187,31 +187,24 @@ def run_compound(
     # Create folder for output if it does not exist
     Path(output).mkdir(parents=True, exist_ok=True)
 
-    for db in db_list:
-        if db == "pubchem":
-            log.info("Searching PubChem for query: %s", query)
-            result, metadata = pubchem_search_query(query, exact_match=exact_match)
-            if isinstance(result, pd.DataFrame) and not result.empty:
-                result.to_csv(f"{output}/pubchem_results.csv", index=False)
-                with (Path(output) / "pubchem_metadata.json").open("w") as f:
-                    json.dump(metadata, f, indent=2, default=str)
-                log.info("Results saved to %s/pubchem_results.csv", output)
+    # Map each database to its display name + search callable. Display name keeps
+    # the capitalized log text ("Searching PubChem/ChEMBL/ChEBI").
+    searchers = {
+        "pubchem": ("PubChem", lambda: pubchem_search_query(query, exact_match=exact_match)),
+        "chembl": ("ChEMBL", lambda: chembl_search_query(query, exact_match=exact_match)),
+        "chebi": ("ChEBI", lambda: chebi_search_query(query)),
+    }
 
-        elif db == "chembl":
-            log.info("Searching ChEMBL for query: %s", query)
-            result, metadata = chembl_search_query(query, exact_match=exact_match)
-            if isinstance(result, pd.DataFrame) and not result.empty:
-                result.to_csv(f"{output}/chembl_results.csv", index=False)
-                with (Path(output) / "chembl_metadata.json").open("w") as f:
-                    json.dump(metadata, f, indent=2, default=str)
-                log.info("Results saved to %s/chembl_results.csv", output)
-        elif db == "chebi":
-            log.info("Searching ChEBI for query: %s", query)
-            result, metadata = chebi_search_query(query)
-            if isinstance(result, pd.DataFrame) and not result.empty:
-                result.to_csv(f"{output}/chebi_results.csv", index=False)
-                with (Path(output) / "chebi_metadata.json").open("w") as f:
-                    json.dump(metadata, f, indent=2, default=str)
-                log.info("Results saved to %s/chebi_results.csv", output)
-        else:
+    for db in db_list:
+        entry = searchers.get(db)
+        if entry is None:
             log.warning("Database '%s' is not supported.", db)
+            continue
+        display_name, search = entry
+        log.info("Searching %s for query: %s", display_name, query)
+        result, metadata = search()
+        if isinstance(result, pd.DataFrame) and not result.empty:
+            result.to_csv(f"{output}/{db}_results.csv", index=False)
+            with (Path(output) / f"{db}_metadata.json").open("w") as f:
+                json.dump(metadata, f, indent=2, default=str)
+            log.info("Results saved to %s/%s_results.csv", output, db)

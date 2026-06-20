@@ -7,11 +7,8 @@ from typing import Any, ClassVar
 import niquests
 import pandas as pd
 from niquests import Request
-from niquests.exceptions import RequestException
 
 from bioseq_dl.constants.databases import PDB
-from bioseq_dl.core.interfacesconfig import load_packaged_config
-from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
 from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
@@ -63,71 +60,19 @@ class PDBInterface(BaseAPIInterface):
             **kwargs: Passed through to the base class.
 
         """
-        cache_dir, config_dir = self._resolve_dirs(cache_dir, config_dir)
-        packaged_init = load_packaged_config("pdb", "init.yml") or {}
-        download_folder_fallback = packaged_init.get("download_folder") or cache_dir
-
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
-        self.output_dir = output_dir or download_folder_fallback
-        Path(self.output_dir).mkdir(parents=True, exist_ok=True)
+        self.output_dir = self._resolve_output_dir(output_dir, init_subdir="pdb")
 
         self.batch_size = batch_size
         self.download_structures = download_structures
 
-    def fetch(self, query: str | dict | list, *, method: str = "entry", **kwargs: Any) -> dict | list:
-        """Run a query to fetch data from the PDB database.
-
-        Args:
-            query (str): PDB ID to fetch data for.
-            method (str): API method to use. Default is "entry".
-            **kwargs: Additional keyword arguments passed to the request builder.
-
-        Returns:
-            dict: Fetched data for the given PDB ID.
-
-        """
-        if method not in self.METHODS:
-            log.error("Method %s is not supported. Available methods: %s", method, list(self.METHODS.keys()))
-            return {}
-
-        http_method, path_param, parameters, inputs = self.initialize_method_parameters(
-            query, method, self.METHODS, **kwargs
-        )
-
-        # Validate and clean parameters
-        try:
-            validated_params = validate_parameters(inputs, parameters)
-        except ValueError:
-            log.exception("Invalid parameters for method '%s'", method)
-            return {}
-
+    def _build_request(
+        self, *, method: str, http_method: str, path_param: Any, validated_params: dict, **_kwargs: Any
+    ) -> Request:
+        """Build the PDB request URL (method + path segments, no query params)."""
         url = f"{PDB.API_URL}{method}"
-
-        if path_param:
-            if isinstance(path_param, list):
-                url += "/" + "/".join(
-                    str(validated_params.pop(param)) for param in path_param if param in validated_params
-                )
-            else:
-                url += f"/{validated_params.pop(path_param)}"
-
-        response = Request(
-            url=url,
-            method=http_method,
-        )
-
-        prepared = self.session.prepare_request(response)
-        log.debug("Prepared request: %s", prepared.url)
-
-        try:
-            response = self.session.send(prepared)
-            self._delay()
-            response.raise_for_status()
-
-            return response.json()
-        except RequestException:
-            log.exception("Error fetching data from %s", url)
-            return {}
+        url = self._append_path_params(url, path_param, validated_params)
+        return Request(url=url, method=http_method)
 
     def fetch_structure(self, pdb_id: str, file_format: str = "pdb") -> str:
         """Download the structure file for a given PDB ID.
@@ -183,26 +128,3 @@ class PDBInterface(BaseAPIInterface):
                 if isinstance(query, str):
                     self.fetch_structure(query)
         return results
-
-    def parse(self, data: Any, fields_to_extract: list | dict | None, **_kwargs: Any) -> dict | list:
-        """Parse data by extracting specified fields or returning the entire structure.
-
-        Args:
-            data (Union[List, Dict]): Data to parse.
-            fields_to_extract (list|dict): Fields to keep from the original response.
-                - If list: Keep those keys.
-                - If dict: Maps {desired_name: real_field_name}.
-            **kwargs: Additional keyword arguments.
-
-        Returns:
-            Union[List, Dict]: Parsed data with specified fields or the entire structure.
-
-        """
-        # Check input data type
-        if not isinstance(data, (list, dict)):
-            log.error(
-                "Tried to parse data but the type is not supported. Data should be a list or a dictionary."
-            )
-            return {}
-
-        return self._extract_fields(data, fields_to_extract)

@@ -218,27 +218,3 @@ class InterproInterface(BaseAPIInterface):
 
         log.debug("Prepared url: %s", url)
         return self.fetch_pages(url, method, pages_to_fetch)
-
-    def parse(self, data: Any, fields_to_extract: list | dict | None, **_kwargs: Any) -> dict | list:
-        """Parse the fetched data.
-
-        Args:
-            data (dict): The fetched data.
-            fields_to_extract (List|Dict): Fields to keep from the original response.
-                - If List: Keep those keys.
-                - If Dict: Maps {desired_name: real_field_name}.
-            **kwargs: Additional keyword arguments.
-
-        Returns:
-            dict: The parsed data.
-
-        """
-        if not isinstance(data, (list, dict)):
-            log.error(
-                "Tried to parse data but the type is not supported. Response should be a dict or a list."
-            )
-            return {}
-        if (isinstance(data, dict) and not data) or (isinstance(data, list) and not data):
-            return {}
-
-        return self._extract_fields(data, fields_to_extract)

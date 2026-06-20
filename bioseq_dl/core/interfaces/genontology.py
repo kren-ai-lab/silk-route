@@ -1,16 +1,12 @@
 """Gene Ontology API interface."""
 
-from collections.abc import Sequence
 from http import HTTPStatus
 from typing import Any, ClassVar
 
 import niquests
-import pandas as pd
 from niquests import Request
-from niquests.exceptions import RequestException
 
 from bioseq_dl.constants.databases import GENONTOLOGY
-from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
 from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
@@ -23,6 +19,7 @@ class GenOntologyInterface(BaseAPIInterface):
 
     API_NAME = "GenOntology"
     DB_CONFIG = GENONTOLOGY
+    DEFAULT_OPTION: ClassVar[str | None] = "default"
     METHODS: ClassVar[dict[str, Any]] = {
         "ontology-term": {
             "default": {
@@ -68,61 +65,19 @@ class GenOntologyInterface(BaseAPIInterface):
         },
     }
 
-    def fetch(self, query: str | dict | list, *, method: str = "ontology-term", **kwargs: Any) -> dict | list:
-        """Fetch data from the GenOntology API.
-
-        Args:
-            query (str): Query string to search for.
-            method (str): Method to use for the request. Used methods are 'ontology-term' and 'go'.
-            **kwargs: Additional parameters for the request.
-            - `option`: Additional options for the request.
-
-        Returns:
-            any: response from the API.
-
-        """
-        if method not in self.METHODS:
-            log.error("Method %s is not supported. Available methods: %s", method, list(self.METHODS.keys()))
-            return {}
-
-        option = kwargs.pop("option", "default")
-
-        http_method, _, parameters, inputs = self.initialize_method_parameters(
-            query, method, self.METHODS, option=option, **kwargs
-        )
-
-        # Validate and clean parameters
-        try:
-            validated_params = validate_parameters(inputs, parameters)
-        except ValueError:
-            log.exception("Invalid parameters for method '%s'", method)
-            return {}
-
+    def _build_request(
+        self, *, method: str, http_method: str, validated_params: dict, **kwargs: Any
+    ) -> Request:
+        """Build the GenOntology request URL (uppercased GO ids in the path + option suffix)."""
         url = f"{GENONTOLOGY.API_URL}{method.replace('-', '/')}/"
-        for param in validated_params:
-            if param in validated_params:
-                url += f"{validated_params[param].upper().replace(':', '%3A')}"
+        for value in validated_params.values():
+            url += f"{value.upper().replace(':', '%3A')}"
 
+        option = kwargs.get("option")
         if option and option != "default":
             url += f"/{option}"
 
-        response = Request(
-            url=url,
-            method=http_method,
-        )
-
-        prepared = self.session.prepare_request(response)
-        log.debug("Prepared request: %s", prepared.url)
-
-        try:
-            response = self.session.send(prepared)
-            self._delay()
-            response.raise_for_status()
-
-            return response.json()
-        except RequestException:
-            log.exception("Error fetching data from %s", url)
-            return {}
+        return Request(url=url, method=http_method)
 
     def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> dict | list:
         """Parse the response from the GenOntology API.
@@ -139,24 +94,11 @@ class GenOntologyInterface(BaseAPIInterface):
             dict: Parsed response.
 
         """
-        look_for_relationships = kwargs.get("look_for_relationships")
-        if not data:
-            log.warning("Tried to parse data but the data is empty or None.")
-            return {}
+        look_for_relationships = kwargs.pop("look_for_relationships", None)
 
-        if isinstance(data, niquests.models.Response):
-            data = data.json()
-        elif not isinstance(data, dict):
-            log.error(
-                "Tried to parse data but the type is not supported. Response should be a dict or a "
-                "niquests.Response "
-                "object."
-            )
-            return {}
+        parsed = super().parse(data, fields_to_extract, **kwargs)
 
-        parsed = self._extract_fields(data, fields_to_extract)
-
-        if look_for_relationships:
+        if look_for_relationships and parsed:
             if isinstance(parsed, list):
                 parsed = [self.fetch_related_ontology_terms(item) for item in parsed]
             else:
@@ -189,17 +131,3 @@ class GenOntologyInterface(BaseAPIInterface):
         except Exception:
             log.exception("Error fetching relationships for GO term %s", parsed.get("goid", ""))
         return parsed
-
-    def fetch_single(
-        self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
-    ) -> tuple[list | dict | pd.DataFrame | bytes | str, dict]:
-        """Fetch a single record and resolve related ontology terms."""
-        option = kwargs.pop("option", "default")
-        return super().fetch_single(query, parse, *args, option=option, **kwargs)
-
-    def fetch_batch(
-        self, queries: Sequence[str | dict], parse: bool = False, *args: Any, **kwargs: Any
-    ) -> tuple[list | pd.DataFrame | bytes | str, dict]:
-        """Fetch a batch of records and resolve related ontology terms."""
-        option = kwargs.pop("option", "default")
-        return super().fetch_batch(queries, parse, *args, option=option, **kwargs)

@@ -70,6 +70,12 @@ def test_extract_keywords():
     assert extract_keywords(kws) == ["Transferase", "Mitochondrion"]
 
 
+def test_extract_keywords_non_list_returns_empty():
+    # Regression: a non-list input must return [] rather than raising.
+    assert extract_keywords(None) == []  # ty: ignore[invalid-argument-type]  # type: ignore[arg-type]
+    assert extract_keywords({"name": "x"}) == []  # ty: ignore[invalid-argument-type]  # type: ignore[arg-type]
+
+
 def test_extract_references():
     refs = [
         {
@@ -153,6 +159,21 @@ def test_extract_variants():
     assert out[0]["id"] == "VAR_001"
     assert out[0]["location"] == 72
     assert out[0]["originalSequence"] == "R"
+
+
+def test_extract_variants_missing_location_and_altseq():
+    # Regression: a feature without location/alternativeSequence must not crash.
+    out = extract_variants([{"type": "Mutagenesis", "featureId": "FT_002"}])
+    assert out == [
+        {
+            "type": "Mutagenesis",
+            "id": "FT_002",
+            "location": "",
+            "originalSequence": "",
+            "alternativeSequences": [],
+            "description": "",
+        }
+    ]
 
 
 def test_extract_interactions():

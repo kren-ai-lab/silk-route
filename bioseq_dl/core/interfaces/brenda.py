@@ -149,31 +149,3 @@ class BrendaInterface(BaseAPIInterface):
 
         params = self.METHODS[method_name]
         return f"Parameters for {method_name}: {', '.join(params)}"
-
-    def parse(self, data: Any, fields_to_extract: list | dict | None, **_kwargs: Any) -> dict | list:
-        """Parse the response from the BioGRID API.
-
-        Args:
-            data (dict): The fetched data.
-            fields_to_extract (List|Dict): Fields to keep from the original response.
-                - If List: Keep those keys.
-                - If Dict: Maps {desired_name: real_field_name}.
-            **kwargs: Additional keyword arguments.
-
-        Returns:
-            any: Parsed data from the response.
-
-        """
-        if not data:
-            log.warning("Tried to parse data but the data is empty or None.")
-            return {}
-
-        if not isinstance(data, (dict, list)):
-            log.error(
-                "Tried to parse data but the type is not supported. Response should be a dict or a "
-                "niquests.Response "
-                "object."
-            )
-            return {}
-
-        return self._extract_fields(data, fields_to_extract)

@@ -42,47 +42,6 @@ def get_nested(data: dict | list, path: str, sep: str = ".") -> Any:
     return None
 
 
-def get_feature_keys(data: dict, sep: str = ".") -> dict:
-    """Recursively get all keys in a nested dictionary and the type of each value.
-
-    Uses dot notation for nested keys.
-
-    Args:
-        data (dict): The dictionary to extract keys from.
-        sep (str): The separator to use for nested keys. Default is '.'.
-
-    Returns:
-        list: List of keys with their types.
-
-    """
-    keys = {}
-    if data is None:
-        return keys
-
-    if isinstance(data, list):
-        data = data[0]  # Use the first element of the list to determine the type
-
-    if isinstance(data, dict):
-        for key, value in data.items():
-            if isinstance(value, dict):
-                nested_keys = get_feature_keys(value, sep=sep)
-                for nested_key, nested_value in nested_keys.items():
-                    keys[f"{key}{sep}{nested_key}"] = f"{type(value).__name__}({nested_value})"
-            if isinstance(value, list) and value:
-                # Use the first element of the list to determine the type
-                if isinstance(value[0], dict):
-                    nested_keys = get_feature_keys(value[0], sep=sep)
-                    for nested_key, nested_value in nested_keys.items():
-                        keys[f"{key}{sep}{nested_key}"] = nested_value
-                else:
-                    keys[key] = f"list({type(value[0]).__name__})"
-            else:
-                keys[key] = type(value).__name__
-    else:
-        keys["value"] = type(data).__name__
-    return keys
-
-
 def validate_parameters(inputs: dict, param_schema: dict) -> dict:
     """Validate the input parameters against the method definition.
 

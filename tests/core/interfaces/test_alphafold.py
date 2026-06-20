@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 from niquests_mock import startswith
 
+from bioseq_dl.core.exceptions import RequestError
 from bioseq_dl.core.interfaces.alphafold import AlphafoldInterface
 from tests._helpers import load_fixture
 
@@ -54,3 +55,10 @@ def test_fetch_single_round_trips_through_cache(interface, niquests_mock):
 
     assert len(niquests_mock.calls) == 1
     assert first == second
+
+
+def test_fetch_raises_on_http_error(interface, niquests_mock):
+    niquests_mock.get(url=startswith(PREDICTION_URL)).respond(status_code=500, json={"error": "boom"})
+
+    with pytest.raises(RequestError):
+        interface.fetch("P12345", method="prediction")

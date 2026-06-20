@@ -18,10 +18,7 @@ def run_search(
     """Fetch reaction data from Rhea."""
     interface = RheaInterface()
 
-    query = {}
-
-    query["query"] = q
-
+    query = {"query": q}
     if columns:
         query["columns"] = columns
 

@@ -71,10 +71,16 @@ class BaseQueryInterpreter:
     def interpret(self, query: str) -> str:
         """Interpret a query string into the target data source's query language.
 
-        Subclasses MUST implement this method.
+        Expand field aliases, strip ignored/unknown fields, normalize whitespace,
+        then resolve each ``field:value`` item via the subclass ``_resolve_item``.
         """
-        msg = "Subclasses must implement this method."
-        raise NotImplementedError(msg)
+        processed_query = self._expand_field_aliases(query)
+        if self.config.extras and self.config.extras.get("ignore_all_fields", False):
+            processed_query = self._remove_all_fields(processed_query)
+        else:
+            processed_query = self._remove_ignored_fields(processed_query)
+        processed_query = self._cleanup_whitespace(processed_query)
+        return self._resolve_query_items(processed_query)
 
     def _resolve_item(self, prefix: str, value: str, cfg: MultiModeFieldConfig) -> tuple[str, str]:
         """Resolve an item value based on the resolver kind specified in the field config."""
@@ -268,7 +274,11 @@ class BaseQueryInterpreter:
             )
             out = pattern.sub(" ", out)
 
-        out = re.sub(r"\b(AND|OR|NOT)\s*(?=\b(AND|OR|NOT)\b)", " ", out, flags=re.IGNORECASE)
+        return self._strip_dangling_booleans(out)
+
+    def _strip_dangling_booleans(self, text: str) -> str:
+        """Collapse consecutive / leading / trailing boolean operators left after field removal."""
+        out = re.sub(r"\b(AND|OR|NOT)\s*(?=\b(AND|OR|NOT)\b)", " ", text, flags=re.IGNORECASE)
         out = re.sub(r"^\s*(AND|OR|NOT)\b\s*", "", out, flags=re.IGNORECASE)
         return re.sub(r"\b(AND|OR|NOT)\s*$", "", out, flags=re.IGNORECASE)
 
@@ -291,30 +301,11 @@ class BaseQueryInterpreter:
         replacement = partial(_remove_unknown_field_match, allowed_fields=allowed_fields)
         out = pattern.sub(replacement, out)
 
-        out = re.sub(r"\b(AND|OR|NOT)\s*(?=\b(AND|OR|NOT)\b)", " ", out, flags=re.IGNORECASE)
-        out = re.sub(r"^\s*(AND|OR|NOT)\b\s*", "", out, flags=re.IGNORECASE)
-        return re.sub(r"\b(AND|OR|NOT)\s*$", "", out, flags=re.IGNORECASE)
-
-
-@dataclass
-class UniProtInterpreterConfig(QueryInterpreterConfig):
-    """Configuration for interpreting UniProt-related queries.
-
-    Attributes:
-        ph_field: The field name used for pH in UniProt queries.
-
-    """
-
-    ph_field: str
-    temperature_field: str
+        return self._strip_dangling_booleans(out)
 
 
 class UniProtQueryInterpreter(BaseQueryInterpreter):
     """Query interpreter for UniProt queries."""
-
-    def __init__(self, config: UniProtInterpreterConfig) -> None:
-        """Initialize with a UniProt-specific configuration."""
-        super().__init__(config)
 
     def _looks_like_go_id(self, text: str) -> bool:
         """Check if a string matches a 7-digit GO numeric ID."""
@@ -349,20 +340,6 @@ class UniProtQueryInterpreter(BaseQueryInterpreter):
                 return prefix, mapped
 
         return prefix, value
-
-    def interpret(self, query: str) -> str:
-        """Interpret a query string into a UniProt-compatible query string."""
-        # Replace field aliases, for example 'taxon:' -> 'taxonomy_id:'
-        processed_query = self._expand_field_aliases(query)
-        # Remove ignored fields, for example 'ic50:'
-        if self.config.extras and self.config.extras.get("ignore_all_fields", False):
-            processed_query = self._remove_all_fields(processed_query)
-        else:
-            processed_query = self._remove_ignored_fields(processed_query)
-        # Clean additional whitespace
-        processed_query = self._cleanup_whitespace(processed_query)
-        # Resolve item values as needed
-        return self._resolve_query_items(processed_query)
 
     def extract_databases(self, query: str) -> list[str]:
         """Extract databases implied by special fields in the query.
@@ -446,6 +423,13 @@ def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
         "yeast": "4932",
     }
 
+    taxonomy_field = MultiModeFieldConfig(
+        field="taxonomy_id",
+        value_map=taxonomy_id_map,
+        supports_range=False,
+        resolver_kind=None,
+    )
+
     fields = {
         # Multi-mode databases
         "databases": MultiModeFieldConfig(
@@ -468,25 +452,11 @@ def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
             supports_range=False,
             resolver_kind="go_name_map",
         ),
-        "taxa": MultiModeFieldConfig(
-            field="taxonomy_id",
-            value_map=taxonomy_id_map,
-            supports_range=False,
-            resolver_kind=None,
-        ),
-        # Singular aliases that should also resolve via taxonomy_id_map
-        "taxon": MultiModeFieldConfig(
-            field="taxonomy_id",
-            value_map=taxonomy_id_map,
-            supports_range=False,
-            resolver_kind=None,
-        ),
-        "taxid": MultiModeFieldConfig(
-            field="taxonomy_id",
-            value_map=taxonomy_id_map,
-            supports_range=False,
-            resolver_kind=None,
-        ),
+        # taxa + the singular aliases taxon/taxid all resolve via taxonomy_id_map;
+        # the frozen config is immutable, so one shared instance is safe.
+        "taxa": taxonomy_field,
+        "taxon": taxonomy_field,
+        "taxid": taxonomy_field,
         # Allow 'organism' (singular) to resolve to organism_id using the taxonomy map
         "organism": MultiModeFieldConfig(
             field="organism_id",
@@ -530,11 +500,9 @@ def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
         "ph": "cc_bpcp_ph_dependence",
     }
 
-    config = UniProtInterpreterConfig(
+    config = QueryInterpreterConfig(
         fields=fields,
         field_aliases=field_aliases,
-        temperature_field="cc_bpcp_temp_dependence",
-        ph_field="cc_bpcp_ph_dependence",
         ignored_fields=["ic50", "activity", "target"],
         extras=None,
     )
@@ -544,10 +512,6 @@ def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
 
 class ChEMBLQueryInterpreter(BaseQueryInterpreter):
     """Query interpreter for ChEMBL queries."""
-
-    def __init__(self, config: Any) -> None:
-        """Initialize with a ChEMBL-specific configuration."""
-        super().__init__(config)
 
     def _resolve_item(self, prefix: str, value: str, cfg: MultiModeFieldConfig) -> tuple[str, str]:
         """Resolve an item value based on the field configuration.
@@ -570,20 +534,6 @@ class ChEMBLQueryInterpreter(BaseQueryInterpreter):
                 return "", f"standard_type=IC50 AND standard_value={value.strip()}"
 
         return prefix, value
-
-    def interpret(self, query: str) -> str:
-        """Interpret a query string into a ChEMBL-compatible query string."""
-        # Replace field aliases
-        processed_query = self._expand_field_aliases(query)
-        # Remove ignored fields
-        if self.config.extras and self.config.extras.get("ignore_all_fields", False):
-            processed_query = self._remove_all_fields(processed_query)
-        else:
-            processed_query = self._remove_ignored_fields(processed_query)
-        # Clean additional whitespace
-        processed_query = self._cleanup_whitespace(processed_query)
-        # Resolve item values as needed
-        return self._resolve_query_items(processed_query)
 
 
 def build_default_chembl_interpreter() -> ChEMBLQueryInterpreter:

@@ -38,12 +38,10 @@ def normalize_export_format(output_format: str | None) -> str | None:
     if output_format is None:
         return None
 
-    normalized = normalize_user_export_format(output_format)
-    if normalized is not None:
-        return normalized
-
     normalized = str(output_format).lower().lstrip(".")
-    if normalized == "tsv":
+    if normalized == "dataframe":
+        raise ValueError(DATAFRAME_EXPORT_FORMAT_ERROR)
+    if normalized in USER_EXPORT_FORMATS or normalized == "tsv":
         return normalized
     return None
 

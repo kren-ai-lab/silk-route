@@ -94,10 +94,8 @@ def _default_allowed_bases() -> list[Path]:
     base_cache = getattr(db_consts, "BASE_CACHE_DIR", None)
     if base_cache:
         bases.append(Path(base_cache))
-    for v in vars(db_consts).values():
-        cd = getattr(v, "CACHE_DIR", None)
-        if cd:
-            bases.append(Path(cd))
+    # Every per-DBConfig CACHE_DIR is already in the registry (see _init_defaults),
+    # so no separate db_consts walk is needed here.
     bases.extend(_CACHE_REGISTRY.values())
     return list(dict.fromkeys(p.resolve() for p in bases))
 

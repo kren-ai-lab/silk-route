@@ -8,7 +8,7 @@ import pandas as pd
 import typer
 
 from bioseq_dl.constants.uniprot import XREF_MAPPING
-from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
+from bioseq_dl.core.crossref_enricher import CrossRefEnricher, specs_for_database
 from bioseq_dl.core.interfacesconfig import load_packaged_config
 from bioseq_dl.logging import get_logger
 
@@ -79,22 +79,7 @@ def run(
         # Generate the endpoint specs based on selected crossref fields
         for xref in databases.split(","):
             if xref in CROSS_REF_FIELDS:
-                endpoint_config = endpoints_config.get(xref)
-                if not isinstance(endpoint_config, dict):
-                    continue
-
-                for ep_name, ep_info in endpoint_config.get("endpoints", {}).items():
-                    if ep_info.get("enabled", False):
-                        options = ep_info.get("options", [None]) if "options" in ep_info else [None]
-                        endpoint_specs.extend(
-                            EndpointSpec(
-                                database=xref,
-                                endpoint=ep_name,
-                                option=ep_option,
-                                params=ep_info.get("params", {}),
-                            )
-                            for ep_option in options
-                        )
+                endpoint_specs.extend(specs_for_database(endpoints_config.get(xref), xref))
 
         if not endpoint_specs:
             msg = (

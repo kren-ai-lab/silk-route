@@ -8,43 +8,20 @@ from bioseq_dl.cli._shared import fetch_auto, format_option, output_option, save
 app = typer.Typer(help="Fetch data from Gene Ontology database.")
 
 
-@app.command("ontology-term")
-def run_ontology_term(
-    goid: str = typer.Argument(..., help="Gene Ontology ID (e.g., GO:0008150)."),
-    output: str = output_option(help="Output file to save the fetched data."),
-    output_format: str = format_option(),
-) -> None:
-    """Fetch data from Gene Ontology database."""
-    instance = GenOntologyInterface()
+def _register(command: str, method: str) -> None:
+    """Register a GO fetch command dispatching to ``method`` under ``command``."""
 
-    df = fetch_auto(instance, goid.split(","), method="ontology-term", parse=True, format="dataframe")
-
-    save_or_print(df, output, output_format=output_format)
-
-
-@app.command("go")
-def run_go(
-    goid: str = typer.Argument(..., help="Gene Ontology ID (e.g., GO:0008150)."),
-    output: str = output_option(help="Output file to save the fetched data."),
-    output_format: str = format_option(),
-) -> None:
-    """Fetch data from Gene Ontology database."""
-    instance = GenOntologyInterface()
-
-    df = fetch_auto(instance, goid.split(","), method="go", parse=True, format="dataframe")
-
-    save_or_print(df, output, output_format=output_format)
+    @app.command(command)
+    def _command(
+        goid: str = typer.Argument(..., help="Gene Ontology ID (e.g., GO:0008150)."),
+        output: str = output_option(help="Output file to save the fetched data."),
+        output_format: str = format_option(),
+    ) -> None:
+        """Fetch data from Gene Ontology database."""
+        instance = GenOntologyInterface()
+        df = fetch_auto(instance, goid.split(","), method=method, parse=True, format="dataframe")
+        save_or_print(df, output, output_format=output_format)
 
 
-@app.command("bioentity-function")
-def run_bioentity_function(
-    goid: str = typer.Argument(..., help="Gene Ontology ID (e.g., GO:0008150)."),
-    output: str = output_option(help="Output file to save the fetched data."),
-    output_format: str = format_option(),
-) -> None:
-    """Fetch data from Gene Ontology database."""
-    instance = GenOntologyInterface()
-
-    df = fetch_auto(instance, goid.split(","), method="bioentity-function", parse=True, format="dataframe")
-
-    save_or_print(df, output, output_format=output_format)
+for _name in ("ontology-term", "go", "bioentity-function"):
+    _register(_name, _name)

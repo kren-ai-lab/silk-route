@@ -11,12 +11,18 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import pandas as pd
 import typer
 
-from bioseq_dl.core.export import export_dataframe, normalize_export_format
+from bioseq_dl.core.export import (
+    USER_EXPORT_FORMATS,
+    export_dataframe,
+    normalize_export_format,
+    normalize_parse_format,
+    normalize_user_export_format,
+)
 
 if TYPE_CHECKING:
     import logging
@@ -198,3 +204,63 @@ def save_uniprot_results(
     else:
         logger.warning(export_format)
         logger.warning("No UniProt data found for the given search.")
+
+
+def validate_export_format(export_format: str) -> str:
+    """Normalize a user export-format string, or exit(1) with an error message.
+
+    Shared by the uniprot-search CLI commands (ids / query / sequences), which
+    previously duplicated this normalize-or-Exit(1) block verbatim.
+    """
+    normalized = normalize_user_export_format(export_format)
+    if normalized is None:
+        typer.echo(
+            f"Error: Unsupported export format '{export_format}'. "
+            f"Supported formats are: {', '.join(USER_EXPORT_FORMATS)}.",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    return normalized
+
+
+def parse_and_save_uniprot(
+    instance: Any,
+    response: Any,
+    metadata: dict,
+    *,
+    crossref_fields: str,
+    output: str,
+    export_format: str,
+    logger: logging.Logger,
+) -> None:
+    """Parse a UniProt response, optionally enrich, and save in the requested format.
+
+    Shared tail of the uniprot-search CLI commands (ids / query / sequences):
+    create the output dir, dump the raw response, parse, run cross-reference
+    enrichment when ``crossref_fields`` is set, and persist via
+    ``save_uniprot_results``.
+    """
+    # Lazy import: pulls the heavy interface/query-builder graph only for the
+    # uniprot-search commands, not every CLI module that imports this helper file.
+    from bioseq_dl.core.utils.crossref_enrichment import run_crossref_enrichment  # noqa: PLC0415
+
+    out_dir = Path(output)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    with (out_dir / "raw_response.json").open("w") as f:
+        json.dump(response, f, indent=2, default=str)
+
+    logger.info("Parsing results...")
+    parse_format = normalize_parse_format(export_format) or "dataframe"
+    fmt = cast("Literal['json', 'dataframe', 'xml']", parse_format)
+    export_data, parsed_metadata = instance.parse(results=response, extract_fields=None, format=fmt)
+    metadata["parsing"] = parsed_metadata
+
+    enriched_data = None
+    if crossref_fields:
+        logger.info("Running cross-reference enrichment...")
+        enriched_data, enriched_metadata = run_crossref_enrichment(
+            export_data, crossref_fields.split(","), format=fmt
+        )
+        metadata["enrichment"] = enriched_metadata
+
+    save_uniprot_results(export_data, enriched_data, metadata, output, export_format, logger)

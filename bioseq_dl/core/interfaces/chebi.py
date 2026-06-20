@@ -6,7 +6,6 @@ from urllib.parse import quote
 
 from niquests import Request
 from niquests.exceptions import RequestException
-from niquests.models import Response
 
 from bioseq_dl.constants.databases import CHEBI
 from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
@@ -139,29 +138,10 @@ class ChEBIInterface(BaseAPIInterface):
                 # Convert to list of interactions
                 response = list(response.values())
 
-            if isinstance(response, dict) and "results" in response:
-                response = response["results"]
+            response = self._unwrap_envelope(response, "results")
 
         except RequestException:
             log.exception("Error fetching %s for method '%s'", query, method)
             return {}
         else:
             return response
-
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **_kwargs: Any) -> list | dict:
-        """Parse ChEBI response data."""
-        if not data:
-            log.warning("Tried to parse data but the data is empty or None.")
-            return {}
-
-        if isinstance(data, Response):
-            data = data.json()
-        elif not isinstance(data, dict):
-            log.error(
-                "Tried to parse data but the type is not supported. Response should be a dict or a "
-                "niquests.Response "
-                "object."
-            )
-            return {}
-
-        return self._extract_fields(data, fields_to_extract)

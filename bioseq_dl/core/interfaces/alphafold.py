@@ -1,18 +1,14 @@
 """AlphaFold API interface."""
 
 import json
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
 import pandas as pd
-from niquests import Request
-from niquests.exceptions import RequestException
 
 from bioseq_dl.constants.databases import ALPHAFOLD
 from bioseq_dl.core.export import export_dataframe
-from bioseq_dl.core.interfacesconfig import load_packaged_config
-from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
 from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
@@ -25,6 +21,9 @@ class AlphafoldInterface(BaseAPIInterface):
 
     API_NAME = "Alphafold"
     DB_CONFIG = ALPHAFOLD
+    # Endpoints are ``{method}/{qualifier}``; responses wrap rows in ``results``.
+    _METHOD_SUFFIX: ClassVar[str] = "/"
+    _RESPONSE_ENVELOPE_KEYS: ClassVar[tuple[str, ...]] = ("results",)
     METHODS: ClassVar[dict[str, Any]] = {
         "prediction": {
             "http_method": "GET",
@@ -58,15 +57,21 @@ class AlphafoldInterface(BaseAPIInterface):
             **kwargs: Passed through to the base class.
 
         """
-        cache_dir, config_dir = self._resolve_dirs(cache_dir, config_dir)
-        packaged_init = load_packaged_config("alphafold", "init.yml") or {}
-        download_folder_fallback = packaged_init.get("download_folder") or cache_dir
-
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
-        self.output_dir = output_dir or download_folder_fallback
-        Path(self.output_dir).mkdir(parents=True, exist_ok=True)
+        self.output_dir = self._resolve_output_dir(output_dir, init_subdir="alphafold")
 
         self.structures = structures
+
+    @staticmethod
+    def _iter_records(result: Any) -> Iterator[dict]:
+        """Yield the individual record dicts contained in a fetch result."""
+        if isinstance(result, list):
+            yield from result
+        elif isinstance(result, pd.DataFrame):
+            for _, row in result.iterrows():
+                yield row.to_dict()
+        elif isinstance(result, dict):
+            yield result
 
     def fetch_single(
         self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
@@ -79,15 +84,8 @@ class AlphafoldInterface(BaseAPIInterface):
         result, metadata = super().fetch_single(query, parse, *args, **kwargs)
 
         if self.structures:
-            if isinstance(result, list):
-                for res in result:
-                    self.download_structures(res)
-            elif isinstance(result, pd.DataFrame):
-                for _, row in result.iterrows():
-                    row_dict = row.to_dict()
-                    self.download_structures(row_dict)
-            elif isinstance(result, dict):
-                self.download_structures(result)
+            for record in self._iter_records(result):
+                self.download_structures(record)
 
         return result, metadata
 
@@ -101,77 +99,13 @@ class AlphafoldInterface(BaseAPIInterface):
 
         results, metadata = super().fetch_batch(queries, parse, *args, **kwargs)
 
-        new_results = []
-        if self.structures:
-            for result in results:
-                if isinstance(result, list):
-                    new_results.extend(self.download_structures(res) for res in result)
-                elif isinstance(result, pd.DataFrame):
-                    for _, row in result.iterrows():
-                        row_dict = row.to_dict()
-                        new_results.append(self.download_structures(row_dict))
-                elif isinstance(result, dict):
-                    new_results = [self.download_structures(result)]
+        if not self.structures:
+            return results, metadata
 
-        if new_results:
-            return new_results, metadata
-        return results, metadata
-
-    def fetch(self, query: str | dict | list, *, method: str = "prediction", **kwargs: Any) -> dict | list:
-        """Get prediction for a given UniProt ID.
-
-        Args:
-            query (str): UniProt ID to fetch prediction for.
-            method (str): Method to use for fetching data. Currently only "prediction" is supported.
-            **kwargs: Additional keyword arguments passed to the request builder.
-
-        Returns:
-            Dict: Prediction data.
-
-        """
-        if method not in self.METHODS:
-            log.error(
-                "Method %s is not supported. Supported methods are: %s.",
-                method,
-                ", ".join(self.METHODS.keys()),
-            )
-            return {}
-
-        http_method, path_param, parameters, inputs = self.initialize_method_parameters(
-            query, method, self.METHODS, **kwargs
-        )
-
-        # Validate and clean parameters
-        try:
-            validated_params = validate_parameters(inputs, parameters)
-        except ValueError:
-            log.exception("Invalid parameters for method '%s'", method)
-            return {}
-
-        url = f"{ALPHAFOLD.API_URL}{method}/"
-
-        if path_param:
-            path_value = validated_params.pop(path_param)
-            url += f"{path_value}"
-
-        req = Request(method=http_method, url=url, params=validated_params)
-        prepared = self.session.prepare_request(req)
-        log.debug("Fetching prediction for %s using URL: %s", query, prepared.url)
-
-        try:
-            response = self.session.send(prepared)
-            self._delay()
-            response.raise_for_status()
-        except RequestException:
-            log.exception("Error fetching prediction for %s", query)
-            return {}
-        else:
-            response = response.json()
-
-            if "results" in response:
-                response = response["results"]
-
-            return response
+        new_results = [
+            self.download_structures(record) for result in results for record in self._iter_records(result)
+        ]
+        return (new_results or results), metadata
 
     def download_structures(self, parsed: dict) -> dict:
         """Download structure files based on parsed prediction info.

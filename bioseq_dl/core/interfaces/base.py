@@ -10,7 +10,7 @@ import operator
 import random
 import re
 import time
-from abc import ABC, abstractmethod
+from abc import ABC
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -61,12 +61,22 @@ def _extract_nested_values(value: object) -> list[str]:
     return result
 
 
-class BaseAPIInterface(ABC):
+class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have concrete defaults
     """Abstract base class for all BioSeqDownloader API interfaces."""
 
     API_NAME: ClassVar[str] = "BaseAPI"
     METHODS: ClassVar[dict[str, Any]] = {}
     DB_CONFIG: ClassVar[DBConfig | None] = None
+    # Default `option` injected into fetch_single/fetch_batch when the caller
+    # omits it. Only set on interfaces whose METHODS are option-keyed (e.g.
+    # {"default": {...}, ...}); leave None otherwise.
+    DEFAULT_OPTION: ClassVar[str | None] = None
+    # Suffix appended after ``{api_url}{method}`` by the default ``_build_request``
+    # (e.g. ``"/"`` for APIs whose endpoints are ``{method}/{id}``).
+    _METHOD_SUFFIX: ClassVar[str] = ""
+    # Response envelope keys the default ``_unwrap_response`` unwraps, in order;
+    # the first present key's value is returned. Empty = return data unchanged.
+    _RESPONSE_ENVELOPE_KEYS: ClassVar[tuple[str, ...]] = ()
 
     cache_key_ignore_args: ClassVar[set[str]] = {
         "parse",
@@ -101,6 +111,22 @@ class BaseAPIInterface(ABC):
             config_dir = db.CONFIG_DIR
 
         return cache_dir, config_dir
+
+    def _resolve_output_dir(self, output_dir: str | None, *, init_subdir: str | None = None) -> str:
+        """Resolve a download output dir and ensure it exists.
+
+        Precedence: explicit ``output_dir`` > packaged ``init.yml`` ``download_folder``
+        (when ``init_subdir`` is given) > ``self.cache_dir``. Shared by the
+        file-downloading interfaces (AlphaFold / PDB / SABIO-RK). Call after
+        ``super().__init__`` so ``self.cache_dir`` is set.
+        """
+        fallback = self.cache_dir
+        if init_subdir:
+            packaged_init = load_packaged_config(init_subdir, "init.yml") or {}
+            fallback = packaged_init.get("download_folder") or self.cache_dir
+        out_dir = output_dir or fallback
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
+        return out_dir
 
     def __init__(
         self,
@@ -137,7 +163,6 @@ class BaseAPIInterface(ABC):
         self.use_config = use_config
 
         self.configs: dict[str, dict] = {}
-        self.fields_config: dict[str, dict] = {}
 
         if self.use_config:
             # Optional user-provided extra configs (never required).
@@ -220,6 +245,17 @@ class BaseAPIInterface(ABC):
             "option": "",
         }
 
+    def _stamp_metadata(self, metadata: dict, *, method: str, option: Any) -> None:
+        """Stamp the API/method/option fields shared by every fetch return path."""
+        metadata["api_name"] = self.API_NAME
+        metadata["method"] = method
+        metadata["option"] = option
+
+    def _apply_default_option(self, kwargs: dict) -> None:
+        """Inject ``DEFAULT_OPTION`` into ``kwargs`` when the caller omitted ``option``."""
+        if self.DEFAULT_OPTION is not None:
+            kwargs.setdefault("option", self.DEFAULT_OPTION)
+
     @staticmethod
     def _build_columns_info(df: pd.DataFrame) -> list[dict]:
         """Build the per-column ``data_info`` block (name / dtype / n_missing)."""
@@ -248,16 +284,10 @@ class BaseAPIInterface(ABC):
         else:
             df = pd.DataFrame([data])
 
-        if isinstance(data, list):
-            total_entries = len(data)
-        elif isinstance(data, pd.DataFrame):
-            total_entries = data.shape[0]
-        elif data is None:
-            total_entries = 0
-        else:
-            total_entries = len(df)
+        # The DataFrame view above faithfully represents the row count for every
+        # input shape (list, dict, scalar, None), so derive the count from it.
         return {
-            "total_entries": total_entries,
+            "total_entries": df.shape[0],
             "data_type": type(data).__name__,
             "columns": cls._build_columns_info(df),
         }
@@ -315,20 +345,11 @@ class BaseAPIInterface(ABC):
         else:
             base = json.dumps(input_obj, sort_keys=True)
 
-        # Filter kwargs to exclude cache_key_ignore_args
+        # Include relevant kwargs (like 'operation') in the cache key, excluding
+        # cache_key_ignore_args. Empty parts drop out of the join.
         relevant_kwargs = self._filter_dict_keys(kwargs)
-        extra = ""
-
-        # Include relevant kwargs (like 'operation') in the cache key
-        if relevant_kwargs:
-            extra = "_".join(f"{v}" for _, v in relevant_kwargs.items())
-
-        if base and extra:
-            return f"{base}_{extra}"
-        if base:
-            return base
-        # A rarer case where input_obj is empty or None
-        return extra
+        extra = "_".join(map(str, relevant_kwargs.values()))
+        return "_".join(part for part in (base, extra) if part)
 
     def _hash_key(self, key: str) -> str:
         return hashlib.md5(key.encode("utf-8"), usedforsecurity=False).hexdigest()
@@ -465,10 +486,7 @@ class BaseAPIInterface(ABC):
             log.error("Cannot convert to XML, unsupported type.")
             msg = f"Cannot convert to XML: unsupported type {type(result)}"
             raise ValueError(msg)
-        if fmt == "json":
-            log.debug("Returning result as JSON")
-            return result
-
+        # json (and any other format) returns the result unchanged.
         return result
 
     ##################
@@ -605,13 +623,6 @@ class BaseAPIInterface(ABC):
     # gene separately.
     ##################
 
-    def multiple_queries_supported(self, method: str, method_definition: dict) -> bool:
-        """Check if the API method supports multiple queries based on the method definition."""
-        if method not in method_definition:
-            return False
-
-        return bool(method_definition[method].get("group_queries"))
-
     def decompose_query(self, query: dict, method: str, option: str | None) -> list[tuple[str, dict]] | None:
         """Decompose a query into multiple subqueries if any of the identity keys contain lists.
 
@@ -743,16 +754,13 @@ class BaseAPIInterface(ABC):
         """
         metadata = self._empty_metadata()
         # Extract flags and avoid passing twice to _maybe_parse
+        self._apply_default_option(kwargs)
         fmt = kwargs.pop("format", "json")
         method = kwargs.get("method", "NOT_GIVEN")
         option = kwargs.get("option")
 
         # Get method specification
         spec = self._get_method_spec(**kwargs)
-        if spec is None:
-            log.error("Method '%s' is not supported", method)
-            msg = f"Method '{method}' is not supported. Available: {list(self.METHODS)}"
-            raise ValueError(msg)
         log.debug("Checking if multiple queries are supported")
         group_key = spec.get("group_queries", [None])[0]
 
@@ -787,8 +795,12 @@ class BaseAPIInterface(ABC):
                 metadata["fetched_subqueries"] = [subq for _, subq in remaining]
                 combined = self.merge_dicts([subq for _, subq in remaining])
                 params = self._prepare_params(combined, spec, **kwargs)
-                full = self.fetch(params, *args, **kwargs)
-                mapping = self.split_results_by_subquery(full, remaining)
+                try:
+                    full = self.fetch(params, *args, **kwargs)
+                except RequestError:
+                    log.exception("Request failed for method '%s'", method)
+                    full = {}
+                mapping = self.split_results_by_subquery(full, remaining) if full else {}
                 for identifier, _ in remaining:
                     partial_result = mapping.get(identifier, [])
                     if not partial_result:
@@ -816,9 +828,7 @@ class BaseAPIInterface(ABC):
                     export_df = pd.concat(dfs, ignore_index=True)
                     metadata["data_info"] = self._build_data_info(export_df)
                     metadata["execution_time"] = time.time() - t0
-                    metadata["api_name"] = self.API_NAME
-                    metadata["method"] = method
-                    metadata["option"] = option
+                    self._stamp_metadata(metadata, method=method, option=option)
 
                     return export_df, metadata
                 return pd.DataFrame(), metadata
@@ -838,9 +848,7 @@ class BaseAPIInterface(ABC):
                 )
                 metadata["fetched_length"] = len(combined_results)
                 metadata["execution_time"] = time.time() - t0
-                metadata["api_name"] = self.API_NAME
-                metadata["method"] = method
-                metadata["option"] = option
+                self._stamp_metadata(metadata, method=method, option=option)
 
                 return xml_bytes, metadata
 
@@ -865,7 +873,11 @@ class BaseAPIInterface(ABC):
             # TODO(diego): Probably is necesary to give the user the option to not save empty results, check
             # if it is a problem in some APIs
             log.debug("No cache found for identifier: %s, fetching from API.", identifier)
-            raw = self.fetch(params, *args, **kwargs)
+            try:
+                raw = self.fetch(params, *args, **kwargs)
+            except RequestError:
+                log.exception("Request failed for identifier %s", identifier)
+                raw = {}
             # Save to cache even if empty, to avoid refetching known empty results
             metadata["fetched_ids"] = [identifier]
             metadata["fetched_subqueries"] = [query]
@@ -878,9 +890,7 @@ class BaseAPIInterface(ABC):
 
         metadata["data_info"] = self._build_data_info(parsed)
         metadata["execution_time"] = time.time() - t0
-        metadata["api_name"] = self.API_NAME
-        metadata["method"] = method
-        metadata["option"] = option
+        self._stamp_metadata(metadata, method=method, option=option)
 
         return parsed, metadata
 
@@ -901,6 +911,7 @@ class BaseAPIInterface(ABC):
 
         """
         metadata = self._empty_metadata()
+        self._apply_default_option(kwargs)
         method = kwargs.get("method", "NOT_GIVEN")
         fmt = kwargs.pop("format", "json")
         option = kwargs.get("option")
@@ -1005,9 +1016,7 @@ class BaseAPIInterface(ABC):
             batch_data = results
 
         metadata["data_info"] = self._build_data_info(batch_data)
-        metadata["api_name"] = self.API_NAME
-        metadata["method"] = method
-        metadata["option"] = option
+        self._stamp_metadata(metadata, method=method, option=option)
 
         return batch_data, metadata
 
@@ -1058,29 +1067,84 @@ class BaseAPIInterface(ABC):
 
         return parsed
 
+    def _build_request(
+        self,
+        *,
+        method: str,
+        http_method: str,
+        path_param: str | None,
+        validated_params: dict,
+        **kwargs: Any,
+    ) -> Request:
+        """Assemble the niquests ``Request`` for a fetch.
+
+        Default implementation: ``f"{api_url}{method}{_METHOD_SUFFIX}"`` plus an
+        optional path parameter, with the remaining validated params as the query
+        string. ``api_url`` is taken from kwargs, falling back to
+        ``DB_CONFIG.API_URL``. Subclasses override this to build API-specific URLs
+        (path layouts, option suffixes, POST bodies, …) or set ``_METHOD_SUFFIX``.
+        """
+        api_url = kwargs.get("api_url") or (self.DB_CONFIG.API_URL if self.DB_CONFIG else None)
+        if not api_url:
+            msg = "API URL must be provided in kwargs or via DB_CONFIG."
+            raise ValueError(msg)
+
+        url = f"{api_url}{method}{self._METHOD_SUFFIX}"
+        if path_param:
+            url += f"{validated_params.pop(path_param)}"
+
+        return Request(method=http_method, url=url, params=validated_params)
+
+    @staticmethod
+    def _unwrap_envelope(data: Any, *keys: str) -> Any:
+        """Return the first present envelope key's value from a dict, else ``data``."""
+        if isinstance(data, dict):
+            for key in keys:
+                if key in data:
+                    return data[key]
+        return data
+
+    @staticmethod
+    def _append_path_params(url: str, path_param: Any, validated_params: dict) -> str:
+        """Append ``/``-prefixed path segment(s) for a str or list ``path_param``.
+
+        Shared by the PRIDE/PDB ``_build_request`` overrides. Not used by the
+        default ``_build_request`` (whose scalar branch omits the leading slash).
+        """
+        if not path_param:
+            return url
+        if isinstance(path_param, list):
+            return (
+                url
+                + "/"
+                + "/".join(
+                    str(validated_params.pop(param)) for param in path_param if param in validated_params
+                )
+            )
+        return url + f"/{validated_params.pop(path_param)}"
+
+    def _unwrap_response(self, data: Any, **_kwargs: Any) -> Any:
+        """Shape a parsed JSON response by unwrapping ``_RESPONSE_ENVELOPE_KEYS``."""
+        return self._unwrap_envelope(data, *self._RESPONSE_ENVELOPE_KEYS)
+
     def _do_request(self, query: str | dict | list, *, method: str, **kwargs: Any) -> Response:
-        """Fetch data from the API based on the provided query and method.
+        """Run a validated HTTP request and return the raw response.
 
         Args:
             query (Union[str, dict, list]): Query to fetch data for.
             method (str): Method to use for fetching data.
-            **kwargs: Supports `api_url` key for the API endpoint URL.
+            **kwargs: Forwarded to ``_build_request`` (e.g. ``api_url``, ``option``).
 
         Returns:
             Response: The raw HTTP response from the API.
 
         Raises:
-            ValueError: If the method is not defined in the METHODS.
-            RequestError: If there is an error during the HTTP request. Raised
-                instead of silently returning an empty result so callers can
-                distinguish a failed request from a successful empty response.
+            ValueError: If the method or parameters are invalid.
+            RequestError: If the HTTP request fails. Raised instead of silently
+                returning an empty result so callers can distinguish a failed
+                request from a successful empty response.
 
         """
-        api_url = kwargs.pop("api_url", None)
-
-        if not api_url:
-            msg = "API URL must be provided in kwargs."
-            raise ValueError(msg)
         http_method, path_param, parameters, inputs = self.initialize_method_parameters(
             query, method, self.METHODS, **kwargs
         )
@@ -1091,13 +1155,13 @@ class BaseAPIInterface(ABC):
             msg = f"Invalid parameters for method '{method}': {e}"
             raise ValueError(msg) from e
 
-        url = f"{api_url}{method}"
-
-        if path_param:
-            path_value = validated_params.pop(path_param)
-            url += f"{path_value}"
-
-        req = Request(method=http_method, url=url, params=validated_params)
+        req = self._build_request(
+            method=method,
+            http_method=http_method,
+            path_param=path_param,
+            validated_params=validated_params,
+            **kwargs,
+        )
         prepared = self.session.prepare_request(req)
         log.debug("Prepared request: %s", prepared.url)
 
@@ -1112,12 +1176,51 @@ class BaseAPIInterface(ABC):
         else:
             return response
 
-    @abstractmethod
     def fetch(self, query: str | dict | list, *, method: str, **kwargs: Any) -> Any:
-        """Fetch raw data from the API for a given query and method."""
-        raise NotImplementedError
+        """Fetch and shape data via the standard request template.
 
-    @abstractmethod
+        Runs ``_do_request`` (validate → build → send → raise) and passes the
+        parsed JSON through ``_unwrap_response``. Interfaces customise behaviour
+        by overriding ``_build_request`` / ``_unwrap_response``; outliers with
+        non-standard flows (pagination, SOAP, Entrez, text payloads) override
+        ``fetch`` directly.
+        """
+        self._apply_default_option(kwargs)
+        response = self._do_request(query, method=method, **kwargs)
+        return self._unwrap_response(response.json(), method=method, **kwargs)
+
     def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> Any:
-        """Parse raw API response into the requested format."""
-        raise NotImplementedError
+        """Parse raw API response into the requested format.
+
+        Default implementation: guard the input type (unwrapping a niquests
+        ``Response`` into JSON) and delegate field extraction to
+        ``_extract_fields``. Subclasses with response-specific shaping override
+        this method.
+
+        Args:
+            data (Any): Raw data from the API response (dict, list or Response).
+            fields_to_extract (list|dict|None): Fields to keep from the original
+                response.
+                - If list: Keep those keys.
+                - If dict: Maps {desired_name: real_field_name}.
+            **kwargs: Forwarded to ``_extract_fields`` (e.g. `option`).
+
+        Returns:
+            Any: Parsed data with only the specified fields.
+
+        """
+        if not data:
+            log.warning("Tried to parse data but the data is empty or None.")
+            return {}
+
+        if isinstance(data, Response):
+            data = data.json()
+
+        if not isinstance(data, (dict, list)):
+            log.error(
+                "Tried to parse data but the type is not supported. "
+                "Expected a dict, list or niquests.Response object."
+            )
+            return {}
+
+        return self._extract_fields(data, fields_to_extract, **kwargs)

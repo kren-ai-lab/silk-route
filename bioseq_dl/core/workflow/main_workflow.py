@@ -5,7 +5,6 @@ from __future__ import annotations
 import contextlib
 import inspect
 import time
-import xml.etree.ElementTree as ET
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 import pandas as pd
@@ -47,41 +46,46 @@ def calculate_enrichment_execution_time(enrichment_metadata: object) -> float:
     return total
 
 
+# Maps each modality to the result key its primary payload lives under.
+_MODALITY_RESULT_KEY = {"protein": "uniprot", "compound": "chembl", "interaction": "data"}
+
+
+def _apply_label(value: Any, label: str) -> Any:
+    """Tag a result value with a ``_label`` and return the labeled value.
+
+    DataFrames get a new ``_label`` column (preserving any existing one as
+    ``_label_original``); list rows / dicts get ``_label`` via ``setdefault``;
+    scalars are replaced wholesale by ``{"_label": label}``.
+    """
+    if isinstance(value, pd.DataFrame):
+        if "_label" in value.columns:
+            value = value.rename(columns={"_label": "_label_original"})
+        value["_label"] = label
+        return value
+    if isinstance(value, list):
+        for row in value:
+            if isinstance(row, dict):
+                row.setdefault("_label", label)
+        return value
+    if isinstance(value, dict):
+        value.setdefault("_label", label)
+        return value
+    return {"_label": label}
+
+
 def attach_label_to_part(part_data: dict, label: str, modality: str) -> dict:
     """Attach a query-composition label to a workflow result part."""
-    data_to_label = None
-    key = None
-    if isinstance(part_data, dict):
-        if modality == "protein" and part_data.get("uniprot") is not None:
-            key = "uniprot"
-            data_to_label = part_data.get("uniprot")
-        elif modality == "compound" and part_data.get("chembl") is not None:
-            key = "chembl"
-            data_to_label = part_data.get("chembl")
-        elif modality == "interaction" and part_data.get("data") is not None:
-            key = "data"
-            data_to_label = part_data.get("data")
-        else:
-            return {}
+    if not isinstance(part_data, dict):
+        return {}
+    key = _MODALITY_RESULT_KEY.get(modality)
+    if key is None or part_data.get(key) is None:
+        return {}
 
-        if data_to_label is not None:
-            if isinstance(data_to_label, pd.DataFrame):
-                if "_label" in data_to_label.columns:
-                    data_to_label = data_to_label.rename(columns={"_label": "_label_original"})
-                data_to_label["_label"] = label
-            elif isinstance(data_to_label, list):
-                for row in data_to_label:
-                    if isinstance(row, dict):
-                        row.setdefault("_label", label)
-            elif isinstance(data_to_label, dict):
-                data_to_label.setdefault("_label", label)
-            else:
-                data_to_label = {"_label": label}
-
-        if key == "chembl" and modality == "compound":
-            return {key: data_to_label, **attach_label_to_part(part_data, label, "protein")}
-        return {key: data_to_label}
-    return {}
+    labeled = {key: _apply_label(part_data[key], label)}
+    # Compound results also carry the uniprot part; label it too when present.
+    if modality == "compound" and part_data.get("uniprot") is not None:
+        labeled["uniprot"] = _apply_label(part_data["uniprot"], label)
+    return labeled
 
 
 def activity_filter_metadata(activity_filter: dict) -> dict:
@@ -193,29 +197,35 @@ def normalize_chembl_pages_to_fetch(value: int | None) -> int:
     return pages_to_fetch
 
 
+def merge_pair(existing: Any, new: Any) -> Any:
+    """Merge two workflow result values: concat DataFrames, extend lists, else pair them.
+
+    Dicts and ElementTree elements have no in-place merge, so they (and any other
+    mismatched types) collapse into a ``[existing, new]`` list.
+    """
+    if isinstance(existing, pd.DataFrame) and isinstance(new, pd.DataFrame):
+        return pd.concat([existing, new], ignore_index=True)
+    if isinstance(existing, list) and isinstance(new, list):
+        existing.extend(new)
+        return existing
+    return [existing, new]
+
+
+def merge_into_dict(target: dict, key: str, value: Any) -> None:
+    """Insert ``value`` at ``key``, merging via ``merge_pair`` when the key already exists."""
+    target[key] = merge_pair(target[key], value) if key in target else value
+
+
 def merge_enrichment_data(existing: list[Any], new: Any) -> list[Any]:
     """Merge query-composition enrichment result parts by endpoint label."""
     if isinstance(new, dict):
         for db_ep, db_data in new.items():
             if db_data is None:
                 continue
-            found = False
-            for existing_item in existing:
-                if db_ep in existing_item:
-                    existing_data = existing_item[db_ep]
-                    if isinstance(existing_data, pd.DataFrame) and isinstance(db_data, pd.DataFrame):
-                        combined_df = pd.concat([existing_data, db_data], ignore_index=True)
-                        existing_item[db_ep] = combined_df
-                    elif isinstance(existing_data, list) and isinstance(db_data, list):
-                        existing_data.extend(db_data)
-                        existing_item[db_ep] = existing_data
-                    elif isinstance(existing_data, dict) and isinstance(db_data, dict):
-                        existing_item[db_ep] = [existing_data, db_data]
-                    else:
-                        existing_item[db_ep] = [existing_data, db_data]
-                    found = True
-                    break
-            if not found:
+            existing_item = next((item for item in existing if db_ep in item), None)
+            if existing_item is not None:
+                existing_item[db_ep] = merge_pair(existing_item[db_ep], db_data)
+            else:
                 existing.append({db_ep: db_data})
     return existing
 
@@ -310,6 +320,41 @@ class MainWorkflow:
         raise ValueError(msg)
 
     # ---- Pipeline step implementations ----
+    def _fetch_uniprot_query(
+        self,
+        query: Any,
+        *,
+        fields: str,
+        sort: str,
+        include_isoform: bool,
+        timeout: float | None,
+    ) -> tuple[Any, Any]:
+        """Submit one UniProt stream query and log start + completion. Returns (resp, fetch_meta)."""
+        self.log.info(
+            "Pipeline: fetching UniProt for query=%s fields=%s sort=%s include_isoform=%s",
+            query,
+            fields,
+            sort,
+            include_isoform,
+        )
+        resp, fetch_meta = self.uniprot.submit_stream(
+            query=query,
+            fields=(fields or ""),
+            sort=sort,
+            include_isoform=include_isoform,
+            timeout=timeout,
+        )
+        if isinstance(fetch_meta, dict):
+            search_process = fetch_meta.get("search_process", {})
+            self.log.info(
+                "Pipeline: UniProt fetch completed (status=%s elapsed=%s size_bytes=%s results=%s)",
+                search_process.get("status_code"),
+                search_process.get("time_taken_seconds"),
+                search_process.get("response_size_bytes"),
+                search_process.get("total_results"),
+            )
+        return resp, fetch_meta
+
     def _step_fetch_uniprot(self, context: dict[str, Any]) -> None:
         args = context.get("searches", {}).get("uniprot", {}) or context.get("args", {})
         interpreted = context.get("searches", {}).get("uniprot", {}).get("interpreted_query") or args.get(
@@ -332,32 +377,12 @@ class MainWorkflow:
 
         if isinstance(interpreted, list):
             # Multiple queries: fetch each and combine results
-            combined_response = {}
+            combined_response: dict[str, Any] = {}
             combined_fetch_meta = {}
             for q in interpreted:
-                self.log.info(
-                    "Pipeline: fetching UniProt for query=%s fields=%s sort=%s include_isoform=%s",
-                    q,
-                    fields,
-                    sort,
-                    include_isoform,
+                resp, fetch_meta = self._fetch_uniprot_query(
+                    q, fields=fields, sort=sort, include_isoform=include_isoform, timeout=uniprot_timeout
                 )
-                resp, fetch_meta = self.uniprot.submit_stream(
-                    query=q,
-                    fields=(fields or ""),
-                    sort=sort,
-                    include_isoform=include_isoform,
-                    timeout=uniprot_timeout,
-                )
-                if isinstance(fetch_meta, dict):
-                    search_process = fetch_meta.get("search_process", {})
-                    self.log.info(
-                        "Pipeline: UniProt fetch completed (status=%s elapsed=%s size_bytes=%s results=%s)",
-                        search_process.get("status_code"),
-                        search_process.get("time_taken_seconds"),
-                        search_process.get("response_size_bytes"),
-                        search_process.get("total_results"),
-                    )
                 combined_response["results"] = combined_response.get("results", []) + (
                     resp.get("results", []) if isinstance(resp, dict) else []
                 )
@@ -365,29 +390,13 @@ class MainWorkflow:
             response = combined_response
             fetch_meta = combined_fetch_meta
         else:
-            self.log.info(
-                "Pipeline: fetching UniProt for query=%s fields=%s sort=%s include_isoform=%s",
+            response, fetch_meta = self._fetch_uniprot_query(
                 interpreted,
-                fields,
-                sort,
-                include_isoform,
-            )
-            response, fetch_meta = self.uniprot.submit_stream(
-                query=interpreted,
-                fields=(fields or ""),
+                fields=fields,
                 sort=sort,
                 include_isoform=include_isoform,
                 timeout=uniprot_timeout,
             )
-            if isinstance(fetch_meta, dict):
-                search_process = fetch_meta.get("search_process", {})
-                self.log.info(
-                    "Pipeline: UniProt fetch completed (status=%s elapsed=%s size_bytes=%s results=%s)",
-                    search_process.get("status_code"),
-                    search_process.get("time_taken_seconds"),
-                    search_process.get("response_size_bytes"),
-                    search_process.get("total_results"),
-                )
         # Always store the latest response under context['data']['uniprot'] (setdefault would not overwrite
         # existing value)
         context.setdefault("data", {})["uniprot"] = response
@@ -429,20 +438,20 @@ class MainWorkflow:
                 parsed_count if parsed_count is not None else "unknown",
                 type(data).__name__,
             )
-        except Exception as e:  # noqa: BLE001  # defensive catch-all
+        except Exception as e:  # defensive catch-all; logged with traceback below
             parse_elapsed = time.time() - parse_started
             # Defensive: some upstream parsers may evaluate DataFrames in boolean context
             # (e.g., `if results:`) which raises ValueError("The truth value of a DataFrame is ambiguous").
             # Catch any parse error, record it and continue with an empty DataFrame so the
-            # workflow can proceed without crashing.
-            self.log.warning(
-                "_step_parse: parser failed after %.2fs: %s; setting empty DataFrame", parse_elapsed, e
+            # workflow can proceed without crashing. Use log.exception so a real parse bug
+            # surfaces with a traceback instead of being degraded to a one-line "0 results".
+            self.log.exception(
+                "_step_parse: parser failed after %.2fs; setting empty DataFrame", parse_elapsed
             )
             context["data"]["uniprot"] = pd.DataFrame()
             context.setdefault("metadata", {}).setdefault("uniprot", {}).setdefault(
                 "parsing", {"error": str(e)}
             )
-            return
 
     def _step_crossref_enrich(self, context: dict[str, Any], **kwargs: Any) -> None:
         args = context.get("searches", {}).get("uniprot", {})
@@ -504,7 +513,7 @@ class MainWorkflow:
         activity_filter = instance.extract_ic50_activity_filter(query) if search_type == "activity" else None
         result, meta = instance.fetch_single(
             query=query,
-            method=f"{search_type}-search" or "activity-search",
+            method=f"{search_type}-search",
             parse=True,
             format=cast("Any", parse_format),
             pages_to_fetch=pages_to_fetch,
@@ -917,7 +926,6 @@ class MainWorkflow:
         if modality == "interaction":
             return self.run_interaction(
                 query=query,
-                modality_type=None,
                 export_format=export_format,
                 enrich=enrich,
                 crossref_endpoint_specs=crossref_endpoint_specs,
@@ -1022,39 +1030,13 @@ class MainWorkflow:
         final_main: dict = {}
         for part in combined_rows:
             for key, value in part.items():
-                if key not in final_main:
-                    final_main[key] = value
-                else:
-                    existing_value = final_main[key]
-                    if isinstance(existing_value, pd.DataFrame) and isinstance(value, pd.DataFrame):
-                        final_main[key] = pd.concat([existing_value, value], ignore_index=True)
-                    elif isinstance(existing_value, list) and isinstance(value, list):
-                        existing_value.extend(value)
-                        final_main[key] = existing_value
-                    elif (isinstance(existing_value, dict) and isinstance(value, dict)) or (
-                        isinstance(existing_value, ET.Element) and isinstance(value, ET.Element)
-                    ):
-                        final_main[key] = [existing_value, value]
-                    else:
-                        final_main[key] = [existing_value, value]
+                merge_into_dict(final_main, key, value)
 
         if combined_enrichment:
             enrichment_final: dict = {}
             for enrich_part in combined_enrichment:
                 for db_ep, db_data in enrich_part.items():
-                    if db_ep not in enrichment_final:
-                        enrichment_final[db_ep] = db_data
-                    else:
-                        existing_data = enrichment_final[db_ep]
-                        if isinstance(existing_data, pd.DataFrame) and isinstance(db_data, pd.DataFrame):
-                            enrichment_final[db_ep] = pd.concat([existing_data, db_data], ignore_index=True)
-                        elif isinstance(existing_data, list) and isinstance(db_data, list):
-                            existing_data.extend(db_data)
-                            enrichment_final[db_ep] = existing_data
-                        elif isinstance(existing_data, dict) and isinstance(db_data, dict):
-                            enrichment_final[db_ep] = [existing_data, db_data]
-                        else:
-                            enrichment_final[db_ep] = [existing_data, db_data]
+                    merge_into_dict(enrichment_final, db_ep, db_data)
             final_main["uniprot_enrichment"] = enrichment_final
 
         return final_main, metadata

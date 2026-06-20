@@ -50,21 +50,6 @@ DESCRIPTIVE_DESCRIPTOR_SECTIONS = {
     "temperature_enrichment",
     "cross_source_integration",
 }
-ALLOWED_DESCRIPTOR_SECTION_NAMES = [
-    "dataset",
-    "query",
-    "resources",
-    "execution",
-    "harmonization",
-    "export",
-    "reporting",
-    "interaction_retrieval",
-    "activity_retrieval",
-    "chemical_metadata_integration",
-    "protein_target_integration",
-    "temperature_enrichment",
-    "cross_source_integration",
-]
 KNOWN_DESCRIPTOR_SECTIONS = CORE_DESCRIPTOR_SECTIONS | DESCRIPTIVE_DESCRIPTOR_SECTIONS
 
 DATASET_KEYS = {
@@ -119,11 +104,11 @@ OLD_ROOT_KEY_ERRORS = {
         "Unknown workflow YAML key 'workflow'. Use the structured dataset/query/execution/export schema."
     ),
 }
-OLD_MODE_KEY_ERROR_MESSAGES = [
-    "Unknown workflow YAML key 'dispatch_mode'. Use dataset.mode instead.",
-    "Unknown workflow YAML key 'dispatch'. Use dataset.mode instead.",
-    "Unknown workflow YAML key 'method'. Use dataset.mode instead.",
-]
+OLD_MODE_KEY_ERRORS = {
+    "dispatch_mode": "Unknown workflow YAML key 'dispatch_mode'. Use dataset.mode instead.",
+    "dispatch": "Unknown workflow YAML key 'dispatch'. Use dataset.mode instead.",
+    "method": "Unknown workflow YAML key 'method'. Use dataset.mode instead.",
+}
 QUERY_KEY_ERRORS = {
     "type": "Unknown query YAML key 'type'. Query type is not supported yet; use query.value.",
     "filters": (
@@ -216,21 +201,12 @@ def validate_allowed_section_keys(
             raise ValueError(msg)
 
 
-def get_rejected_mode_key_message(key: str) -> str | None:
-    """Return the validation message for removed workflow mode keys."""
-    for message in OLD_MODE_KEY_ERROR_MESSAGES:
-        if key == message.split("'")[1]:
-            return message
-    return None
-
-
 def validate_descriptor_section_names(workflow_descriptor: dict) -> None:
     """Validate top-level workflow descriptor section names."""
-    allowed_sections = ", ".join(ALLOWED_DESCRIPTOR_SECTION_NAMES)
+    allowed_sections = ", ".join(sorted(KNOWN_DESCRIPTOR_SECTIONS))
     for key in workflow_descriptor:
-        rejected_mode_message = get_rejected_mode_key_message(key)
-        if rejected_mode_message:
-            raise ValueError(rejected_mode_message)
+        if key in OLD_MODE_KEY_ERRORS:
+            raise ValueError(OLD_MODE_KEY_ERRORS[key])
         if key in OLD_ROOT_KEY_ERRORS:
             raise ValueError(OLD_ROOT_KEY_ERRORS[key])
         if key not in KNOWN_DESCRIPTOR_SECTIONS:
@@ -376,23 +352,24 @@ def validate_resources_section(resources: dict) -> dict:
     return dict(resources)
 
 
+# Per-key validators for the execution section (all share the (section, key, value) signature).
+_EXECUTION_VALIDATORS = {
+    "enrich": validate_bool,
+    "merge_results": validate_bool,
+    "max_workers": validate_int,
+    "total_retries": validate_int,
+    "chembl_pages_to_fetch": validate_pages_to_fetch,
+    "uniprot_timeout": validate_numeric_or_null,
+    "debug": validate_bool,
+}
+
+
 def validate_execution_section(execution: dict) -> dict:
     """Validate and return executable workflow controls."""
     validate_allowed_section_keys("execution", execution, EXECUTION_KEYS)
-    if "enrich" in execution:
-        validate_bool("execution", "enrich", execution["enrich"])
-    if "merge_results" in execution:
-        validate_bool("execution", "merge_results", execution["merge_results"])
-    if "max_workers" in execution:
-        validate_int("execution", "max_workers", execution["max_workers"])
-    if "total_retries" in execution:
-        validate_int("execution", "total_retries", execution["total_retries"])
-    if "chembl_pages_to_fetch" in execution:
-        validate_pages_to_fetch("execution", "chembl_pages_to_fetch", execution["chembl_pages_to_fetch"])
-    if "uniprot_timeout" in execution:
-        validate_numeric_or_null("execution", "uniprot_timeout", execution["uniprot_timeout"])
-    if "debug" in execution:
-        validate_bool("execution", "debug", execution["debug"])
+    for key, validator in _EXECUTION_VALIDATORS.items():
+        if key in execution:
+            validator("execution", key, execution[key])
     return dict(execution)
 
 
@@ -712,10 +689,8 @@ def is_empty_export_content(content: object) -> bool:
         return content.empty
     if isinstance(content, str):
         return content.strip() == ""
-    if isinstance(content, bytes):
-        return content == b""
-    if isinstance(content, (dict, list, tuple, set)):
-        return len(content) == 0
+    if isinstance(content, (bytes, dict, list, tuple, set)):
+        return not content
     return False
 
 
@@ -1397,46 +1372,31 @@ def run_workflow(
     start_time = time.perf_counter()
 
     try:
-        if workflow_values["mode"] == "query_first":
-            data, meta = wf.run(
-                mode=workflow_values["mode"],
-                modality=workflow_values["modality"],
-                export_format=workflow_values["export_format"],
-                query=workflow_values["query"],
-                fields=workflow_values["fields"],
-                enrich=workflow_values["enrich"],
-                max_workers=workflow_values["workers"],
-                total_retries=workflow_values["retries"],
-                chembl_pages_to_fetch=workflow_values["chembl_pages_to_fetch"],
-                uniprot_timeout=workflow_values["uniprot_timeout"],
-                include_isoform=workflow_values["include_isoform"],
-                interaction_type=workflow_values["interaction_type"],
-                crossref_fields=workflow_values["crossref_fields"],
-            )
-        elif workflow_values["mode"] == "query_composition":
+        # Both modes call wf.run() with the same kwargs, differing only in how the
+        # query is passed (single ``query`` vs labeled ``queries_with_labels``).
+        run_kwargs: dict[str, Any] = {
+            "mode": workflow_values["mode"],
+            "modality": workflow_values["modality"],
+            "export_format": workflow_values["export_format"],
+            "fields": workflow_values["fields"],
+            "enrich": workflow_values["enrich"],
+            "max_workers": workflow_values["workers"],
+            "total_retries": workflow_values["retries"],
+            "chembl_pages_to_fetch": workflow_values["chembl_pages_to_fetch"],
+            "uniprot_timeout": workflow_values["uniprot_timeout"],
+            "include_isoform": workflow_values["include_isoform"],
+            "interaction_type": workflow_values["interaction_type"],
+            "crossref_fields": workflow_values["crossref_fields"],
+        }
+        if workflow_values["mode"] == "query_composition":
             if "," not in workflow_values["query"]:
                 msg = "For query_composition, provide multiple queries as 'query1=label1,query2=label2'."
                 raise ValueError(msg)  # noqa: TRY301  # validate-then-Exit CLI idiom
             queries = [q.strip() for q in workflow_values["query"].split(",")]
-            queries_with_labels = [split_pair(q) for q in queries]
-            data, meta = wf.run(
-                mode=workflow_values["mode"],
-                modality=workflow_values["modality"],
-                export_format=workflow_values["export_format"],
-                queries_with_labels=queries_with_labels,
-                fields=workflow_values["fields"],
-                enrich=workflow_values["enrich"],
-                max_workers=workflow_values["workers"],
-                total_retries=workflow_values["retries"],
-                chembl_pages_to_fetch=workflow_values["chembl_pages_to_fetch"],
-                uniprot_timeout=workflow_values["uniprot_timeout"],
-                include_isoform=workflow_values["include_isoform"],
-                interaction_type=workflow_values["interaction_type"],
-                crossref_fields=workflow_values["crossref_fields"],
-            )
+            run_kwargs["queries_with_labels"] = [split_pair(q) for q in queries]
         else:
-            msg = f"Unsupported workflow mode '{workflow_values['mode']}'."
-            raise ValueError(msg)  # noqa: TRY301  # validate-then-Exit CLI idiom
+            run_kwargs["query"] = workflow_values["query"]
+        data, meta = wf.run(**run_kwargs)
     except (TimeoutError, RuntimeError, ValueError) as e:
         error_message = str(e)
         logger.exception(error_message)

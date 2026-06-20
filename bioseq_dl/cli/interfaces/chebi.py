@@ -25,11 +25,11 @@ def run_compound(
     """Fetch compound information by ChEBI ID."""
     interface = ChEBIInterface()
 
-    query: dict[str, Any] = {}
-
-    query["chebi_id"] = chebi_id
-    query["only_ontology_parents"] = only_ontology_parents
-    query["only_ontology_children"] = only_ontology_children
+    query: dict[str, Any] = {
+        "chebi_id": chebi_id,
+        "only_ontology_parents": only_ontology_parents,
+        "only_ontology_children": only_ontology_children,
+    }
     result = interface.fetch_single(method="compound", query=query, parse=True, format="dataframe")
 
     save_or_print(result, output, output_format=output_format)
@@ -48,12 +48,10 @@ def run_compounds(
 
     ids_list = chebi_ids.split(",")
 
-    query: dict[str, Any] = {}
-    query["chebi_ids"] = ids_list
-
-    result = interface.fetch_batch(
-        method="compounds", queries=ids_list, query=query, parse=True, format="dataframe"
-    )
+    # The ``compounds`` method takes the whole id list in a single call (one
+    # query dict), not one query per id — mirror chemical-search's usage.
+    query: dict[str, Any] = {"chebi_ids": ids_list}
+    result = interface.fetch_single(query=query, method="compounds", parse=True, format="dataframe")
 
     save_or_print(result, output, output_format=output_format)
 
@@ -69,10 +67,7 @@ def run_es_search(
     """Perform an Elasticsearch search in the ChEBI database."""
     interface = ChEBIInterface()
 
-    query: dict[str, Any] = {}
-    query["term"] = term
-    query["page"] = page
-    query["size"] = size
+    query: dict[str, Any] = {"term": term, "page": page, "size": size}
 
     result = interface.fetch_single(method="es_search", query=query, parse=True, format="dataframe")
 
@@ -88,8 +83,7 @@ def run_ontology_children(
     """Fetch ontology children of a given ChEBI ID."""
     interface = ChEBIInterface()
 
-    query: dict[str, Any] = {}
-    query["chebi_id"] = chebi_id
+    query: dict[str, Any] = {"chebi_id": chebi_id}
 
     result = interface.fetch_single(method="ontology-children", query=query, parse=True, format="dataframe")
 
@@ -105,8 +99,7 @@ def run_ontology_parents(
     """Fetch ontology parents of a given ChEBI ID."""
     interface = ChEBIInterface()
 
-    query: dict[str, Any] = {}
-    query["chebi_id"] = chebi_id
+    query: dict[str, Any] = {"chebi_id": chebi_id}
 
     result = interface.fetch_single(method="ontology-parents", query=query, parse=True, format="dataframe")
 
