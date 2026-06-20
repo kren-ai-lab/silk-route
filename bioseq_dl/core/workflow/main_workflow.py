@@ -438,14 +438,15 @@ class MainWorkflow:
                 parsed_count if parsed_count is not None else "unknown",
                 type(data).__name__,
             )
-        except Exception as e:  # noqa: BLE001  # defensive catch-all
+        except Exception as e:  # defensive catch-all; logged with traceback below
             parse_elapsed = time.time() - parse_started
             # Defensive: some upstream parsers may evaluate DataFrames in boolean context
             # (e.g., `if results:`) which raises ValueError("The truth value of a DataFrame is ambiguous").
             # Catch any parse error, record it and continue with an empty DataFrame so the
-            # workflow can proceed without crashing.
-            self.log.warning(
-                "_step_parse: parser failed after %.2fs: %s; setting empty DataFrame", parse_elapsed, e
+            # workflow can proceed without crashing. Use log.exception so a real parse bug
+            # surfaces with a traceback instead of being degraded to a one-line "0 results".
+            self.log.exception(
+                "_step_parse: parser failed after %.2fs; setting empty DataFrame", parse_elapsed
             )
             context["data"]["uniprot"] = pd.DataFrame()
             context.setdefault("metadata", {}).setdefault("uniprot", {}).setdefault(

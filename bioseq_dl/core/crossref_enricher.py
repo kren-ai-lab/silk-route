@@ -218,14 +218,17 @@ class CrossRefEnricher:
                 return None
             try:
                 df_result = pd.DataFrame(result)
-            except Exception:  # noqa: BLE001  # skip records that will not coerce to a DataFrame
+            except Exception:  # skip records that will not coerce to a DataFrame
+                log.exception("Dropping cross-ref result that will not coerce to a DataFrame: %r", result)
                 return None
         elif isinstance(result, dict):
             try:
                 df_result = pd.DataFrame([result])
-            except Exception:  # noqa: BLE001  # skip records that will not coerce to a DataFrame
+            except Exception:  # skip records that will not coerce to a DataFrame
+                log.exception("Dropping cross-ref result that will not coerce to a DataFrame: %r", result)
                 return None
         else:
+            log.debug("Skipping unsupported cross-ref result type: %s", type(result).__name__)
             return None
 
         if df_result.empty:
