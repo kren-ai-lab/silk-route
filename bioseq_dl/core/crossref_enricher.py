@@ -8,7 +8,7 @@ from xml.etree.ElementTree import Element, ElementTree, fromstring
 
 import pandas as pd
 
-from bioseq_dl.core.utils.query_builders import INTERFACE_CLASSES, QUERY_BUILDERS, QueryBuilder
+from bioseq_dl.core.utils.query_builders import INTERFACE_CLASSES, get_query_builder
 
 if TYPE_CHECKING:
     from bioseq_dl.core.interfaces.base import BaseAPIInterface
@@ -36,6 +36,42 @@ class EndpointSpec:
     params: dict[str, Any] | None = None
     required_columns: list[str] | None = None
 
+    @property
+    def label(self) -> str:
+        """Human-readable ``database:endpoint[option]`` label for logging."""
+        return f"{self.database}:{self.endpoint}{f'[{self.option}]' if self.option else ''}"
+
+    @property
+    def key(self) -> str:
+        """Registry / result key ``database_endpoint[_option]``."""
+        return f"{self.database}_{self.endpoint}{f'_{self.option}' if self.option else ''}"
+
+
+def specs_for_database(endpoint_config: Any, database: str) -> list[EndpointSpec]:
+    """Expand a database's ENABLED endpoints into ``EndpointSpec`` objects.
+
+    One spec per declared option (``[None]`` when an endpoint has none). Returns
+    ``[]`` when the config is missing / not a dict. Shared by the CLI and the
+    workflow "all methods" expansion paths.
+    """
+    if not isinstance(endpoint_config, dict):
+        return []
+    specs: list[EndpointSpec] = []
+    for ep_name, ep_info in endpoint_config.get("endpoints", {}).items():
+        if not ep_info.get("enabled", False):
+            continue
+        options = ep_info.get("options", [None]) if "options" in ep_info else [None]
+        specs.extend(
+            EndpointSpec(
+                database=database,
+                endpoint=ep_name,
+                option=ep_option,
+                params=ep_info.get("params", {}),
+            )
+            for ep_option in options
+        )
+    return specs
+
 
 class CrossRefEnricher:
     """Reusable orchestrator that enriches a dataframe of sequences/IDs with cross-references from APIs.
@@ -60,20 +96,13 @@ class CrossRefEnricher:
         self.max_workers = max_workers
         self.total_retries = total_retries
 
-    def _check_interface_availability(self, database: str) -> bool:
-        """Check if the interface class for the given database is available."""
-        return database in INTERFACE_CLASSES
-
     def _check_required_columns(self, df: pd.DataFrame, spec: EndpointSpec) -> None:
         """Raise if declared required columns are missing from the DataFrame."""
         if not spec.required_columns:
             return
         missing = [c for c in spec.required_columns if c not in df.columns]
         if missing:
-            msg = (
-                f"Missing required columns for {spec.database}:{spec.endpoint}"
-                f"{'[' + spec.option + ']' if spec.option else ''}: {missing}"
-            )
+            msg = f"Missing required columns for {spec.label}: {missing}"
             raise ValueError(msg)
 
     def _prepare_params(self, spec: EndpointSpec) -> dict[str, Any]:
@@ -94,21 +123,6 @@ class CrossRefEnricher:
             max_workers=self.max_workers, total_retries=self.total_retries
         )
 
-    def _query_builder_key(self, spec: EndpointSpec) -> str:
-        """Compute the registry key for QUERY_BUILDERS like 'db_endpoint_option' or 'db_endpoint'."""
-        if spec.option:
-            return f"{spec.database}_{spec.endpoint}_{spec.option}"
-        return f"{spec.database}_{spec.endpoint}"
-
-    def _resolve_query_builder(self, spec: EndpointSpec) -> QueryBuilder:
-        """Find the query builder callable from QUERY_BUILDERS registry."""
-        key = self._query_builder_key(spec)
-        qb = QUERY_BUILDERS.get(key)
-        if not qb:
-            msg = f"No query builder registered for key '{key}'"
-            raise ValueError(msg)
-        return qb
-
     def _search_and_merge(
         self,
         row: pd.Series,
@@ -124,7 +138,7 @@ class CrossRefEnricher:
         """
         metadata = {}
         # Search for an available builder via a search key: {database}_{endpoint}[_option]
-        qb = self._resolve_query_builder(spec)
+        qb = get_query_builder(spec.database, spec.endpoint, spec.option)
 
         query_params = qb(row, params)
 
@@ -140,10 +154,8 @@ class CrossRefEnricher:
         elif isinstance(query_params, list) and len(query_params) > 1:
             # If is a list of dicts, use batch
             log.debug(
-                "Batch querying %s:%s%s with %s queries and method_params: %s",
-                spec.database,
-                spec.endpoint,
-                "[" + spec.option + "]" if spec.option else "",
+                "Batch querying %s with %s queries and method_params: %s",
+                spec.label,
                 len(query_params),
                 method_params,
             )
@@ -191,6 +203,40 @@ class CrossRefEnricher:
 
         return merged
 
+    @staticmethod
+    def _clean_frame(result: Any) -> pd.DataFrame | None:
+        """Coerce a raw row-result to a cleaned DataFrame, or ``None`` to skip it.
+
+        Accepts a DataFrame, list-of-dicts, or single dict; drops duplicate
+        columns and accidental numeric-only column names. Returns ``None`` for
+        empty or uncoercible results.
+        """
+        if isinstance(result, pd.DataFrame):
+            df_result = result
+        elif isinstance(result, list):
+            if not result:
+                return None
+            try:
+                df_result = pd.DataFrame(result)
+            except Exception:  # noqa: BLE001  # skip records that will not coerce to a DataFrame
+                return None
+        elif isinstance(result, dict):
+            try:
+                df_result = pd.DataFrame([result])
+            except Exception:  # noqa: BLE001  # skip records that will not coerce to a DataFrame
+                return None
+        else:
+            return None
+
+        if df_result.empty:
+            return None
+        df_result = df_result.loc[:, ~pd.Index(df_result.columns).duplicated()]
+        # Drop accidental numeric-only column names like '1','2','3',...
+        cols_to_keep = [c for c in df_result.columns if not str(c).isdigit()]
+        if not cols_to_keep:
+            return None
+        return df_result.loc[:, cols_to_keep].reset_index(drop=True)
+
     def _process_dataframe(
         self,
         df: pd.DataFrame,
@@ -213,65 +259,11 @@ class CrossRefEnricher:
         if fmt == "dataframe":
             # Unpack (df, metadata) tuples; metadata currently unused
             dfs = [res[0] if isinstance(res, tuple) else res for res in all_results]
-
-            # Normalize and filter results: keep only non-empty DataFrames.
-            cleaned_results = []
-            for result in dfs:
-                # If already a DataFrame, ensure it's non-empty and drop duplicate columns.
-                if isinstance(result, pd.DataFrame):
-                    if result.empty:
-                        continue
-                    deduped = result.loc[:, ~pd.Index(result.columns).duplicated()]
-
-                    # Drop accidental numeric-only column names like '1','2','3',...
-                    cols_to_keep = [c for c in deduped.columns if not str(c).isdigit()]
-                    if not cols_to_keep:
-                        continue
-                    cleaned_results.append(deduped.loc[:, cols_to_keep].reset_index(drop=True))
-                    continue
-
-                # If result is a list (likely list of dicts), try to coerce to DataFrame.
-                if isinstance(result, list):
-                    if not result:
-                        continue
-                    try:
-                        df_result = pd.DataFrame(result)
-                    except Exception:  # noqa: BLE001, S112  # skip records that won't coerce to a DataFrame
-                        continue
-                    if df_result.empty:
-                        continue
-                    df_result = df_result.loc[:, ~pd.Index(df_result.columns).duplicated()]
-
-                    # Drop accidental numeric-only column names like '1','2','3',...
-                    cols_to_keep = [c for c in df_result.columns if not str(c).isdigit()]
-                    if not cols_to_keep:
-                        continue
-                    cleaned_results.append(df_result.loc[:, cols_to_keep].reset_index(drop=True))
-                    continue
-
-                # If result is a single dict, wrap into a DataFrame.
-                if isinstance(result, dict):
-                    try:
-                        df_result = pd.DataFrame([result])
-                    except Exception:  # noqa: BLE001, S112  # skip records that won't coerce to a DataFrame
-                        continue
-                    if df_result.empty:
-                        continue
-                    df_result = df_result.loc[:, ~pd.Index(df_result.columns).duplicated()]
-
-                    # Drop accidental numeric-only column names like '1','2','3',...
-                    cols_to_keep = [c for c in df_result.columns if not str(c).isdigit()]
-                    if not cols_to_keep:
-                        continue
-                    cleaned_results.append(df_result.loc[:, cols_to_keep].reset_index(drop=True))
-                    continue
-
-                # Unknown/unsupported type: skip
-                continue
-
+            cleaned_results = [
+                cleaned for result in dfs if (cleaned := self._clean_frame(result)) is not None
+            ]
             if not cleaned_results:
                 return pd.DataFrame(), all_metadata
-
             return pd.concat(cleaned_results, ignore_index=True, sort=False), all_metadata
         if fmt == "json":
             cleaned_results = []
@@ -320,43 +312,20 @@ class CrossRefEnricher:
         results = {}
         metadata = {}
         for spec in self.endpoint_specs:
-            log.debug(
-                "Processing %s:%s%s...",
-                spec.database,
-                spec.endpoint,
-                "[" + spec.option + "]" if spec.option else "",
-            )
-            log.info("Checking availability for interface: %s", spec.database)
-            self._check_interface_availability(spec.database)
-            log.info(
-                "Checking required columns for %s:%s%s...",
-                spec.database,
-                spec.endpoint,
-                "[" + spec.option + "]" if spec.option else "",
-            )
+            log.debug("Processing %s...", spec.label)
+            log.info("Checking required columns for %s...", spec.label)
             self._check_required_columns(df, spec)
 
             log.info("Building interface for %s...", spec.database)
             instance = self._build_interface(spec.database)
             params = self._prepare_params(spec)
-            log.info(
-                "Prepared params for %s:%s%s: %s",
-                spec.database,
-                spec.endpoint,
-                "[" + spec.option + "]" if spec.option else "",
-                params,
-            )
+            log.info("Prepared params for %s: %s", spec.label, params)
 
             processed_data, processed_metadata = self._process_dataframe(df, instance, spec, params, format)
-            results.update(
-                {f"{spec.database}_{spec.endpoint}{'_' + spec.option if spec.option else ''}": processed_data}
-            )
-            metadata_key = f"{spec.database}_{spec.endpoint}{'_' + spec.option if spec.option else ''}"
-            metadata.update({metadata_key: processed_metadata})
+            results[spec.key] = processed_data
+            metadata[spec.key] = processed_metadata
 
-        if format == "dataframe":
-            return results, metadata
-        if format in ["json", "xml"]:
-            return results, metadata
-        msg = f"Unsupported format: {format}"
-        raise ValueError(msg)
+        if format not in ("dataframe", "json", "xml"):
+            msg = f"Unsupported format: {format}"
+            raise ValueError(msg)
+        return results, metadata
