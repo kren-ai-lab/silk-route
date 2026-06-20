@@ -48,11 +48,10 @@ def run_compounds(
 
     ids_list = chebi_ids.split(",")
 
+    # The ``compounds`` method takes the whole id list in a single call (one
+    # query dict), not one query per id — mirror chemical-search's usage.
     query: dict[str, Any] = {"chebi_ids": ids_list}
-
-    result = interface.fetch_batch(
-        method="compounds", queries=ids_list, query=query, parse=True, format="dataframe"
-    )
+    result = interface.fetch_single(query=query, method="compounds", parse=True, format="dataframe")
 
     save_or_print(result, output, output_format=output_format)
 
