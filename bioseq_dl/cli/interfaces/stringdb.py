@@ -20,9 +20,7 @@ def run_get_string_ids(
     """Fetch STRING IDs for given gene/protein identifiers."""
     interface = StringInterface()
 
-    query: dict[str, Any] = {}
-
-    query["identifiers"] = identifiers.split(",")
+    query: dict[str, Any] = {"identifiers": identifiers.split(",")}
     if species:
         query["species"] = species
 
@@ -41,9 +39,7 @@ def run_interaction_partners(
     """Fetch interaction partners for given STRING IDs."""
     interface = StringInterface()
 
-    query: dict[str, Any] = {}
-
-    query["identifiers"] = identifiers.split(",")
+    query: dict[str, Any] = {"identifiers": identifiers.split(",")}
     if species:
         query["species"] = species
 
