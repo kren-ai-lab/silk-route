@@ -211,7 +211,22 @@ python -m bioseq_dl.gui.nicegui_app
 The GUI writes `schema_version: "workflow-v1"` automatically. The only
 executable query field it exposes is `query.value`; `query.builder` and
 `query.composition` remain reserved for later query-builder work. Review the
-generated YAML before long-running or broad queries.
+generated YAML before long-running or broad queries. Generated YAML can be
+copied from the preview or saved as a `.yml` file through the browser.
+
+### Manual GUI smoke test
+
+1. Install GUI dependencies with `pip install -e ".[gui]"`.
+2. Start the GUI with `bioseq-dl-gui`.
+3. Fill `Dataset name`.
+4. Fill `Executable query value`.
+5. Click `Generate YAML`.
+6. Confirm the YAML contains `schema_version: workflow-v1`.
+7. Click `Validate YAML`.
+8. Confirm validation succeeds.
+9. Click `Save YAML`.
+10. Confirm a `.yml` file is downloaded.
+11. Confirm the GUI did not execute a workflow or call external APIs.
 
 ### `dataset`
 

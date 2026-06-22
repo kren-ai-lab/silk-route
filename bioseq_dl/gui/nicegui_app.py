@@ -204,7 +204,7 @@ class WorkflowYamlBuilderApp:
             return
         filename = build_workflow_filename(self.form_values.get("dataset.name"))
         ui.download.content(str(self.yaml_output.value), filename)
-        self.status.text = f"Saved {filename}."
+        self.status.text = f"Downloaded {filename}."
 
     def current_validation_errors(self) -> list[str]:
         """Return validation errors for the current YAML preview."""

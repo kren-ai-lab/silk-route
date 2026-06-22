@@ -174,14 +174,29 @@ For IC50 queries, the ChEMBL workflow enforces `standard_type = IC50` and numeri
 Allowed top-level descriptor sections are: `schema_version`, `dataset`, `query`, `resources`, `execution`, `harmonization`, `export`, `reporting`, `interaction_retrieval`, `activity_retrieval`, `chemical_metadata_integration`, `protein_target_integration`, `temperature_enrichment`, and `cross_source_integration`.
 
 Canonical workflow-v1 example descriptors are available under `examples/workflows/`.
-There are no legacy top-level workflow YAML examples. Future GUI or YAML
-generator tools can inspect the lightweight schema definition with:
+There are no legacy top-level workflow YAML examples. GUI or YAML generator
+tools can inspect the lightweight schema definition with:
 
 ```python
 from bioseq_dl.workflow_schema_definition import get_workflow_v1_schema_definition
 ```
 
-The future simple GUI will generate YAML only and will not execute workflows unless implemented in a separate task later.
+The optional NiceGUI interface generates `workflow-v1` YAML descriptors only.
+It does not execute workflows, call APIs, or download data. The user manually
+writes `query.value`, and generated YAML can be copied or saved from the browser.
+
+Install the optional GUI dependencies:
+
+```bash
+pip install -e ".[gui]"
+```
+
+Launch the GUI with either command:
+
+```bash
+bioseq-dl-gui
+python -m bioseq_dl.gui.nicegui_app
+```
 
 ```yaml
 schema_version: "workflow-v1"
