@@ -25,9 +25,9 @@ baseline:
 
 and review the diff before committing.
 
-The coverage gap (consumed fields NOT exercised by any fixture) is reported by
-``test_coverage_report`` as a non-failing summary — that is the backlog for
-enriching fixtures, not an error.
+The coverage gap (consumed fields NOT exercised by any fixture) is the backlog
+for enriching fixtures, not an error. ``test_coverage_report`` prints it but is
+skipped by default; opt in with ``SHOW_FIELD_COVERAGE=1`` to see the summary.
 """
 
 from __future__ import annotations
@@ -298,11 +298,17 @@ def test_no_consumed_field_dropped(spec: _Spec) -> None:
 
 
 def test_coverage_report(capsys: pytest.CaptureFixture[str]) -> None:
-    """Non-failing report: consumed fields NOT exercised by any fixture.
+    """Opt-in report: consumed fields NOT exercised by any fixture.
 
     This is the fixture-enrichment backlog — fields the integration reads but
     that no captured response demonstrates, so drift in them would go unnoticed.
+    It never fails; it is pure diagnostics, so it stays quiet on normal runs and
+    only prints when explicitly requested:
+
+        SHOW_FIELD_COVERAGE=1 uv run pytest tests/core/interfaces/test_response_field_coverage.py
     """
+    if not os.environ.get("SHOW_FIELD_COVERAGE"):
+        pytest.skip("set SHOW_FIELD_COVERAGE=1 to print the consumed-field coverage report")
     lines = ["", "Consumed-field coverage (exercised / declared):"]
     for spec in SPECS:
         fmap = _field_map(spec)
