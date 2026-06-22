@@ -8,8 +8,14 @@ import yaml
 from nicegui import ui
 
 from bioseq_dl.gui.yaml_builder import (
+    EXPORT_FORMAT_LABEL_TO_VALUE,
+    INTERACTION_TYPE_LABEL_TO_VALUE,
+    MODALITY_LABEL_TO_VALUE,
+    OUTPUT_DIRECTORY_MODE_LABEL_TO_VALUE,
+    WORKFLOW_MODE_LABEL_TO_VALUE,
     build_workflow_descriptor,
     build_workflow_filename,
+    get_labeled_option_default,
     render_workflow_yaml,
     validate_generated_descriptor,
     workflow_yaml_form_defaults,
@@ -22,6 +28,26 @@ class WorkflowYamlBuilderApp:
     def __init__(self) -> None:
         """Initialize app state for form binding and status output."""
         self.form_values = workflow_yaml_form_defaults()
+        self.form_values["dataset.modality"] = get_labeled_option_default(
+            self.form_values["dataset.modality"],
+            MODALITY_LABEL_TO_VALUE,
+        )
+        self.form_values["dataset.mode"] = get_labeled_option_default(
+            self.form_values["dataset.mode"],
+            WORKFLOW_MODE_LABEL_TO_VALUE,
+        )
+        self.form_values["dataset.interaction_type"] = get_labeled_option_default(
+            self.form_values["dataset.interaction_type"],
+            INTERACTION_TYPE_LABEL_TO_VALUE,
+        )
+        self.form_values["export.output_dir_mode"] = get_labeled_option_default(
+            self.form_values["export.output_dir_mode"],
+            OUTPUT_DIRECTORY_MODE_LABEL_TO_VALUE,
+        )
+        self.form_values["export.format"] = get_labeled_option_default(
+            self.form_values["export.format"],
+            EXPORT_FORMAT_LABEL_TO_VALUE,
+        )
         self.yaml_output: Any = None
         self.status: Any = None
 
@@ -45,26 +71,42 @@ class WorkflowYamlBuilderApp:
         """Build dataset form controls."""
         with ui.expansion("Dataset", value=True).classes("w-full"):
             with ui.grid(columns=2).classes("w-full gap-3"):
-                ui.input("Dataset name").props("clearable").bind_value(
-                    self.form_values,
-                    "dataset.name",
+                (
+                    ui.input("Dataset name")
+                    .props("clearable")
+                    .bind_value(self.form_values, "dataset.name")
+                    .tooltip(
+                        "A short identifier for this dataset. It can also be used to derive "
+                        "default output names."
+                    )
                 )
-                ui.select(
-                    ["protein", "compound", "interaction"],
-                    label="Modality",
-                ).bind_value(self.form_values, "dataset.modality")
-                ui.select(
-                    ["query_first", "query_composition"],
-                    label="Workflow mode",
-                ).bind_value(self.form_values, "dataset.mode")
-                ui.select(
-                    ["", "protein-protein", "protein-ligand"],
-                    label="Interaction type (required only for interaction modality)",
-                ).bind_value(self.form_values, "dataset.interaction_type")
-            ui.textarea("Dataset description").bind_value(
-                self.form_values,
-                "dataset.description",
-            ).classes("w-full")
+                (
+                    ui.select(list(MODALITY_LABEL_TO_VALUE), label="Modality")
+                    .bind_value(self.form_values, "dataset.modality")
+                    .tooltip("The type of biomolecular data described by this workflow.")
+                )
+                (
+                    ui.select(list(WORKFLOW_MODE_LABEL_TO_VALUE), label="Workflow mode")
+                    .bind_value(self.form_values, "dataset.mode")
+                    .tooltip(
+                        "Controls how query.value is interpreted. Query First uses one main query; "
+                        "Query Composition groups multiple query fragments with labels."
+                    )
+                )
+                (
+                    ui.select(list(INTERACTION_TYPE_LABEL_TO_VALUE), label="Interaction type")
+                    .bind_value(self.form_values, "dataset.interaction_type")
+                    .tooltip(
+                        "Only needed when Modality is Interaction. Choose No interaction for "
+                        "protein or compound datasets."
+                    )
+                )
+            (
+                ui.textarea("Dataset description")
+                .bind_value(self.form_values, "dataset.description")
+                .classes("w-full")
+                .tooltip("Optional human-readable description stored in the YAML descriptor.")
+            )
 
     def build_query_controls(self) -> None:
         """Build query form controls."""
@@ -73,22 +115,40 @@ class WorkflowYamlBuilderApp:
                 "The GUI does not build queries automatically yet. "
                 "Write the executable query.value manually."
             ).classes("text-sm text-gray-700")
-            ui.textarea("Executable query value").bind_value(
-                self.form_values,
-                "query.value",
-            ).classes("w-full")
+            (
+                ui.textarea("Executable query value")
+                .bind_value(self.form_values, "query.value")
+                .classes("w-full")
+                .tooltip(
+                    "The executable query string used by BioSeqDownloader. The GUI does not "
+                    "build this automatically yet."
+                )
+            )
             with ui.grid(columns=2).classes("w-full gap-3"):
-                ui.input("Return fields").props("clearable").bind_value(
-                    self.form_values,
-                    "query.fields",
+                (
+                    ui.input("Return fields")
+                    .props('clearable placeholder="accession, protein_name, organism_name, sequence"')
+                    .bind_value(self.form_values, "query.fields")
+                    .tooltip(
+                        "Optional fields to request or keep when supported. Enter comma-separated "
+                        "values."
+                    )
                 )
-                ui.input("Cross-reference fields").props("clearable").bind_value(
-                    self.form_values,
-                    "query.crossref_fields",
+                (
+                    ui.input("Cross-reference fields")
+                    .props('clearable placeholder="xref_alphafolddb, xref_pdb, xref_string"')
+                    .bind_value(self.form_values, "query.crossref_fields")
+                    .tooltip(
+                        "Optional database cross-references used by supported enrichment logic. "
+                        "Enter comma-separated values."
+                    )
                 )
-                ui.checkbox("Include UniProt isoforms").bind_value(
-                    self.form_values,
-                    "query.include_isoform",
+                (
+                    ui.checkbox("Include UniProt isoforms")
+                    .bind_value(self.form_values, "query.include_isoform")
+                    .tooltip(
+                        "Whether UniProt isoforms should be included when supported by the workflow."
+                    )
                 )
 
     def build_execution_controls(self) -> None:
@@ -96,31 +156,53 @@ class WorkflowYamlBuilderApp:
         with ui.expansion("Execution", value=True).classes("w-full"), ui.grid(columns=3).classes(
             "w-full gap-3"
         ):
-            ui.checkbox("Enable enrichment").bind_value(self.form_values, "execution.enrich")
-            ui.checkbox("Enable debug logging").bind_value(self.form_values, "execution.debug")
-            ui.number("Maximum workers", min=1, step=1).bind_value(
-                self.form_values,
-                "execution.max_workers",
+            (
+                ui.checkbox("Enable enrichment")
+                .bind_value(self.form_values, "execution.enrich")
+                .tooltip("Enables supported enrichment steps when the workflow supports them.")
             )
-            ui.number("Total retries", min=0, step=1).bind_value(
-                self.form_values,
-                "execution.total_retries",
+            (
+                ui.checkbox("Enable debug logging")
+                .bind_value(self.form_values, "execution.debug")
+                .tooltip(
+                    "Enable more verbose debugging information in supported workflow operations."
+                )
             )
-            ui.number("ChEMBL pages to fetch", step=1).bind_value(
-                self.form_values,
-                "execution.chembl_pages_to_fetch",
+            (
+                ui.number("Max workers", min=1, step=1)
+                .bind_value(self.form_values, "execution.max_workers")
+                .tooltip("Maximum number of worker threads used by supported operations.")
             )
-            ui.number("UniProt timeout", min=0, step=0.1).bind_value(
-                self.form_values,
-                "execution.uniprot_timeout",
+            (
+                ui.number("Total retries", min=0, step=1)
+                .bind_value(self.form_values, "execution.total_retries")
+                .tooltip("Number of retry attempts for supported network operations.")
+            )
+            (
+                ui.number("ChEMBL pages to fetch", step=1)
+                .bind_value(self.form_values, "execution.chembl_pages_to_fetch")
+                .tooltip(
+                    "Number of ChEMBL pages to retrieve for supported workflows. Use -1 to fetch "
+                    "all available pages."
+                )
+            )
+            (
+                ui.number("UniProt timeout", min=0, step=0.1)
+                .bind_value(self.form_values, "execution.uniprot_timeout")
+                .tooltip("Optional timeout in seconds. Leave empty to use the default.")
             )
 
     def build_harmonization_controls(self) -> None:
         """Build harmonization form controls."""
         with ui.expansion("Harmonization", value=True).classes("w-full"):
-            ui.input("ID column").props("clearable").bind_value(
-                self.form_values,
-                "harmonization.id_column",
+            (
+                ui.input("ID column")
+                .props("clearable")
+                .bind_value(self.form_values, "harmonization.id_column")
+                .tooltip(
+                    "Optional deterministic identifier column for tabular outputs. Leave empty "
+                    "to omit the harmonization section."
+                )
             )
 
     def build_export_controls(self) -> None:
@@ -128,29 +210,52 @@ class WorkflowYamlBuilderApp:
         with ui.expansion("Export", value=True).classes("w-full"), ui.grid(columns=2).classes(
             "w-full gap-3"
         ):
-            ui.input("Output directory").props("clearable").bind_value(
-                self.form_values,
-                "export.output_dir",
+            (
+                ui.select(
+                    list(OUTPUT_DIRECTORY_MODE_LABEL_TO_VALUE),
+                    label="Output directory mode",
+                )
+                .bind_value(self.form_values, "export.output_dir_mode")
+                .tooltip(
+                    "Use results/{dataset.name}, or choose a custom relative path for later "
+                    "workflow execution."
+                )
             )
-            ui.select(["csv", "json", "xml", "parquet"], label="Output format").bind_value(
-                self.form_values,
-                "export.format",
+            (
+                ui.input("Custom relative output path")
+                .props('clearable placeholder="results/my_dataset"')
+                .bind_value(self.form_values, "export.output_dir")
+                .tooltip(
+                    "Directory used later when the YAML is executed. The GUI does not create it. "
+                    "Absolute paths and '..' are not allowed."
+                )
             )
-            ui.input("Metadata manifest filename").props("clearable").bind_value(
-                self.form_values,
-                "export.manifest_file",
+            (
+                ui.select(list(EXPORT_FORMAT_LABEL_TO_VALUE), label="Output format")
+                .bind_value(self.form_values, "export.format")
+                .tooltip("File format to use when the workflow is executed later.")
             )
-            ui.input("Run summary filename").props("clearable").bind_value(
-                self.form_values,
-                "export.summary_file",
+            (
+                ui.input("Metadata manifest filename")
+                .props("clearable")
+                .bind_value(self.form_values, "export.manifest_file")
+                .tooltip("Metadata manifest filename.")
             )
-            ui.checkbox("Include metadata manifest").bind_value(
-                self.form_values,
-                "export.include_metadata",
+            (
+                ui.input("Run summary filename")
+                .props("clearable")
+                .bind_value(self.form_values, "export.summary_file")
+                .tooltip("Run summary filename.")
             )
-            ui.checkbox("Include run summary").bind_value(
-                self.form_values,
-                "export.include_summary",
+            (
+                ui.checkbox("Include metadata manifest")
+                .bind_value(self.form_values, "export.include_metadata")
+                .tooltip("Whether the workflow should write metadata when executed later.")
+            )
+            (
+                ui.checkbox("Include run summary")
+                .bind_value(self.form_values, "export.include_summary")
+                .tooltip("Whether the workflow should write a compact summary when executed later.")
             )
 
     def build_preview_controls(self) -> None:

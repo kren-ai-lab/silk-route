@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import PurePosixPath, PureWindowsPath
 from typing import TYPE_CHECKING, cast
 
 import yaml
@@ -23,12 +24,37 @@ DEFAULT_WORKFLOW_FILENAME = "workflow-v1.yml"
 UNSAFE_FILENAME_CHARACTERS = re.compile(r"[^a-z0-9_-]+")
 REPEATED_FILENAME_SEPARATOR = re.compile(r"_+")
 
+MODALITY_LABEL_TO_VALUE = {
+    "Protein": "protein",
+    "Compound": "compound",
+    "Interaction": "interaction",
+}
+WORKFLOW_MODE_LABEL_TO_VALUE = {
+    "Query First": "query_first",
+    "Query Composition": "query_composition",
+}
+INTERACTION_TYPE_LABEL_TO_VALUE = {
+    "No interaction": None,
+    "Protein-protein interaction": "protein-protein",
+    "Protein-ligand interaction": "protein-ligand",
+}
+EXPORT_FORMAT_LABEL_TO_VALUE = {
+    "CSV": "csv",
+    "JSON": "json",
+    "XML": "xml",
+    "Parquet": "parquet",
+}
+OUTPUT_DIRECTORY_MODE_LABEL_TO_VALUE = {
+    "Use default results folder": "default",
+    "Use custom relative path": "custom",
+}
+
 DEFAULT_FORM_VALUES: dict[str, object] = {
     "dataset.name": "",
     "dataset.description": "",
     "dataset.modality": "protein",
     "dataset.mode": "query_first",
-    "dataset.interaction_type": "",
+    "dataset.interaction_type": None,
     "query.value": "",
     "query.fields": "",
     "query.crossref_fields": "",
@@ -40,6 +66,7 @@ DEFAULT_FORM_VALUES: dict[str, object] = {
     "execution.uniprot_timeout": None,
     "execution.debug": False,
     "harmonization.id_column": "",
+    "export.output_dir_mode": "default",
     "export.output_dir": "",
     "export.format": "csv",
     "export.include_metadata": True,
@@ -65,6 +92,7 @@ FORM_VALUE_ALIASES: dict[str, tuple[str, ...]] = {
     "execution.uniprot_timeout": ("execution_uniprot_timeout",),
     "execution.debug": ("execution_debug",),
     "harmonization.id_column": ("harmonization_id_column",),
+    "export.output_dir_mode": ("export_output_dir_mode",),
     "export.output_dir": ("export_output_dir",),
     "export.format": ("export_format",),
     "export.include_metadata": ("export_include_metadata",),
@@ -95,6 +123,28 @@ def get_form_value(form_values: Mapping[str, object], field_name: str) -> object
     return workflow_yaml_form_defaults()[field_name]
 
 
+def has_form_value(form_values: Mapping[str, object], field_name: str) -> bool:
+    """Return whether canonical or legacy form data explicitly contains a field."""
+    if field_name in form_values:
+        return True
+    return any(alias in form_values for alias in FORM_VALUE_ALIASES.get(field_name, ()))
+
+
+def normalize_labeled_value(value: object, label_to_value: Mapping[str, object]) -> object:
+    """Translate a human-readable form label to its workflow-v1 value."""
+    if isinstance(value, str) and value in label_to_value:
+        return label_to_value[value]
+    return value
+
+
+def get_labeled_option_default(value: object, label_to_value: Mapping[str, object]) -> str:
+    """Return the human-readable label matching an internal option value."""
+    for label, internal_value in label_to_value.items():
+        if value == internal_value:
+            return label
+    return str(value)
+
+
 def parse_csv_list(value: object) -> list[str]:
     """Parse a comma-separated string into a list of non-empty values."""
     if value is None:
@@ -115,6 +165,47 @@ def build_workflow_filename(dataset_name: object) -> str:
     if not safe_name:
         return DEFAULT_WORKFLOW_FILENAME
     return f"{safe_name}.workflow-v1.yml"
+
+
+def normalize_relative_output_path(value: object) -> str | None:
+    """Normalize a safe relative output path for generated workflow YAML."""
+    if value is None:
+        return None
+    normalized = str(value).strip().replace("\\", "/")
+    if not normalized:
+        return None
+
+    posix_path = PurePosixPath(normalized)
+    windows_path = PureWindowsPath(normalized)
+    if posix_path.is_absolute() or windows_path.drive or windows_path.root:
+        msg = "export.output_dir must be a relative path."
+        raise ValueError(msg)
+    if ".." in posix_path.parts:
+        msg = "export.output_dir must not contain path traversal ('..')."
+        raise ValueError(msg)
+
+    cleaned_parts = [part for part in posix_path.parts if part not in {"", "."}]
+    return "/".join(cleaned_parts) or None
+
+
+def build_output_directory(form_values: Mapping[str, object]) -> str | None:
+    """Build the output directory selected by the GUI form."""
+    mode_value = get_form_value(form_values, "export.output_dir_mode")
+    mode = normalize_labeled_value(mode_value, OUTPUT_DIRECTORY_MODE_LABEL_TO_VALUE)
+    explicit_path = get_form_value(form_values, "export.output_dir")
+
+    if not has_form_value(form_values, "export.output_dir_mode") and explicit_path:
+        mode = "custom"
+    if mode == "default":
+        dataset_name = str(get_form_value(form_values, "dataset.name") or "").strip()
+        if not dataset_name:
+            return None
+        return normalize_relative_output_path(f"results/{dataset_name}")
+    if mode == "custom":
+        return normalize_relative_output_path(explicit_path)
+
+    msg = f"Unsupported output directory mode '{mode_value}'."
+    raise ValueError(msg)
 
 
 def is_empty_optional_value(value: object) -> bool:
@@ -203,15 +294,24 @@ def add_optional_list(section: dict[str, object], key: str, value: object) -> No
 
 def build_dataset_section(form_values: Mapping[str, object]) -> dict[str, object]:
     """Build the workflow dataset section."""
-    modality = get_form_value(form_values, "dataset.modality")
+    modality = normalize_labeled_value(
+        get_form_value(form_values, "dataset.modality"),
+        MODALITY_LABEL_TO_VALUE,
+    )
     dataset: dict[str, object] = {
         "name": get_form_value(form_values, "dataset.name"),
         "description": get_form_value(form_values, "dataset.description"),
         "modality": modality,
-        "mode": get_form_value(form_values, "dataset.mode"),
+        "mode": normalize_labeled_value(
+            get_form_value(form_values, "dataset.mode"),
+            WORKFLOW_MODE_LABEL_TO_VALUE,
+        ),
     }
     if modality == "interaction":
-        dataset["interaction_type"] = get_form_value(form_values, "dataset.interaction_type")
+        dataset["interaction_type"] = normalize_labeled_value(
+            get_form_value(form_values, "dataset.interaction_type"),
+            INTERACTION_TYPE_LABEL_TO_VALUE,
+        )
     return cast("dict[str, object]", remove_empty_values(dataset))
 
 
@@ -264,8 +364,11 @@ def build_harmonization_section(form_values: Mapping[str, object]) -> dict[str, 
 def build_export_section(form_values: Mapping[str, object]) -> dict[str, object]:
     """Build the workflow export section."""
     export: dict[str, object] = {
-        "output_dir": get_form_value(form_values, "export.output_dir"),
-        "format": get_form_value(form_values, "export.format"),
+        "output_dir": build_output_directory(form_values),
+        "format": normalize_labeled_value(
+            get_form_value(form_values, "export.format"),
+            EXPORT_FORMAT_LABEL_TO_VALUE,
+        ),
         "include_metadata": parse_bool(get_form_value(form_values, "export.include_metadata")),
         "include_summary": parse_bool(get_form_value(form_values, "export.include_summary")),
         "manifest_file": get_form_value(form_values, "export.manifest_file"),

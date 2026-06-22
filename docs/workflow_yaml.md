@@ -214,6 +214,19 @@ executable query field it exposes is `query.value`; `query.builder` and
 generated YAML before long-running or broad queries. Generated YAML can be
 copied from the preview or saved as a `.yml` file through the browser.
 
+GUI controls use human-friendly labels while generated YAML keeps exact
+`workflow-v1` values. `Query First` writes `query_first`, `Query Composition`
+writes `query_composition`, and modality labels write `protein`, `compound`, or
+`interaction`. `No interaction` omits `dataset.interaction_type` for protein and
+compound datasets; it is invalid when the selected modality is `Interaction`.
+
+`Return fields` and `Cross-reference fields` accept optional comma-separated
+values. The default output-directory mode writes `results/{dataset.name}`. The
+custom mode accepts only relative paths, normalizes backslashes to forward
+slashes, and rejects absolute paths or `..` traversal. This path is used later
+when the YAML is executed; the GUI does not create the directory, execute a
+workflow, or call an API.
+
 ### Manual GUI smoke test
 
 1. Install GUI dependencies with `pip install -e ".[gui]"`.

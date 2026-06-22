@@ -96,6 +96,60 @@ def test_build_workflow_descriptor_parses_comma_separated_fields() -> None:
     assert descriptor["query"]["crossref_fields"] == ["go", "interpro"]
 
 
+def test_empty_return_fields_and_crossref_placeholders_do_not_generate_lists() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.fields": "",
+            "query.crossref_fields": "",
+        }
+    )
+
+    assert "fields" not in descriptor["query"]
+    assert "crossref_fields" not in descriptor["query"]
+
+
+@pytest.mark.parametrize(
+    ("label", "expected"),
+    [
+        ("Protein", "protein"),
+        ("Compound", "compound"),
+        ("Interaction", "interaction"),
+    ],
+)
+def test_human_readable_modality_labels_map_to_schema_values(label: str, expected: str) -> None:
+    form_values = minimal_form_values() | {"dataset.modality": label}
+    if label == "Interaction":
+        form_values["dataset.interaction_type"] = "Protein-protein interaction"
+
+    descriptor = build_workflow_descriptor(form_values)
+
+    assert descriptor["dataset"]["modality"] == expected
+
+
+@pytest.mark.parametrize(
+    ("label", "expected"),
+    [
+        ("Query First", "query_first"),
+        ("Query Composition", "query_composition"),
+    ],
+)
+def test_human_readable_workflow_mode_labels_map_to_schema_values(label: str, expected: str) -> None:
+    descriptor = build_workflow_descriptor(minimal_form_values() | {"dataset.mode": label})
+
+    assert descriptor["dataset"]["mode"] == expected
+
+
+@pytest.mark.parametrize(
+    ("label", "expected"),
+    [("CSV", "csv"), ("JSON", "json"), ("XML", "xml"), ("Parquet", "parquet")],
+)
+def test_human_readable_export_format_labels_map_to_schema_values(label: str, expected: str) -> None:
+    descriptor = build_workflow_descriptor(minimal_form_values() | {"export.format": label})
+
+    assert descriptor["export"]["format"] == expected
+
+
 def test_query_builder_and_composition_are_not_generated() -> None:
     descriptor = build_workflow_descriptor(minimal_form_values())
 
@@ -131,6 +185,18 @@ def test_non_interaction_descriptor_omits_interaction_type() -> None:
         | {
             "dataset.modality": "protein",
             "dataset.interaction_type": "protein-protein",
+        }
+    )
+
+    assert "interaction_type" not in descriptor["dataset"]
+
+
+def test_no_interaction_label_omits_interaction_type_for_protein_modality() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "dataset.modality": "Protein",
+            "dataset.interaction_type": "No interaction",
         }
     )
 
@@ -173,6 +239,69 @@ def test_validation_returns_error_for_missing_interaction_type() -> None:
     errors = validate_generated_descriptor(descriptor)
 
     assert any("interaction_type" in error for error in errors)
+
+
+def test_no_interaction_label_is_rejected_for_interaction_modality() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "dataset.modality": "Interaction",
+            "dataset.interaction_type": "No interaction",
+        }
+    )
+
+    errors = validate_generated_descriptor(descriptor)
+
+    assert errors == [
+        "dataset.interaction_type is required when dataset.modality is 'interaction'."
+    ]
+
+
+def test_default_output_directory_mode_uses_dataset_name() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "export.output_dir_mode": "Use default results folder",
+            "export.output_dir": "ignored/custom/path",
+        }
+    )
+
+    assert descriptor["export"]["output_dir"] == "results/example_dataset"
+
+
+def test_custom_output_directory_mode_normalizes_relative_path() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "export.output_dir_mode": "Use custom relative path",
+            "export.output_dir": "  custom\\nested\\results  ",
+        }
+    )
+
+    assert descriptor["export"]["output_dir"] == "custom/nested/results"
+
+
+@pytest.mark.parametrize("output_dir", ["C:\\results\\dataset", "/results/dataset"])
+def test_absolute_output_directories_are_rejected(output_dir: str) -> None:
+    with pytest.raises(ValueError, match="must be a relative path"):
+        build_workflow_descriptor(
+            minimal_form_values()
+            | {
+                "export.output_dir_mode": "Use custom relative path",
+                "export.output_dir": output_dir,
+            }
+        )
+
+
+def test_output_directory_path_traversal_is_rejected() -> None:
+    with pytest.raises(ValueError, match="must not contain path traversal"):
+        build_workflow_descriptor(
+            minimal_form_values()
+            | {
+                "export.output_dir_mode": "Use custom relative path",
+                "export.output_dir": "results/../outside",
+            }
+        )
 
 
 def test_prevalidation_allows_missing_dataset_name_with_output_directory() -> None:
