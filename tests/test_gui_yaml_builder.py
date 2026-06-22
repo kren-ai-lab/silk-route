@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import subprocess
 import sys
 
 import pytest
@@ -164,6 +165,37 @@ def test_builder_does_not_require_nicegui_to_be_installed() -> None:
     module = importlib.import_module("bioseq_dl.gui.yaml_builder")
 
     assert module.build_workflow_descriptor(minimal_form_values())["schema_version"] == "workflow-v1"
+
+
+def test_yaml_builder_import_does_not_load_gui_cli_or_interfaces() -> None:
+    import_script = """
+import sys
+import bioseq_dl.gui.yaml_builder
+
+blocked_prefixes = (
+    "bioseq_dl.cli.workflows",
+    "bioseq_dl.core.export",
+    "bioseq_dl.core.interfaces",
+    "bioseq_dl.core.workflow",
+    "nicegui",
+    "pandas",
+)
+for blocked_prefix in blocked_prefixes:
+    loaded = [
+        module_name
+        for module_name in sys.modules
+        if module_name == blocked_prefix or module_name.startswith(f"{blocked_prefix}.")
+    ]
+    if loaded:
+        raise RuntimeError(f"Unexpected imports for {blocked_prefix}: {loaded}")
+"""
+
+    subprocess.run(  # noqa: S603
+        [sys.executable, "-c", import_script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
 
 
 def test_nicegui_app_imports_when_nicegui_is_installed() -> None:

@@ -5,7 +5,6 @@ from __future__ import annotations
 import importlib
 import sys
 
-
 REQUIRED_GUI_FIELDS = {
     "dataset.name",
     "dataset.description",
@@ -49,9 +48,27 @@ FUTURE_ONLY_FIELDS = {
 
 HEAVY_MODULE_PREFIXES = (
     "bioseq_dl.cli.workflows",
+    "bioseq_dl.core.export",
     "bioseq_dl.core.interfaces.",
     "bioseq_dl.core.workflow.",
+    "nicegui",
+    "pandas",
 )
+
+
+def minimal_workflow_descriptor() -> dict[str, object]:
+    """Return a minimal descriptor for lightweight validator tests."""
+    return {
+        "schema_version": "workflow-v1",
+        "dataset": {
+            "name": "protein_dataset",
+            "modality": "protein",
+            "mode": "query_first",
+        },
+        "query": {"value": "reviewed:true"},
+        "execution": {"chembl_pages_to_fetch": 1},
+        "export": {"format": ".CSV"},
+    }
 
 
 def test_workflow_v1_schema_definition_returns_dictionary() -> None:
@@ -68,7 +85,7 @@ def test_workflow_v1_schema_definition_includes_required_gui_fields() -> None:
 
     schema_definition = get_workflow_v1_schema_definition()
 
-    assert REQUIRED_GUI_FIELDS <= set(schema_definition)
+    assert set(schema_definition) >= REQUIRED_GUI_FIELDS
     assert schema_definition["query.value"]["gui_visible"] is True
     assert schema_definition["query.builder"]["role"] == "preserved_metadata"
     assert schema_definition["query.composition"]["role"] == "preserved_metadata"
@@ -94,5 +111,18 @@ def test_workflow_schema_definition_import_is_lightweight() -> None:
     importlib.import_module("bioseq_dl.workflow_schema_definition")
 
     imported_modules = set(sys.modules) - imported_before
+    for module_prefix in HEAVY_MODULE_PREFIXES:
+        assert not any(module_name.startswith(module_prefix) for module_name in imported_modules)
+
+
+def test_lightweight_workflow_validator_normalizes_descriptor_without_heavy_imports() -> None:
+    from bioseq_dl.workflow_schema_definition import validate_workflow_v1_descriptor
+
+    imported_before = set(sys.modules)
+    validated = validate_workflow_v1_descriptor(minimal_workflow_descriptor())
+    imported_modules = set(sys.modules) - imported_before
+
+    assert validated["schema_version"] == "workflow-v1"
+    assert validated["export"]["format"] == "csv"
     for module_prefix in HEAVY_MODULE_PREFIXES:
         assert not any(module_name.startswith(module_prefix) for module_name in imported_modules)

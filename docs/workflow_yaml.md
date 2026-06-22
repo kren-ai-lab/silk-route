@@ -178,12 +178,19 @@ or summaries, but they must not be described as execution controls:
 
 Future features are listed in [Future Workflow YAML Features](#future-workflow-yaml-features).
 
-The lightweight schema definition for future GUI or YAML generator tools is
-available through:
+The lightweight schema definition and workflow-v1 validator used by GUI or YAML
+generator tools are available through:
 
 ```python
-from bioseq_dl.workflow_schema_definition import get_workflow_v1_schema_definition
+from bioseq_dl.workflow_schema_definition import (
+    get_workflow_v1_schema_definition,
+    validate_workflow_v1_descriptor,
+)
 ```
+
+The validator checks descriptor structure and field types without importing the
+workflow CLI, API interfaces, pandas, network clients, export helpers, or
+NiceGUI.
 
 The optional first-iteration NiceGUI interface generates YAML only. It does not
 execute workflows, call APIs, collect credentials, or build advanced queries.

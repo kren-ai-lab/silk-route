@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from importlib import import_module
 from typing import TYPE_CHECKING, cast
 
 import yaml
@@ -10,6 +9,7 @@ import yaml
 from bioseq_dl.workflow_schema_definition import (
     WORKFLOW_SCHEMA_VERSION,
     get_workflow_v1_schema_definition,
+    validate_workflow_v1_descriptor,
 )
 
 if TYPE_CHECKING:
@@ -294,8 +294,7 @@ def validate_generated_descriptor(descriptor: dict[str, object]) -> list[str]:
     """Validate a generated descriptor and return user-facing error messages."""
     errors = collect_prevalidation_errors(descriptor)
     try:
-        workflows = import_module("bioseq_dl.cli.workflows")
-        workflows.validate_workflow_recipe(descriptor)
+        validate_workflow_v1_descriptor(descriptor)
     except (TypeError, ValueError) as exc:
         errors.append(str(exc))
     return list(dict.fromkeys(errors))
