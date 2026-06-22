@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, cast
 
 import yaml
@@ -18,6 +19,9 @@ if TYPE_CHECKING:
 DEFAULT_MAX_WORKERS = 5
 DEFAULT_TOTAL_RETRIES = 3
 DEFAULT_CHEMBL_PAGES_TO_FETCH = -1
+DEFAULT_WORKFLOW_FILENAME = "workflow-v1.yml"
+UNSAFE_FILENAME_CHARACTERS = re.compile(r"[^a-z0-9_-]+")
+REPEATED_FILENAME_SEPARATOR = re.compile(r"_+")
 
 DEFAULT_FORM_VALUES: dict[str, object] = {
     "dataset.name": "",
@@ -29,7 +33,7 @@ DEFAULT_FORM_VALUES: dict[str, object] = {
     "query.fields": "",
     "query.crossref_fields": "",
     "query.include_isoform": False,
-    "execution.enrich": True,
+    "execution.enrich": False,
     "execution.max_workers": DEFAULT_MAX_WORKERS,
     "execution.total_retries": DEFAULT_TOTAL_RETRIES,
     "execution.chembl_pages_to_fetch": DEFAULT_CHEMBL_PAGES_TO_FETCH,
@@ -99,6 +103,18 @@ def parse_csv_list(value: object) -> list[str]:
         return [str(item).strip() for item in value if str(item).strip()]
     normalized = str(value).replace("\r\n", "\n").replace("\n", ",")
     return [item.strip() for item in normalized.split(",") if item.strip()]
+
+
+def build_workflow_filename(dataset_name: object) -> str:
+    """Return a safe workflow-v1 download filename for a dataset name."""
+    if dataset_name is None:
+        return DEFAULT_WORKFLOW_FILENAME
+    normalized_name = str(dataset_name).strip().lower()
+    safe_name = UNSAFE_FILENAME_CHARACTERS.sub("_", normalized_name)
+    safe_name = REPEATED_FILENAME_SEPARATOR.sub("_", safe_name).strip("_-")
+    if not safe_name:
+        return DEFAULT_WORKFLOW_FILENAME
+    return f"{safe_name}.workflow-v1.yml"
 
 
 def is_empty_optional_value(value: object) -> bool:
@@ -187,13 +203,15 @@ def add_optional_list(section: dict[str, object], key: str, value: object) -> No
 
 def build_dataset_section(form_values: Mapping[str, object]) -> dict[str, object]:
     """Build the workflow dataset section."""
+    modality = get_form_value(form_values, "dataset.modality")
     dataset: dict[str, object] = {
         "name": get_form_value(form_values, "dataset.name"),
         "description": get_form_value(form_values, "dataset.description"),
-        "modality": get_form_value(form_values, "dataset.modality"),
+        "modality": modality,
         "mode": get_form_value(form_values, "dataset.mode"),
-        "interaction_type": get_form_value(form_values, "dataset.interaction_type"),
     }
+    if modality == "interaction":
+        dataset["interaction_type"] = get_form_value(form_values, "dataset.interaction_type")
     return cast("dict[str, object]", remove_empty_values(dataset))
 
 
@@ -258,14 +276,17 @@ def build_export_section(form_values: Mapping[str, object]) -> dict[str, object]
 
 def build_workflow_descriptor(form_values: dict[str, object]) -> dict[str, object]:
     """Build a workflow-v1 descriptor from GUI form values."""
-    return {
+    descriptor: dict[str, object] = {
         "schema_version": WORKFLOW_SCHEMA_VERSION,
         "dataset": build_dataset_section(form_values),
         "query": build_query_section(form_values),
         "execution": build_execution_section(form_values),
-        "harmonization": build_harmonization_section(form_values),
-        "export": build_export_section(form_values),
     }
+    harmonization = build_harmonization_section(form_values)
+    if harmonization:
+        descriptor["harmonization"] = harmonization
+    descriptor["export"] = build_export_section(form_values)
+    return descriptor
 
 
 def render_workflow_yaml(descriptor: dict[str, object]) -> str:
@@ -278,11 +299,13 @@ def collect_prevalidation_errors(descriptor: Mapping[str, object]) -> list[str]:
     errors: list[str] = []
     dataset = descriptor.get("dataset")
     query = descriptor.get("query")
+    export = descriptor.get("export")
     if not isinstance(dataset, dict):
         errors.append("Missing dataset section.")
     else:
-        if not dataset.get("name"):
-            errors.append("dataset.name is required.")
+        output_dir = export.get("output_dir") if isinstance(export, dict) else None
+        if not dataset.get("name") and not output_dir:
+            errors.append("dataset.name is required when export.output_dir is not provided.")
         if dataset.get("modality") == "interaction" and not dataset.get("interaction_type"):
             errors.append("dataset.interaction_type is required when dataset.modality is 'interaction'.")
     if not isinstance(query, dict) or not query.get("value"):

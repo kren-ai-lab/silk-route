@@ -192,9 +192,10 @@ The validator checks descriptor structure and field types without importing the
 workflow CLI, API interfaces, pandas, network clients, export helpers, or
 NiceGUI.
 
-The optional first-iteration NiceGUI interface generates YAML only. It does not
-execute workflows, call APIs, collect credentials, or build advanced queries.
-Install it with the optional GUI extra and run:
+The optional first-iteration NiceGUI interface only generates `workflow-v1`
+YAML descriptors. It does not execute workflows, call APIs, download data,
+collect credentials, or build advanced queries. The user manually writes the
+executable `query.value`. Install it with the optional GUI extra and run:
 
 ```bash
 pip install -e ".[gui]"
@@ -244,8 +245,8 @@ When `dataset.mode` is `query_composition` and `query.composition` is present,
 the preserved composition metadata must match the executable comma-separated
 `query.value` pairs. For example,
 `query.value: "gene:TP53=tp53,gene:BRCA1=brca1"` must be described by
-composition items whose labels include `tp53` and `brca1` and whose values
-include `gene:TP53` and `gene:BRCA1`.
+composition items containing the exact `(value, label)` pairs
+`("gene:TP53", "tp53")` and `("gene:BRCA1", "brca1")`.
 
 ### `resources`
 
@@ -258,7 +259,7 @@ include `gene:TP53` and `gene:BRCA1`.
 
 | Field | Type | Required | Default | Role | Internal mapping | Limitations |
 | --- | --- | --- | --- | --- | --- | --- |
-| `enrich` | boolean | Optional | `true` | Executable | Normalized to `workflow_values["enrich"]` | Enables supported cross-reference enrichment when usable cross-reference fields exist. |
+| `enrich` | boolean | Optional | `false` | Executable | Normalized to `workflow_values["enrich"]` | Enables supported cross-reference enrichment when usable cross-reference fields exist. |
 | `max_workers` | integer | Optional | `5` | Executable | Normalized to `workflow_values["workers"]` and passed to workflow/enrichment calls | Mainly affects enrichment and extra API calls that use worker pools. |
 | `total_retries` | integer | Optional | `3` | Executable | Normalized to `workflow_values["retries"]`; used to initialize `UniprotInterface(total_retries=...)` and passed to workflow/enrichment calls | Retry behavior depends on the called interface. |
 | `chembl_pages_to_fetch` | integer | Optional | `-1` | Executable for ChEMBL workflow fetches | Passed to ChEMBL workflow acquisition as `pages_to_fetch` | `-1` fetches all available ChEMBL pages. Positive values cap the number of pages. `0` and values below `-1` are rejected. |

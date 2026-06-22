@@ -9,12 +9,11 @@ from nicegui import ui
 
 from bioseq_dl.gui.yaml_builder import (
     build_workflow_descriptor,
+    build_workflow_filename,
     render_workflow_yaml,
     validate_generated_descriptor,
     workflow_yaml_form_defaults,
 )
-
-DEFAULT_SAVE_FILENAME = "workflow.yml"
 
 
 class WorkflowYamlBuilderApp:
@@ -32,7 +31,8 @@ class WorkflowYamlBuilderApp:
         with ui.column().classes("w-full max-w-5xl mx-auto gap-4 p-4"):
             ui.label("BioSeqDownloader Workflow YAML Builder").classes("text-2xl font-semibold")
             ui.label(
-                "Generate a validated workflow-v1 YAML file. This GUI does not execute workflows."
+                "This GUI only generates workflow-v1 YAML descriptors. "
+                "It does not execute workflows or call external APIs."
             ).classes("text-sm text-gray-700")
             self.build_dataset_controls()
             self.build_query_controls()
@@ -45,20 +45,23 @@ class WorkflowYamlBuilderApp:
         """Build dataset form controls."""
         with ui.expansion("Dataset", value=True).classes("w-full"):
             with ui.grid(columns=2).classes("w-full gap-3"):
-                ui.input("dataset.name").props("clearable").bind_value(self.form_values, "dataset.name")
+                ui.input("Dataset name").props("clearable").bind_value(
+                    self.form_values,
+                    "dataset.name",
+                )
                 ui.select(
                     ["protein", "compound", "interaction"],
-                    label="dataset.modality",
+                    label="Modality",
                 ).bind_value(self.form_values, "dataset.modality")
                 ui.select(
                     ["query_first", "query_composition"],
-                    label="dataset.mode",
+                    label="Workflow mode",
                 ).bind_value(self.form_values, "dataset.mode")
                 ui.select(
                     ["", "protein-protein", "protein-ligand"],
-                    label="dataset.interaction_type",
+                    label="Interaction type (required only for interaction modality)",
                 ).bind_value(self.form_values, "dataset.interaction_type")
-            ui.textarea("dataset.description").bind_value(
+            ui.textarea("Dataset description").bind_value(
                 self.form_values,
                 "dataset.description",
             ).classes("w-full")
@@ -66,17 +69,24 @@ class WorkflowYamlBuilderApp:
     def build_query_controls(self) -> None:
         """Build query form controls."""
         with ui.expansion("Query", value=True).classes("w-full"):
-            ui.textarea("query.value").bind_value(self.form_values, "query.value").classes("w-full")
+            ui.label(
+                "The GUI does not build queries automatically yet. "
+                "Write the executable query.value manually."
+            ).classes("text-sm text-gray-700")
+            ui.textarea("Executable query value").bind_value(
+                self.form_values,
+                "query.value",
+            ).classes("w-full")
             with ui.grid(columns=2).classes("w-full gap-3"):
-                ui.input("query.fields").props("clearable").bind_value(
+                ui.input("Return fields").props("clearable").bind_value(
                     self.form_values,
                     "query.fields",
                 )
-                ui.input("query.crossref_fields").props("clearable").bind_value(
+                ui.input("Cross-reference fields").props("clearable").bind_value(
                     self.form_values,
                     "query.crossref_fields",
                 )
-                ui.checkbox("query.include_isoform").bind_value(
+                ui.checkbox("Include UniProt isoforms").bind_value(
                     self.form_values,
                     "query.include_isoform",
                 )
@@ -86,21 +96,21 @@ class WorkflowYamlBuilderApp:
         with ui.expansion("Execution", value=True).classes("w-full"), ui.grid(columns=3).classes(
             "w-full gap-3"
         ):
-            ui.checkbox("execution.enrich").bind_value(self.form_values, "execution.enrich")
-            ui.checkbox("execution.debug").bind_value(self.form_values, "execution.debug")
-            ui.number("execution.max_workers", min=1, step=1).bind_value(
+            ui.checkbox("Enable enrichment").bind_value(self.form_values, "execution.enrich")
+            ui.checkbox("Enable debug logging").bind_value(self.form_values, "execution.debug")
+            ui.number("Maximum workers", min=1, step=1).bind_value(
                 self.form_values,
                 "execution.max_workers",
             )
-            ui.number("execution.total_retries", min=0, step=1).bind_value(
+            ui.number("Total retries", min=0, step=1).bind_value(
                 self.form_values,
                 "execution.total_retries",
             )
-            ui.number("execution.chembl_pages_to_fetch", step=1).bind_value(
+            ui.number("ChEMBL pages to fetch", step=1).bind_value(
                 self.form_values,
                 "execution.chembl_pages_to_fetch",
             )
-            ui.number("execution.uniprot_timeout", min=0, step=0.1).bind_value(
+            ui.number("UniProt timeout", min=0, step=0.1).bind_value(
                 self.form_values,
                 "execution.uniprot_timeout",
             )
@@ -108,7 +118,7 @@ class WorkflowYamlBuilderApp:
     def build_harmonization_controls(self) -> None:
         """Build harmonization form controls."""
         with ui.expansion("Harmonization", value=True).classes("w-full"):
-            ui.input("harmonization.id_column").props("clearable").bind_value(
+            ui.input("ID column").props("clearable").bind_value(
                 self.form_values,
                 "harmonization.id_column",
             )
@@ -118,27 +128,27 @@ class WorkflowYamlBuilderApp:
         with ui.expansion("Export", value=True).classes("w-full"), ui.grid(columns=2).classes(
             "w-full gap-3"
         ):
-            ui.input("export.output_dir").props("clearable").bind_value(
+            ui.input("Output directory").props("clearable").bind_value(
                 self.form_values,
                 "export.output_dir",
             )
-            ui.select(["csv", "json", "xml", "parquet"], label="export.format").bind_value(
+            ui.select(["csv", "json", "xml", "parquet"], label="Output format").bind_value(
                 self.form_values,
                 "export.format",
             )
-            ui.input("export.manifest_file").props("clearable").bind_value(
+            ui.input("Metadata manifest filename").props("clearable").bind_value(
                 self.form_values,
                 "export.manifest_file",
             )
-            ui.input("export.summary_file").props("clearable").bind_value(
+            ui.input("Run summary filename").props("clearable").bind_value(
                 self.form_values,
                 "export.summary_file",
             )
-            ui.checkbox("export.include_metadata").bind_value(
+            ui.checkbox("Include metadata manifest").bind_value(
                 self.form_values,
                 "export.include_metadata",
             )
-            ui.checkbox("export.include_summary").bind_value(
+            ui.checkbox("Include run summary").bind_value(
                 self.form_values,
                 "export.include_summary",
             )
@@ -151,7 +161,11 @@ class WorkflowYamlBuilderApp:
                 ui.button("Validate YAML", on_click=self.validate_yaml)
                 ui.button("Save YAML", on_click=self.save_yaml)
             self.status = ui.label("")
-            self.yaml_output = ui.textarea("Validated YAML").classes("w-full font-mono").props("rows=24")
+            self.yaml_output = (
+                ui.textarea("Generated workflow-v1 YAML")
+                .classes("w-full font-mono")
+                .props("readonly rows=24")
+            )
 
     def generate_yaml(self) -> None:
         """Generate YAML from the current form state."""
@@ -188,8 +202,9 @@ class WorkflowYamlBuilderApp:
         if errors:
             self.show_errors(errors)
             return
-        ui.download.content(str(self.yaml_output.value), DEFAULT_SAVE_FILENAME)
-        self.status.text = f"Saved {DEFAULT_SAVE_FILENAME}."
+        filename = build_workflow_filename(self.form_values.get("dataset.name"))
+        ui.download.content(str(self.yaml_output.value), filename)
+        self.status.text = f"Saved {filename}."
 
     def current_validation_errors(self) -> list[str]:
         """Return validation errors for the current YAML preview."""

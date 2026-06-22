@@ -299,10 +299,10 @@ def test_invalid_query_composition_description_is_rejected() -> None:
 def test_query_composition_matching_query_value_passes_validation() -> None:
     descriptor = base_workflow_descriptor()
     descriptor["dataset"]["mode"] = "query_composition"
-    descriptor["query"]["value"] = "gene:TP53=tp53,gene:BRCA1=brca1"
+    descriptor["query"]["value"] = "ic50:0-10=active,ic50:10-100=inactive"
     descriptor["query"]["composition"] = [
-        {"label": "tp53", "value": "gene:TP53", "description": "TP53 query."},
-        {"label": "brca1", "value": "gene:BRCA1", "description": None},
+        {"label": "active", "value": "ic50:0-10"},
+        {"label": "inactive", "value": "ic50:10-100"},
     ]
 
     values = validate_workflow_recipe(descriptor)
@@ -310,12 +310,13 @@ def test_query_composition_matching_query_value_passes_validation() -> None:
     assert values["query_descriptor"]["composition"] == descriptor["query"]["composition"]
 
 
-def test_query_composition_contradicting_query_value_fails_validation() -> None:
+def test_query_composition_crossed_pairs_fail_validation() -> None:
     descriptor = base_workflow_descriptor()
     descriptor["dataset"]["mode"] = "query_composition"
-    descriptor["query"]["value"] = "gene:TP53=tp53"
+    descriptor["query"]["value"] = "ic50:0-10=active,ic50:10-100=inactive"
     descriptor["query"]["composition"] = [
-        {"label": "brca1", "value": "gene:BRCA1"},
+        {"label": "active", "value": "ic50:10-100"},
+        {"label": "inactive", "value": "ic50:0-10"},
     ]
 
     with pytest.raises(ValueError, match=r"query\.composition does not match executable query\.value"):

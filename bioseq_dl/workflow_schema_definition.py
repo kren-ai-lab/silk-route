@@ -237,7 +237,7 @@ _WORKFLOW_V1_SCHEMA_DEFINITION: dict[str, object] = {
     "execution.enrich": {
         "type": "boolean",
         "required": False,
-        "default": True,
+        "default": False,
         "allowed_values": None,
         "role": "optional_input",
         "description": "Enable supported enrichment behavior.",
@@ -655,12 +655,11 @@ def validate_query_composition_matches_query_value(
         return
 
     executable_pairs = parse_query_composition_value(str(query_descriptor["value"]))
-    executable_queries = {query for query, _label in executable_pairs}
-    executable_labels = {label for _query, label in executable_pairs}
-    for item in composition:
-        if item["label"] not in executable_labels or item["value"] not in executable_queries:
-            msg = "query.composition does not match executable query.value."
-            raise ValueError(msg)
+    executable_pair_set = set(executable_pairs)
+    composition_pair_set = {(item["value"].strip(), item["label"].strip()) for item in composition}
+    if composition_pair_set != executable_pair_set:
+        msg = "query.composition does not match executable query.value."
+        raise ValueError(msg)
 
 
 def normalize_optional_field_list(section_name: str, key: str, value: object) -> str | None:

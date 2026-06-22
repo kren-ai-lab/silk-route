@@ -11,9 +11,11 @@ import yaml
 
 from bioseq_dl.gui.yaml_builder import (
     build_workflow_descriptor,
+    build_workflow_filename,
     parse_csv_list,
     render_workflow_yaml,
     validate_generated_descriptor,
+    workflow_yaml_form_defaults,
 )
 
 
@@ -52,7 +54,6 @@ def test_build_workflow_descriptor_generates_required_sections() -> None:
         "dataset",
         "query",
         "execution",
-        "harmonization",
         "export",
     ]
 
@@ -75,7 +76,7 @@ def test_build_workflow_descriptor_removes_empty_optional_fields() -> None:
     assert "fields" not in descriptor["query"]
     assert "crossref_fields" not in descriptor["query"]
     assert "uniprot_timeout" not in descriptor["execution"]
-    assert descriptor["harmonization"] == {}
+    assert "harmonization" not in descriptor
 
 
 def test_parse_csv_list_removes_empty_values() -> None:
@@ -124,6 +125,34 @@ def test_interaction_descriptor_includes_interaction_type_when_provided() -> Non
     assert descriptor["dataset"]["interaction_type"] == "protein-protein"
 
 
+def test_non_interaction_descriptor_omits_interaction_type() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "dataset.modality": "protein",
+            "dataset.interaction_type": "protein-protein",
+        }
+    )
+
+    assert "interaction_type" not in descriptor["dataset"]
+
+
+def test_empty_harmonization_id_column_omits_harmonization_section() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values() | {"harmonization.id_column": ""}
+    )
+
+    assert "harmonization" not in descriptor
+
+
+def test_non_empty_harmonization_id_column_includes_harmonization_section() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values() | {"harmonization.id_column": "_id"}
+    )
+
+    assert descriptor["harmonization"] == {"id_column": "_id"}
+
+
 def test_validation_returns_error_for_missing_query_value() -> None:
     descriptor = build_workflow_descriptor(minimal_form_values() | {"query.value": ""})
 
@@ -144,6 +173,62 @@ def test_validation_returns_error_for_missing_interaction_type() -> None:
     errors = validate_generated_descriptor(descriptor)
 
     assert any("interaction_type" in error for error in errors)
+
+
+def test_prevalidation_allows_missing_dataset_name_with_output_directory() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "dataset.name": "",
+            "export.output_dir": "results/unnamed_dataset",
+        }
+    )
+
+    assert validate_generated_descriptor(descriptor) == []
+
+
+def test_prevalidation_requires_dataset_name_without_output_directory() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "dataset.name": "",
+            "export.output_dir": "",
+        }
+    )
+
+    errors = validate_generated_descriptor(descriptor)
+
+    assert errors == ["dataset.name is required when export.output_dir is not provided."]
+
+
+def test_default_generated_descriptor_validates_as_workflow_v1() -> None:
+    form_values = workflow_yaml_form_defaults()
+    form_values["dataset.name"] = "default_dataset"
+    form_values["query.value"] = "reviewed:true"
+
+    descriptor = build_workflow_descriptor(form_values)
+
+    assert descriptor["schema_version"] == "workflow-v1"
+    assert descriptor["execution"]["enrich"] is False
+    assert descriptor["execution"]["max_workers"] == 5
+    assert descriptor["execution"]["total_retries"] == 3
+    assert descriptor["execution"]["chembl_pages_to_fetch"] == -1
+    assert "uniprot_timeout" not in descriptor["execution"]
+    assert validate_generated_descriptor(descriptor) == []
+
+
+@pytest.mark.parametrize(
+    ("dataset_name", "expected"),
+    [
+        (None, "workflow-v1.yml"),
+        ("", "workflow-v1.yml"),
+        ("My Dataset", "my_dataset.workflow-v1.yml"),
+        ("../Unsafe\\Name", "unsafe_name.workflow-v1.yml"),
+        ("Dataset: 2026 / Final", "dataset_2026_final.workflow-v1.yml"),
+    ],
+)
+def test_build_workflow_filename_is_safe(dataset_name: object, expected: str) -> None:
+    assert build_workflow_filename(dataset_name) == expected
 
 
 def test_render_workflow_yaml_round_trips_equivalent_dictionary() -> None:

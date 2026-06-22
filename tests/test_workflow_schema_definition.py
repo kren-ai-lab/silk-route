@@ -78,6 +78,7 @@ def test_workflow_v1_schema_definition_returns_dictionary() -> None:
 
     assert isinstance(schema_definition, dict)
     assert schema_definition["schema_version"]["default"] == "workflow-v1"
+    assert schema_definition["execution.enrich"]["default"] is False
 
 
 def test_workflow_v1_schema_definition_includes_required_gui_fields() -> None:
