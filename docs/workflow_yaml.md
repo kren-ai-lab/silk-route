@@ -192,6 +192,15 @@ The validator checks descriptor structure and field types without importing the
 workflow CLI, API interfaces, pandas, network clients, export helpers, or
 NiceGUI.
 
+Developer note: the shared UniProt friendly-query field catalog lives in
+`bioseq_dl.core.workflow.query_field_catalog` and is the source of truth for
+both the current UniProt query interpreter and future GUI query-builder code.
+Friendly query syntax supports quoted values with spaces, such as
+`organism_any:"Homo sapiens"` and `go_any:"DNA repair","protein folding"`.
+Future GUI builder rows should compile to a final interpreted query and store
+that executable string in `query.value`. The pure builder utilities do not call
+external APIs, download data, or validate against live UniProt.
+
 The optional first-iteration NiceGUI interface only generates `workflow-v1`
 YAML descriptors. It does not execute workflows, call APIs, download data,
 collect credentials, or build advanced queries. The user manually writes the
