@@ -223,11 +223,27 @@ class CrossRefEnricher:
         # Apply row-wise; collect per-row DataFrames
         all_metadata = {}
         all_results = []
+        # Per-input-row enrichment outcome: lets callers see exactly which rows
+        # came back empty or failed (invisible in the merged aggregate alone).
+        per_row: list[dict[str, Any]] = []
 
-        for _, row in df.iterrows():
+        for idx, row in df.iterrows():
             result, metadata = self._search_and_merge(row, instance, spec, params, fmt)
             all_results.append(result)
             all_metadata = self._merge_metadata(all_metadata, metadata)
+            failed = metadata.get("failed", {}) if isinstance(metadata, dict) else {}
+            data_info = metadata.get("data_info", {}) if isinstance(metadata, dict) else {}
+            per_row.append(
+                {
+                    "row": int(idx) if isinstance(idx, (int, float)) else str(idx),
+                    "found": data_info.get("total_entries", 0),
+                    "failed_ids": failed.get("ids", []),
+                    "failed_reasons": failed.get("reasons", []),
+                }
+            )
+
+        # Attach per-row outcomes under the source-specific extra block.
+        all_metadata.setdefault("extra", {})["per_row"] = per_row
 
         # TODO(diego): comprobar si este cambio no es problematico
         if fmt == "dataframe":
