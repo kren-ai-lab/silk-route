@@ -60,15 +60,50 @@ def format_option(help: str = _FORMAT_HELP) -> Any:  # noqa: A002
     return typer.Option(None, "--format", "-f", help=help)
 
 
-def unwrap(result: Any) -> Any:
-    """Return just the data from a ``(data, metadata)`` fetch result.
+def split_result(result: Any) -> tuple[Any, dict | None]:
+    """Split a ``(data, metadata)`` fetch result into its two parts.
 
     ``fetch_single`` / ``fetch_batch`` return a 2-tuple whose second element is a
-    metadata dict. Anything that is not such a tuple is returned unchanged.
+    metadata dict. Anything that is not such a tuple is treated as already-unwrapped
+    data with no metadata (``None``).
     """
     if isinstance(result, tuple) and len(result) == 2 and isinstance(result[1], dict):  # noqa: PLR2004  # (data, metadata) pair
-        return result[0]
-    return result
+        return result[0], result[1]
+    return result, None
+
+
+def unwrap(result: Any) -> Any:
+    """Return just the data from a ``(data, metadata)`` fetch result."""
+    return split_result(result)[0]
+
+
+def _metadata_enabled() -> bool:
+    """Whether to write metadata sidecars, per the ``fetch --no-metadata`` flag.
+
+    Reads the shared click context meta set by the ``fetch`` callback; defaults
+    to ``True`` outside a CLI invocation (e.g. when called directly in tests).
+    """
+    try:
+        # typer vendors click; this is its current location for the active-context lookup.
+        from typer._click.globals import get_current_context  # noqa: PLC0415
+    except ImportError:  # pragma: no cover - guards against typer internals moving
+        return True
+    ctx = get_current_context(silent=True)
+    if ctx is None:
+        return True
+    return bool(ctx.meta.get("write_metadata", True))
+
+
+def _write_metadata_sidecar(output_path: str | Path, metadata: dict) -> None:
+    """Write fetch metadata as a sidecar JSON next to ``output_path``.
+
+    ``results.csv`` -> ``results.metadata.json``, keeping the provenance tied to
+    the data file it describes (no clobber when several commands share a dir).
+    """
+    sidecar = Path(output_path).with_suffix(".metadata.json")
+    with sidecar.open("w") as fh:
+        json.dump(metadata, fh, indent=2, default=str)
+    typer.echo(f"Metadata saved to {sidecar}")
 
 
 def save_or_print(
@@ -77,8 +112,12 @@ def save_or_print(
     *,
     output_format: str | None = None,
     preview_rows: int = 5,
+    write_metadata: bool | None = None,
 ) -> None:
     """Unpack a fetch result and either save it to ``output`` or print a preview.
+
+    When ``output`` is given and the result carries metadata, the provenance is
+    also written to a ``<output>.metadata.json`` sidecar.
 
     Args:
         result: Raw return value of ``fetch_single`` / ``fetch_batch`` (a
@@ -88,9 +127,13 @@ def save_or_print(
             results. If ``None``, inferred from the ``output`` extension,
             defaulting to csv. Ignored for non-DataFrame data.
         preview_rows: Number of rows to show when previewing a DataFrame.
+        write_metadata: Whether to write the metadata sidecar. ``None`` (the
+            default) defers to the ``fetch --no-metadata`` CLI flag.
 
     """
-    data = unwrap(result)
+    data, metadata = split_result(result)
+    if write_metadata is None:
+        write_metadata = _metadata_enabled()
 
     if isinstance(data, pd.DataFrame):
         if output:
@@ -101,6 +144,8 @@ def save_or_print(
                 typer.echo(f"Error: {e}", err=True)
                 raise typer.Exit(code=1) from None
             typer.echo(f"Results saved to {saved}")
+            if metadata and write_metadata:
+                _write_metadata_sidecar(saved, metadata)
         else:
             typer.echo(data.head(preview_rows))
         return
@@ -114,6 +159,8 @@ def save_or_print(
             else:
                 fh.write(str(data))
         typer.echo(f"Results saved to {output}")
+        if metadata and write_metadata:
+            _write_metadata_sidecar(output, metadata)
     else:
         typer.echo(data)
 

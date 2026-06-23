@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import inspect
 import time
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 import pandas as pd
@@ -32,7 +33,12 @@ CHEMBL_ID_CHUNK_SIZE = 100
 
 
 def calculate_enrichment_execution_time(enrichment_metadata: object) -> float:
-    """Return the total execution time reported by enrichment metadata."""
+    """Return the total execution time reported by enrichment metadata.
+
+    Each endpoint's metadata records ``started_at`` / ``finished_at`` ISO-8601
+    timestamps rather than a precomputed duration, so the per-endpoint elapsed
+    time is derived here and summed.
+    """
     if not isinstance(enrichment_metadata, dict):
         return 0.0
 
@@ -40,10 +46,19 @@ def calculate_enrichment_execution_time(enrichment_metadata: object) -> float:
     for metadata in enrichment_metadata.values():
         if not isinstance(metadata, dict):
             continue
-        execution_time = metadata.get("execution_time", 0)
-        if isinstance(execution_time, (int, float)):
-            total += execution_time
+        total += _elapsed_seconds(metadata.get("started_at"), metadata.get("finished_at"))
     return total
+
+
+def _elapsed_seconds(started_at: object, finished_at: object) -> float:
+    """Seconds between two ISO-8601 timestamps; ``0.0`` if either is missing/invalid."""
+    if not isinstance(started_at, str) or not isinstance(finished_at, str):
+        return 0.0
+    try:
+        delta = datetime.fromisoformat(finished_at) - datetime.fromisoformat(started_at)
+    except ValueError:
+        return 0.0
+    return max(delta.total_seconds(), 0.0)
 
 
 # Maps each modality to the result key its primary payload lives under.
@@ -345,13 +360,13 @@ class MainWorkflow:
             timeout=timeout,
         )
         if isinstance(fetch_meta, dict):
-            search_process = fetch_meta.get("search_process", {})
+            extra = fetch_meta.get("extra", {})
             self.log.info(
-                "Pipeline: UniProt fetch completed (status=%s elapsed=%s size_bytes=%s results=%s)",
-                search_process.get("status_code"),
-                search_process.get("time_taken_seconds"),
-                search_process.get("response_size_bytes"),
-                search_process.get("total_results"),
+                "Pipeline: UniProt fetch completed (status=%s elapsed=%.2fs size_bytes=%s results=%s)",
+                extra.get("status_code"),
+                _elapsed_seconds(fetch_meta.get("started_at"), fetch_meta.get("finished_at")),
+                extra.get("response_size_bytes"),
+                extra.get("total_results"),
             )
         return resp, fetch_meta
 
@@ -665,11 +680,13 @@ class MainWorkflow:
             {
                 "time_taken_seconds": sum(
                     [
-                        context.get("metadata", {})
-                        .get("uniprot", {})
-                        .get("fetch", {})
-                        .get("search_process", {})
-                        .get("time_taken_seconds", 0),
+                        _elapsed_seconds(
+                            context.get("metadata", {}).get("uniprot", {}).get("fetch", {}).get("started_at"),
+                            context.get("metadata", {})
+                            .get("uniprot", {})
+                            .get("fetch", {})
+                            .get("finished_at"),
+                        ),
                         calculate_enrichment_execution_time(
                             context.get("metadata", {}).get("uniprot_enrichment", {})
                         ),
