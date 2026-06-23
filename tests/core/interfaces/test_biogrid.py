@@ -11,6 +11,7 @@ from niquests_mock import startswith
 
 from bioseq_dl.core.interfaces.biogrid import BioGRIDInterface
 from tests._helpers import load_fixture
+from tests.core.interfaces._contract import CachingContract
 
 INTERACTIONS_URL = "https://webservice.thebiogrid.org/interactions"
 
@@ -46,14 +47,9 @@ def test_parse_extracts_requested_fields(interface):
     assert parsed == {k: interaction[k] for k in ("OFFICIAL_SYMBOL_A", "OFFICIAL_SYMBOL_B")}
 
 
-def test_fetch_single_round_trips_through_cache(interface, niquests_mock):
-    body = load_fixture("biogrid", "interactions")
-    niquests_mock.get(url=startswith(INTERACTIONS_URL)).respond(status_code=200, json=body)
-
-    query = {"geneList": "TP53", "taxId": "9606"}
-    first, _ = interface.fetch_single(query, method="interactions")
-    second, _ = interface.fetch_single(query, method="interactions")
-
+class TestBiogridContract(CachingContract):
     # accessKey is excluded from the cache key, so the second call hits the cache.
-    assert len(niquests_mock.calls) == 1
-    assert first == second
+    INTERFACE_URL = INTERACTIONS_URL
+    QUERY = {"geneList": "TP53", "taxId": "9606"}
+    METHOD = "interactions"
+    FIXTURE = ("biogrid", "interactions")

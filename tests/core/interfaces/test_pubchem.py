@@ -7,6 +7,7 @@ from niquests_mock import startswith
 
 from bioseq_dl.core.interfaces.pubchem import PubChemInterface
 from tests._helpers import load_fixture
+from tests.core.interfaces._contract import CachingContract, HttpErrorContract
 
 # Note the double slash: API_URL ends with "/" and the pug_view branch prepends "/pug_view".
 COMPOUND_URL = "https://pubchem.ncbi.nlm.nih.gov/rest//pug_view/data/compound/444444/JSON"
@@ -39,19 +40,10 @@ def test_parse_extracts_requested_fields(interface):
     assert parsed == {"title": body["Record"]["RecordTitle"]}
 
 
-def test_fetch_single_round_trips_through_cache(interface, niquests_mock):
-    body = load_fixture("pubchem", "pug_view_compound")
-    niquests_mock.get(url=startswith(COMPOUND_URL)).respond(status_code=200, json=body)
-
-    query = {"cid": "444444"}
-    first, _ = interface.fetch_single(query, method="pug_view/compound", option="default")
-    second, _ = interface.fetch_single(query, method="pug_view/compound", option="default")
-
-    assert len(niquests_mock.calls) == 1
-    assert first == second
-
-
-def test_fetch_returns_empty_on_http_error(interface, niquests_mock):
-    niquests_mock.get(url=startswith(COMPOUND_URL)).respond(status_code=500, json={"error": "boom"})
-
-    assert interface.fetch({"cid": "444444"}, method="pug_view/compound", option="default") == {}
+class TestPubchemContract(CachingContract, HttpErrorContract):
+    INTERFACE_URL = COMPOUND_URL
+    QUERY = {"cid": "444444"}
+    METHOD = "pug_view/compound"
+    FIXTURE = ("pubchem", "pug_view_compound")
+    CALL_KWARGS = {"option": "default"}
+    ERROR_RETURNS_EMPTY = True

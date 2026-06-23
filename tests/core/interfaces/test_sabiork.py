@@ -7,6 +7,7 @@ from niquests_mock import startswith
 
 from bioseq_dl.core.interfaces.sabiork import SabiorkInterface
 from tests._helpers import load_fixture
+from tests.core.interfaces._contract import CachingContract, HttpErrorContract
 
 EXPORT_URL = "https://sabiork.h-its.org/sabioRestWebServices/kineticlawsExportTsv"
 
@@ -38,19 +39,11 @@ def test_parse_extracts_requested_fields(interface):
     assert parsed == {"EntryID": "12345", "ECNumber": "1.1.1.1"}
 
 
-def test_fetch_single_round_trips_through_cache(interface, niquests_mock):
-    text = load_fixture("sabiork", "kineticlaws")
-    niquests_mock.post(url=startswith(EXPORT_URL)).respond(status_code=200, text=text)
-
-    query = {"UniProtKB_AC": "P00330"}
-    first, _ = interface.fetch_single(query, method="kineticlaws")
-    second, _ = interface.fetch_single(query, method="kineticlaws")
-
-    assert len(niquests_mock.calls) == 1
-    assert first == second
-
-
-def test_fetch_returns_empty_on_http_error(interface, niquests_mock):
-    niquests_mock.post(url=startswith(EXPORT_URL)).respond(status_code=500, text="boom")
-
-    assert interface.fetch({"UniProtKB_AC": "P00330"}, method="kineticlaws") == {}
+class TestSabiorkContract(CachingContract, HttpErrorContract):
+    INTERFACE_URL = EXPORT_URL
+    QUERY = {"UniProtKB_AC": "P00330"}
+    METHOD = "kineticlaws"
+    FIXTURE = ("sabiork", "kineticlaws")
+    HTTP_METHOD = "post"
+    BODY_IS_TEXT = True
+    ERROR_RETURNS_EMPTY = True

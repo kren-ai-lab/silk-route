@@ -8,42 +8,17 @@ dataset records which version of the library produced it and when.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, ClassVar
 
 import pytest
 
 import bioseq_dl
-from bioseq_dl.core.interfaces.base import BaseAPIInterface
 from bioseq_dl.core.metadata import FetchMetadata
-
-
-class FakeInterface(BaseAPIInterface):
-    API_NAME = "Fake"
-    METHODS: ClassVar[dict[str, Any]] = {
-        "get": {
-            "http_method": "GET",
-            "path_param": None,
-            "parameters": {"id": (str, None, True)},
-            "group_queries": ["id"],
-            "separator": ",",
-        }
-    }
-
-    def __init__(self, **kwargs):
-        super().__init__(min_wait=0, max_wait=0, use_config=False, **kwargs)
-
-    def fetch(self, query, *, method="get", **kwargs):
-        raw = query["id"] if isinstance(query, dict) else query
-        ids = raw.split(",") if isinstance(raw, str) else list(raw)
-        return [{"id": x, "value": f"val{x}"} for x in ids]
-
-    def parse(self, data, fields_to_extract, **kwargs):
-        return data
+from tests._helpers import FakeRecordsInterface
 
 
 @pytest.fixture
 def interface(tmp_path):
-    return FakeInterface(cache_dir=str(tmp_path))
+    return FakeRecordsInterface(cache_dir=str(tmp_path))
 
 
 def _assert_provenance(metadata: dict) -> None:

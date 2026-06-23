@@ -5,9 +5,9 @@ from __future__ import annotations
 import pytest
 from niquests_mock import startswith
 
-from bioseq_dl.core.exceptions import RequestError
 from bioseq_dl.core.interfaces.stringdb import StringInterface
 from tests._helpers import load_fixture
+from tests.core.interfaces._contract import CachingContract, HttpErrorContract
 
 IDS_URL = "https://string-db.org/api/json/get_string_ids"
 
@@ -41,20 +41,8 @@ def test_parse_extracts_requested_fields(interface):
     assert parsed[0] == {"stringId": "9606.ENSP00000269305", "preferredName": "TP53"}
 
 
-def test_fetch_single_round_trips_through_cache(interface, niquests_mock):
-    body = load_fixture("stringdb", "get_string_ids")
-    niquests_mock.get(url=startswith(IDS_URL)).respond(status_code=200, json=body)
-
-    query = {"identifiers": "TP53", "species": 9606}
-    first, _ = interface.fetch_single(query, method="get_string_ids")
-    second, _ = interface.fetch_single(query, method="get_string_ids")
-
-    assert len(niquests_mock.calls) == 1
-    assert first == second
-
-
-def test_fetch_raises_on_http_error(interface, niquests_mock):
-    niquests_mock.get(url=startswith(IDS_URL)).respond(status_code=500, json={"error": "boom"})
-
-    with pytest.raises(RequestError):
-        interface.fetch({"identifiers": "TP53", "species": 9606}, method="get_string_ids")
+class TestStringdbContract(CachingContract, HttpErrorContract):
+    INTERFACE_URL = IDS_URL
+    QUERY = {"identifiers": "TP53", "species": 9606}
+    METHOD = "get_string_ids"
+    FIXTURE = ("stringdb", "get_string_ids")

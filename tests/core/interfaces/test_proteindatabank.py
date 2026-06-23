@@ -5,9 +5,9 @@ from __future__ import annotations
 import pytest
 from niquests_mock import startswith
 
-from bioseq_dl.core.exceptions import RequestError
 from bioseq_dl.core.interfaces.proteindatabank import PDBInterface
 from tests._helpers import load_fixture
+from tests.core.interfaces._contract import CachingContract, HttpErrorContract
 
 ENTRY_URL = "https://data.rcsb.org/rest/v1/core/entry/4HHB"
 
@@ -43,19 +43,8 @@ def test_parse_extracts_requested_fields(interface):
     assert parsed == {"id": body["rcsb_id"], "title": body["struct"]["title"]}
 
 
-def test_fetch_single_round_trips_through_cache(interface, niquests_mock):
-    body = load_fixture("pdb", "entry")
-    niquests_mock.get(url=startswith(ENTRY_URL)).respond(status_code=200, json=body)
-
-    first, _ = interface.fetch_single("4HHB", method="entry")
-    second, _ = interface.fetch_single("4HHB", method="entry")
-
-    assert len(niquests_mock.calls) == 1
-    assert first == second
-
-
-def test_fetch_raises_on_http_error(interface, niquests_mock):
-    niquests_mock.get(url=startswith(ENTRY_URL)).respond(status_code=500, json={"error": "boom"})
-
-    with pytest.raises(RequestError):
-        interface.fetch("4HHB", method="entry")
+class TestPdbContract(CachingContract, HttpErrorContract):
+    INTERFACE_URL = ENTRY_URL
+    QUERY = "4HHB"
+    METHOD = "entry"
+    FIXTURE = ("pdb", "entry")

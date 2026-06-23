@@ -120,6 +120,7 @@ ignore = [
     "PLR2004",
     "PT011",
     "PT017",
+    "RUF012", # contract-mixin class attrs (QUERY/CALL_KWARGS dicts) are fixed test data
     "S101",
     "SLF001", # tests legitimately exercise private members
     "TRY003",

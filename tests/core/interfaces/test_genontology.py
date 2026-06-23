@@ -5,9 +5,9 @@ from __future__ import annotations
 import pytest
 from niquests_mock import startswith
 
-from bioseq_dl.core.exceptions import RequestError
 from bioseq_dl.core.interfaces.genontology import GenOntologyInterface
 from tests._helpers import load_fixture
+from tests.core.interfaces._contract import CachingContract, HttpErrorContract
 
 TERM_URL = "https://api.geneontology.org/api/ontology/term/GO%3A0008150"
 
@@ -37,19 +37,8 @@ def test_parse_extracts_requested_fields(interface):
     assert parsed == {"goid": "GO:0008150", "label": "biological_process"}
 
 
-def test_fetch_single_round_trips_through_cache(interface, niquests_mock):
-    body = load_fixture("genontology", "term")
-    niquests_mock.get(url=startswith(TERM_URL)).respond(status_code=200, json=body)
-
-    first, _ = interface.fetch_single("GO:0008150", method="ontology-term")
-    second, _ = interface.fetch_single("GO:0008150", method="ontology-term")
-
-    assert len(niquests_mock.calls) == 1
-    assert first == second
-
-
-def test_fetch_raises_on_http_error(interface, niquests_mock):
-    niquests_mock.get(url=startswith(TERM_URL)).respond(status_code=500, json={"error": "boom"})
-
-    with pytest.raises(RequestError):
-        interface.fetch("GO:0008150", method="ontology-term")
+class TestGenontologyContract(CachingContract, HttpErrorContract):
+    INTERFACE_URL = TERM_URL
+    QUERY = "GO:0008150"
+    METHOD = "ontology-term"
+    FIXTURE = ("genontology", "term")

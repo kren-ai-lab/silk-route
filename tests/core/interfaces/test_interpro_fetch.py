@@ -7,6 +7,7 @@ from niquests_mock import startswith
 
 from bioseq_dl.core.interfaces.interpro import InterproInterface
 from tests._helpers import load_fixture
+from tests.core.interfaces._contract import CachingContract, HttpErrorContract
 
 ENTRY_URL = "https://www.ebi.ac.uk:443/interpro/api/entry/InterPro/IPR000001/"
 
@@ -39,19 +40,9 @@ def test_parse_extracts_requested_fields(interface):
     assert parsed == {"accession": "IPR000001", "type": "domain"}
 
 
-def test_fetch_single_round_trips_through_cache(interface, niquests_mock):
-    body = load_fixture("interpro", "entry")
-    niquests_mock.get(url=startswith(ENTRY_URL)).respond(status_code=200, json=body)
-
-    query = {"db": "InterPro", "id": "IPR000001"}
-    first, _ = interface.fetch_single(query, method="entry")
-    second, _ = interface.fetch_single(query, method="entry")
-
-    assert len(niquests_mock.calls) == 1
-    assert first == second
-
-
-def test_fetch_returns_empty_on_http_error(interface, niquests_mock):
-    niquests_mock.get(url=startswith(ENTRY_URL)).respond(status_code=500, json={"error": "boom"})
-
-    assert interface.fetch({"db": "InterPro", "id": "IPR000001"}, method="entry") == {}
+class TestInterproContract(CachingContract, HttpErrorContract):
+    INTERFACE_URL = ENTRY_URL
+    QUERY = {"db": "InterPro", "id": "IPR000001"}
+    METHOD = "entry"
+    FIXTURE = ("interpro", "entry")
+    ERROR_RETURNS_EMPTY = True

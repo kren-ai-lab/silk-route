@@ -5,9 +5,9 @@ from __future__ import annotations
 import pytest
 from niquests_mock import startswith
 
-from bioseq_dl.core.exceptions import RequestError
 from bioseq_dl.core.interfaces.pride import PrideInterface
 from tests._helpers import load_fixture
+from tests.core.interfaces._contract import CachingContract, HttpErrorContract
 
 PROJECT_URL = "https://www.ebi.ac.uk/pride/ws/archive/v3/projects/PXD000001"
 
@@ -37,19 +37,8 @@ def test_parse_extracts_requested_fields(interface):
     assert parsed == {"accession": body["accession"], "title": body["title"]}
 
 
-def test_fetch_single_round_trips_through_cache(interface, niquests_mock):
-    body = load_fixture("pride", "project")
-    niquests_mock.get(url=startswith(PROJECT_URL)).respond(status_code=200, json=body)
-
-    first, _ = interface.fetch_single("PXD000001", method="projects")
-    second, _ = interface.fetch_single("PXD000001", method="projects")
-
-    assert len(niquests_mock.calls) == 1
-    assert first == second
-
-
-def test_fetch_raises_on_http_error(interface, niquests_mock):
-    niquests_mock.get(url=startswith(PROJECT_URL)).respond(status_code=500, json={"error": "boom"})
-
-    with pytest.raises(RequestError):
-        interface.fetch("PXD000001", method="projects")
+class TestPrideContract(CachingContract, HttpErrorContract):
+    INTERFACE_URL = PROJECT_URL
+    QUERY = "PXD000001"
+    METHOD = "projects"
+    FIXTURE = ("pride", "project")

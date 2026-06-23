@@ -7,6 +7,7 @@ from niquests_mock import startswith
 
 from bioseq_dl.core.interfaces.kegg import KEGGInterface
 from tests._helpers import load_fixture
+from tests.core.interfaces._contract import CachingContract, HttpErrorContract
 
 GET_URL = "https://rest.kegg.jp/get/hsa:10458"
 
@@ -42,18 +43,10 @@ def test_parse_builds_keyed_entry(interface):
     assert "NAME" in parsed
 
 
-def test_fetch_single_round_trips_through_cache(interface, niquests_mock):
-    text = load_fixture("kegg", "get")
-    niquests_mock.get(url=startswith(GET_URL)).respond(status_code=200, text=text)
-
-    first, _ = interface.fetch_single({"entries": "hsa:10458"}, method="get")
-    second, _ = interface.fetch_single({"entries": "hsa:10458"}, method="get")
-
-    assert len(niquests_mock.calls) == 1
-    assert first == second
-
-
-def test_fetch_returns_empty_on_http_error(interface, niquests_mock):
-    niquests_mock.get(url=startswith(GET_URL)).respond(status_code=500, text="boom")
-
-    assert interface.fetch({"entries": "hsa:10458"}, method="get") == {}
+class TestKeggContract(CachingContract, HttpErrorContract):
+    INTERFACE_URL = GET_URL
+    QUERY = {"entries": "hsa:10458"}
+    METHOD = "get"
+    FIXTURE = ("kegg", "get")
+    BODY_IS_TEXT = True
+    ERROR_RETURNS_EMPTY = True

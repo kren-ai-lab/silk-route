@@ -5,9 +5,9 @@ from __future__ import annotations
 import pytest
 from niquests_mock import startswith
 
-from bioseq_dl.core.exceptions import RequestError
 from bioseq_dl.core.interfaces.biodbnet import BioDBNetInterface
 from tests._helpers import load_fixture
+from tests.core.interfaces._contract import CachingContract, HttpErrorContract
 
 API_URL = "https://biodbnet.abcc.ncifcrf.gov/webServices/rest.php/biodbnetRestApi.json"
 
@@ -40,18 +40,6 @@ def test_parse_extracts_requested_fields(interface):
     assert parsed == {k: body[0][k] for k in ("Name", "Source_Database")}
 
 
-def test_fetch_single_round_trips_through_cache(interface, niquests_mock):
-    body = load_fixture("biodbnet", "getpathways")
-    niquests_mock.get(url=startswith(API_URL)).respond(status_code=200, json=body)
-
-    query = {"pathways": "1", "taxonId": "511145"}
-    first, _ = interface.fetch_single(query, method="getpathways")
-    second, _ = interface.fetch_single(query, method="getpathways")
-
-    assert len(niquests_mock.calls) == 1
-    assert first == second
-
-
 def test_fetch_db2db_extracts_outputs(interface, niquests_mock):
     # BioDBNet echoes each input id as a top-level key whose "outputs" holds the row.
     body = {
@@ -70,8 +58,8 @@ def test_fetch_db2db_extracts_outputs(interface, niquests_mock):
     assert "method=db2db" in niquests_mock.calls[0].request.url
 
 
-def test_fetch_raises_on_http_error(interface, niquests_mock):
-    niquests_mock.get(url=startswith(API_URL)).respond(status_code=500, json={"error": "boom"})
-
-    with pytest.raises(RequestError):
-        interface.fetch({"pathways": "1", "taxonId": "511145"}, method="getpathways")
+class TestBiodbnetContract(CachingContract, HttpErrorContract):
+    INTERFACE_URL = API_URL
+    QUERY = {"pathways": "1", "taxonId": "511145"}
+    METHOD = "getpathways"
+    FIXTURE = ("biodbnet", "getpathways")

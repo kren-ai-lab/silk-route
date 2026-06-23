@@ -7,6 +7,7 @@ from niquests_mock import startswith
 
 from bioseq_dl.core.interfaces.chembl import ChEMBLInterface
 from tests._helpers import load_fixture
+from tests.core.interfaces._contract import CachingContract
 
 ACTIVITY_URL = "https://www.ebi.ac.uk/chembl/api/data/activity"
 
@@ -40,13 +41,8 @@ def test_parse_extracts_requested_fields(interface):
     assert parsed == {k: activity[k] for k in ("molecule_chembl_id", "standard_type")}
 
 
-def test_fetch_single_round_trips_through_cache(interface, niquests_mock):
-    body = load_fixture("chembl", "activity")
-    niquests_mock.get(url=startswith(ACTIVITY_URL)).respond(status_code=200, json=body)
-
-    query = {"target_chembl_id": "CHEMBL279"}
-    first, _ = interface.fetch_single(query, method="activity")
-    second, _ = interface.fetch_single(query, method="activity")
-
-    assert len(niquests_mock.calls) == 1
-    assert first == second
+class TestChemblContract(CachingContract):
+    INTERFACE_URL = ACTIVITY_URL
+    QUERY = {"target_chembl_id": "CHEMBL279"}
+    METHOD = "activity"
+    FIXTURE = ("chembl", "activity")

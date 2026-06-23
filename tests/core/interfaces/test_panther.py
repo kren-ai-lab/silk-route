@@ -5,9 +5,9 @@ from __future__ import annotations
 import pytest
 from niquests_mock import startswith
 
-from bioseq_dl.core.exceptions import RequestError
 from bioseq_dl.core.interfaces.panther import PantherInterface
 from tests._helpers import load_fixture
+from tests.core.interfaces._contract import CachingContract, HttpErrorContract
 
 GENEINFO_URL = "https://pantherdb.org/services/oai/pantherdb/geneinfo"
 
@@ -39,20 +39,9 @@ def test_parse_extracts_requested_fields(interface):
     assert parsed == {k: gene[k] for k in ("accession", "family_id")}
 
 
-def test_fetch_single_round_trips_through_cache(interface, niquests_mock):
-    body = load_fixture("panther", "geneinfo")
-    niquests_mock.post(url=startswith(GENEINFO_URL)).respond(status_code=200, json=body)
-
-    query = {"geneInputList": "TP53", "organism": "9606"}
-    first, _ = interface.fetch_single(query, method="geneinfo")
-    second, _ = interface.fetch_single(query, method="geneinfo")
-
-    assert len(niquests_mock.calls) == 1
-    assert first == second
-
-
-def test_fetch_raises_on_http_error(interface, niquests_mock):
-    niquests_mock.post(url=startswith(GENEINFO_URL)).respond(status_code=500, json={"error": "boom"})
-
-    with pytest.raises(RequestError):
-        interface.fetch({"geneInputList": "TP53", "organism": "9606"}, method="geneinfo")
+class TestPantherContract(CachingContract, HttpErrorContract):
+    INTERFACE_URL = GENEINFO_URL
+    QUERY = {"geneInputList": "TP53", "organism": "9606"}
+    METHOD = "geneinfo"
+    FIXTURE = ("panther", "geneinfo")
+    HTTP_METHOD = "post"
