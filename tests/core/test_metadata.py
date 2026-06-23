@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from bioseq_dl.core.metadata import FetchMetadata, IdBlock, RequestInfo, ToolInfo
+from bioseq_dl.core.metadata import FailedBlock, FetchMetadata, IdBlock, RequestInfo, ToolInfo
 
 
 def test_to_dict_shape():
@@ -18,9 +18,9 @@ def test_to_dict_shape():
     assert d["tool"] == {"name": "bioseq_dl", "version": "0.1.0"}
     assert d["request"] == {"api_name": "ChEMBL", "method": "molecule", "option": None}
     assert d["fetched"] == {"ids": ["P1"], "subqueries": [{"id": "P1"}], "length": 1}
-    # Symmetric empty buckets all carry a length.
+    # Symmetric empty buckets all carry a length; failed also carries reasons.
     assert d["cached"] == {"ids": [], "subqueries": [], "length": 0}
-    assert d["failed"] == {"ids": [], "subqueries": [], "length": 0}
+    assert d["failed"] == {"ids": [], "subqueries": [], "reasons": [], "length": 0}
 
 
 def test_from_dict_round_trips():
@@ -93,3 +93,19 @@ def test_idblock_add_keeps_ids_and_subqueries_parallel():
     block.add("id2", {"q": 2})
     assert block.ids == ["id1", "id2"]
     assert block.subqueries == [{"q": 1}, {"q": 2}]
+
+
+def test_failed_block_tracks_reasons_and_merges():
+    a = FailedBlock()
+    a.add("x", {"id": "x"}, "request_error")
+    b = FailedBlock()
+    b.add("y", {"id": "y"}, "empty_result")
+
+    merged = a.merged_with(b)
+    assert merged.to_dict() == {
+        "ids": ["x", "y"],
+        "subqueries": [{"id": "x"}, {"id": "y"}],
+        "reasons": ["request_error", "empty_result"],
+        "length": 2,
+    }
+    assert FailedBlock.from_dict(merged.to_dict()).to_dict() == merged.to_dict()

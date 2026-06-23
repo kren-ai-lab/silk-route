@@ -73,3 +73,4 @@ def test_fetch_single_records_failed_id_on_http_error(interface, niquests_mock):
 
     assert not data
     assert metadata["failed"]["ids"]
+    assert metadata["failed"]["reasons"] == ["request_error"]

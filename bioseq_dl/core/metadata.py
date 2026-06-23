@@ -97,6 +97,53 @@ class IdBlock:
         return cls(ids=list(data.get("ids", [])), subqueries=list(data.get("subqueries", [])))
 
 
+@dataclass
+class FailedBlock:
+    """Like :class:`IdBlock`, plus a parallel ``reasons`` list (why each id failed).
+
+    ``ids[i]`` / ``subqueries[i]`` / ``reasons[i]`` describe one failed query.
+    Common reasons: ``"request_error"`` (the HTTP call failed), ``"empty_result"``
+    (the call succeeded but returned no data for that id).
+    """
+
+    ids: list[Any] = field(default_factory=list)
+    subqueries: list[Any] = field(default_factory=list)
+    reasons: list[Any] = field(default_factory=list)
+
+    def add(self, identifier: Any, subquery: Any, reason: str = "") -> None:
+        """Append one (identifier, subquery, reason) triple to the bucket."""
+        self.ids.append(identifier)
+        self.subqueries.append(subquery)
+        self.reasons.append(reason)
+
+    def merged_with(self, other: FailedBlock) -> FailedBlock:
+        """Return a new bucket concatenating this one with ``other``."""
+        return FailedBlock(
+            ids=self.ids + other.ids,
+            subqueries=self.subqueries + other.subqueries,
+            reasons=self.reasons + other.reasons,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to ``{ids, subqueries, reasons, length}``."""
+        return {
+            "ids": self.ids,
+            "subqueries": self.subqueries,
+            "reasons": self.reasons,
+            "length": len(self.ids),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict | None) -> FailedBlock:
+        """Reconstruct from a serialized dict (``length`` ignored)."""
+        data = data or {}
+        return cls(
+            ids=list(data.get("ids", [])),
+            subqueries=list(data.get("subqueries", [])),
+            reasons=list(data.get("reasons", [])),
+        )
+
+
 def _widest(a: str, b: str, *, keep_min: bool) -> str:
     """Min/max of two ISO-8601 timestamps, ignoring empty strings."""
     if not a:
@@ -142,7 +189,7 @@ class FetchMetadata:
     request: RequestInfo = field(default_factory=RequestInfo)
     cached: IdBlock = field(default_factory=IdBlock)
     fetched: IdBlock = field(default_factory=IdBlock)
-    failed: IdBlock = field(default_factory=IdBlock)
+    failed: FailedBlock = field(default_factory=FailedBlock)
     data_info: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -169,7 +216,7 @@ class FetchMetadata:
             request=RequestInfo.from_dict(data.get("request")),
             cached=IdBlock.from_dict(data.get("cached")),
             fetched=IdBlock.from_dict(data.get("fetched")),
-            failed=IdBlock.from_dict(data.get("failed")),
+            failed=FailedBlock.from_dict(data.get("failed")),
             data_info=dict(data.get("data_info") or {}),
         )
 

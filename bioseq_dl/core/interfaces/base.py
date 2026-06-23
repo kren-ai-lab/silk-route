@@ -326,7 +326,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
             result[k] = val
         return result
 
-    def _make_cache_key(self, input_obj: str | dict, **kwargs: Any) -> str:
+    def _make_cache_key(self, input_obj: str | dict | list, **kwargs: Any) -> str:
         """Generate a string key from the input object."""
         # Serialize input_obj based on its type
         if isinstance(input_obj, dict):
@@ -533,6 +533,17 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         keys = [k for k, (_, _, is_id) in spec["parameters"].items() if is_id]
         parts = [str(query[k]) for k in keys if k in query] if isinstance(query, dict) else [str(query)]
         return "_".join(parts)
+
+    def _identifier_for(self, query: str | dict | list, spec: dict, **kwargs: Any) -> str:
+        """Stable string identifier for a query, used to key metadata buckets.
+
+        Prefers the ``is_id`` identifier; falls back to the cache key when the spec
+        has no parameters block. Always a string, so ``fetch_single`` and
+        ``fetch_batch`` record identifiers uniformly (never an index/cache-key mix).
+        """
+        if spec.get("parameters"):
+            return self._make_identifier(query, spec)
+        return self._make_cache_key(query, **kwargs)
 
     def initialize_method_parameters(
         self, query: str | dict | list, method: str, method_definition: dict, **kwargs: Any
@@ -787,15 +798,20 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                 params = self._prepare_params(combined, spec, **kwargs)
                 try:
                     full = self.fetch(params, *args, **kwargs)
+                    fetch_failed = False
                 except RequestError:
                     log.exception("Request failed for method '%s'", method)
                     full = {}
+                    fetch_failed = True
                 mapping = self.split_results_by_subquery(full, remaining) if full else {}
+                # The whole batched request either failed (request_error) or simply
+                # returned nothing for this id (empty_result).
+                fail_reason = "request_error" if fetch_failed else "empty_result"
                 for identifier, subq in remaining:
                     partial_result = mapping.get(identifier, [])
                     if not partial_result:
                         log.debug("No results found for identifier %s. Skipping.", identifier)
-                        metadata.failed.add(identifier, subq)
+                        metadata.failed.add(identifier, subq, fail_reason)
                         continue
                     log.debug(
                         "Fetched %s items for identifier %s. Caching result.", len(partial_result), identifier
@@ -849,16 +865,18 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
             # TODO(diego): Probably is necesary to give the user the option to not save empty results, check
             # if it is a problem in some APIs
             log.debug("No cache found for identifier: %s, fetching from API.", identifier)
+            fetch_failed = False
             try:
                 raw = self.fetch(params, *args, **kwargs)
             except RequestError:
                 log.exception("Request failed for identifier %s", identifier)
                 raw = {}
+                fetch_failed = True
             # Save to cache even if empty, to avoid refetching known empty results
             metadata.fetched.add(identifier, query)
             self.save_cache(cache_key, raw)
             if not raw:
-                metadata.failed.add(identifier, query)
+                metadata.failed.add(identifier, query, "request_error" if fetch_failed else "empty_result")
 
         parsed = self._maybe_parse(data=raw, parse=parse, fmt=fmt, **kwargs)
 
@@ -890,6 +908,13 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         fmt = kwargs.pop("format", "json")
         option = kwargs.get("option")
         results: list[Any] = []
+
+        # Resolve the method spec once so metadata buckets can record stable string
+        # identifiers (not the loop index) for fetched/cached queries.
+        try:
+            spec = self._get_method_spec(**kwargs)
+        except ValueError:
+            spec = {}
 
         # Separate queries in cache and not in cache
         index_query_map = {}
@@ -940,7 +965,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                 cache_key = self._make_cache_key(query, **kwargs)
                 if self.has_results(cache_key):
                     log.debug("Cache hit for query at index %s, loading from cache.", i)
-                    metadata.cached.add(cache_key, query)
+                    metadata.cached.add(self._identifier_for(query, spec, **kwargs), query)
                     cached = self.load_cache(cache_key)
                     result = cached.to_dict(orient="records") if isinstance(cached, pd.DataFrame) else cached
                     results.append(self._maybe_parse(data=result, parse=parse, fmt=fmt, **kwargs))
@@ -964,7 +989,8 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
             }
             for future, i in future_to_index.items():
                 log.debug("Waiting for future result for query at index %s", i)
-                metadata.fetched.add(i, index_query_map[i])
+                batch_query = index_query_map[i]
+                metadata.fetched.add(self._identifier_for(batch_query, spec, **kwargs), batch_query)
                 try:
                     result = future.result()
 
