@@ -643,7 +643,6 @@ class UniprotInterface(BaseAPIInterface):
             },
         }
 
-    # TODO(diego): eliminar bytes y str cuando ET este asegurado
     def parse(  # ty: ignore[invalid-method-override]  # type: ignore[bad-override]
         self,
         results: dict | list[dict],

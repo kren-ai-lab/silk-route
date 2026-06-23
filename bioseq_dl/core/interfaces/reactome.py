@@ -13,8 +13,6 @@ from .base import BaseAPIInterface
 
 log = get_logger("bioseq_dl.interfaces.reactome")
 
-# TODO(diego): Need to review other methods besides data-discover
-
 
 class ReactomeInterface(BaseAPIInterface):
     """Reactome biological pathway database API interface."""

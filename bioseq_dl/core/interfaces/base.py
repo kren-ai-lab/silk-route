@@ -449,7 +449,6 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         # Convert to DataFrame if requested
         if fmt == "dataframe":
             log.debug("Converting result to DataFrame")
-            # TODO(diego): Make sure parse method returns a consistent structure
             if isinstance(result, list):
                 return pd.DataFrame(result)
             if isinstance(result, dict):
@@ -855,8 +854,6 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
             metadata.cached.add(identifier, query)
             raw = self.load_cache(cache_key)
         else:
-            # TODO(diego): Probably is necesary to give the user the option to not save empty results, check
-            # if it is a problem in some APIs
             log.debug("No cache found for identifier: %s, fetching from API.", identifier)
             fetch_failed = False
             try:

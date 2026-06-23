@@ -183,11 +183,8 @@ def extract_interactions(comments: list) -> list[dict]:
                 {
                     "accesion_a": interactor_one.get("uniProtKBAccession", ""),
                     "geneName_a": interactor_one.get("geneName", ""),
-                    # You can also retrieve intact id, but will be left out for now
-                    #'intActId_a': interactor_one.get('intActId', '')
                     "accesion_b": interactor_two.get("uniProtKBAccession", ""),
                     "geneName_b": interactor_two.get("geneName", ""),
-                    #'intActId_b': interactor_two.get('intActId', '')
                     "numberOfExperiments": interactor.get("numberOfExperiments", 0),
                     "organismDiffer": interactor.get("organismDiffer", False),
                 }

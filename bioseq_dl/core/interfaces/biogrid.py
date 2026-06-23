@@ -21,18 +21,6 @@ BIOGRID_ENV_VARS = (
 # Rest documentation: https://wiki.thebiogrid.org/doku.php/biogridrest
 
 
-# TODO(diego): add more from docs
-# Known issue:
-# For some reason, running this query:
-# query={  # noqa: ERA001
-#     "accessKey": biogrid_api_key,  # noqa: ERA001
-#     "geneList": ['1148170', '1148186', '112090'],  # noqa: ERA001
-#     "searchBiogridIds" : True,  # noqa: ERA001
-#     "format": "tab2"
-# },
-# gives an error:
-# Error fetching data for {...}: Extra data: line 1 column 8 (char 7). Tried URL: https://webservice.thebiogrid.org/interactions?accessKey={ACCESS_KEY}&geneList=1148170|1148186|112090&searchBiogridIds=True&format=tab2
-# This error will go to a low priority issue, as it is not as used as the JSON format.
 class BioGRIDInterface(BaseAPIInterface):
     """BioGRID protein interaction database API interface."""
 

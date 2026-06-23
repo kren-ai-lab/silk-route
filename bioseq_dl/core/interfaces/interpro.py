@@ -14,10 +14,6 @@ from .base import BaseAPIInterface
 
 log = get_logger("bioseq_dl.interfaces.interpro")
 
-# TODO(diego): add modifiers definitions
-# TODO(diego): Because this API uses an unique type of query
-# I did not updated the METHODS with fetch()
-
 
 class InterproInterface(BaseAPIInterface):
     """InterPro protein family database API interface."""
