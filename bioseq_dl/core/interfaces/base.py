@@ -603,7 +603,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
 
         inputs = {}
 
-        if isinstance(query, (dict)):
+        if isinstance(query, dict):
             if group_queries:
                 for key in group_queries:
                     if key in query and isinstance(query[key], list):
@@ -831,51 +831,35 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                     parsed = self._maybe_parse(data=partial_result, parse=parse, fmt=fmt, **kwargs)
                     results[identifier] = parsed
 
-            # Additional check and convert needed. If many subqueries are brought,
-            # the result should be concatenated into a single DataFrame if format="dataframe"
-            if fmt == "dataframe":
-                dfs = []
-                log.debug("Converting results to DataFrames")
-                for data in results.values():
-                    df = data if isinstance(data, pd.DataFrame) else pd.DataFrame(data)
-                    dfs.append(df)
-                # TODO(diego): Check if this line of code works as intended
-                if dfs:
-                    export_df = pd.concat(dfs, ignore_index=True)
-                    metadata["data_info"] = self._build_data_info(export_df)
-                    metadata["finished_at"] = datetime.now(UTC).isoformat()
-                    self._stamp_metadata(metadata, method=method, option=option)
+            # Flatten the per-subquery results into a single structured view,
+            # used for metadata (data_info / fetched_length)
+            flat: list = []
+            for data in results.values():
+                if isinstance(data, list):
+                    flat.extend(data)
+                else:
+                    flat.append(data)
 
-                    return export_df, metadata
-                return pd.DataFrame(), metadata
-            if fmt == "xml":
+            # Serialize the per-subquery results to the requested output format.
+            if fmt == "dataframe":
+                log.debug("Converting results to DataFrames")
+                dfs = [d if isinstance(d, pd.DataFrame) else pd.DataFrame(d) for d in results.values()]
+                export_data: Any = pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
+            elif fmt == "xml":
                 log.debug("Converting results to XML format")
-                combined_results = []
-                for data in results.values():
-                    if isinstance(data, list):
-                        combined_results.extend(data)
-                    else:
-                        combined_results.append(data)
-                xml_bytes = dicttoxml(
-                    {"item": combined_results},
+                export_data = dicttoxml(
+                    {"item": flat},
                     custom_root="results",
                     item_func=lambda _: "entry",
                     attr_type=False,
                 )
-                metadata["fetched_length"] = len(combined_results)
-                metadata["finished_at"] = datetime.now(UTC).isoformat()
-                self._stamp_metadata(metadata, method=method, option=option)
+            else:
+                export_data = list(results.values())
+                if len(export_data) == 1:
+                    export_data = export_data[0]
 
-                return xml_bytes, metadata
-
-            metadata["fetched_length"] = sum(len(v) for v in results.values() if isinstance(v, list))
-
-            export_data = list(results.values())
-
-            if len(export_data) == 1:
-                export_data = export_data[0]
-
-            metadata["data_info"] = self._build_data_info(export_data)
+            metadata["fetched_length"] = len(flat)
+            metadata["data_info"] = self._build_data_info(export_data if fmt == "dataframe" else flat)
             metadata["finished_at"] = datetime.now(UTC).isoformat()
             self._stamp_metadata(metadata, method=method, option=option)
 
