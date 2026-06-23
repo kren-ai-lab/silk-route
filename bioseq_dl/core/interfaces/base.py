@@ -13,6 +13,7 @@ import time
 from abc import ABC
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
@@ -61,6 +62,7 @@ def _extract_nested_values(value: object) -> list[str]:
     return result
 
 
+# noinspection D
 class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have concrete defaults
     """Abstract base class for all BioSeqDownloader API interfaces."""
 
@@ -232,6 +234,8 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
     def _empty_metadata() -> dict[str, Any]:
         """Return a fresh metadata skeleton shared by fetch_single/fetch_batch."""
         return {
+            "tool": {"name": "", "version": ""},
+            "started_at": "",
             "cached_ids": [],
             "cached_subqueries": [],
             "fetched_ids": [],
@@ -239,14 +243,26 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
             "failed_ids": [],
             "fetched_length": 0,
             "data_info": {},
-            "execution_time": 0.0,
+            "finished_at": "",
             "api_name": "",
             "method": "",
             "option": "",
         }
 
+    @staticmethod
+    def _tool_metadata() -> dict[str, str]:
+        """Return the ``tool`` provenance block (library name + version).
+
+        Imported lazily to avoid a circular import: ``base`` is only loaded
+        after the ``bioseq_dl`` package has finished initializing.
+        """
+        from bioseq_dl import __version__  # noqa: PLC0415  # lazy to avoid a circular import
+
+        return {"name": "bioseq_dl", "version": __version__}
+
     def _stamp_metadata(self, metadata: dict, *, method: str, option: Any) -> None:
         """Stamp the API/method/option fields shared by every fetch return path."""
+        metadata["tool"] = self._tool_metadata()
         metadata["api_name"] = self.API_NAME
         metadata["method"] = method
         metadata["option"] = option
@@ -765,7 +781,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         group_key = spec.get("group_queries", [None])[0]
 
         # If group_key is present and value is list: check cache per element
-        t0 = time.time()
+        metadata["started_at"] = datetime.now(UTC).isoformat()
         if isinstance(query, dict) and group_key and isinstance(query.get(group_key), list):
             log.debug("Multiple queries detected in the input.")
             log.debug("Generated a group of queries based on key '%s' with multiple values.", group_key)
@@ -827,7 +843,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                 if dfs:
                     export_df = pd.concat(dfs, ignore_index=True)
                     metadata["data_info"] = self._build_data_info(export_df)
-                    metadata["execution_time"] = time.time() - t0
+                    metadata["finished_at"] = datetime.now(UTC).isoformat()
                     self._stamp_metadata(metadata, method=method, option=option)
 
                     return export_df, metadata
@@ -847,7 +863,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                     attr_type=False,
                 )
                 metadata["fetched_length"] = len(combined_results)
-                metadata["execution_time"] = time.time() - t0
+                metadata["finished_at"] = datetime.now(UTC).isoformat()
                 self._stamp_metadata(metadata, method=method, option=option)
 
                 return xml_bytes, metadata
@@ -858,6 +874,10 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
 
             if len(export_data) == 1:
                 export_data = export_data[0]
+
+            metadata["data_info"] = self._build_data_info(export_data)
+            metadata["finished_at"] = datetime.now(UTC).isoformat()
+            self._stamp_metadata(metadata, method=method, option=option)
 
             return export_data, metadata
         log.debug("Single query detected, proceeding with fetch.")
@@ -889,7 +909,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         parsed = self._maybe_parse(data=raw, parse=parse, fmt=fmt, **kwargs)
 
         metadata["data_info"] = self._build_data_info(parsed)
-        metadata["execution_time"] = time.time() - t0
+        metadata["finished_at"] = datetime.now(UTC).isoformat()
         self._stamp_metadata(metadata, method=method, option=option)
 
         return parsed, metadata
@@ -983,7 +1003,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         # If there is an incorrect cache key handling then it's better to do a better implementation
         #############################
         # Fetch missing ones in parallel
-        t0 = time.time()
+        metadata["started_at"] = datetime.now(UTC).isoformat()
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             future_to_index = {
                 executor.submit(self.fetch_single, query, parse, *args, **kwargs): i
@@ -1006,7 +1026,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                 except Exception:
                     log.exception("Error fetching query at index %s (%s)", i, queries[i])
                 self._delay()
-        metadata["execution_time"] = time.time() - t0
+        metadata["finished_at"] = datetime.now(UTC).isoformat()
         metadata["fetched_length"] = sum(len(r) if isinstance(r, list) else 1 for r in results)
 
         # If it's a list of dataframes, concatenate them

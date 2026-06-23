@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import inspect
 import time
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 import pandas as pd
@@ -32,7 +33,12 @@ CHEMBL_ID_CHUNK_SIZE = 100
 
 
 def calculate_enrichment_execution_time(enrichment_metadata: object) -> float:
-    """Return the total execution time reported by enrichment metadata."""
+    """Return the total execution time reported by enrichment metadata.
+
+    Each endpoint's metadata records ``started_at`` / ``finished_at`` ISO-8601
+    timestamps rather than a precomputed duration, so the per-endpoint elapsed
+    time is derived here and summed.
+    """
     if not isinstance(enrichment_metadata, dict):
         return 0.0
 
@@ -40,10 +46,19 @@ def calculate_enrichment_execution_time(enrichment_metadata: object) -> float:
     for metadata in enrichment_metadata.values():
         if not isinstance(metadata, dict):
             continue
-        execution_time = metadata.get("execution_time", 0)
-        if isinstance(execution_time, (int, float)):
-            total += execution_time
+        total += _elapsed_seconds(metadata.get("started_at"), metadata.get("finished_at"))
     return total
+
+
+def _elapsed_seconds(started_at: object, finished_at: object) -> float:
+    """Seconds between two ISO-8601 timestamps; ``0.0`` if either is missing/invalid."""
+    if not isinstance(started_at, str) or not isinstance(finished_at, str):
+        return 0.0
+    try:
+        delta = datetime.fromisoformat(finished_at) - datetime.fromisoformat(started_at)
+    except ValueError:
+        return 0.0
+    return max(delta.total_seconds(), 0.0)
 
 
 # Maps each modality to the result key its primary payload lives under.

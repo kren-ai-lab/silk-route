@@ -181,6 +181,10 @@ class CrossRefEnricher:
             if key in merged:
                 if isinstance(merged[key], list) and isinstance(value, list):
                     merged[key] = merged[key] + value  # Concatenate lists
+                # started_at / finished_at: keep the widest window across endpoints.
+                # ISO-8601 UTC strings compare chronologically, so min/max are safe.
+                elif key in ("started_at", "finished_at") and merged[key] and value:
+                    merged[key] = min(merged[key], value) if key == "started_at" else max(merged[key], value)
                 elif isinstance(merged[key], (int, float)) and isinstance(value, (int, float)):
                     merged[key] = merged[key] + value  # Sum counts
                 # Special case: data_info, in this case we just need to sum n_missing, because all metadata
