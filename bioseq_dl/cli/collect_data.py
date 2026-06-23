@@ -31,6 +31,22 @@ search_app.command(
 search_app.add_typer(uniprot_app, name="uniprot")
 
 fetch_app = typer.Typer(help="Fetch data from various biological databases using API nomenclature.")
+
+
+@fetch_app.callback()
+def _fetch_options(
+    ctx: typer.Context,
+    metadata: bool = typer.Option(
+        default=True,
+        help="Write a `<output>.metadata.json` provenance sidecar next to saved results.",
+    ),
+) -> None:
+    """Shared options for every ``fetch`` subcommand."""
+    # Stored in the shared click context meta so save_or_print can honor it
+    # without threading the flag through every interface command.
+    ctx.meta["write_metadata"] = metadata
+
+
 fetch_app.add_typer(alphafold_app, name="alphafold")
 fetch_app.add_typer(biodbnet_app, name="biodbnet")
 fetch_app.add_typer(biogrid_app, name="biogrid")
