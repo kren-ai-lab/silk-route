@@ -194,14 +194,55 @@ class WorkflowYamlBuilderApp:
 
     def build_harmonization_controls(self) -> None:
         """Build harmonization form controls."""
-        with ui.expansion("Harmonization", value=True).classes("w-full"):
+        with (
+            ui.expansion("Harmonization", value=True).classes("w-full"),
+            ui.grid(columns=2).classes("w-full gap-3"),
+        ):
             (
                 ui.input("ID column")
-                .props("clearable")
+                .props('clearable placeholder="_id"')
                 .bind_value(self.form_values, "harmonization.id_column")
                 .tooltip(
-                    "Optional deterministic identifier column for tabular outputs. Leave empty "
-                    "to omit the harmonization section."
+                    "Optional column name used as a deterministic row identifier in tabular "
+                    "outputs when needed. Example: _id."
+                )
+            )
+            (
+                ui.input("Label column")
+                .props('clearable placeholder="_label"')
+                .bind_value(self.form_values, "harmonization.label_column")
+                .tooltip(
+                    "Optional column name that identifies labels or groups in tabular outputs. "
+                    "This is preserved in the descriptor and does not rename output columns by "
+                    "itself."
+                )
+            )
+            (
+                ui.input("Sequence column")
+                .props('clearable placeholder="sequence"')
+                .bind_value(self.form_values, "harmonization.sequence_column")
+                .tooltip(
+                    "Optional column name used to identify biological sequences for reporting, "
+                    "such as unique sequence counts, when that column exists in tabular outputs."
+                )
+            )
+            (
+                ui.input("Unique sequence strategy")
+                .props('clearable placeholder="exact"')
+                .bind_value(self.form_values, "harmonization.unique_sequence_strategy")
+                .tooltip(
+                    "Optional descriptive strategy name for sequence uniqueness handling. It "
+                    "does not currently perform full deduplication."
+                )
+            )
+            (
+                ui.input("Metadata fields")
+                .props('clearable placeholder="accession, protein_name, organism_name, sequence"')
+                .bind_value(self.form_values, "harmonization.metadata_fields")
+                .classes("col-span-2")
+                .tooltip(
+                    "Optional comma-separated list of metadata fields expected or relevant in "
+                    "the output. This does not currently filter exported columns."
                 )
             )
 

@@ -68,6 +68,10 @@ def test_build_workflow_descriptor_removes_empty_optional_fields() -> None:
             "query.crossref_fields": "",
             "execution.uniprot_timeout": "",
             "harmonization.id_column": "",
+            "harmonization.label_column": "",
+            "harmonization.sequence_column": "",
+            "harmonization.unique_sequence_strategy": "",
+            "harmonization.metadata_fields": "",
         }
     )
 
@@ -217,6 +221,83 @@ def test_non_empty_harmonization_id_column_includes_harmonization_section() -> N
     )
 
     assert descriptor["harmonization"] == {"id_column": "_id"}
+
+
+@pytest.mark.parametrize(
+    ("field_name", "yaml_key", "value"),
+    [
+        ("harmonization.label_column", "label_column", "_label"),
+        ("harmonization.sequence_column", "sequence_column", "sequence"),
+        ("harmonization.unique_sequence_strategy", "unique_sequence_strategy", "exact"),
+    ],
+)
+def test_non_empty_harmonization_text_fields_are_included(
+    field_name: str,
+    yaml_key: str,
+    value: str,
+) -> None:
+    descriptor = build_workflow_descriptor(minimal_form_values() | {field_name: value})
+
+    assert descriptor["harmonization"] == {yaml_key: value}
+
+
+def test_harmonization_metadata_fields_are_parsed_as_csv() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "harmonization.metadata_fields": (
+                "accession, protein_name, , organism_name, sequence"
+            )
+        }
+    )
+
+    assert descriptor["harmonization"]["metadata_fields"] == [
+        "accession",
+        "protein_name",
+        "organism_name",
+        "sequence",
+    ]
+
+
+def test_empty_harmonization_metadata_fields_are_omitted() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values() | {"harmonization.metadata_fields": " , , "}
+    )
+
+    assert "harmonization" not in descriptor
+
+
+def test_complete_harmonization_block_validates_as_workflow_v1() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "harmonization.id_column": "_id",
+            "harmonization.label_column": "_label",
+            "harmonization.sequence_column": "sequence",
+            "harmonization.unique_sequence_strategy": "exact",
+            "harmonization.metadata_fields": (
+                "accession, protein_name, organism_name, sequence"
+            ),
+        }
+    )
+
+    assert descriptor["harmonization"] == {
+        "id_column": "_id",
+        "label_column": "_label",
+        "sequence_column": "sequence",
+        "unique_sequence_strategy": "exact",
+        "metadata_fields": [
+            "accession",
+            "protein_name",
+            "organism_name",
+            "sequence",
+        ],
+    }
+    assert validate_generated_descriptor(descriptor) == []
+    assert "resources" not in descriptor
+    assert "reporting" not in descriptor
+    assert "builder" not in descriptor["query"]
+    assert "composition" not in descriptor["query"]
 
 
 def test_validation_returns_error_for_missing_query_value() -> None:

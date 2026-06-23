@@ -185,6 +185,10 @@ The optional NiceGUI interface generates `workflow-v1` YAML descriptors only.
 It does not execute workflows, call APIs, or download data. The user manually
 writes `query.value`, and generated YAML can be copied or saved from the browser.
 Human-friendly GUI labels are translated to exact workflow-v1 schema values.
+The visible `Harmonization` controls describe expected output columns and
+reporting-related behavior. Metadata fields are entered as comma-separated
+values and generated as a YAML list; descriptive harmonization values do not
+by themselves rename, filter, merge, or deduplicate output.
 
 Install the optional GUI dependencies:
 

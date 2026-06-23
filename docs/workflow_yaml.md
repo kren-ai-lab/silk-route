@@ -227,6 +227,14 @@ slashes, and rejects absolute paths or `..` traversal. This path is used later
 when the YAML is executed; the GUI does not create the directory, execute a
 workflow, or call an API.
 
+The `Harmonization` section describes expected output columns and related
+reporting behavior. `ID column`, `Label column`, `Sequence column`, and `Unique
+sequence strategy` are optional text inputs. `Metadata fields` accepts a
+comma-separated list and writes it as a YAML list. `sequence_column` is useful
+only when generated tabular output contains that column, and
+`unique_sequence_strategy` is currently descriptive. These controls do not by
+themselves clean, merge, rename, filter, or deduplicate output data.
+
 ### Manual GUI smoke test
 
 1. Install GUI dependencies with `pip install -e ".[gui]"`.
@@ -300,6 +308,12 @@ For ChEMBL workflows, `chembl_pages_to_fetch: -1` is the default and means fetch
 For IC50 activity queries, the ChEMBL workflow constrains `standard_type` to `IC50` and applies numeric `standard_value` filters for exact values or requested ranges. `standard_units` is reported when available, but the current workflow does not constrain units to nM.
 
 ### `harmonization`
+
+Harmonization fields describe expected tabular columns and reporting-related
+behavior. Except for the documented deterministic ID and sequence reporting
+uses, they are preserved as descriptor metadata and do not transform output.
+The NiceGUI `Metadata fields` control accepts comma-separated values and emits
+`metadata_fields` as a YAML list.
 
 | Field | Type | Required | Default | Role | Internal mapping | Limitations |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -499,7 +513,6 @@ update the implementation, tests, examples, and this documentation together.
 | Cross-source integration | `cross_source_integration` | Allow explicit integration rules across multiple databases. | Future feature unless the workflow code supports it directly and tests cover it. |
 | Runtime reporting fields in YAML | `reporting.workflow_execution_time_seconds`, `reporting.retrieved_records`, `reporting.unique_sequences` | Represent measured outputs from workflow execution. | Generated outputs, not user-authored input fields. They should appear in metadata or summaries generated after execution, not in executable YAML examples. |
 | Planned export filename control | `export.result_files` | Allow user-defined output filenames. | Future feature unless current code supports it directly. Output filenames currently derive from result labels. |
-| Advanced harmonization controls | `harmonization.unique_sequence_strategy`, `harmonization.metadata_fields` | Control deduplication, metadata selection, and output harmonization. | Future feature unless current code supports it directly. They should not be used as active controls in executable examples. |
 
 ## Validation Notes
 
@@ -523,5 +536,5 @@ Keep preserved-only and future-facing fields out of runnable examples unless an
 example is specifically demonstrating metadata preservation. This includes
 descriptive `resources` entries, domain-specific extension sections,
 descriptor-provided `reporting` placeholders, `execution.merge_results`,
-`harmonization.metadata_fields`, `harmonization.label_column`,
-`harmonization.unique_sequence_strategy`, and `export.result_files`.
+and `export.result_files`. Descriptive harmonization fields may be included when
+they accurately document expected output columns or reporting intent.

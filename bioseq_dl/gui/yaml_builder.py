@@ -66,6 +66,10 @@ DEFAULT_FORM_VALUES: dict[str, object] = {
     "execution.uniprot_timeout": None,
     "execution.debug": False,
     "harmonization.id_column": "",
+    "harmonization.label_column": "",
+    "harmonization.sequence_column": "",
+    "harmonization.unique_sequence_strategy": "",
+    "harmonization.metadata_fields": "",
     "export.output_dir_mode": "default",
     "export.output_dir": "",
     "export.format": "csv",
@@ -92,6 +96,10 @@ FORM_VALUE_ALIASES: dict[str, tuple[str, ...]] = {
     "execution.uniprot_timeout": ("execution_uniprot_timeout",),
     "execution.debug": ("execution_debug",),
     "harmonization.id_column": ("harmonization_id_column",),
+    "harmonization.label_column": ("harmonization_label_column",),
+    "harmonization.sequence_column": ("harmonization_sequence_column",),
+    "harmonization.unique_sequence_strategy": ("harmonization_unique_sequence_strategy",),
+    "harmonization.metadata_fields": ("harmonization_metadata_fields",),
     "export.output_dir_mode": ("export_output_dir_mode",),
     "export.output_dir": ("export_output_dir",),
     "export.format": ("export_format",),
@@ -357,6 +365,15 @@ def build_harmonization_section(form_values: Mapping[str, object]) -> dict[str, 
     """Build the workflow harmonization section."""
     harmonization: dict[str, object] = {
         "id_column": get_form_value(form_values, "harmonization.id_column"),
+        "label_column": get_form_value(form_values, "harmonization.label_column"),
+        "sequence_column": get_form_value(form_values, "harmonization.sequence_column"),
+        "unique_sequence_strategy": get_form_value(
+            form_values,
+            "harmonization.unique_sequence_strategy",
+        ),
+        "metadata_fields": parse_csv_list(
+            get_form_value(form_values, "harmonization.metadata_fields")
+        ),
     }
     return cast("dict[str, object]", remove_empty_values(harmonization))
 
