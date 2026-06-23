@@ -30,6 +30,29 @@ def test_parse_extracts_requested_fields(interface):
     assert parsed[0]["length"] == entry["sequence"]["length"]
 
 
+def test_parse_aggregates_field_coverage_across_records(interface):
+    results = load_fixture("uniprot", "idmapping_results")
+    fields = ["accession", "organism", "length"]
+    _, metadata = interface.parse(results, extract_fields=fields)
+
+    # Aggregate (not first-record) metadata: requested fields, record count, and
+    # per-field non-null coverage.
+    assert metadata["requested_fields"] == fields
+    assert metadata["records"] == len(results["results"])
+    assert metadata["failed_records"] == len(results.get("failedIds", []))
+    assert set(metadata["field_coverage"]) == set(fields)
+    # Every coverage count is bounded by the number of records.
+    assert all(0 <= n <= metadata["records"] for n in metadata["field_coverage"].values())
+
+
+def test_parse_counts_failed_ids_as_failed_records(interface):
+    results = {"results": [], "failedIds": ["BADID1", "BADID2"]}
+    _, metadata = interface.parse(results, extract_fields=["accession"])
+
+    assert metadata["records"] == 0
+    assert metadata["failed_records"] == 2
+
+
 def test_submit_id_mapping_posts_and_returns_job_id(interface, niquests_mock):
     niquests_mock.post(url=startswith(f"{API_URL}/idmapping/run")).respond(
         status_code=200, json={"jobId": "JOB123"}

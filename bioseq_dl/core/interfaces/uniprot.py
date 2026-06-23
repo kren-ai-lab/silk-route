@@ -550,11 +550,13 @@ class UniprotInterface(BaseAPIInterface):
             adapted_map[key] = (new_path, extractor)
         return adapted_map
 
-    def _parse_result(self, result: dict, extract_fields: list[str] | None) -> tuple[dict, dict]:
-        """Parse a single UniProt result."""
+    def _parse_result(self, result: dict, extract_fields: list[str] | None) -> dict:
+        """Parse a single UniProt result into a flat ``{field: value}`` dict.
+
+        Fields that can't be extracted are kept as ``None`` so the aggregate
+        field-coverage stats in :meth:`parse` can tell present from missing.
+        """
         parsed = {}
-        field_map = {}
-        metadata = {}
 
         # Change field_map if 'from' and 'to' keys are present
         if "from" in result and "to" in result:
@@ -583,11 +585,32 @@ class UniprotInterface(BaseAPIInterface):
         if extract_fields is not None:
             parsed = {k: v for k, v in parsed.items() if k in extract_fields}
 
-        metadata["extract_fields"] = extract_fields if extract_fields is not None else list(field_map.keys())
-        metadata["parsed_fields"] = list(parsed.keys())
-        metadata["failed_fields"] = [k for k in field_map if k not in parsed]
+        return parsed
 
-        return parsed, metadata
+    @staticmethod
+    def _aggregate_parse_metadata(
+        parsed: list[dict], failed_records: int, extract_fields: list[str] | None
+    ) -> dict:
+        """Aggregate per-record parse results into dataset-level metadata.
+
+        Replaces the old behavior of returning only the first record's metadata.
+        ``field_coverage`` maps each requested field to how many records actually
+        carried a non-null value — surfacing sparse fields across the whole result.
+        """
+        records = [p for p in parsed if p.get("status") != "failed"]
+        if extract_fields is not None:
+            requested = list(extract_fields)
+        else:
+            # No explicit selection: use the union of fields seen across records.
+            requested = list({field for record in records for field in record})
+        return {
+            "requested_fields": requested,
+            "records": len(records),
+            "failed_records": failed_records,
+            "field_coverage": {
+                field: sum(1 for record in records if record.get(field) is not None) for field in requested
+            },
+        }
 
     # TODO(diego): eliminar bytes y str cuando ET este asegurado
     def parse(  # ty: ignore[invalid-method-override]  # type: ignore[bad-override]
@@ -605,17 +628,15 @@ class UniprotInterface(BaseAPIInterface):
 
         """
         parsed: list = []
-        metadata: list = []
+        failed_records = 0
 
         def _accumulate(res: dict) -> None:
             """Collect parsed results + failed-id placeholders from one results dict."""
-            for result in res.get("results", []):
-                p, m = self._parse_result(result, extract_fields)
-                parsed.append(p)
-                metadata.append(m)
+            nonlocal failed_records
+            parsed.extend(self._parse_result(result, extract_fields) for result in res.get("results", []))
             for failed_id in res.get("failedIds", []):
                 parsed.append({"uniprot_id": failed_id, "status": "failed"})
-                metadata.append({})
+                failed_records += 1
 
         if isinstance(results, dict):
             _accumulate(results)
@@ -626,7 +647,7 @@ class UniprotInterface(BaseAPIInterface):
                 else:
                     log.warning("Tried to parse non-dict result: %s, skipping.", type(res))
 
-        meta_out = metadata[0] if metadata else metadata
+        meta_out = self._aggregate_parse_metadata(parsed, failed_records, extract_fields)
         if format == "dataframe":
             return pd.DataFrame(parsed).dropna(axis=1, how="all"), meta_out
         if format == "xml":
