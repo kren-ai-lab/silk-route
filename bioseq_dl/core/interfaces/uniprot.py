@@ -272,8 +272,6 @@ class UniprotInterface(BaseAPIInterface):
             for pattern in config["patterns"]:
                 if re.fullmatch(pattern, id_str):
                     return db_type
-
-                return ""
         return ""
 
     def group_ids_by_type(self, ids: list[str]) -> dict[str, list[str]]:
@@ -314,38 +312,55 @@ class UniprotInterface(BaseAPIInterface):
         """
         ids = dataset[column_ids].dropna().unique().tolist()
 
-        results = []
-        batch_metadata = {}
+        results: list[dict] = []
 
         if auto_db:
-            # Automatically detect and group IDs
+            # Automatically detect and group IDs, then process EVERY group and
+            # accumulate both results and metadata (earlier groups were previously
+            # overwritten, silently dropping their data for mixed-ID inputs).
             id_groups = self.group_ids_by_type(ids)
-
             log.debug(
                 "Auto db has identified the following ID groups: %s",
                 {k: len(v) for k, v in id_groups.items()},
             )
+            meta = FetchMetadata()
+            groups: list[dict[str, Any]] = []
             for db_type, id_list in id_groups.items():
                 if not id_list or db_type == "unknown":
                     continue
 
                 config = self.db_config[db_type]
-                results, batch_metadata = self.process_id_batch(
+                group_results, group_metadata = self.process_id_batch(
                     ids=id_list,
                     from_db=config["from_db"],
                     to_db=config["to_db"],
                     batch_size=batch_size,
                     db_type=db_type,
                 )
+                results.extend(group_results)
+                group_meta = FetchMetadata.from_dict(group_metadata)
+                meta = meta.merge(group_meta)
+                groups.append(
+                    {
+                        "db_type": db_type,
+                        "from_db": config["from_db"],
+                        "to_db": config["to_db"],
+                        "num_batches": group_meta.extra.get("num_batches", 0),
+                        "failed_ids_count": group_meta.extra.get("failed_ids_count", 0),
+                    }
+                )
+            # Per-group flat fields (from_db/to_db/db_type) are ambiguous across
+            # groups; expose the per-group breakdown instead.
+            meta.extra = {"batch_size": batch_size, "groups": groups}
         else:
-            # Manually use the provided from_db/to_db parameters
-            results, batch_metadata = self.process_id_batch(
+            # Manually use the provided from_db/to_db parameters.
+            group_results, group_metadata = self.process_id_batch(
                 ids=ids, from_db=from_db, to_db=to_db, batch_size=batch_size, db_type="manual"
             )
+            results = group_results
+            meta = FetchMetadata.from_dict(group_metadata)
 
-        # process_id_batch already returns a FetchMetadata dict; augment its extra
-        # with the input-query provenance specific to the batch download.
-        meta = FetchMetadata.from_dict(batch_metadata)
+        # Augment with the input-query provenance specific to the batch download.
         meta.extra.update(
             {
                 "query_values": dataset[column_ids].tolist(),

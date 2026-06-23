@@ -7,10 +7,12 @@ sequence with ``responses``, plus a direct parse-shape test.
 
 from __future__ import annotations
 
+import pandas as pd
 import pytest
 from niquests_mock import startswith
 
 from bioseq_dl.core.interfaces.uniprot import API_URL, UniprotInterface
+from bioseq_dl.core.metadata import FetchMetadata
 from tests._helpers import load_fixture
 
 
@@ -106,3 +108,36 @@ def test_id_mapping_flow_resolves_and_fetches_results(interface, niquests_mock):
 
     fetched = interface.get_id_mapping_results_search(resolved)
     assert fetched["results"][0]["from"] == "P12345"
+
+
+def test_identify_id_type_matches_uniprot_and_pdb(interface):
+    # Regression: the matcher used to bail after the first pattern, classifying
+    # everything as "unknown". It must scan all patterns across all db types.
+    assert interface.identify_id_type("P12345") == "uniprot"
+    assert interface.identify_id_type("1ABC") == "pdb"
+    assert interface.identify_id_type("???") == ""
+
+
+def test_download_batch_auto_db_accumulates_all_groups(interface, monkeypatch):
+    # auto_db routes mixed IDs through the REAL grouping (P12345 -> uniprot,
+    # 1ABC -> pdb); every group's results + metadata must be accumulated
+    # (previously only the last group survived). Only the network call is stubbed.
+    def fake_process(ids, from_db, to_db, batch_size, db_type):
+        meta = FetchMetadata()
+        meta.fetched.add(ids[0], {"id": ids[0]})
+        meta.extra.update({"num_batches": 1, "failed_ids_count": 0})
+        meta.data_info = {"total_entries": 1}
+        return [{"results": [{"id": ids[0], "source_db": db_type}]}], meta.to_dict()
+
+    monkeypatch.setattr(interface, "process_id_batch", fake_process)
+
+    df = pd.DataFrame({"id": ["P12345", "1ABC", "???"]})
+    results, metadata = interface.download_batch(df, "id", auto_db=True)
+
+    # Both valid groups contributed results (unknown "???" is skipped).
+    source_dbs = {r["source_db"] for res in results for r in res["results"]}
+    assert source_dbs == {"uniprot", "pdb"}
+    # Metadata merged across groups + per-group breakdown exposed.
+    assert metadata["fetched"]["length"] == 2
+    assert metadata["data_info"]["total_entries"] == 2
+    assert {g["db_type"] for g in metadata["extra"]["groups"]} == {"uniprot", "pdb"}
