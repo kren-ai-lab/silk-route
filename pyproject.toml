@@ -113,6 +113,7 @@ ignore = [
     "ANN",
     "ARG001", # unused fixture/mock arguments are common in tests
     "ARG002", # unused mock-method arguments are common in tests
+    "ARG005", # unused lambda args in monkeypatch stubs are common in tests
     "D",
     "EM101",
     "FBT003",
