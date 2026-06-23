@@ -182,9 +182,14 @@ from bioseq_dl.workflow_schema_definition import get_workflow_v1_schema_definiti
 ```
 
 The optional NiceGUI interface generates `workflow-v1` YAML descriptors only.
-It does not execute workflows, call APIs, or download data. The user manually
-writes `query.value`, and generated YAML can be copied or saved from the browser.
-Human-friendly GUI labels are translated to exact workflow-v1 schema values.
+It does not execute workflows, call APIs, or download data. The Query section
+supports Manual query mode, which writes `query.value` directly, and Advanced
+UniProt builder mode, which builds an interpreted UniProt-compatible query and
+stores only that final interpreted string in `query.value`. Friendly query
+previews and builder rows are not saved to YAML. Human-friendly GUI labels are
+translated to exact workflow-v1 schema values.
+`query.fields` and `query.crossref_fields` remain separate optional inputs and
+are not advanced-builder search conditions.
 The visible `Harmonization` controls describe expected output columns and
 reporting-related behavior. Metadata fields are entered as comma-separated
 values and generated as a YAML list; descriptive harmonization values do not

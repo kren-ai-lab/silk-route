@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 import sys
 
 import pytest
@@ -87,10 +88,32 @@ def test_interpreted_query_is_returned_from_builder_rows():
 
     assert (
         build_uniprot_interpreted_query(rows)
-        == "organism_id:9606 AND ( cc_bpcp_temp_dependence:20-30 OR cc_bpcp_temp_dependence:50-60 )"
+        == "organism_id:9606 AND (cc_bpcp_temp_dependence:20-30 OR cc_bpcp_temp_dependence:50-60)"
     )
 
 
-def test_query_builder_import_does_not_import_nicegui():
-    assert "nicegui" not in sys.modules
+def test_databases_field_builds_interpreted_query_and_db_alias_is_rejected():
+    rows = [UniProtQueryBuilderRow(None, "databases", "alphafold,pdb", "any")]
 
+    assert build_uniprot_friendly_query(rows) == "databases_any:alphafold,pdb"
+    assert build_uniprot_interpreted_query(rows) == "(database:alphafolddb OR database:pdb)"
+
+    with pytest.raises(ValueError, match="Unsupported UniProt query builder field"):
+        build_uniprot_friendly_query([UniProtQueryBuilderRow(None, "db", "alphafold", "any")])
+
+
+def test_query_builder_import_does_not_import_nicegui():
+    import_script = """
+import sys
+import bioseq_dl.gui.query_builders.uniprot
+
+if "nicegui" in sys.modules:
+    raise RuntimeError("Importing pure UniProt query builder utilities loaded NiceGUI.")
+"""
+
+    subprocess.run(  # noqa: S603
+        [sys.executable, "-c", import_script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )

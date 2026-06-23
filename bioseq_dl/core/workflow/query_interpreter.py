@@ -34,6 +34,12 @@ def split_quoted_csv_values(value: str) -> list[str]:
     ]
 
 
+def compact_parentheses_spacing(value: str) -> str:
+    """Remove spacing artifacts immediately inside query parentheses."""
+    compacted = re.sub(r"\(\s+", "(", value)
+    return re.sub(r"\s+\)", ")", compacted)
+
+
 def _remove_unknown_field_match(match: re.Match, allowed_fields: set[str]) -> str:
     """Remove fielded query matches that are not in the allowed field set."""
     field_name = match.group(2)
@@ -149,7 +155,7 @@ class BaseQueryInterpreter:
             else:
                 resolved_final.append(f"{resolved_prefix}:{resolved_value}")
 
-        return " ".join(resolved_final)
+        return compact_parentheses_spacing(" ".join(resolved_final))
 
     def _format_prefix(self, _prefix: str, cfg: MultiModeFieldConfig) -> str:
         """Format a field prefix based on the field configuration."""
@@ -366,7 +372,16 @@ class UniProtQueryInterpreter(BaseQueryInterpreter):
 
     # Resolver kinds whose only job is a friendly-name -> native-id lookup in the
     # field's own ``value_map`` (after stripping any surrounding quotes).
-    _MAP_RESOLVERS = frozenset({"go_name_map", "keyword_map", "organism_map", "database_map", "function_map"})
+    _MAP_RESOLVERS = frozenset(
+        {
+            "database_map",
+            "function_map",
+            "go_name_map",
+            "keyword_map",
+            "organism_map",
+            "taxonomy_map",
+        }
+    )
 
     def _resolve_item(self, prefix: str, value: str, cfg: MultiModeFieldConfig) -> tuple[str, str]:
         """Resolve a single ``prefix:value`` item against its field configuration.

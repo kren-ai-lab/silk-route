@@ -10,6 +10,7 @@ __all__ = [
     "parse_csv_list",
     "remove_empty_values",
     "render_workflow_yaml",
+    "resolve_query_value_from_form",
     "validate_generated_descriptor",
     "workflow_yaml_form_defaults",
 ]

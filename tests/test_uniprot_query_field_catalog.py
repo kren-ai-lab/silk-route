@@ -40,6 +40,15 @@ def test_uniprot_query_builder_visible_fields_expose_gui_metadata():
         assert entry.query_builder_visible is True
 
 
+def test_uniprot_query_builder_catalog_exposes_canonical_database_field_only():
+    catalog = get_uniprot_query_builder_field_catalog()
+
+    assert "databases" in catalog
+    assert "db" not in catalog
+    assert "xref" not in catalog
+    assert "database" not in catalog
+
+
 def test_default_uniprot_interpreter_builds_fields_from_shared_catalog():
     catalog = get_uniprot_query_field_catalog()
     interpreter = build_default_uniprot_interpreter()
@@ -47,5 +56,7 @@ def test_default_uniprot_interpreter_builds_fields_from_shared_catalog():
     assert set(interpreter.config.fields) == set(catalog)
     assert interpreter.config.fields["organism"].field == catalog["organism"].native_field
     assert interpreter.config.fields["go"].value_map == catalog["go"].value_map
+    assert interpreter.config.fields["taxon"].resolver_kind == "taxonomy_map"
+    assert interpreter.config.fields["taxid"].resolver_kind == "taxonomy_map"
+    assert interpreter.config.fields["taxa"].resolver_kind == "taxonomy_map"
     assert interpreter.config.fields["length"].supports_range is True
-

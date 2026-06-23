@@ -160,6 +160,7 @@ def get_uniprot_query_field_catalog() -> dict[str, UniProtQueryFieldCatalogEntry
             examples=("9606", "10090", "human"),
             native_field="taxonomy_id",
             value_map=taxonomy_id_map,
+            resolver_kind="taxonomy_map",
         ),
         make_uniprot_query_field_entry(
             key="taxon",
@@ -169,6 +170,7 @@ def get_uniprot_query_field_catalog() -> dict[str, UniProtQueryFieldCatalogEntry
             examples=("9606", "human"),
             native_field="taxonomy_id",
             value_map=taxonomy_id_map,
+            resolver_kind="taxonomy_map",
         ),
         make_uniprot_query_field_entry(
             key="taxid",
@@ -178,6 +180,7 @@ def get_uniprot_query_field_catalog() -> dict[str, UniProtQueryFieldCatalogEntry
             examples=("9606", "10090"),
             native_field="taxonomy_id",
             value_map=taxonomy_id_map,
+            resolver_kind="taxonomy_map",
         ),
         make_uniprot_query_field_entry(
             key="organism",
@@ -238,4 +241,3 @@ def get_uniprot_query_builder_field_catalog() -> dict[str, UniProtQueryFieldCata
         for key, entry in get_uniprot_query_field_catalog().items()
         if entry.query_builder_visible
     }
-

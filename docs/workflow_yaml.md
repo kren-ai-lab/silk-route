@@ -194,17 +194,22 @@ NiceGUI.
 
 Developer note: the shared UniProt friendly-query field catalog lives in
 `bioseq_dl.core.workflow.query_field_catalog` and is the source of truth for
-both the current UniProt query interpreter and future GUI query-builder code.
+both the current UniProt query interpreter and GUI query-builder code.
 Friendly query syntax supports quoted values with spaces, such as
 `organism_any:"Homo sapiens"` and `go_any:"DNA repair","protein folding"`.
-Future GUI builder rows should compile to a final interpreted query and store
-that executable string in `query.value`. The pure builder utilities do not call
-external APIs, download data, or validate against live UniProt.
+GUI builder rows compile to a final interpreted query and store that executable
+string in `query.value`. The pure builder utilities do not call external APIs,
+download data, or validate against live UniProt.
 
-The optional first-iteration NiceGUI interface only generates `workflow-v1`
+The optional NiceGUI interface only generates `workflow-v1`
 YAML descriptors. It does not execute workflows, call APIs, download data,
-collect credentials, or build advanced queries. The user manually writes the
-executable `query.value`. Install it with the optional GUI extra and run:
+or collect credentials. The Query section has two modes: Manual query writes
+the typed text directly to `query.value`, while Advanced UniProt builder creates
+row-based UniProt-friendly conditions, shows a friendly query preview, builds a
+final interpreted UniProt-compatible query, and writes only that final
+interpreted query to `query.value`. The friendly query preview, builder row
+metadata, `query.builder`, and `query.composition` are not saved to generated
+YAML. Install it with the optional GUI extra and run:
 
 ```bash
 pip install -e ".[gui]"
@@ -218,10 +223,11 @@ python -m bioseq_dl.gui.nicegui_app
 ```
 
 The GUI writes `schema_version: "workflow-v1"` automatically. The only
-executable query field it exposes is `query.value`; `query.builder` and
-`query.composition` remain reserved for later query-builder work. Review the
-generated YAML before long-running or broad queries. Generated YAML can be
-copied from the preview or saved as a `.yml` file through the browser.
+executable query field it writes is `query.value`; `query.builder` and
+`query.composition` remain reserved metadata fields and are not emitted by the
+GUI. Review the generated YAML before long-running or broad queries. Generated
+YAML can be copied from the preview or saved as a `.yml` file through the
+browser.
 
 GUI controls use human-friendly labels while generated YAML keeps exact
 `workflow-v1` values. `Query First` writes `query_first`, `Query Composition`
@@ -230,11 +236,15 @@ writes `query_composition`, and modality labels write `protein`, `compound`, or
 compound datasets; it is invalid when the selected modality is `Interaction`.
 
 `Return fields` and `Cross-reference fields` accept optional comma-separated
-values. The default output-directory mode writes `results/{dataset.name}`. The
-custom mode accepts only relative paths, normalizes backslashes to forward
-slashes, and rejects absolute paths or `..` traversal. This path is used later
-when the YAML is executed; the GUI does not create the directory, execute a
-workflow, or call an API.
+values. They remain separate from Advanced UniProt builder fields: return fields
+control optional requested/output fields, while builder fields control the
+executable search query. The builder does not call UniProt, call any external
+API, download data, or validate against live UniProt. The default
+output-directory mode writes `results/{dataset.name}`. The custom mode accepts
+only relative paths, normalizes backslashes to forward slashes, and rejects
+absolute paths or `..` traversal. This path is used later when the YAML is
+executed; the GUI does not create the directory, execute a workflow, or call an
+API.
 
 The `Harmonization` section describes expected output columns and related
 reporting behavior. `ID column`, `Label column`, `Sequence column`, and `Unique
@@ -249,7 +259,7 @@ themselves clean, merge, rename, filter, or deduplicate output data.
 1. Install GUI dependencies with `pip install -e ".[gui]"`.
 2. Start the GUI with `bioseq-dl-gui`.
 3. Fill `Dataset name`.
-4. Fill `Executable query value`.
+4. Fill `Executable query value` in Manual query mode, or define one Advanced UniProt builder condition.
 5. Click `Generate YAML`.
 6. Confirm the YAML contains `schema_version: workflow-v1`.
 7. Click `Validate YAML`.

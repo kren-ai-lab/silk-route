@@ -2,24 +2,99 @@
 
 from __future__ import annotations
 
+from functools import partial
 from typing import Any
 
 import yaml
 from nicegui import ui
 
+from bioseq_dl.core.workflow.query_field_catalog import get_uniprot_query_builder_field_catalog
+from bioseq_dl.gui.query_builders.uniprot import (
+    build_uniprot_friendly_query,
+    build_uniprot_interpreted_query,
+)
 from bioseq_dl.gui.yaml_builder import (
     EXPORT_FORMAT_LABEL_TO_VALUE,
     INTERACTION_TYPE_LABEL_TO_VALUE,
     MODALITY_LABEL_TO_VALUE,
     OUTPUT_DIRECTORY_MODE_LABEL_TO_VALUE,
+    QUERY_INPUT_MODE_LABEL_TO_VALUE,
+    UNIPROT_MATCH_MODE_LABEL_TO_VALUE,
     WORKFLOW_MODE_LABEL_TO_VALUE,
+    build_uniprot_builder_rows_from_form,
     build_workflow_descriptor,
     build_workflow_filename,
     get_labeled_option_default,
+    normalize_labeled_value,
+    normalize_query_input_mode,
     render_workflow_yaml,
     validate_generated_descriptor,
     workflow_yaml_form_defaults,
 )
+
+UNIPROT_QUERY_FIELD_CATALOG = get_uniprot_query_builder_field_catalog()
+UNIPROT_BUILDER_FIELD_LABEL_TO_VALUE = {
+    f"{entry.label} ({entry.key})": entry.key for entry in UNIPROT_QUERY_FIELD_CATALOG.values()
+}
+UNIPROT_BUILDER_FIELD_VALUE_TO_LABEL = {
+    value: label for label, value in UNIPROT_BUILDER_FIELD_LABEL_TO_VALUE.items()
+}
+DEFAULT_UNIPROT_BUILDER_FIELD = "organism"
+
+
+def is_manual_query_mode(value: object) -> bool:
+    """Return whether a GUI query mode value means manual query entry."""
+    return normalize_query_input_mode(value) == "manual"
+
+
+def is_uniprot_builder_query_mode(value: object) -> bool:
+    """Return whether a GUI query mode value means advanced UniProt builder entry."""
+    return normalize_query_input_mode(value) == "uniprot_builder"
+
+
+def get_uniprot_builder_field_label(field: object) -> str:
+    """Return a visible builder field label for an internal field key."""
+    return UNIPROT_BUILDER_FIELD_VALUE_TO_LABEL.get(str(field), str(field))
+
+
+def get_uniprot_builder_field_value(label_or_value: object) -> str:
+    """Return an internal builder field key for a visible field label or field key."""
+    text = str(label_or_value)
+    return UNIPROT_BUILDER_FIELD_LABEL_TO_VALUE.get(text, text)
+
+
+def get_uniprot_match_mode_label(value: object) -> str:
+    """Return a visible match-mode label for an internal match-mode value."""
+    return get_labeled_option_default(value, UNIPROT_MATCH_MODE_LABEL_TO_VALUE)
+
+
+def make_uniprot_builder_ui_row(connector: str | None = None) -> dict[str, object]:
+    """Return one mutable UI row for the advanced UniProt builder."""
+    return {
+        "connector": connector or "",
+        "field": get_uniprot_builder_field_label(DEFAULT_UNIPROT_BUILDER_FIELD),
+        "values": "",
+        "match_mode": get_uniprot_match_mode_label("any"),
+    }
+
+
+def build_uniprot_builder_form_rows(ui_rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    """Convert visible NiceGUI builder rows to pure builder form rows."""
+    form_rows = []
+    for index, row in enumerate(ui_rows):
+        connector = row.get("connector") if index > 0 else None
+        form_rows.append(
+            {
+                "connector": connector,
+                "field": get_uniprot_builder_field_value(row.get("field", "")),
+                "values": row.get("values", ""),
+                "match_mode": normalize_labeled_value(
+                    row.get("match_mode", "Any"),
+                    UNIPROT_MATCH_MODE_LABEL_TO_VALUE,
+                ),
+            }
+        )
+    return form_rows
 
 
 class WorkflowYamlBuilderApp:
@@ -40,6 +115,10 @@ class WorkflowYamlBuilderApp:
             self.form_values["dataset.interaction_type"],
             INTERACTION_TYPE_LABEL_TO_VALUE,
         )
+        self.form_values["query.input_mode"] = get_labeled_option_default(
+            self.form_values["query.input_mode"],
+            QUERY_INPUT_MODE_LABEL_TO_VALUE,
+        )
         self.form_values["export.output_dir_mode"] = get_labeled_option_default(
             self.form_values["export.output_dir_mode"],
             OUTPUT_DIRECTORY_MODE_LABEL_TO_VALUE,
@@ -48,6 +127,9 @@ class WorkflowYamlBuilderApp:
             self.form_values["export.format"],
             EXPORT_FORMAT_LABEL_TO_VALUE,
         )
+        self.uniprot_builder_rows = [make_uniprot_builder_ui_row()]
+        self.friendly_query_preview: Any = None
+        self.interpreted_query_preview: Any = None
         self.yaml_output: Any = None
         self.status: Any = None
 
@@ -112,26 +194,60 @@ class WorkflowYamlBuilderApp:
         """Build query form controls."""
         with ui.expansion("Query", value=True).classes("w-full"):
             ui.label(
-                "The GUI does not build queries automatically yet. "
-                "Write the executable query.value manually."
+                "Choose manual query entry or build an interpreted UniProt query. "
+                "Generated YAML always stores only query.value."
             ).classes("text-sm text-gray-700")
             (
-                ui.textarea("Executable query value")
-                .bind_value(self.form_values, "query.value")
-                .classes("w-full")
-                .tooltip(
-                    "The executable query string used by BioSeqDownloader. The GUI does not "
-                    "build this automatically yet."
-                )
+                ui.select(list(QUERY_INPUT_MODE_LABEL_TO_VALUE), label="Query input mode")
+                .bind_value(self.form_values, "query.input_mode")
+                .on_value_change(self.update_builder_previews)
+                .tooltip("Manual mode writes query.value directly. Advanced mode builds it.")
             )
+            with ui.column().classes("w-full gap-2") as manual_query_panel:
+                (
+                    ui.textarea("Executable query value")
+                    .bind_value(self.form_values, "query.value")
+                    .classes("w-full")
+                    .tooltip("The executable query string stored as query.value.")
+                )
+            manual_query_panel.bind_visibility_from(
+                self.form_values,
+                "query.input_mode",
+                backward=is_manual_query_mode,
+            )
+
+            with ui.column().classes("w-full gap-3") as builder_panel:
+                ui.label(
+                    "Advanced builder fields control the executable search query. "
+                    "They are separate from Return fields and Cross-reference fields."
+                ).classes("text-sm text-gray-700")
+                self.build_uniprot_builder_rows()
+                with ui.row().classes("items-center gap-3"):
+                    ui.button("Add condition", on_click=self.add_uniprot_builder_row)
+                self.friendly_query_preview = (
+                    ui.textarea("Friendly query preview")
+                    .classes("w-full font-mono")
+                    .props("readonly rows=3")
+                )
+                self.interpreted_query_preview = (
+                    ui.textarea("Interpreted query.value preview")
+                    .classes("w-full font-mono")
+                    .props("readonly rows=3")
+                )
+            builder_panel.bind_visibility_from(
+                self.form_values,
+                "query.input_mode",
+                backward=is_uniprot_builder_query_mode,
+            )
+
             with ui.grid(columns=2).classes("w-full gap-3"):
                 (
                     ui.input("Return fields")
                     .props('clearable placeholder="accession, protein_name, organism_name, sequence"')
                     .bind_value(self.form_values, "query.fields")
                     .tooltip(
-                        "Optional fields to request or keep when supported. Enter comma-separated "
-                        "values."
+                        "Optional output/request fields. This is separate from advanced builder "
+                        "search fields. Enter comma-separated values."
                     )
                 )
                 (
@@ -140,7 +256,8 @@ class WorkflowYamlBuilderApp:
                     .bind_value(self.form_values, "query.crossref_fields")
                     .tooltip(
                         "Optional database cross-references used by supported enrichment logic. "
-                        "Enter comma-separated values."
+                        "This is separate from advanced builder search fields. Enter "
+                        "comma-separated values."
                     )
                 )
                 (
@@ -150,6 +267,80 @@ class WorkflowYamlBuilderApp:
                         "Whether UniProt isoforms should be included when supported by the workflow."
                     )
                 )
+
+    @ui.refreshable
+    def build_uniprot_builder_rows(self) -> None:
+        """Build advanced UniProt query builder row controls."""
+        for index, row in enumerate(self.uniprot_builder_rows):
+            with ui.row().classes("w-full items-end gap-3"):
+                if index == 0:
+                    ui.input("Connector").props('readonly placeholder=""').classes("w-28")
+                else:
+                    (
+                        ui.select(["AND", "OR"], label="Connector")
+                        .bind_value(row, "connector")
+                        .on_value_change(self.update_builder_previews)
+                        .classes("w-28")
+                    )
+                (
+                    ui.select(list(UNIPROT_BUILDER_FIELD_LABEL_TO_VALUE), label="Field")
+                    .bind_value(row, "field")
+                    .on_value_change(self.update_builder_previews)
+                    .classes("min-w-56")
+                )
+                (
+                    ui.input("Values")
+                    .props('clearable placeholder="Homo sapiens,Mus musculus"')
+                    .bind_value(row, "values")
+                    .on_value_change(self.update_builder_previews)
+                    .classes("grow")
+                )
+                (
+                    ui.select(list(UNIPROT_MATCH_MODE_LABEL_TO_VALUE), label="Match mode")
+                    .bind_value(row, "match_mode")
+                    .on_value_change(self.update_builder_previews)
+                    .classes("w-32")
+                )
+                if index > 0:
+                    ui.button("Remove", on_click=partial(self.remove_uniprot_builder_row, index))
+
+    def add_uniprot_builder_row(self) -> None:
+        """Add one advanced UniProt builder condition row."""
+        self.uniprot_builder_rows.append(make_uniprot_builder_ui_row(connector="AND"))
+        self.sync_uniprot_builder_rows_to_form()
+        self.build_uniprot_builder_rows.refresh()
+        self.update_builder_previews()
+
+    def remove_uniprot_builder_row(self, index: int) -> None:
+        """Remove one advanced UniProt builder condition row."""
+        if index <= 0 or index >= len(self.uniprot_builder_rows):
+            return
+        self.uniprot_builder_rows.pop(index)
+        self.sync_uniprot_builder_rows_to_form()
+        self.build_uniprot_builder_rows.refresh()
+        self.update_builder_previews()
+
+    def sync_uniprot_builder_rows_to_form(self) -> None:
+        """Synchronize visible builder rows into pure form values."""
+        self.form_values["query.uniprot_builder.rows"] = build_uniprot_builder_form_rows(
+            self.uniprot_builder_rows
+        )
+
+    def update_builder_previews(self, *_args: object) -> None:
+        """Update friendly and interpreted advanced UniProt query previews."""
+        self.sync_uniprot_builder_rows_to_form()
+        if self.friendly_query_preview is None or self.interpreted_query_preview is None:
+            return
+        try:
+            rows = build_uniprot_builder_rows_from_form(self.form_values)
+            friendly_query = build_uniprot_friendly_query(rows)
+            interpreted_query = build_uniprot_interpreted_query(rows)
+        except ValueError as exc:
+            self.friendly_query_preview.value = ""
+            self.interpreted_query_preview.value = f"Builder error: {exc}"
+            return
+        self.friendly_query_preview.value = friendly_query
+        self.interpreted_query_preview.value = interpreted_query
 
     def build_execution_controls(self) -> None:
         """Build execution form controls."""
@@ -315,6 +506,7 @@ class WorkflowYamlBuilderApp:
 
     def generate_yaml(self) -> None:
         """Generate YAML from the current form state."""
+        self.sync_uniprot_builder_rows_to_form()
         try:
             descriptor = build_workflow_descriptor(self.form_values)
         except (TypeError, ValueError) as exc:

@@ -14,6 +14,7 @@ from bioseq_dl.gui.yaml_builder import (
     build_workflow_filename,
     parse_csv_list,
     render_workflow_yaml,
+    resolve_query_value_from_form,
     validate_generated_descriptor,
     workflow_yaml_form_defaults,
 )
@@ -157,6 +158,156 @@ def test_human_readable_export_format_labels_map_to_schema_values(label: str, ex
 def test_query_builder_and_composition_are_not_generated() -> None:
     descriptor = build_workflow_descriptor(minimal_form_values())
 
+    assert "builder" not in descriptor["query"]
+    assert "composition" not in descriptor["query"]
+
+
+def test_manual_query_mode_generates_manual_query_value() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.input_mode": "Manual query",
+            "query.value": "reviewed:true AND organism_id:9606",
+        }
+    )
+
+    assert descriptor["query"]["value"] == "reviewed:true AND organism_id:9606"
+
+
+def test_resolve_query_value_from_manual_mode_does_not_call_builder() -> None:
+    form_values = minimal_form_values() | {
+        "query.input_mode": "manual",
+        "query.value": "reviewed:true",
+        "query.uniprot_builder.rows": [
+            {
+                "connector": None,
+                "field": "organism",
+                "values": "",
+                "match_mode": "any",
+            }
+        ],
+    }
+
+    assert resolve_query_value_from_form(form_values) == "reviewed:true"
+
+
+def test_advanced_uniprot_builder_mode_generates_interpreted_query_value() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.input_mode": "Advanced UniProt builder",
+            "query.value": "manual text ignored",
+            "query.uniprot_builder.rows": [
+                {
+                    "connector": None,
+                    "field": "organism",
+                    "values": "Homo sapiens",
+                    "match_mode": "Any",
+                },
+                {
+                    "connector": "AND",
+                    "field": "temperature",
+                    "values": "20-30,50-60",
+                    "match_mode": "Any",
+                },
+            ],
+        }
+    )
+
+    assert descriptor["query"]["value"] == (
+        "organism_id:9606 AND "
+        "(cc_bpcp_temp_dependence:20-30 OR cc_bpcp_temp_dependence:50-60)"
+    )
+
+
+def test_advanced_uniprot_builder_mode_omits_builder_metadata() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.input_mode": "uniprot_builder",
+            "query.uniprot_builder.rows": [
+                {
+                    "connector": None,
+                    "field": "organism",
+                    "values": "Homo sapiens",
+                    "match_mode": "any",
+                    "friendly_query": 'organism_any:"Homo sapiens"',
+                }
+            ],
+        }
+    )
+
+    assert descriptor["query"] == {
+        "value": "organism_id:9606",
+        "include_isoform": False,
+    }
+    assert "query.uniprot_builder.rows" not in descriptor
+    assert "builder" not in descriptor["query"]
+    assert "composition" not in descriptor["query"]
+    assert "friendly_query" not in descriptor["query"]
+
+
+def test_advanced_uniprot_builder_mode_keeps_query_fields_separate() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.input_mode": "uniprot_builder",
+            "query.uniprot_builder.rows": [
+                {
+                    "connector": None,
+                    "field": "organism",
+                    "values": "Homo sapiens",
+                    "match_mode": "any",
+                }
+            ],
+            "query.fields": "accession, protein_name",
+            "query.crossref_fields": "xref_alphafolddb",
+        }
+    )
+
+    assert descriptor["query"]["value"] == "organism_id:9606"
+    assert descriptor["query"]["fields"] == ["accession", "protein_name"]
+    assert descriptor["query"]["crossref_fields"] == ["xref_alphafolddb"]
+
+
+def test_advanced_uniprot_builder_mode_rejects_invalid_rows() -> None:
+    with pytest.raises(ValueError, match="requires at least one value"):
+        build_workflow_descriptor(
+            minimal_form_values()
+            | {
+                "query.input_mode": "uniprot_builder",
+                "query.uniprot_builder.rows": [
+                    {
+                        "connector": None,
+                        "field": "organism",
+                        "values": "",
+                        "match_mode": "any",
+                    }
+                ],
+            }
+        )
+
+
+def test_advanced_uniprot_builder_descriptor_validates_as_workflow_v1() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.input_mode": "uniprot_builder",
+            "query.uniprot_builder.rows": [
+                {
+                    "connector": None,
+                    "field": "databases",
+                    "values": "alphafold,pdb",
+                    "match_mode": "any",
+                }
+            ],
+        }
+    )
+
+    assert descriptor["query"]["value"] == "(database:alphafolddb OR database:pdb)"
+    assert validate_generated_descriptor(descriptor) == []
+    assert "resources" not in descriptor
+    assert "reporting" not in descriptor
     assert "builder" not in descriptor["query"]
     assert "composition" not in descriptor["query"]
 

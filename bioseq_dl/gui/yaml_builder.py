@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from copy import deepcopy
 from pathlib import PurePosixPath, PureWindowsPath
 from typing import TYPE_CHECKING, cast
 
@@ -48,6 +49,15 @@ OUTPUT_DIRECTORY_MODE_LABEL_TO_VALUE = {
     "Use default results folder": "default",
     "Use custom relative path": "custom",
 }
+QUERY_INPUT_MODE_LABEL_TO_VALUE = {
+    "Manual query": "manual",
+    "Advanced UniProt builder": "uniprot_builder",
+}
+UNIPROT_MATCH_MODE_LABEL_TO_VALUE = {
+    "Any": "any",
+    "All": "all",
+    "Not": "not",
+}
 
 DEFAULT_FORM_VALUES: dict[str, object] = {
     "dataset.name": "",
@@ -55,7 +65,16 @@ DEFAULT_FORM_VALUES: dict[str, object] = {
     "dataset.modality": "protein",
     "dataset.mode": "query_first",
     "dataset.interaction_type": None,
+    "query.input_mode": "manual",
     "query.value": "",
+    "query.uniprot_builder.rows": [
+        {
+            "connector": None,
+            "field": "organism",
+            "values": "",
+            "match_mode": "any",
+        }
+    ],
     "query.fields": "",
     "query.crossref_fields": "",
     "query.include_isoform": False,
@@ -85,7 +104,9 @@ FORM_VALUE_ALIASES: dict[str, tuple[str, ...]] = {
     "dataset.modality": ("dataset_modality",),
     "dataset.mode": ("dataset_mode",),
     "dataset.interaction_type": ("dataset_interaction_type",),
+    "query.input_mode": ("query_input_mode",),
     "query.value": ("query_value",),
+    "query.uniprot_builder.rows": ("query_uniprot_builder_rows",),
     "query.fields": ("query_fields",),
     "query.crossref_fields": ("query_crossref_fields",),
     "query.include_isoform": ("query_include_isoform",),
@@ -113,7 +134,7 @@ FORM_VALUE_ALIASES: dict[str, tuple[str, ...]] = {
 def workflow_yaml_form_defaults() -> dict[str, object]:
     """Return mutable default form values for GUI binding."""
     schema = get_workflow_v1_schema_definition()
-    defaults = dict(DEFAULT_FORM_VALUES)
+    defaults = deepcopy(DEFAULT_FORM_VALUES)
     for field_name in defaults:
         schema_default = schema.get(field_name, {}).get("default")
         if schema_default is not None:
@@ -151,6 +172,73 @@ def get_labeled_option_default(value: object, label_to_value: Mapping[str, objec
         if value == internal_value:
             return label
     return str(value)
+
+
+def normalize_query_input_mode(value: object) -> str:
+    """Normalize the GUI query input mode."""
+    normalized = normalize_labeled_value(value, QUERY_INPUT_MODE_LABEL_TO_VALUE)
+    if normalized in {"manual", "uniprot_builder"}:
+        return str(normalized)
+    msg = f"Unsupported query input mode '{value}'."
+    raise ValueError(msg)
+
+
+def get_builder_row_value(row: object, key: str, default: object = "") -> object:
+    """Return a value from a mapping-like or attribute-like builder row."""
+    if isinstance(row, dict):
+        return row.get(key, default)
+    return getattr(row, key, default)
+
+
+def normalize_uniprot_builder_match_mode(value: object) -> str:
+    """Normalize a UniProt builder match mode label or value."""
+    normalized = normalize_labeled_value(value, UNIPROT_MATCH_MODE_LABEL_TO_VALUE)
+    return str(normalized).strip().lower()
+
+
+def build_uniprot_builder_rows_from_form(form_values: Mapping[str, object]) -> list[object]:
+    """Build pure UniProt query builder rows from GUI form values."""
+    from bioseq_dl.gui.query_builders.uniprot import UniProtQueryBuilderRow  # noqa: PLC0415
+
+    raw_rows = get_form_value(form_values, "query.uniprot_builder.rows")
+    if not isinstance(raw_rows, list):
+        msg = "Advanced UniProt builder rows must be a list."
+        raise TypeError(msg)
+
+    rows = []
+    for index, raw_row in enumerate(raw_rows):
+        connector = get_builder_row_value(raw_row, "connector", None)
+        if index == 0 and str(connector or "").strip() == "":
+            connector = None
+        field = get_builder_row_value(raw_row, "field", "")
+        values = get_builder_row_value(raw_row, "values", "")
+        match_mode = normalize_uniprot_builder_match_mode(
+            get_builder_row_value(raw_row, "match_mode", "any")
+        )
+        rows.append(
+            UniProtQueryBuilderRow(
+                connector=cast("str | None", connector),
+                field=str(field),
+                values=str(values),
+                match_mode=match_mode,
+            )
+        )
+    return rows
+
+
+def resolve_query_value_from_form(form_values: Mapping[str, object]) -> str:
+    """Resolve the executable query.value from manual or advanced query form values."""
+    mode = normalize_query_input_mode(get_form_value(form_values, "query.input_mode"))
+    if mode == "manual":
+        return str(get_form_value(form_values, "query.value") or "").strip()
+
+    from bioseq_dl.gui.query_builders.uniprot import build_uniprot_interpreted_query  # noqa: PLC0415
+
+    rows = build_uniprot_builder_rows_from_form(form_values)
+    if not rows:
+        msg = "Advanced UniProt builder requires at least one condition."
+        raise ValueError(msg)
+    return build_uniprot_interpreted_query(rows)
 
 
 def parse_csv_list(value: object) -> list[str]:
@@ -326,7 +414,7 @@ def build_dataset_section(form_values: Mapping[str, object]) -> dict[str, object
 def build_query_section(form_values: Mapping[str, object]) -> dict[str, object]:
     """Build the workflow query section."""
     query: dict[str, object] = {
-        "value": get_form_value(form_values, "query.value"),
+        "value": resolve_query_value_from_form(form_values),
         "include_isoform": parse_bool(get_form_value(form_values, "query.include_isoform")),
     }
     add_optional_list(query, "fields", get_form_value(form_values, "query.fields"))
