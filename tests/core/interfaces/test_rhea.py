@@ -66,10 +66,10 @@ def test_fetch_raises_on_http_error(interface, niquests_mock):
 
 
 def test_fetch_single_records_failed_id_on_http_error(interface, niquests_mock):
-    # fetch() raises, but the high-level fetch_single degrades: empty data + failed_ids.
+    # fetch() raises, but the high-level fetch_single degrades: empty data + failed bucket.
     niquests_mock.get(url=startswith(API_URL)).respond(status_code=500, json={"error": "boom"})
 
     data, metadata = interface.fetch_single("RHEA:10000", method="rhea")
 
     assert not data
-    assert metadata.get("failed_ids")
+    assert metadata["failed"]["ids"]
