@@ -80,6 +80,63 @@ def test_save_list_tuple_to_json(tmp_path):
     assert json.loads(out.read_text()) == data
 
 
+def test_save_writes_metadata_sidecar(tmp_path):
+    df = pd.DataFrame({"id": ["X"]})
+    out = tmp_path / "out.csv"
+
+    save_or_print((df, {"api_name": "test", "tool": {"name": "bioseq_dl"}}), str(out))
+
+    sidecar = tmp_path / "out.metadata.json"
+    assert sidecar.exists()
+    assert json.loads(sidecar.read_text()) == {"api_name": "test", "tool": {"name": "bioseq_dl"}}
+
+
+def test_sidecar_tracks_actual_saved_file(tmp_path):
+    # When the format adds/normalizes the extension, the sidecar sits next to the
+    # real output file (noext.json), not the requested path.
+    df = pd.DataFrame({"id": ["X"]})
+    out = tmp_path / "noext"
+
+    save_or_print((df, {"api_name": "test"}), str(out), output_format="json")
+
+    assert (tmp_path / "noext.metadata.json").exists()
+
+
+def test_no_sidecar_when_metadata_empty(tmp_path):
+    df = pd.DataFrame({"id": ["X"]})
+    out = tmp_path / "out.csv"
+
+    save_or_print((df, {}), str(out))
+
+    assert not (tmp_path / "out.metadata.json").exists()
+
+
+def test_no_sidecar_when_printing_preview(tmp_path, capsys):
+    df = pd.DataFrame({"id": ["X"]})
+
+    save_or_print((df, {"api_name": "test"}), None)
+
+    assert list(tmp_path.iterdir()) == []
+    assert capsys.readouterr().out
+
+
+def test_no_sidecar_when_write_metadata_false(tmp_path):
+    df = pd.DataFrame({"id": ["X"]})
+    out = tmp_path / "out.csv"
+
+    save_or_print((df, {"api_name": "test"}), str(out), write_metadata=False)
+
+    assert out.exists()
+    assert not (tmp_path / "out.metadata.json").exists()
+
+
+def test_metadata_enabled_defaults_true_without_context():
+    from bioseq_dl.cli._shared import _metadata_enabled
+
+    # No active click context (direct call) -> sidecars enabled by default.
+    assert _metadata_enabled() is True
+
+
 def test_save_dataframe_infers_format_from_extension(tmp_path):
     df = pd.DataFrame({"id": ["X"], "value": [42]})
     out = tmp_path / "out.json"

@@ -8,6 +8,7 @@ from xml.etree.ElementTree import Element, ElementTree, fromstring
 
 import pandas as pd
 
+from bioseq_dl.core.metadata import FetchMetadata
 from bioseq_dl.core.utils.query_builders import INTERFACE_CLASSES, get_query_builder
 
 if TYPE_CHECKING:
@@ -168,40 +169,10 @@ class CrossRefEnricher:
 
         return result, metadata
 
-    def _merge_metadata(self, meta1: dict, meta2: dict) -> dict:
-        """Merge two metadata dicts, concatenating lists and summing counts where appropriate."""
-        merged = dict(meta1)  # Start with a copy of the first metadata
-
-        if not isinstance(meta2, dict):
-            return merged  # If meta2 is not a dict, just return meta1
-        if not isinstance(meta1, dict):
-            return meta2  # If meta1 is not a dict, just return meta2
-
-        for key, value in meta2.items():
-            if key in merged:
-                if isinstance(merged[key], list) and isinstance(value, list):
-                    merged[key] = merged[key] + value  # Concatenate lists
-                elif isinstance(merged[key], (int, float)) and isinstance(value, (int, float)):
-                    merged[key] = merged[key] + value  # Sum counts
-                # Special case: data_info, in this case we just need to sum n_missing, because all metadata
-                # values have the same
-                # structure across endpoints, so they will be overridden by the same value.
-                elif key == "data_info":
-                    if "total_entries" in merged[key] and "total_entries" in value:
-                        merged[key]["total_entries"] = merged[key]["total_entries"] + value["total_entries"]
-                    for column1, column2 in zip(
-                        merged[key].get("columns", []), value.get("columns", []), strict=False
-                    ):
-                        if column1["name"] == column2["name"]:
-                            column1["n_missing"] = column1.get("n_missing", 0) + column2.get("n_missing", 0)
-                else:
-                    # In this case, Override strings will not cause major issues, because all metadata values
-                    # Have the same structure across endpoints, so they will be overridden by the same value.
-                    merged[key] = value
-            else:
-                merged[key] = value  # Add new key-value pair
-
-        return merged
+    @staticmethod
+    def _merge_metadata(meta1: dict, meta2: dict) -> dict:
+        """Accumulate two same-endpoint fetch metadata dicts via ``FetchMetadata.merge``."""
+        return FetchMetadata.from_dict(meta1).merge(FetchMetadata.from_dict(meta2)).to_dict()
 
     @staticmethod
     def _clean_frame(result: Any) -> pd.DataFrame | None:
@@ -252,11 +223,27 @@ class CrossRefEnricher:
         # Apply row-wise; collect per-row DataFrames
         all_metadata = {}
         all_results = []
+        # Per-input-row enrichment outcome: lets callers see exactly which rows
+        # came back empty or failed (invisible in the merged aggregate alone).
+        per_row: list[dict[str, Any]] = []
 
-        for _, row in df.iterrows():
+        for idx, row in df.iterrows():
             result, metadata = self._search_and_merge(row, instance, spec, params, fmt)
             all_results.append(result)
             all_metadata = self._merge_metadata(all_metadata, metadata)
+            failed = metadata.get("failed", {}) if isinstance(metadata, dict) else {}
+            data_info = metadata.get("data_info", {}) if isinstance(metadata, dict) else {}
+            per_row.append(
+                {
+                    "row": int(idx) if isinstance(idx, (int, float)) else str(idx),
+                    "found": data_info.get("total_entries", 0),
+                    "failed_ids": failed.get("ids", []),
+                    "failed_reasons": failed.get("reasons", []),
+                }
+            )
+
+        # Attach per-row outcomes under the source-specific extra block.
+        all_metadata.setdefault("extra", {})["per_row"] = per_row
 
         # TODO(diego): comprobar si este cambio no es problematico
         if fmt == "dataframe":

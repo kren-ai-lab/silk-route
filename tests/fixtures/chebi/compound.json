@@ -543,12 +543,21 @@
   "roles_classification": [
     {
       "application": false,
-      "chemical_role": true,
-      "chebi_accession": "CHEBI:76413",
-      "name": "greenhouse gas",
-      "definition": "A gas in an atmosphere that absorbs and emits radiation within the thermal infrared range, so contributing to the 'greenhouse effect'.",
-      "id": 76413,
-      "biological_role": false
+      "chemical_role": false,
+      "chebi_accession": "CHEBI:75771",
+      "name": "mouse metabolite",
+      "definition": "Any mammalian metabolite produced during a metabolic reaction in a mouse (<em>Mus musculus</em>).",
+      "id": 75771,
+      "biological_role": true
+    },
+    {
+      "application": false,
+      "chemical_role": false,
+      "chebi_accession": "CHEBI:75772",
+      "name": "Saccharomyces cerevisiae metabolite",
+      "definition": "Any  fungal metabolite produced during a metabolic reaction in Baker's yeast (<em>Saccharomyces cerevisiae </em>).",
+      "id": 75772,
+      "biological_role": true
     },
     {
       "application": true,
@@ -558,15 +567,6 @@
       "definition": "Self-ionizing solvent possessing both characteristics of Br\u00f8nsted acids and bases.",
       "id": 48360,
       "biological_role": false
-    },
-    {
-      "application": false,
-      "chemical_role": false,
-      "chebi_accession": "CHEBI:75771",
-      "name": "mouse metabolite",
-      "definition": "Any mammalian metabolite produced during a metabolic reaction in a mouse (<em>Mus musculus</em>).",
-      "id": 75771,
-      "biological_role": true
     },
     {
       "application": false,
@@ -588,12 +588,12 @@
     },
     {
       "application": false,
-      "chemical_role": false,
-      "chebi_accession": "CHEBI:75772",
-      "name": "Saccharomyces cerevisiae metabolite",
-      "definition": "Any  fungal metabolite produced during a metabolic reaction in Baker's yeast (<em>Saccharomyces cerevisiae </em>).",
-      "id": 75772,
-      "biological_role": true
+      "chemical_role": true,
+      "chebi_accession": "CHEBI:76413",
+      "name": "greenhouse gas",
+      "definition": "A gas in an atmosphere that absorbs and emits radiation within the thermal infrared range, so contributing to the 'greenhouse effect'.",
+      "id": 76413,
+      "biological_role": false
     }
   ],
   "is_released": true
