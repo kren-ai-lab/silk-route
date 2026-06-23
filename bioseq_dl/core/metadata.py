@@ -157,7 +157,13 @@ class FailedBlock:
 
 
 def _widest(a: str, b: str, *, keep_min: bool) -> str:
-    """Min/max of two ISO-8601 timestamps, ignoring empty strings."""
+    """Min/max of two ISO-8601 timestamps, ignoring empty strings.
+
+    Compares the raw strings, which orders correctly only when both share the
+    same UTC offset. All producers emit ``+00:00`` (``datetime.now(UTC)`` /
+    ``datetime.fromtimestamp(..., tz=UTC)``), so this holds; a producer using a
+    different offset would need parsing before comparison.
+    """
     if not a:
         return b
     if not b:

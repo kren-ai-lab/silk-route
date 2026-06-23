@@ -387,11 +387,13 @@ class UniprotInterface(BaseAPIInterface):
 
         time_finished = time.time()
         failed_ids = [fid for res in results for fid in res.get("failedIds", [])]
+        mapped_records = [record for res in results for record in res.get("results", [])]
         meta = FetchMetadata(
             tool=current_tool(),
             started_at=datetime.fromtimestamp(time_started, tz=UTC).isoformat(),
             finished_at=datetime.fromtimestamp(time_finished, tz=UTC).isoformat(),
             request=RequestInfo(api_name=self.API_NAME, method="idmapping", option=None),
+            data_info=self._build_data_info(mapped_records),
             extra={
                 "batch_size": batch_size,
                 "num_batches": (len(ids) + batch_size - 1) // batch_size,

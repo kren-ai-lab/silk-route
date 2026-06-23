@@ -63,7 +63,6 @@ def _extract_nested_values(value: object) -> list[str]:
     return result
 
 
-# noinspection D
 class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have concrete defaults
     """Abstract base class for all BioSeqDownloader API interfaces."""
 
