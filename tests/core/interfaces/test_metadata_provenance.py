@@ -14,6 +14,7 @@ import pytest
 
 import bioseq_dl
 from bioseq_dl.core.interfaces.base import BaseAPIInterface
+from bioseq_dl.core.metadata import FetchMetadata
 
 
 class FakeInterface(BaseAPIInterface):
@@ -66,8 +67,8 @@ def test_fetch_batch_stamps_provenance(interface):
     _assert_provenance(metadata)
 
 
-def test_empty_metadata_skeleton_has_provenance_keys():
-    skeleton = BaseAPIInterface._empty_metadata()
+def test_fetch_metadata_skeleton_has_provenance_keys():
+    skeleton = FetchMetadata().to_dict()
     assert skeleton["tool"] == {"name": "", "version": ""}
     assert skeleton["started_at"] == ""
     assert skeleton["finished_at"] == ""

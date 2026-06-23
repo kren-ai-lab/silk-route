@@ -27,6 +27,7 @@ from niquests.models import Request, Response
 from bioseq_dl.core.dbconfig import DBConfig
 from bioseq_dl.core.exceptions import RequestError
 from bioseq_dl.core.interfacesconfig import load_packaged_config, read_config_file
+from bioseq_dl.core.metadata import FetchMetadata
 from bioseq_dl.core.utils.base_auxiliary_methods import get_nested, get_primary_keys, validate_parameters
 from bioseq_dl.logging import get_logger
 
@@ -231,25 +232,6 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         time.sleep(random.uniform(self.min_wait, self.max_wait))  # noqa: S311  # jittered rate-limit delay, not cryptographic
 
     @staticmethod
-    def _empty_metadata() -> dict[str, Any]:
-        """Return a fresh metadata skeleton shared by fetch_single/fetch_batch."""
-        return {
-            "tool": {"name": "", "version": ""},
-            "started_at": "",
-            "cached_ids": [],
-            "cached_subqueries": [],
-            "fetched_ids": [],
-            "fetched_subqueries": [],
-            "failed_ids": [],
-            "fetched_length": 0,
-            "data_info": {},
-            "finished_at": "",
-            "api_name": "",
-            "method": "",
-            "option": "",
-        }
-
-    @staticmethod
     def _tool_metadata() -> dict[str, str]:
         """Return the ``tool`` provenance block (library name + version).
 
@@ -260,12 +242,12 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
 
         return {"name": "bioseq_dl", "version": __version__}
 
-    def _stamp_metadata(self, metadata: dict, *, method: str, option: Any) -> None:
+    def _stamp_metadata(self, metadata: FetchMetadata, *, method: str, option: Any) -> None:
         """Stamp the API/method/option fields shared by every fetch return path."""
-        metadata["tool"] = self._tool_metadata()
-        metadata["api_name"] = self.API_NAME
-        metadata["method"] = method
-        metadata["option"] = option
+        metadata.tool = self._tool_metadata()
+        metadata.api_name = self.API_NAME
+        metadata.method = method
+        metadata.option = option
 
     def _apply_default_option(self, kwargs: dict) -> None:
         """Inject ``DEFAULT_OPTION`` into ``kwargs`` when the caller omitted ``option``."""
@@ -768,7 +750,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
             Tuple[Union[List, Dict, pd.DataFrame], Dict]: Fetched (and optionally parsed) data and metadata.
 
         """
-        metadata = self._empty_metadata()
+        metadata = FetchMetadata()
         # Extract flags and avoid passing twice to _maybe_parse
         self._apply_default_option(kwargs)
         fmt = kwargs.pop("format", "json")
@@ -781,7 +763,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         group_key = spec.get("group_queries", [None])[0]
 
         # If group_key is present and value is list: check cache per element
-        metadata["started_at"] = datetime.now(UTC).isoformat()
+        metadata.started_at = datetime.now(UTC).isoformat()
         if isinstance(query, dict) and group_key and isinstance(query.get(group_key), list):
             log.debug("Multiple queries detected in the input.")
             log.debug("Generated a group of queries based on key '%s' with multiple values.", group_key)
@@ -795,8 +777,8 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                 cache_key = self._make_cache_key(identifier, **kwargs)
                 if self.has_results(cache_key):
                     log.debug("Cache hit for identifier: %s, loading from cache.", identifier)
-                    metadata["cached_ids"] = [*metadata.get("cached_ids", []), identifier]
-                    metadata["cached_subqueries"] = [*metadata.get("cached_subqueries", []), subq]
+                    metadata.cached_ids.append(identifier)
+                    metadata.cached_subqueries.append(subq)
                     raw = self.load_cache(cache_key)
                     parsed = self._maybe_parse(data=raw, parse=parse, fmt=fmt, **kwargs)
                     results[identifier] = parsed
@@ -807,8 +789,8 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
             # If some remain, fetch them together
             if remaining:
                 log.debug("Fetching remaining %s subqueries in a single request.", len(remaining))
-                metadata["fetched_ids"] = [identifier for identifier, _ in remaining]
-                metadata["fetched_subqueries"] = [subq for _, subq in remaining]
+                metadata.fetched_ids = [identifier for identifier, _ in remaining]
+                metadata.fetched_subqueries = [subq for _, subq in remaining]
                 combined = self.merge_dicts([subq for _, subq in remaining])
                 params = self._prepare_params(combined, spec, **kwargs)
                 try:
@@ -821,7 +803,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                     partial_result = mapping.get(identifier, [])
                     if not partial_result:
                         log.debug("No results found for identifier %s. Skipping.", identifier)
-                        metadata["failed_ids"] = [*metadata.get("failed_ids", []), identifier]
+                        metadata.failed_ids.append(identifier)
                         continue
                     log.debug(
                         "Fetched %s items for identifier %s. Caching result.", len(partial_result), identifier
@@ -858,20 +840,20 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                 if len(export_data) == 1:
                     export_data = export_data[0]
 
-            metadata["fetched_length"] = len(flat)
-            metadata["data_info"] = self._build_data_info(export_data if fmt == "dataframe" else flat)
-            metadata["finished_at"] = datetime.now(UTC).isoformat()
+            metadata.fetched_length = len(flat)
+            metadata.data_info = self._build_data_info(export_data if fmt == "dataframe" else flat)
+            metadata.finished_at = datetime.now(UTC).isoformat()
             self._stamp_metadata(metadata, method=method, option=option)
 
-            return export_data, metadata
+            return export_data, metadata.to_dict()
         log.debug("Single query detected, proceeding with fetch.")
         params = self._prepare_params(query, spec, **kwargs)
         identifier = self._make_identifier(query, spec)
         cache_key = self._make_cache_key(identifier, **kwargs)
         if self.has_results(cache_key):
             log.debug("Cache hit for identifier: %s, loading from cache.", identifier)
-            metadata["cached_ids"] = [identifier]
-            metadata["cached_subqueries"] = [query]
+            metadata.cached_ids = [identifier]
+            metadata.cached_subqueries = [query]
             raw = self.load_cache(cache_key)
         else:
             # TODO(diego): Probably is necesary to give the user the option to not save empty results, check
@@ -883,20 +865,20 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                 log.exception("Request failed for identifier %s", identifier)
                 raw = {}
             # Save to cache even if empty, to avoid refetching known empty results
-            metadata["fetched_ids"] = [identifier]
-            metadata["fetched_subqueries"] = [query]
-            metadata["fetched_length"] = len(raw) if isinstance(raw, list) else 1
+            metadata.fetched_ids = [identifier]
+            metadata.fetched_subqueries = [query]
+            metadata.fetched_length = len(raw) if isinstance(raw, list) else 1
             self.save_cache(cache_key, raw)
             if not raw:
-                metadata["failed_ids"] = [identifier]
+                metadata.failed_ids = [identifier]
 
         parsed = self._maybe_parse(data=raw, parse=parse, fmt=fmt, **kwargs)
 
-        metadata["data_info"] = self._build_data_info(parsed)
-        metadata["finished_at"] = datetime.now(UTC).isoformat()
+        metadata.data_info = self._build_data_info(parsed)
+        metadata.finished_at = datetime.now(UTC).isoformat()
         self._stamp_metadata(metadata, method=method, option=option)
 
-        return parsed, metadata
+        return parsed, metadata.to_dict()
 
     def fetch_batch(
         self, queries: Sequence[str | dict], parse: bool = False, *args: Any, **kwargs: Any
@@ -914,7 +896,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
             metadata.
 
         """
-        metadata = self._empty_metadata()
+        metadata = FetchMetadata()
         self._apply_default_option(kwargs)
         method = kwargs.get("method", "NOT_GIVEN")
         fmt = kwargs.pop("format", "json")
@@ -960,8 +942,8 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                     index_query_map[i] = query
                 else:
                     for identifier, subquery in subqueries:
-                        metadata["cached_ids"] = [*metadata.get("cached_ids", []), identifier]
-                        metadata["cached_subqueries"] = [*metadata.get("cached_subqueries", []), subquery]
+                        metadata.cached_ids.append(identifier)
+                        metadata.cached_subqueries.append(subquery)
                     for _identifier, result in cached_subquery_results:
                         log.debug("Cache hit for subquery identifier: %s, loading from cache.", _identifier)
                         results.append(self._maybe_parse(data=result, parse=parse, fmt=fmt, **kwargs))
@@ -971,8 +953,8 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                 cache_key = self._make_cache_key(query, **kwargs)
                 if self.has_results(cache_key):
                     log.debug("Cache hit for query at index %s, loading from cache.", i)
-                    metadata["cached_ids"] = [*metadata.get("cached_ids", []), cache_key]
-                    metadata["cached_subqueries"] = [*metadata.get("cached_subqueries", []), query]
+                    metadata.cached_ids.append(cache_key)
+                    metadata.cached_subqueries.append(query)
                     cached = self.load_cache(cache_key)
                     result = cached.to_dict(orient="records") if isinstance(cached, pd.DataFrame) else cached
                     results.append(self._maybe_parse(data=result, parse=parse, fmt=fmt, **kwargs))
@@ -987,7 +969,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         # If there is an incorrect cache key handling then it's better to do a better implementation
         #############################
         # Fetch missing ones in parallel
-        metadata["started_at"] = datetime.now(UTC).isoformat()
+        metadata.started_at = datetime.now(UTC).isoformat()
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             future_to_index = {
                 executor.submit(self.fetch_single, query, parse, *args, **kwargs): i
@@ -996,8 +978,8 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
             }
             for future, i in future_to_index.items():
                 log.debug("Waiting for future result for query at index %s", i)
-                metadata["fetched_ids"] = [*metadata.get("fetched_ids", []), i]
-                metadata["fetched_subqueries"] = [*metadata.get("fetched_subqueries", []), index_query_map[i]]
+                metadata.fetched_ids.append(i)
+                metadata.fetched_subqueries.append(index_query_map[i])
                 try:
                     result = future.result()
 
@@ -1010,8 +992,8 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                 except Exception:
                     log.exception("Error fetching query at index %s (%s)", i, queries[i])
                 self._delay()
-        metadata["finished_at"] = datetime.now(UTC).isoformat()
-        metadata["fetched_length"] = sum(len(r) if isinstance(r, list) else 1 for r in results)
+        metadata.finished_at = datetime.now(UTC).isoformat()
+        metadata.fetched_length = sum(len(r) if isinstance(r, list) else 1 for r in results)
 
         # If it's a list of dataframes, concatenate them
         if all(isinstance(r, pd.DataFrame) for r in results) and len(results) > 0:
@@ -1019,10 +1001,10 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         else:
             batch_data = results
 
-        metadata["data_info"] = self._build_data_info(batch_data)
+        metadata.data_info = self._build_data_info(batch_data)
         self._stamp_metadata(metadata, method=method, option=option)
 
-        return batch_data, metadata
+        return batch_data, metadata.to_dict()
 
     ###################
     # Auxiliary methods
