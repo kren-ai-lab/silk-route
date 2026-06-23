@@ -11,6 +11,7 @@ from bioseq_dl.gui.query_builders.uniprot import (
     UniProtQueryBuilderRow,
     build_uniprot_friendly_query,
     build_uniprot_interpreted_query,
+    get_uniprot_query_builder_field_metadata,
 )
 
 
@@ -59,14 +60,14 @@ def test_values_with_spaces_are_quoted_and_ranges_are_not_quoted():
 def test_invalid_field_is_rejected():
     rows = [UniProtQueryBuilderRow(None, "unsupported", "value", "any")]
 
-    with pytest.raises(ValueError, match="Unsupported UniProt query builder field"):
+    with pytest.raises(ValueError, match="Row 1: field is not supported"):
         build_uniprot_friendly_query(rows)
 
 
 def test_invalid_match_mode_is_rejected():
     rows = [UniProtQueryBuilderRow(None, "organism", "Homo sapiens", "some")]
 
-    with pytest.raises(ValueError, match="Unsupported UniProt query match mode"):
+    with pytest.raises(ValueError, match="Row 1: match mode must be any, all, or not"):
         build_uniprot_friendly_query(rows)
 
 
@@ -76,8 +77,33 @@ def test_missing_connector_in_non_first_row_is_rejected():
         UniProtQueryBuilderRow(None, "go", "DNA repair", "any"),
     ]
 
-    with pytest.raises(ValueError, match="require an AND or OR connector"):
+    with pytest.raises(ValueError, match="Row 2: connector must be AND or OR"):
         build_uniprot_friendly_query(rows)
+
+
+def test_first_row_does_not_require_connector():
+    rows = [UniProtQueryBuilderRow(None, "organism", "Homo sapiens", "any")]
+
+    assert build_uniprot_friendly_query(rows) == 'organism_any:"Homo sapiens"'
+
+
+def test_builder_error_for_missing_values_includes_row_context():
+    rows = [
+        UniProtQueryBuilderRow(None, "organism", "Homo sapiens", "any"),
+        UniProtQueryBuilderRow("AND", "go", "", "any"),
+    ]
+
+    with pytest.raises(ValueError, match="Row 2: values are required"):
+        build_uniprot_friendly_query(rows)
+
+
+def test_selected_field_metadata_is_available_for_ui_display():
+    metadata = get_uniprot_query_builder_field_metadata("go")
+
+    assert metadata.label == "GO term"
+    assert metadata.description
+    assert metadata.placeholder == '0006281,"DNA repair"'
+    assert metadata.examples
 
 
 def test_interpreted_query_is_returned_from_builder_rows():
@@ -98,7 +124,7 @@ def test_databases_field_builds_interpreted_query_and_db_alias_is_rejected():
     assert build_uniprot_friendly_query(rows) == "databases_any:alphafold,pdb"
     assert build_uniprot_interpreted_query(rows) == "(database:alphafolddb OR database:pdb)"
 
-    with pytest.raises(ValueError, match="Unsupported UniProt query builder field"):
+    with pytest.raises(ValueError, match="field is not supported"):
         build_uniprot_friendly_query([UniProtQueryBuilderRow(None, "db", "alphafold", "any")])
 
 

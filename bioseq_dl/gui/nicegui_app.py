@@ -12,6 +12,7 @@ from bioseq_dl.core.workflow.query_field_catalog import get_uniprot_query_builde
 from bioseq_dl.gui.query_builders.uniprot import (
     build_uniprot_friendly_query,
     build_uniprot_interpreted_query,
+    get_uniprot_query_builder_field_metadata,
 )
 from bioseq_dl.gui.yaml_builder import (
     EXPORT_FORMAT_LABEL_TO_VALUE,
@@ -61,6 +62,25 @@ def get_uniprot_builder_field_value(label_or_value: object) -> str:
     """Return an internal builder field key for a visible field label or field key."""
     text = str(label_or_value)
     return UNIPROT_BUILDER_FIELD_LABEL_TO_VALUE.get(text, text)
+
+
+def get_uniprot_builder_field_entry(label_or_value: object) -> object:
+    """Return catalog metadata for a visible field label or field key."""
+    field = get_uniprot_builder_field_value(label_or_value)
+    return get_uniprot_query_builder_field_metadata(field)
+
+
+def get_uniprot_builder_field_placeholder(label_or_value: object) -> str:
+    """Return the values placeholder for a visible field label or field key."""
+    entry = get_uniprot_builder_field_entry(label_or_value)
+    return str(entry.placeholder)
+
+
+def get_uniprot_builder_field_help(label_or_value: object) -> str:
+    """Return compact field help for a visible field label or field key."""
+    entry = get_uniprot_builder_field_entry(label_or_value)
+    examples = ", ".join(entry.examples)
+    return f"{entry.description} Examples: {examples}"
 
 
 def get_uniprot_match_mode_label(value: object) -> str:
@@ -218,12 +238,27 @@ class WorkflowYamlBuilderApp:
 
             with ui.column().classes("w-full gap-3") as builder_panel:
                 ui.label(
-                    "Advanced builder fields control the executable search query. "
-                    "They are separate from Return fields and Cross-reference fields."
+                    "Build a UniProt-style query using rows. Each row selects a query field, "
+                    "one or more comma-separated values, and how those values are matched. "
+                    "The final interpreted query is stored as query.value in the YAML."
+                ).classes("text-sm text-gray-700")
+                ui.label(
+                    "This builder does not call UniProt, does not validate values against live "
+                    "databases, and does not execute the workflow."
+                ).classes("text-sm text-gray-700")
+                ui.label(
+                    "Connector combines this row with the previous row. Use AND when both "
+                    "conditions should be required; use OR when either condition can match."
+                ).classes("text-sm text-gray-700")
+                ui.label(
+                    "Match mode combines comma-separated values inside one row. Any means at "
+                    "least one value can match. All means every value must match. Not means the "
+                    "values are excluded."
                 ).classes("text-sm text-gray-700")
                 self.build_uniprot_builder_rows()
                 with ui.row().classes("items-center gap-3"):
                     ui.button("Add condition", on_click=self.add_uniprot_builder_row)
+                    ui.button("Update query preview", on_click=self.update_builder_previews)
                 self.friendly_query_preview = (
                     ui.textarea("Friendly query preview")
                     .classes("w-full font-mono")
@@ -272,37 +307,49 @@ class WorkflowYamlBuilderApp:
     def build_uniprot_builder_rows(self) -> None:
         """Build advanced UniProt query builder row controls."""
         for index, row in enumerate(self.uniprot_builder_rows):
+            field_help = get_uniprot_builder_field_help(row.get("field", ""))
+            values_placeholder = get_uniprot_builder_field_placeholder(row.get("field", ""))
             with ui.row().classes("w-full items-end gap-3"):
                 if index == 0:
-                    ui.input("Connector").props('readonly placeholder=""').classes("w-28")
+                    ui.input("First condition").props('readonly placeholder=""').classes("w-32")
                 else:
                     (
                         ui.select(["AND", "OR"], label="Connector")
                         .bind_value(row, "connector")
                         .on_value_change(self.update_builder_previews)
                         .classes("w-28")
+                        .tooltip(
+                            "Connector controls how this row is combined with the previous row."
+                        )
                     )
                 (
                     ui.select(list(UNIPROT_BUILDER_FIELD_LABEL_TO_VALUE), label="Field")
                     .bind_value(row, "field")
-                    .on_value_change(self.update_builder_previews)
+                    .on_value_change(partial(self.handle_uniprot_builder_field_change, index))
                     .classes("min-w-56")
+                    .tooltip(field_help)
                 )
                 (
-                    ui.input("Values")
-                    .props('clearable placeholder="Homo sapiens,Mus musculus"')
+                    ui.input("Values", placeholder=values_placeholder)
+                    .props("clearable")
                     .bind_value(row, "values")
                     .on_value_change(self.update_builder_previews)
                     .classes("grow")
+                    .tooltip("Enter one or more comma-separated values for the selected field.")
                 )
                 (
                     ui.select(list(UNIPROT_MATCH_MODE_LABEL_TO_VALUE), label="Match mode")
                     .bind_value(row, "match_mode")
                     .on_value_change(self.update_builder_previews)
                     .classes("w-32")
+                    .tooltip(
+                        "Match mode controls how comma-separated values inside this row are "
+                        "combined."
+                    )
                 )
                 if index > 0:
                     ui.button("Remove", on_click=partial(self.remove_uniprot_builder_row, index))
+            ui.label(field_help).classes("text-xs text-gray-600")
 
     def add_uniprot_builder_row(self) -> None:
         """Add one advanced UniProt builder condition row."""
@@ -316,6 +363,12 @@ class WorkflowYamlBuilderApp:
         if index <= 0 or index >= len(self.uniprot_builder_rows):
             return
         self.uniprot_builder_rows.pop(index)
+        self.sync_uniprot_builder_rows_to_form()
+        self.build_uniprot_builder_rows.refresh()
+        self.update_builder_previews()
+
+    def handle_uniprot_builder_field_change(self, _index: int, *_args: object) -> None:
+        """Refresh field-specific help after a builder field changes."""
         self.sync_uniprot_builder_rows_to_form()
         self.build_uniprot_builder_rows.refresh()
         self.update_builder_previews()

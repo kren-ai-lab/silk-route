@@ -190,6 +190,10 @@ previews and builder rows are not saved to YAML. Human-friendly GUI labels are
 translated to exact workflow-v1 schema values.
 `query.fields` and `query.crossref_fields` remain separate optional inputs and
 are not advanced-builder search conditions.
+In the Advanced UniProt builder, Connector combines a row with the previous row
+using `AND` or `OR`, while Match mode combines comma-separated values inside
+one row as `Any`, `All`, or `Not`. Values containing spaces can be quoted. The
+builder does not call UniProt or validate values against live services.
 The visible `Harmonization` controls describe expected output columns and
 reporting-related behavior. Metadata fields are entered as comma-separated
 values and generated as a YAML list; descriptive harmonization values do not

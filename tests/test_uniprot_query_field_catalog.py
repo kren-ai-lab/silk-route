@@ -32,6 +32,7 @@ def test_uniprot_query_builder_visible_fields_expose_gui_metadata():
     catalog = get_uniprot_query_builder_field_catalog()
 
     for entry in catalog.values():
+        assert entry.key
         assert entry.label
         assert entry.description
         assert entry.placeholder
@@ -47,6 +48,18 @@ def test_uniprot_query_builder_catalog_exposes_canonical_database_field_only():
     assert "db" not in catalog
     assert "xref" not in catalog
     assert "database" not in catalog
+
+
+def test_uniprot_query_builder_catalog_contains_field_specific_placeholders():
+    catalog = get_uniprot_query_builder_field_catalog()
+
+    assert catalog["organism"].placeholder == "Homo sapiens"
+    assert catalog["temperature"].placeholder == "20-30,50-60"
+    assert catalog["go"].placeholder == '0006281,"DNA repair"'
+    assert catalog["keywords"].placeholder == '"ATP binding","Metal-binding"'
+    assert catalog["databases"].placeholder == "alphafold,pdb,string"
+    assert catalog["length"].placeholder == "100-500"
+    assert catalog["ph"].placeholder == "6-8"
 
 
 def test_default_uniprot_interpreter_builds_fields_from_shared_catalog():

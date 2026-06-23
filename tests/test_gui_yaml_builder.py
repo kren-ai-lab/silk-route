@@ -271,7 +271,7 @@ def test_advanced_uniprot_builder_mode_keeps_query_fields_separate() -> None:
 
 
 def test_advanced_uniprot_builder_mode_rejects_invalid_rows() -> None:
-    with pytest.raises(ValueError, match="requires at least one value"):
+    with pytest.raises(ValueError, match="Row 1: values are required"):
         build_workflow_descriptor(
             minimal_form_values()
             | {

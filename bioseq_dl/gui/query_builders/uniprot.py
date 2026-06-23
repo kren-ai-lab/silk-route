@@ -5,7 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from bioseq_dl.core.workflow.query_field_catalog import get_uniprot_query_builder_field_catalog
+from bioseq_dl.core.workflow.query_field_catalog import (
+    UniProtQueryFieldCatalogEntry,
+    get_uniprot_query_builder_field_catalog,
+)
 from bioseq_dl.core.workflow.query_interpreter import (
     build_default_uniprot_interpreter,
     split_quoted_csv_values,
@@ -17,6 +20,7 @@ if TYPE_CHECKING:
 
 ALLOWED_CONNECTORS = {"AND", "OR"}
 ALLOWED_MATCH_MODES = {"any", "all", "not"}
+READABLE_MATCH_MODES = "any, all, or not"
 
 
 @dataclass(frozen=True)
@@ -62,6 +66,21 @@ def format_uniprot_friendly_values(values: str) -> str:
     return ",".join(quote_uniprot_friendly_value(part) for part in parts)
 
 
+def get_uniprot_query_builder_field_metadata(field: str) -> UniProtQueryFieldCatalogEntry:
+    """Return metadata for one field visible in the UniProt query builder."""
+    normalized_field = normalize_query_builder_field(field)
+    catalog = get_uniprot_query_builder_field_catalog()
+    if normalized_field not in catalog:
+        msg = f"Field '{field}' is not supported by the UniProt query builder."
+        raise ValueError(msg)
+    return catalog[normalized_field]
+
+
+def format_builder_row_error(row_index: int, message: str) -> str:
+    """Return a user-facing validation error with one-based row context."""
+    return f"Row {row_index + 1}: {message}"
+
+
 def validate_uniprot_query_builder_rows(rows: Sequence[UniProtQueryBuilderRow]) -> None:
     """Validate future UniProt query builder rows."""
     catalog = get_uniprot_query_builder_field_catalog()
@@ -69,27 +88,36 @@ def validate_uniprot_query_builder_rows(rows: Sequence[UniProtQueryBuilderRow]) 
         connector = normalize_query_builder_connector(row.connector)
         if index == 0:
             if connector is not None:
-                msg = "The first query row connector must be empty."
+                msg = format_builder_row_error(index, "connector is not used for the first condition.")
                 raise ValueError(msg)
         elif connector not in ALLOWED_CONNECTORS:
-            msg = "Rows after the first query row require an AND or OR connector."
+            msg = format_builder_row_error(index, "connector must be AND or OR.")
             raise ValueError(msg)
 
         field = normalize_query_builder_field(row.field)
         if field not in catalog:
-            msg = f"Unsupported UniProt query builder field '{row.field}'."
+            msg = format_builder_row_error(
+                index,
+                "field is not supported by the UniProt query builder.",
+            )
             raise ValueError(msg)
 
         match_mode = normalize_query_builder_match_mode(row.match_mode)
         if match_mode not in ALLOWED_MATCH_MODES:
-            msg = f"Unsupported UniProt query match mode '{row.match_mode}'."
+            msg = format_builder_row_error(
+                index,
+                f"match mode must be {READABLE_MATCH_MODES}.",
+            )
             raise ValueError(msg)
         if match_mode not in catalog[field].supported_match_modes:
-            msg = f"Field '{field}' does not support match mode '{match_mode}'."
+            msg = format_builder_row_error(
+                index,
+                f"field '{field}' does not support match mode '{match_mode}'.",
+            )
             raise ValueError(msg)
 
         if not split_quoted_csv_values(row.values):
-            msg = f"Field '{field}' requires at least one value."
+            msg = format_builder_row_error(index, "values are required.")
             raise ValueError(msg)
 
 

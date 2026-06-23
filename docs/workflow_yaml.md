@@ -246,6 +246,16 @@ absolute paths or `..` traversal. This path is used later when the YAML is
 executed; the GUI does not create the directory, execute a workflow, or call an
 API.
 
+Advanced UniProt builder rows use two separate controls for query logic.
+Connector combines the current row with the previous row; use `AND` when both
+conditions should be required and `OR` when either condition can match. Match
+mode combines comma-separated values inside a single row: `Any` means at least
+one value can match, `All` means every value must match, and `Not` excludes the
+values. Values with spaces can be quoted, such as `"Homo sapiens"` or
+`"DNA repair"`. The friendly query preview is an intermediate display only; the
+interpreted `query.value` preview is the value that generated YAML stores under
+`query.value`.
+
 The `Harmonization` section describes expected output columns and related
 reporting behavior. `ID column`, `Label column`, `Sequence column`, and `Unique
 sequence strategy` are optional text inputs. `Metadata fields` accepts a
