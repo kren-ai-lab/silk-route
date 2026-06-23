@@ -53,6 +53,25 @@ def test_parse_counts_failed_ids_as_failed_records(interface):
     assert metadata["failed_records"] == 2
 
 
+def test_submit_stream_returns_fetchmetadata_shape(interface, niquests_mock):
+    # UniProt fetch metadata is normalized onto FetchMetadata so it matches every
+    # other source's block (#2): common envelope + UniProt detail under `extra`.
+    results = load_fixture("uniprot", "idmapping_results")
+    niquests_mock.get(url=startswith(f"{API_URL}/uniprotkb/stream")).respond(
+        status_code=200, json=results, headers={"Content-Length": "123"}
+    )
+
+    _, metadata = interface.submit_stream(query="kinase", fields="accession", sort="")
+
+    assert metadata["tool"]["name"] == "bioseq_dl"
+    assert metadata["request"] == {"api_name": "UniProt", "method": "uniprotkb", "option": None}
+    assert metadata["started_at"]
+    assert metadata["finished_at"]
+    assert set(metadata) >= {"tool", "request", "cached", "fetched", "failed", "data_info", "extra"}
+    assert metadata["extra"]["status_code"] == 200
+    assert metadata["extra"]["query"] == "kinase"
+
+
 def test_submit_id_mapping_posts_and_returns_job_id(interface, niquests_mock):
     niquests_mock.post(url=startswith(f"{API_URL}/idmapping/run")).respond(
         status_code=200, json={"jobId": "JOB123"}

@@ -27,7 +27,7 @@ from niquests.models import Request, Response
 from bioseq_dl.core.dbconfig import DBConfig
 from bioseq_dl.core.exceptions import RequestError
 from bioseq_dl.core.interfacesconfig import load_packaged_config, read_config_file
-from bioseq_dl.core.metadata import FetchMetadata, RequestInfo, ToolInfo
+from bioseq_dl.core.metadata import FetchMetadata, RequestInfo, current_tool
 from bioseq_dl.core.utils.base_auxiliary_methods import get_nested, get_primary_keys, validate_parameters
 from bioseq_dl.logging import get_logger
 
@@ -232,14 +232,8 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         time.sleep(random.uniform(self.min_wait, self.max_wait))  # noqa: S311  # jittered rate-limit delay, not cryptographic
 
     def _stamp_metadata(self, metadata: FetchMetadata, *, method: str, option: Any) -> None:
-        """Stamp the ``tool`` and ``request`` provenance shared by every return path.
-
-        ``__version__`` is imported lazily to avoid a circular import: ``base`` is
-        only loaded after the ``bioseq_dl`` package has finished initializing.
-        """
-        from bioseq_dl import __version__  # noqa: PLC0415  # lazy to avoid a circular import
-
-        metadata.tool = ToolInfo(name="bioseq_dl", version=__version__)
+        """Stamp the ``tool`` and ``request`` provenance shared by every return path."""
+        metadata.tool = current_tool()
         metadata.request = RequestInfo(api_name=self.API_NAME, method=method, option=option)
 
     def _apply_default_option(self, kwargs: dict) -> None:

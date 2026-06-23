@@ -360,13 +360,13 @@ class MainWorkflow:
             timeout=timeout,
         )
         if isinstance(fetch_meta, dict):
-            search_process = fetch_meta.get("search_process", {})
+            extra = fetch_meta.get("extra", {})
             self.log.info(
-                "Pipeline: UniProt fetch completed (status=%s elapsed=%s size_bytes=%s results=%s)",
-                search_process.get("status_code"),
-                search_process.get("time_taken_seconds"),
-                search_process.get("response_size_bytes"),
-                search_process.get("total_results"),
+                "Pipeline: UniProt fetch completed (status=%s elapsed=%.2fs size_bytes=%s results=%s)",
+                extra.get("status_code"),
+                _elapsed_seconds(fetch_meta.get("started_at"), fetch_meta.get("finished_at")),
+                extra.get("response_size_bytes"),
+                extra.get("total_results"),
             )
         return resp, fetch_meta
 
@@ -680,11 +680,13 @@ class MainWorkflow:
             {
                 "time_taken_seconds": sum(
                     [
-                        context.get("metadata", {})
-                        .get("uniprot", {})
-                        .get("fetch", {})
-                        .get("search_process", {})
-                        .get("time_taken_seconds", 0),
+                        _elapsed_seconds(
+                            context.get("metadata", {}).get("uniprot", {}).get("fetch", {}).get("started_at"),
+                            context.get("metadata", {})
+                            .get("uniprot", {})
+                            .get("fetch", {})
+                            .get("finished_at"),
+                        ),
                         calculate_enrichment_execution_time(
                             context.get("metadata", {}).get("uniprot_enrichment", {})
                         ),

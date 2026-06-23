@@ -14,8 +14,9 @@ Serialized shape::
       "request":    {"api_name": "ChEMBL", "method": "molecule", "option": null},
       "cached":     {"ids": [...], "subqueries": [...], "length": N},
       "fetched":    {"ids": [...], "subqueries": [...], "length": N},
-      "failed":     {"ids": [...], "subqueries": [...], "length": N},
-      "data_info":  {...}
+      "failed":     {"ids": [...], "subqueries": [...], "reasons": [...], "length": N},
+      "data_info":  {...},
+      "extra":      {...}   # source-specific provenance (e.g. UniProt http/batch detail)
     }
 """
 
@@ -41,6 +42,17 @@ class ToolInfo:
         """Reconstruct from a serialized ``{name, version}`` dict."""
         data = data or {}
         return cls(name=data.get("name", ""), version=data.get("version", ""))
+
+
+def current_tool() -> ToolInfo:
+    """Return the running library's provenance block.
+
+    ``__version__`` is imported lazily to avoid a circular import (this module is
+    imported during ``bioseq_dl`` package initialization).
+    """
+    from bioseq_dl import __version__  # noqa: PLC0415  # lazy to avoid a circular import
+
+    return ToolInfo(name="bioseq_dl", version=__version__)
 
 
 @dataclass
@@ -191,6 +203,7 @@ class FetchMetadata:
     fetched: IdBlock = field(default_factory=IdBlock)
     failed: FailedBlock = field(default_factory=FailedBlock)
     data_info: dict[str, Any] = field(default_factory=dict)
+    extra: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a plain, JSON-ready dict."""
@@ -203,6 +216,7 @@ class FetchMetadata:
             "fetched": self.fetched.to_dict(),
             "failed": self.failed.to_dict(),
             "data_info": self.data_info,
+            "extra": self.extra,
         }
 
     @classmethod
@@ -218,6 +232,7 @@ class FetchMetadata:
             fetched=IdBlock.from_dict(data.get("fetched")),
             failed=FailedBlock.from_dict(data.get("failed")),
             data_info=dict(data.get("data_info") or {}),
+            extra=dict(data.get("extra") or {}),
         )
 
     def merge(self, other: FetchMetadata) -> FetchMetadata:
@@ -237,4 +252,5 @@ class FetchMetadata:
             fetched=self.fetched.merged_with(other.fetched),
             failed=self.failed.merged_with(other.failed),
             data_info=_merge_data_info(self.data_info, other.data_info),
+            extra={**self.extra, **other.extra},
         )

@@ -16,6 +16,7 @@ import pandas as pd
 from bioseq_dl.constants.databases import DATABASES, UNIPROT
 from bioseq_dl.core.exceptions import RequestError
 from bioseq_dl.core.interfaces.base import BaseAPIInterface
+from bioseq_dl.core.metadata import FetchMetadata, RequestInfo, current_tool
 from bioseq_dl.core.utils.uniprot_auxiliary_methods import (
     extract_active_sites,
     extract_database_terms,
@@ -314,7 +315,6 @@ class UniprotInterface(BaseAPIInterface):
         ids = dataset[column_ids].dropna().unique().tolist()
 
         results = []
-        metadata = {}
         batch_metadata = {}
 
         if auto_db:
@@ -343,29 +343,26 @@ class UniprotInterface(BaseAPIInterface):
                 ids=ids, from_db=from_db, to_db=to_db, batch_size=batch_size, db_type="manual"
             )
 
-        metadata["search_process"] = batch_metadata
-        metadata["search_params"] = {
-            "query": {
-                "type": type(pd.DataFrame()),
-                "value": dataset[column_ids].tolist(),
+        # process_id_batch already returns a FetchMetadata dict; augment its extra
+        # with the input-query provenance specific to the batch download.
+        meta = FetchMetadata.from_dict(batch_metadata)
+        meta.extra.update(
+            {
+                "query_values": dataset[column_ids].tolist(),
                 "total_rows": len(dataset),
                 "columns": dataset.columns.tolist(),
                 "id_column": column_ids,
-            },
-            "from_db": from_db,
-            "to_db": to_db,
-            "auto_db": auto_db,
-            "batch_size": batch_size,
-        }
+                "auto_db": auto_db,
+            }
+        )
 
-        return results, metadata
+        return results, meta.to_dict()
 
     def process_id_batch(
         self, ids: list[str], from_db: str, to_db: str, batch_size: int, db_type: str
     ) -> tuple[list[dict], dict]:
         """Procesa un lote de IDs de un tipo específico."""
         downloader = UniprotInterface()
-        metadata: dict[str, Any] = {}
         time_started = time.time()
         job_id = None
         results = []
@@ -388,14 +385,26 @@ class UniprotInterface(BaseAPIInterface):
 
             self.print_progress_batches(batch_index, batch_size, total)
 
-        metadata["time_taken_seconds"] = time.time() - time_started
-        metadata["started_at"] = datetime.fromtimestamp(time_started, tz=UTC).isoformat()
-        metadata["batch_size"] = batch_size
-        metadata["num_batches"] = (len(ids) + batch_size - 1) // batch_size
-        metadata["failed_ids_count"] = sum(len(res.get("failedIds", [])) for res in results)
-        metadata["failed_ids"] = [fid for res in results for fid in res.get("failedIds", [])]
+        time_finished = time.time()
+        failed_ids = [fid for res in results for fid in res.get("failedIds", [])]
+        meta = FetchMetadata(
+            tool=current_tool(),
+            started_at=datetime.fromtimestamp(time_started, tz=UTC).isoformat(),
+            finished_at=datetime.fromtimestamp(time_finished, tz=UTC).isoformat(),
+            request=RequestInfo(api_name=self.API_NAME, method="idmapping", option=None),
+            extra={
+                "batch_size": batch_size,
+                "num_batches": (len(ids) + batch_size - 1) // batch_size,
+                "from_db": from_db,
+                "to_db": to_db,
+                "db_type": db_type,
+                "failed_ids_count": len(failed_ids),
+            },
+        )
+        for fid in failed_ids:
+            meta.failed.add(fid, {"id": fid}, "unmapped")
 
-        return results, metadata
+        return results, meta.to_dict()
 
     def submit_stream(
         self,
@@ -487,27 +496,32 @@ class UniprotInterface(BaseAPIInterface):
                     response_size_bytes,
                     results_count,
                 )
-                metadata["search_process"] = {
-                    "time_taken_seconds": elapsed_seconds,
-                    "started_at": started_at,
-                    "finished_at": finished_at,
-                    "status_code": response.status_code,
-                    "response_size_bytes": response_size_bytes,
-                    "total_results": results_count,
-                    "attempts": attempt + 1,
-                }
-                metadata["search_params"] = {
-                    "api_url": API_URL,
-                    "query": {
-                        "type": type(query),
-                        "value": query,
+                meta = FetchMetadata(
+                    tool=current_tool(),
+                    started_at=started_at,
+                    finished_at=finished_at,
+                    request=RequestInfo(api_name=self.API_NAME, method=method, option=None),
+                    data_info=self._build_data_info(
+                        payload.get("results", []) if isinstance(payload, dict) else payload
+                    ),
+                    extra={
+                        "api_url": API_URL,
+                        "status_code": response.status_code,
+                        "response_size_bytes": response_size_bytes,
+                        "total_results": results_count,
+                        "attempts": attempt + 1,
+                        "query": query,
+                        "fields": fields,
+                        "sort": sort,
+                        "include_isoform": include_isoform,
+                        "download": download,
+                        "timeout_seconds": effective_timeout,
                     },
-                    "fields": fields,
-                    "sort": sort,
-                    "include_isoform": include_isoform,
-                    "download": download,
-                    "timeout_seconds": effective_timeout,
-                }
+                )
+                if isinstance(payload, dict):
+                    for failed_id in payload.get("failedIds", []):
+                        meta.failed.add(failed_id, query, "unmapped")
+                metadata = meta.to_dict()
             except niquests.exceptions.Timeout as e:
                 if attempt < self.total_retries - 1:
                     log.warning(
