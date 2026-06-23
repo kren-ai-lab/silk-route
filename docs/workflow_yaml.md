@@ -256,6 +256,21 @@ values. Values with spaces can be quoted, such as `"Homo sapiens"` or
 interpreted `query.value` preview is the value that generated YAML stores under
 `query.value`.
 
+Developer query-builder architecture note: query builders are database- and
+resource-specific. The extension point is
+`bioseq_dl.gui.query_builders.registry`, which registers lightweight builder
+specifications without importing NiceGUI or API interfaces. UniProt uses a
+field/boolean/match-mode builder that compiles to a final UniProt-compatible
+`query.value`. ChEMBL does not share that model: target, assay, cell line, and
+molecule builders use ChEMBL filter-list rows, while ChEMBL activity uses flat
+parameter rows. ChEMBL substructure and similarity are special structure-query
+patterns documented as future builder resources and are not implemented in the
+GUI. `examples/API_usage_demo.ipynb` was used as local usage context for the
+supported ChEMBL query patterns. All builders remain YAML generators only: they
+do not call external APIs, do not download data, and do not validate values
+against live databases. Generated YAML stores only the final interpreted
+`query.value`, not builder metadata.
+
 The `Harmonization` section describes expected output columns and related
 reporting behavior. `ID column`, `Label column`, `Sequence column`, and `Unique
 sequence strategy` are optional text inputs. `Metadata fields` accepts a

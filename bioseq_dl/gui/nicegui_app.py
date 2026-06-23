@@ -221,7 +221,7 @@ class WorkflowYamlBuilderApp:
                 ui.select(list(QUERY_INPUT_MODE_LABEL_TO_VALUE), label="Query input mode")
                 .bind_value(self.form_values, "query.input_mode")
                 .on_value_change(self.update_builder_previews)
-                .tooltip("Manual mode writes query.value directly. Advanced mode builds it.")
+                .tooltip("Manual mode writes query.value directly. Advanced UniProt mode builds it.")
             )
             with ui.column().classes("w-full gap-2") as manual_query_panel:
                 (

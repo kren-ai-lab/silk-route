@@ -194,6 +194,11 @@ In the Advanced UniProt builder, Connector combines a row with the previous row
 using `AND` or `OR`, while Match mode combines comma-separated values inside
 one row as `Any`, `All`, or `Not`. Values containing spaces can be quoted. The
 builder does not call UniProt or validate values against live services.
+Query-builder foundations are registered per database/resource: UniProt uses a
+field/boolean builder, while ChEMBL foundations use filter-list builders for
+target, assay, cell line, and molecule resources plus a flat-parameter builder
+for activity. These foundations still generate only final interpreted
+`query.value` strings and do not call external APIs.
 The visible `Harmonization` controls describe expected output columns and
 reporting-related behavior. Metadata fields are entered as comma-separated
 values and generated as a YAML list; descriptive harmonization values do not

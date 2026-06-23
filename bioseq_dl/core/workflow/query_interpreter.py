@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Any
 
+from bioseq_dl.core.workflow.chembl_query_parser import parse_chembl_query_builder_string
 from bioseq_dl.core.workflow.query_field_catalog import get_uniprot_query_field_catalog
 
 QUOTED_CSV_VALUE_PATTERN = re.compile(r"(?:'[^']*'|\"[^\"]*\"|[^,]+)")
@@ -537,6 +538,10 @@ class ChEMBLQueryInterpreter(BaseQueryInterpreter):
         processed_query = self._cleanup_whitespace(processed_query)
         # Resolve item values as needed
         return self._resolve_query_items(processed_query)
+
+    def parse_query_builder_string(self, query: str) -> dict[str, object]:
+        """Parse a ChEMBL query-builder string into an internal query structure."""
+        return parse_chembl_query_builder_string(query)
 
 
 def build_default_chembl_interpreter() -> ChEMBLQueryInterpreter:
