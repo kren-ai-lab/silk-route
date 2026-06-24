@@ -250,7 +250,7 @@ class BaseQueryInterpreter:
         values = m.group("values").strip()
 
         # Split by commas but respect quoted segments (single or double)
-        parts = re.findall(r"(?:'[^']*'|\"[^\"]*\"|[^,]+)", values)
+        parts = re.findall(r"'[^']*'|\"[^\"]*\"|[^,]+", values)
         items = [p.strip() for p in parts if p and p.strip()]
 
         # Build fragments preserving original quoting

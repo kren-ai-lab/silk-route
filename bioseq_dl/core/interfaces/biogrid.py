@@ -73,7 +73,6 @@ class BioGRIDInterface(BaseAPIInterface):
 
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
 
-    # Critiacl to ignore the accessKey when caching
     def get_cache_ignore_keys(self) -> set[str]:
         """Get the keys to ignore when caching.
 

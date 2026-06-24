@@ -26,7 +26,7 @@ BRENDA_PASSWORD_ENV_VARS = (
 )
 
 
-# For aditional implementations see: https://www.brenda-enzymes.org/soap.php
+# For additional implementations see: https://www.brenda-enzymes.org/soap.php
 class BrendaInterface(BaseAPIInterface):
     """BRENDA enzyme kinetics database SOAP API interface."""
 

@@ -173,7 +173,7 @@ def run_blast(sequences: list[str], db_name: str, blast_type: str = "blastp", ev
     """Run a BLAST search and write tabular results to ``tmp/blast_results.txt``.
 
     Writes the input sequences to a temporary FASTA file, runs BLAST, and removes
-    the temporary FASTA file afterwards.
+    the temporary FASTA file afterward.
 
     Args:
         sequences (list[str]): Query sequences to search.

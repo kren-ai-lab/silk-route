@@ -608,7 +608,7 @@ class MainWorkflow:
         """Run CrossRef enrichment on the parsed UniProt data when enabled.
 
         Skips when ``enrich`` is false or no cross-reference fields were requested,
-        recording the skip reason in metadata. Otherwise runs enrichment and stores
+        recording the skip reason in metadata. Otherwise, runs enrichment and stores
         the enriched data and metadata in ``context``.
 
         Args:
@@ -672,7 +672,7 @@ class MainWorkflow:
         pages_to_fetch = normalize_chembl_pages_to_fetch(chembl_search.get("pages_to_fetch", -1))
         limit = int(chembl_search.get("limit", 100))
         parse_format = normalize_parse_format(export_format) or "dataframe"
-        # Because there is two types of queries assosiated with 2 diferent methods,
+        # Because there is two types of queries associated with 2 different methods,
         #   we need to check which one to use.
         if not query:
             self.log.debug("Pipeline: empty query for ChEMBL fetch; skipping")
