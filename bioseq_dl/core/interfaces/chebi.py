@@ -77,7 +77,22 @@ class ChEBIInterface(BaseAPIInterface):
     }
 
     def fetch(self, query: str | dict | list, *, method: str = "compound", **kwargs: Any) -> dict | list:
-        """Fetch compound or ontology data from ChEBI."""
+        """Fetch compound or ontology data from ChEBI.
+
+        Validates parameters, joins any ChEBI id list into the request, builds the URL,
+        sends it, and unwraps the ``results`` envelope. Returns an empty dict on
+        validation, decode, or request failure.
+
+        Args:
+            query (str | dict | list): Identifier(s) or structured query to fetch.
+            method (str): Method to use (e.g. ``compound``, ``compounds``, ``es_search``,
+                ``ontology-children``, ``ontology-parents``).
+            **kwargs: Extra request parameters forwarded to method initialization.
+
+        Returns:
+            dict | list: The fetched, envelope-unwrapped response, or ``{}`` on failure.
+
+        """
         if method not in self.METHODS:
             log.error("Method %s is not supported. Available methods: %s", method, list(self.METHODS.keys()))
             return {}

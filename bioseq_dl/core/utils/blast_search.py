@@ -46,7 +46,15 @@ def download_uniprot_database(
 
 
 def get_latest_version_url() -> tuple[str, str]:
-    """Retrieve the latest BLAST+ tarball URL from the NCBI FTP site."""
+    """Retrieve the latest BLAST+ tarball URL from the NCBI FTP site.
+
+    Returns:
+        tuple[str, str]: The detected version string and the full tarball download URL.
+
+    Raises:
+        RuntimeError: If no BLAST version can be found on the NCBI page.
+
+    """
     with urlopen(BLAST_BASE_URL) as response:  # noqa: S310  # trusted NCBI FTP URL constant
         html = response.read().decode("utf-8")
     # Look for something like: ncbi-blast-2.16.0+-x64-linux.tar.gz
@@ -70,7 +78,13 @@ def is_blast_installed() -> bool:
 
 
 def download_and_extract_blast(version: str, url: str) -> None:
-    """Download and extract the BLAST+ tarball."""
+    """Download and extract the BLAST+ tarball.
+
+    Args:
+        version (str): BLAST+ version, used only for logging.
+        url (str): URL of the tarball to download.
+
+    """
     tarball_name = url.rsplit("/", maxsplit=1)[-1]
     if not Path(tarball_name).exists():
         log.info("Downloading BLAST+ %s...", version)
@@ -83,12 +97,18 @@ def download_and_extract_blast(version: str, url: str) -> None:
 
 
 def get_local_blastp_path(version: str) -> Path:
-    """Return the path to local blastp binary."""
+    """Return the path to the local ``blastp`` binary for the given version."""
     return BLAST_DIR / f"ncbi-blast-{version}" / "bin" / "blastp"
 
 
 def check_blast() -> str | None:
-    """Ensure BLAST is installed. Return path to `blastp` binary."""
+    """Ensure BLAST is available, downloading and extracting it locally if needed.
+
+    Returns:
+        str | None: Path to the ``blastp`` binary, or None if the system-wide
+            binary cannot be located.
+
+    """
     if is_blast_installed():
         log.info("System-wide BLAST is installed.")
         return shutil.which("blastp")
@@ -104,7 +124,19 @@ def check_blast() -> str | None:
 
 
 def make_blast_database(db_name: str, db_type: str = "prot", extension: str = "xml") -> None:
-    """Create a BLAST database from the Uniprot database."""
+    """Create a BLAST database from a downloaded Uniprot database.
+
+    Skips creation if all expected BLAST index files already exist.
+
+    Args:
+        db_name (str): Name of the database to build.
+        db_type (str): BLAST database type passed to ``makeblastdb``. Default is "prot".
+        extension (str): File extension of the source database. Default is "xml".
+
+    Raises:
+        FileNotFoundError: If the source database file does not exist.
+
+    """
     db_path = DB_DIR / f"{db_name}.{extension}"
     if not db_path.exists():
         msg = f"Database {db_name} not found at {db_path}. Please download it first."
@@ -138,7 +170,21 @@ def make_blast_database(db_name: str, db_type: str = "prot", extension: str = "x
 
 
 def run_blast(sequences: list[str], db_name: str, blast_type: str = "blastp", evalue: float = 0.001) -> None:
-    """Run BLAST search."""
+    """Run a BLAST search and write tabular results to ``tmp/blast_results.txt``.
+
+    Writes the input sequences to a temporary FASTA file, runs BLAST, and removes
+    the temporary FASTA file afterwards.
+
+    Args:
+        sequences (list[str]): Query sequences to search.
+        db_name (str): Name of the local BLAST database to query.
+        blast_type (str): BLAST program to run. Default is "blastp".
+        evalue (float): E-value threshold for reported hits. Default is 0.001.
+
+    Raises:
+        FileNotFoundError: If the BLAST database does not exist.
+
+    """
     blast_db_path = DB_DIR / db_name
     if not blast_db_path.exists():
         msg = f"Database {db_name} not found at {blast_db_path}. Please download it first."
@@ -172,7 +218,17 @@ def run_blast(sequences: list[str], db_name: str, blast_type: str = "blastp", ev
 
 
 def parse_blast_results(file_path: str, identity_threshold: float = 90.0) -> list[dict]:
-    """Parse BLAST results from a file."""
+    """Parse tabular BLAST results, keeping only hits above an identity threshold.
+
+    Args:
+        file_path (str): Path to the BLAST tabular output file.
+        identity_threshold (float): Minimum percent identity to keep a hit. Default is 90.0.
+
+    Returns:
+        list[dict]: One dict per retained hit with query, subject, identity,
+            alignment length, e-value, bit score, and coverage.
+
+    """
     with Path(file_path).open() as f:
         results = f.readlines()
 

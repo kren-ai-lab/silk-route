@@ -47,8 +47,8 @@ class AlphafoldInterface(BaseAPIInterface):
         """Initialize the AlphafoldInterface.
 
         Args:
-            structures (List[str]): List of structures extensions to download. Available options are pdb, cif,
-                bcif, none.
+            structures (list[str] | None): Structure file extensions to download. Available options are pdb,
+                cif, bcif.
             cache_dir (str): Directory to cache API responses. If None, defaults to the cache directory
                 defined in constants.
             config_dir (str): Directory for configuration files. If None, defaults to the config directory
@@ -76,7 +76,21 @@ class AlphafoldInterface(BaseAPIInterface):
     def fetch_single(
         self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
     ) -> tuple[list | dict | pd.DataFrame | bytes | str, dict]:
-        """Fetch a single prediction and optionally download structure files."""
+        """Fetch a single prediction and optionally download structure files.
+
+        Delegates to the base fetch, then downloads configured structure files for each
+        record when ``structures`` is set. Returns empty data if ``query`` is not a string.
+
+        Args:
+            query (str | dict): AlphaFold/UniProt identifier to fetch.
+            parse (bool): Whether to run ``parse`` on the raw response.
+            *args: Forwarded to the base fetch.
+            **kwargs: Forwarded to the base fetch.
+
+        Returns:
+            tuple[list | dict | pd.DataFrame | bytes | str, dict]: Fetched data and metadata.
+
+        """
         if not isinstance(query, str):
             log.error("Query must be a string representing a AlphaFold ID.")
             return {}, {}
@@ -92,7 +106,22 @@ class AlphafoldInterface(BaseAPIInterface):
     def fetch_batch(
         self, queries: Sequence[str | dict], parse: bool = False, *args: Any, **kwargs: Any
     ) -> tuple[list | pd.DataFrame | bytes | str, dict]:
-        """Fetch a batch of predictions and optionally download structure files."""
+        """Fetch a batch of predictions and optionally download structure files.
+
+        Delegates to the base fetch, then downloads configured structure files for each
+        record when ``structures`` is set. Returns empty data if ``queries`` is not a list
+        of strings.
+
+        Args:
+            queries (Sequence[str | dict]): AlphaFold/UniProt identifiers to fetch.
+            parse (bool): Whether to run ``parse`` on each raw response.
+            *args: Forwarded to the base fetch.
+            **kwargs: Forwarded to the base fetch.
+
+        Returns:
+            tuple[list | pd.DataFrame | bytes | str, dict]: Fetched data and metadata.
+
+        """
         if not isinstance(queries, list) or not isinstance(queries[0], str):
             log.error("Queries must be a list of strings representing AlphaFold IDs.")
             return [], {}
@@ -111,10 +140,10 @@ class AlphafoldInterface(BaseAPIInterface):
         """Download structure files based on parsed prediction info.
 
         Args:
-            parsed (Dict): Parsed data containing URLs for structures.
+            parsed (dict): Parsed data containing URLs for structures.
 
         Returns:
-            Dict: Parsed data without the structure URLs.
+            dict: Parsed data without the structure URLs.
 
         """
         if not self.structures:
@@ -156,14 +185,14 @@ class AlphafoldInterface(BaseAPIInterface):
         """Parse data by extracting specified fields or returning the entire structure.
 
         Args:
-            data (Union[List, Dict]): Data to parse.
-            fields_to_extract (List|Dict): Fields to keep from the original response.
-                - If List: Keep those keys.
-                - If Dict: Maps {desired_name: real_field_name}.
-            **kwargs: Additional keyword arguments.
+            data (list | dict): Data to parse.
+            fields_to_extract (list | dict | None): Fields to keep from the original response.
+                - If list: Keep those keys.
+                - If dict: Maps {desired_name: real_field_name}.
+            **_kwargs: Additional keyword arguments.
 
         Returns:
-            Union[List, Dict]: Parsed data with specified fields or the entire structure.
+            list | dict: Parsed data with specified fields or the entire structure.
 
         """
         # Check input data type
@@ -188,9 +217,12 @@ class AlphafoldInterface(BaseAPIInterface):
         """Save the parsed data to a file.
 
         Args:
-            data (Union[List, Dict]): Data to save.
+            data (list | dict): Data to save.
             filename (str): Name of the file to save the data to.
             extension (str): File format. One of csv, tsv, json, parquet.
+
+        Returns:
+            str | None: Path to the saved file, or None if the extension is unsupported.
 
         """
         if not Path(self.output_dir).exists():

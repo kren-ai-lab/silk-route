@@ -23,12 +23,14 @@ log = get_logger("bioseq_dl.interfaces.crossref_enricher")
 class EndpointSpec:
     """Declarative specification for a single endpoint.
 
-    - database: database key as used in INTERFACE_CLASSES (e.g., "uniprot", "brenda", "biogrid").
-    - endpoint: method name to call within the interface (e.g., "search", "getKmValue", "xrefs").
-    - option: optional modifier some interfaces support (e.g., GeneOntology categories).
-    - params: static/default parameters to merge with query-builder results.
-    - required_columns: optional list of column names this endpoint expects to find in the input row,
-      used only for early validation / diagnostics. Query builders still receive the full row.
+    Attributes:
+        database (str): Database key as used in INTERFACE_CLASSES (e.g., "uniprot", "brenda", "biogrid").
+        endpoint (str): Method name to call within the interface (e.g., "search", "getKmValue", "xrefs").
+        option (str | None): Optional modifier some interfaces support (e.g., GeneOntology categories).
+        params (dict[str, Any] | None): Static/default parameters to merge with query-builder results.
+        required_columns (list[str] | None): Column names this endpoint expects in the input row,
+            used only for early validation / diagnostics. Query builders still receive the full row.
+
     """
 
     database: str
@@ -51,9 +53,17 @@ class EndpointSpec:
 def specs_for_database(endpoint_config: Any, database: str) -> list[EndpointSpec]:
     """Expand a database's ENABLED endpoints into ``EndpointSpec`` objects.
 
-    One spec per declared option (``[None]`` when an endpoint has none). Returns
-    ``[]`` when the config is missing / not a dict. Shared by the CLI and the
-    workflow "all methods" expansion paths.
+    One spec per declared option (``[None]`` when an endpoint has none). Shared by
+    the CLI and the workflow "all methods" expansion paths.
+
+    Args:
+        endpoint_config (Any): Database config dict with an ``endpoints`` mapping.
+        database (str): Database key recorded on each produced spec.
+
+    Returns:
+        list[EndpointSpec]: One spec per enabled endpoint/option; empty when the
+            config is missing or not a dict.
+
     """
     if not isinstance(endpoint_config, dict):
         return []
@@ -91,14 +101,31 @@ class CrossRefEnricher:
         max_workers: int = 4,
         total_retries: int = 3,
     ) -> None:
-        """Initialize with a single endpoint specification."""
+        """Initialize the enricher with the endpoints and fetch settings to use.
+
+        Args:
+            endpoint_specs (list[EndpointSpec] | None): Endpoints to query; defaults to empty.
+            config_path (str | None): Path to a config file for the interfaces.
+            max_workers (int): Number of worker threads used by each interface.
+            total_retries (int): Number of retries each interface attempts on failure.
+
+        """
         self.endpoint_specs = endpoint_specs or []
         self.config_path = config_path
         self.max_workers = max_workers
         self.total_retries = total_retries
 
     def _check_required_columns(self, df: pd.DataFrame, spec: EndpointSpec) -> None:
-        """Raise if declared required columns are missing from the DataFrame."""
+        """Validate that a spec's required columns are present in the DataFrame.
+
+        Args:
+            df (pd.DataFrame): Input data to validate.
+            spec (EndpointSpec): Endpoint whose ``required_columns`` are checked.
+
+        Raises:
+            ValueError: If any declared required column is missing.
+
+        """
         if not spec.required_columns:
             return
         missing = [c for c in spec.required_columns if c not in df.columns]
@@ -107,7 +134,15 @@ class CrossRefEnricher:
             raise ValueError(msg)
 
     def _prepare_params(self, spec: EndpointSpec) -> dict[str, Any]:
-        """Prepare base params for an endpoint, including auth and 'option' if provided."""
+        """Prepare base params for an endpoint, including ``option`` if provided.
+
+        Args:
+            spec (EndpointSpec): Endpoint whose params are prepared.
+
+        Returns:
+            dict[str, Any]: A copy of the spec params, with ``option`` added when set.
+
+        """
         params = dict(spec.params or {})
         if spec.option is not None:
             params["option"] = spec.option
@@ -115,7 +150,18 @@ class CrossRefEnricher:
         return params
 
     def _build_interface(self, database_name: str) -> BaseAPIInterface:
-        """Create the correct interface instance with configured max_workers and total_retries."""
+        """Create the interface instance for a database with configured workers and retries.
+
+        Args:
+            database_name (str): Database key, must be present in ``INTERFACE_CLASSES``.
+
+        Returns:
+            BaseAPIInterface: A new interface instance for the database.
+
+        Raises:
+            ValueError: If the database is not supported.
+
+        """
         if database_name not in INTERFACE_CLASSES:
             msg = f"Unsupported database: {database_name}"
             raise ValueError(msg)
@@ -132,10 +178,21 @@ class CrossRefEnricher:
         params: dict[str, Any],
         fmt: Literal["dataframe", "json", "xml"] = "dataframe",
     ) -> tuple[pd.DataFrame | list[dict[str, Any]], dict]:
-        """Build query from row using the registered query-builder.
+        """Build a query from a row and fetch its cross-reference result.
 
-        Performs ``fetch_single`` or ``fetch_batch`` and merges the API result with the original row
-        (row-expanded).
+        Uses the registered query-builder for the spec, then calls ``fetch_single``
+        for a single query or ``fetch_batch`` for multiple.
+
+        Args:
+            row (pd.Series): Input row supplying query values.
+            instance (Any): Interface instance used to fetch.
+            spec (EndpointSpec): Endpoint being queried.
+            params (dict[str, Any]): Base params passed to the query-builder.
+            fmt (Literal["dataframe", "json", "xml"]): Output format requested.
+
+        Returns:
+            tuple[pd.DataFrame | list[dict[str, Any]], dict]: Fetched result and fetch metadata.
+
         """
         metadata = {}
         # Search for an available builder via a search key: {database}_{endpoint}[_option]
@@ -179,8 +236,14 @@ class CrossRefEnricher:
         """Coerce a raw row-result to a cleaned DataFrame, or ``None`` to skip it.
 
         Accepts a DataFrame, list-of-dicts, or single dict; drops duplicate
-        columns and accidental numeric-only column names. Returns ``None`` for
-        empty or uncoercible results.
+        columns and accidental numeric-only column names.
+
+        Args:
+            result (Any): Raw per-row fetch result to coerce.
+
+        Returns:
+            pd.DataFrame | None: Cleaned DataFrame, or None for empty or uncoercible results.
+
         """
         if isinstance(result, pd.DataFrame):
             df_result = result
@@ -219,7 +282,26 @@ class CrossRefEnricher:
         params: dict[str, Any],
         fmt: Literal["dataframe", "json", "xml"] = "dataframe",
     ) -> tuple[pd.DataFrame | list | ElementTree[Element[str] | None], dict]:
-        """Apply search-then-merge for every row and vertically concatenate all row-expansions."""
+        """Apply search-then-merge for every row and combine all row-expansions.
+
+        Aggregates per-row results into the requested format and records per-row
+        outcomes under the metadata ``extra`` block.
+
+        Args:
+            df (pd.DataFrame): Input rows to enrich.
+            instance (Any): Interface instance used to fetch.
+            spec (EndpointSpec): Endpoint being queried.
+            params (dict[str, Any]): Base params passed to the query-builder.
+            fmt (Literal["dataframe", "json", "xml"]): Output format requested.
+
+        Returns:
+            tuple[pd.DataFrame | list | ElementTree[Element[str] | None], dict]: Combined
+                result in the requested format and merged fetch metadata.
+
+        Raises:
+            ValueError: If ``fmt`` is not a supported format.
+
+        """
         # Apply row-wise; collect per-row DataFrames
         all_metadata = {}
         all_results = []
@@ -282,7 +364,23 @@ class CrossRefEnricher:
         data: Any,
         format: Literal["dataframe", "json", "xml"] = "dataframe",  # noqa: A002
     ) -> tuple[dict, dict]:
-        """Enrich the input DataFrame with cross-references from specified endpoints."""
+        """Enrich the input data with cross-references from the configured endpoints.
+
+        Accepts the input as a DataFrame, list of dicts, dict, JSON string, or
+        ElementTree and processes each endpoint spec in turn.
+
+        Args:
+            data (Any): Input data to enrich (DataFrame, list, dict, JSON str, or ElementTree).
+            format (Literal["dataframe", "json", "xml"]): Output format for each endpoint result.
+
+        Returns:
+            tuple[dict, dict]: Results keyed by ``spec.key`` and metadata keyed by ``spec.key``.
+
+        Raises:
+            TypeError: If ``data`` is not a supported input type.
+            ValueError: If ``format`` is not supported.
+
+        """
         # For an easier handling, convert input data to DataFrame if needed
         if isinstance(data, (list, dict)):
             df = pd.DataFrame(data)

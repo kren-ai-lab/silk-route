@@ -28,7 +28,13 @@ from typing import Any
 
 @dataclass(frozen=True)
 class ToolInfo:
-    """Library provenance: which build produced the dataset."""
+    """Library provenance: which build produced the dataset.
+
+    Attributes:
+        name (str): Library name (e.g. ``"bioseq_dl"``).
+        version (str): Library version string.
+
+    """
 
     name: str = ""
     version: str = ""
@@ -57,7 +63,14 @@ def current_tool() -> ToolInfo:
 
 @dataclass
 class RequestInfo:
-    """What was requested: database, endpoint, and the method variant/profile."""
+    """What was requested: database, endpoint, and the method variant/profile.
+
+    Attributes:
+        api_name (str): Name of the queried API/database.
+        method (str): Endpoint/method that was called.
+        option (Any): Method variant or profile, when the method is option-keyed.
+
+    """
 
     api_name: str = ""
     method: str = ""
@@ -84,6 +97,11 @@ class IdBlock:
 
     ``ids`` and ``subqueries`` are parallel: ``ids[i]`` is the identifier of
     ``subqueries[i]``. ``length`` (serialized only) is the bucket size.
+
+    Attributes:
+        ids (list[Any]): Identifiers of the queries in this bucket.
+        subqueries (list[Any]): The subqueries, parallel to ``ids``.
+
     """
 
     ids: list[Any] = field(default_factory=list)
@@ -116,6 +134,12 @@ class FailedBlock:
     ``ids[i]`` / ``subqueries[i]`` / ``reasons[i]`` describe one failed query.
     Common reasons: ``"request_error"`` (the HTTP call failed), ``"empty_result"``
     (the call succeeded but returned no data for that id).
+
+    Attributes:
+        ids (list[Any]): Identifiers of the failed queries.
+        subqueries (list[Any]): The subqueries, parallel to ``ids``.
+        reasons (list[Any]): Failure reason per query, parallel to ``ids``.
+
     """
 
     ids: list[Any] = field(default_factory=list)
@@ -199,7 +223,20 @@ def _merge_data_info(a: dict, b: dict) -> dict:
 
 @dataclass
 class FetchMetadata:
-    """Provenance and result-shape metadata for a single fetch call."""
+    """Provenance and result-shape metadata for a single fetch call.
+
+    Attributes:
+        tool (ToolInfo): Library provenance block.
+        started_at (str): ISO-8601 timestamp when the fetch started.
+        finished_at (str): ISO-8601 timestamp when the fetch finished.
+        request (RequestInfo): What was requested (api/method/option).
+        cached (IdBlock): Queries served from cache.
+        fetched (IdBlock): Queries fetched from the API.
+        failed (FailedBlock): Queries that failed, with reasons.
+        data_info (dict[str, Any]): Result-shape summary (entries/columns).
+        extra (dict[str, Any]): Source-specific provenance details.
+
+    """
 
     tool: ToolInfo = field(default_factory=ToolInfo)
     started_at: str = ""

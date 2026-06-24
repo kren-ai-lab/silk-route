@@ -113,7 +113,21 @@ class PDBInterface(BaseAPIInterface):
     def fetch_single(
         self, query: str | dict | list[str], parse: bool = False, *args: Any, **kwargs: Any
     ) -> tuple[list | dict | pd.DataFrame | bytes | str, dict]:
-        """Fetch a single PDB entry and optionally download the structure file."""
+        """Fetch a single PDB entry and optionally download the structure file.
+
+        Downloads the structure file when ``download_structures`` is set and the query is a
+        single PDB id, then delegates to the base fetch.
+
+        Args:
+            query (str | dict | list[str]): PDB entry identifier to fetch.
+            parse (bool): Whether to run ``parse`` on the raw response.
+            *args: Forwarded to the base fetch.
+            **kwargs: Forwarded to the base fetch.
+
+        Returns:
+            tuple[list | dict | pd.DataFrame | bytes | str, dict]: Fetched data and metadata.
+
+        """
         if self.download_structures and query and isinstance(query, str):
             self.fetch_structure(query)
         return super().fetch_single(query, parse, *args, **kwargs)
@@ -121,7 +135,21 @@ class PDBInterface(BaseAPIInterface):
     def fetch_batch(
         self, queries: Sequence[str | dict], parse: bool = False, *args: Any, **kwargs: Any
     ) -> tuple[list | pd.DataFrame | bytes | str, dict]:
-        """Fetch a batch of PDB entries and optionally download structure files."""
+        """Fetch a batch of PDB entries and optionally download structure files.
+
+        Delegates to the base fetch, then downloads the structure file for each string id
+        when ``download_structures`` is set.
+
+        Args:
+            queries (Sequence[str | dict]): PDB entry identifiers to fetch.
+            parse (bool): Whether to run ``parse`` on each raw response.
+            *args: Forwarded to the base fetch.
+            **kwargs: Forwarded to the base fetch.
+
+        Returns:
+            tuple[list | pd.DataFrame | bytes | str, dict]: Fetched data and metadata.
+
+        """
         results = super().fetch_batch(queries, parse, *args, **kwargs)
         if self.download_structures:
             for query in queries:

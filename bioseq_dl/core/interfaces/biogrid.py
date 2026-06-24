@@ -60,9 +60,9 @@ class BioGRIDInterface(BaseAPIInterface):
         """Initialize the BioGRIDInterface class.
 
         Args:
-            api_key (str): BioGRID API key. Falls back to environment variable.
-            cache_dir (str): Directory to cache results.
-            config_dir (str): Directory for configuration files.
+            api_key (str | None): BioGRID API key. Falls back to environment variable.
+            cache_dir (str | None): Directory to cache results.
+            config_dir (str | None): Directory for configuration files.
             **kwargs: Passed through to the base class.
 
         """
@@ -78,7 +78,7 @@ class BioGRIDInterface(BaseAPIInterface):
         """Get the keys to ignore when caching.
 
         Returns:
-            Set[str]: Set of keys to ignore.
+            set[str]: Set of keys to ignore (adds ``accessKey`` to the base set).
 
         """
         return super().get_cache_ignore_keys().union({"accessKey"})
@@ -86,13 +86,20 @@ class BioGRIDInterface(BaseAPIInterface):
     def fetch(self, query: str | dict | list, *, method: str = "interactions", **kwargs: Any) -> dict | list:
         """Fetch data from the BioGRID API.
 
+        Resolves the API key (from the query, instance, or environment) and raises if
+        none is available. For the ``interactions`` method, an id-keyed dict response is
+        normalized into a list of interactions.
+
         Args:
-            query (str): Query string to search for.
-            method (str): Method to use for the request. Default is "interactions".
+            query (str | dict | list): Identifier(s) or structured query to fetch.
+            method (str): Method to use for the request.
             **kwargs: Additional parameters passed to the request.
 
         Returns:
-            any: response from the API.
+            dict | list: Response from the API.
+
+        Raises:
+            ValueError: If no valid BioGRID API key is available.
 
         """
         if isinstance(query, dict):

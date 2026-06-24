@@ -35,7 +35,6 @@ class ReactomeInterface(BaseAPIInterface):
         """Validate the query parameters.
 
         Args:
-            method (str): The method to validate against.
             query (dict): The query parameters to validate.
 
         Raises:
@@ -67,12 +66,16 @@ class ReactomeInterface(BaseAPIInterface):
         """Download pathways from a given Reactome pathway ID.
 
         Args:
-            query (str|dict|list): Reactome pathway ID or query dict.
-            method (str): Method to use for fetching data (e.g., 'discover', 'complex', etc.).
-            **kwargs: Supports `option` key for additional method options.
+            query (str | dict | list): Reactome pathway ID or query dict.
+            method (str): Method to use for fetching data (e.g. ``data-discover``).
+            **kwargs: Additional parameters. Notable key: ``option`` (extra method
+                option appended to the URL path).
 
         Returns:
-            dict: Pathway data.
+            dict | list: Pathway data; empty dict on error.
+
+        Raises:
+            ConfigError: If the query dict has invalid parameters.
 
         """
         option = kwargs.get("option", "")

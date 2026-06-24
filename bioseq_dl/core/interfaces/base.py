@@ -144,13 +144,13 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         """Initialize the BaseAPIInterface class.
 
         Args:
-            cache_dir (str): Directory to store cached data.
-            config_dir (Optional[str]): Directory to load configuration files.
+            cache_dir (str | None): Directory to store cached data.
+            config_dir (str | None): Directory to load configuration files.
             max_workers (int): Maximum number of parallel requests.
             min_wait (float): Minimum wait time between requests.
             max_wait (float): Maximum wait time between requests.
             total_retries (int): Total number of retries for requests.
-            headers (Dict, optional): Headers to include in requests.
+            headers (dict | None): Headers to include in requests.
             use_config (bool): Whether to use a configuration file for initialization.
 
         """
@@ -280,7 +280,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         """Get the set of keys to ignore when generating cache keys.
 
         Returns:
-            Set[str]: Set of keys to ignore.
+            set[str]: Set of keys to ignore.
 
         """
         return self.cache_key_ignore_args
@@ -291,7 +291,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         """Get the set of keys used for matching queries and generating subqueries.
 
         Returns:
-            Set[str]: Set of keys used for matching queries.
+            set[str]: Set of keys used for matching queries.
 
         """
         return self.subquery_match_keys
@@ -336,6 +336,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         return "_".join(part for part in (base, extra) if part)
 
     def _hash_key(self, key: str) -> str:
+        """Return the MD5 hex digest of a cache key."""
         return hashlib.md5(key.encode("utf-8"), usedforsecurity=False).hexdigest()
 
     def _get_cache_path(self, identifier: str) -> str:
@@ -408,6 +409,27 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
     def _maybe_parse(
         self, data: Any, parse: bool, fmt: Literal["dataframe", "json", "xml"], **kwargs: Any
     ) -> list | dict | pd.DataFrame | bytes | str:
+        """Optionally parse raw data and convert it to the requested output format.
+
+        When ``parse`` is set, resolves ``fields_to_extract`` (from kwargs, then
+        ``config_key``) and runs ``parse`` per item. The result is then returned as
+        JSON-like data, a DataFrame, or XML bytes per ``fmt``.
+
+        Args:
+            data (Any): Raw or cached data (list, dict, str or None).
+            parse (bool): Whether to run ``parse`` on the data.
+            fmt (Literal["dataframe", "json", "xml"]): Output format to convert to.
+            **kwargs: Notable keys: ``config_key``, ``fields_to_extract``; remaining
+                keys are forwarded to ``parse``.
+
+        Returns:
+            list | dict | pd.DataFrame | bytes | str: The (optionally parsed) data in
+            the requested format.
+
+        Raises:
+            ValueError: If the data cannot be converted to the requested format.
+
+        """
         config_key = kwargs.pop("config_key", None)
         fields_to_extract = kwargs.pop("fields_to_extract", None)
 
@@ -477,6 +499,18 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
     ##################
 
     def _get_method_spec(self, **kwargs: Any) -> dict[str, Any]:
+        """Resolve the spec dict for a method (and optional option) from ``METHODS``.
+
+        Args:
+            **kwargs: Notable keys: ``method`` (required) and ``option``.
+
+        Returns:
+            dict[str, Any]: The spec for the method, narrowed to ``option`` when given.
+
+        Raises:
+            ValueError: If the method is not defined in ``METHODS``.
+
+        """
         method = kwargs.get("method")
         if method not in self.METHODS:
             msg = f"Unknown method '{method}'"
@@ -540,7 +574,27 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
     def initialize_method_parameters(
         self, query: str | dict | list, method: str, method_definition: dict, **kwargs: Any
     ) -> tuple:
-        """Initialize HTTP method params and build query inputs."""
+        """Initialize HTTP method params and build query inputs.
+
+        Resolves the method (and optional ``option``) spec, then maps the query
+        onto the method's primary keys, joining ``group_queries`` values with the
+        configured separator.
+
+        Args:
+            query (str | dict | list): Query to map onto the method parameters.
+            method (str): Method to look up in ``method_definition``.
+            method_definition (dict): The ``METHODS`` mapping for this interface.
+            **kwargs: Notable key: ``option`` (method variant/profile).
+
+        Returns:
+            tuple: ``(http_method, path_param, parameters, inputs)`` for the request.
+
+        Raises:
+            ValueError: If the method/option is unknown or has no primary keys, or if
+                multiple primary keys are defined but the query is not a dict.
+            TypeError: If the query type is not str, dict or list.
+
+        """
         if method not in method_definition:
             msg = (
                 f"Method '{method}' is not defined in the method definition. Available methods: "
@@ -620,8 +674,17 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
     def decompose_query(self, query: dict, method: str, option: str | None) -> list[tuple[str, dict]] | None:
         """Decompose a query into multiple subqueries if any of the identity keys contain lists.
 
+        Args:
+            query (dict): Query whose identity keys may contain lists to expand.
+            method (str): Method whose spec defines the parameters and group keys.
+            option (str | None): Method variant/profile, when the method is option-keyed.
+
         Returns:
-            List of (identifier, subquery) tuples or None if no decomposition is needed.
+            list[tuple[str, dict]] | None: List of (identifier, subquery) tuples, or
+            an empty list when no decomposition is needed.
+
+        Raises:
+            ValueError: If the method or option is not valid.
 
         """
         if method not in self.METHODS:
@@ -737,13 +800,15 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         """General-purpose fetch method with optional parsing and cache handling.
 
         Args:
-            query (Union[str, dict]): Query to fetch data for.
+            query (str | dict | list): Query to fetch data for.
             parse (bool): Whether to parse the fetched data.
             *args: Positional arguments for subclass compatibility.
-            **kwargs: Keyword arguments; notable keys: config_key, fields_to_extract, format, method, option.
+            **kwargs: Keyword arguments; notable keys: ``config_key``,
+                ``fields_to_extract``, ``format``, ``method``, ``option``.
 
         Returns:
-            Tuple[Union[List, Dict, pd.DataFrame], Dict]: Fetched (and optionally parsed) data and metadata.
+            tuple[list | dict | pd.DataFrame | bytes | str, dict]: Fetched (and
+            optionally parsed) data and the fetch metadata.
 
         """
         metadata = FetchMetadata()
@@ -882,14 +947,15 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         """Fetch data in parallel for a batch of queries.
 
         Args:
-            queries (List[Union[str, dict, list[str]]]): List of queries to fetch data for.
+            queries (Sequence[str | dict]): Queries to fetch data for.
             parse (bool): Whether to parse the fetched data.
             *args: Positional arguments for subclass compatibility.
-            **kwargs: Keyword arguments; notable keys: config_key, fields_to_extract, format, method, option.
+            **kwargs: Keyword arguments; notable keys: ``config_key``,
+                ``fields_to_extract``, ``format``, ``method``, ``option``.
 
         Returns:
-            Tuple[Union[List, pd.DataFrame, bytes, str], Dict]: Fetched (and optionally parsed) data and
-            metadata.
+            tuple[list | pd.DataFrame | bytes | str, dict]: Fetched (and optionally
+            parsed) data and the fetch metadata.
 
         """
         metadata = FetchMetadata()
@@ -1016,14 +1082,14 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         """Extract specified fields from the data.
 
         Args:
-            data (Union[List, Dict]): Data to parse.
-            fields_to_extract (List|Dict): Fields to keep from the original response.
-                - If List: Keep those keys.
-                - If Dict: Maps {desired_name: real_field_name}.
-            **kwargs: Supports `option` key to select a sub-section of fields_to_extract.
+            data (dict | list): Data to parse.
+            fields_to_extract (list | dict | None): Fields to keep from the original response.
+                - If list: Keep those keys.
+                - If dict: Maps {desired_name: real_field_name}.
+            **kwargs: Supports ``option`` key to select a sub-section of ``fields_to_extract``.
 
         Returns:
-            Union[dict, list]: Data with only the specified fields.
+            dict | list: Data with only the specified fields.
 
         """
         option = kwargs.get("option", "default")
@@ -1117,7 +1183,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         """Run a validated HTTP request and return the raw response.
 
         Args:
-            query (Union[str, dict, list]): Query to fetch data for.
+            query (str | dict | list): Query to fetch data for.
             method (str): Method to use for fetching data.
             **kwargs: Forwarded to ``_build_request`` (e.g. ``api_url``, ``option``).
 

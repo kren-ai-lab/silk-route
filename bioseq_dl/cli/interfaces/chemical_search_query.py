@@ -22,7 +22,15 @@ _MAX_GENE_QUERY_LEN = 6
 
 
 def detect_query_type(query: str) -> str:
-    """Detect the type of the query string."""
+    """Detect the type of the query string.
+
+    Args:
+        query (str): The raw query string.
+
+    Returns:
+        str: One of ``inchi``, ``smiles``, ``gene``, or ``name``.
+
+    """
     query = query.strip()
 
     if query.startswith("InChI="):
@@ -35,7 +43,19 @@ def detect_query_type(query: str) -> str:
 
 
 def pubchem_search_query(query: str, exact_match: bool = False) -> tuple[pd.DataFrame, dict]:
-    """Fetch compound data from PubChem."""
+    """Fetch compound data from PubChem.
+
+    Detects the query type, resolves CIDs for name/InChI/SMILES queries, then fetches the
+    detailed PUG-View records (compound or gene).
+
+    Args:
+        query (str): The query string (comma-separated values supported).
+        exact_match (bool): Whether to require an exact name match.
+
+    Returns:
+        tuple[pd.DataFrame, dict]: The result DataFrame and the merged fetch metadata.
+
+    """
     metadata = {}
     pug_metadata = {}
     pug_view_metadata = {}
@@ -83,7 +103,19 @@ def pubchem_search_query(query: str, exact_match: bool = False) -> tuple[pd.Data
 
 
 def chembl_search_query(query: str, exact_match: bool = False) -> tuple[pd.DataFrame, dict]:
-    """Fetch compound data from ChEMBL."""
+    """Fetch compound data from ChEMBL.
+
+    Detects the query type and runs the matching molecule or target search; InChI queries
+    are unsupported.
+
+    Args:
+        query (str): The query string.
+        exact_match (bool): Whether to use exact matching instead of substring matching.
+
+    Returns:
+        tuple[pd.DataFrame, dict]: The result DataFrame and the fetch metadata.
+
+    """
     filter_type = "iexact" if exact_match else "icontains"
     instance = ChEMBLInterface()
 
@@ -133,7 +165,18 @@ def chembl_search_query(query: str, exact_match: bool = False) -> tuple[pd.DataF
 
 
 def chebi_search_query(query: str) -> tuple[pd.DataFrame, dict]:
-    """Fetch compound data from ChEBI."""
+    """Fetch compound data from ChEBI.
+
+    Runs an Elasticsearch term search, then fetches the matching compounds by their ChEBI
+    accessions.
+
+    Args:
+        query (str): The search term.
+
+    Returns:
+        tuple[pd.DataFrame, dict]: The result DataFrame and the merged fetch metadata.
+
+    """
     metadata = {}
     instance = ChEBIInterface()
 

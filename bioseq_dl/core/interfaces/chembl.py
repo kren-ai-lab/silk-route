@@ -271,7 +271,7 @@ class ChEMBLInterface(BaseAPIInterface):
             pages_to_fetch (int): Number of pages to fetch. Default is 1. If -1, fetch all pages.
 
         Returns:
-            dict: The fetched data from the next page.
+            dict | list: The fetched records from the next page(s).
 
         """
         responses = []
@@ -328,12 +328,12 @@ class ChEMBLInterface(BaseAPIInterface):
         """Fetch data from the ChEMBL API.
 
         Args:
-            query (str): Query string to search for.
+            query (str | dict | list): Query string or structured query to search for.
             method (str): Method to use for the request. Default is "activity".
-            **kwargs: Additional parameters; notable keys: pages_to_fetch, limit.
+            **kwargs: Additional parameters; notable keys: ``pages_to_fetch``, ``limit``.
 
         Returns:
-            any: response from the API.
+            dict | list: Response from the API.
 
         """
         pages_to_fetch = kwargs.get("pages_to_fetch", 1)
@@ -419,7 +419,7 @@ class ChEMBLInterface(BaseAPIInterface):
         """Validate filter rules based on predefined rules.
 
         Args:
-            filters (Dict): Filters to validate.
+            filters (dict): Filters to validate.
 
         Returns:
             bool: True if all filters are valid, False otherwise.
@@ -478,13 +478,13 @@ class ChEMBLInterface(BaseAPIInterface):
 
         Args:
             data (Any): Raw data from the API response.
-            fields_to_extract (List|Dict): Fields to keep from the original response.
-                - If List: Keep those keys.
-                - If Dict: Maps {desired_name: real_field_name}.
-            **kwargs: Additional keyword arguments.
+            fields_to_extract (list | dict | None): Fields to keep from the original response.
+                - If list: Keep those keys.
+                - If dict: Maps ``{desired_name: real_field_name}``.
+            **_kwargs: Additional keyword arguments (unused).
 
         Returns:
-            dict: Parsed response.
+            dict | list: Parsed response.
 
         """
         if not data:

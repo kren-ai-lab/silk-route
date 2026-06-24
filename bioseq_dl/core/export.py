@@ -21,7 +21,18 @@ DATAFRAME_EXPORT_FORMAT_ERROR = "Unsupported export format 'dataframe'. Use 'csv
 
 
 def normalize_user_export_format(output_format: str | None) -> str | None:
-    """Normalize a user-facing export format."""
+    """Normalize a user-facing export format.
+
+    Args:
+        output_format (str | None): Format string or file extension to normalize.
+
+    Returns:
+        str | None: One of the user export formats, or None if unrecognized.
+
+    Raises:
+        ValueError: If the format is ``dataframe``.
+
+    """
     if output_format is None:
         return None
 
@@ -34,7 +45,20 @@ def normalize_user_export_format(output_format: str | None) -> str | None:
 
 
 def normalize_export_format(output_format: str | None) -> str | None:
-    """Normalize an export format to a file format."""
+    """Normalize an export format to a file format.
+
+    Like ``normalize_user_export_format`` but also accepts ``tsv``.
+
+    Args:
+        output_format (str | None): Format string or file extension to normalize.
+
+    Returns:
+        str | None: A supported file format, or None if unrecognized.
+
+    Raises:
+        ValueError: If the format is ``dataframe``.
+
+    """
     if output_format is None:
         return None
 
@@ -47,7 +71,17 @@ def normalize_export_format(output_format: str | None) -> str | None:
 
 
 def normalize_parse_format(output_format: str | None) -> str | None:
-    """Normalize an export format to the parser format required upstream."""
+    """Normalize an export format to the parser format required upstream.
+
+    Maps tabular/parquet formats to ``dataframe`` and passes ``json``/``xml`` through.
+
+    Args:
+        output_format (str | None): Format string or file extension to normalize.
+
+    Returns:
+        str | None: ``dataframe``, ``json``, ``xml``, or None if unrecognized.
+
+    """
     if output_format is None:
         return None
 
@@ -60,7 +94,15 @@ def normalize_parse_format(output_format: str | None) -> str | None:
 
 
 def is_missing_parquet_value(value: object) -> bool:
-    """Return whether a scalar value should remain missing in Parquet output."""
+    """Return whether a scalar value should remain missing in Parquet output.
+
+    Args:
+        value (object): Value to test for missingness.
+
+    Returns:
+        bool: True if the value is None or a missing scalar.
+
+    """
     if value is None:
         return True
 
@@ -78,7 +120,17 @@ def is_missing_parquet_value(value: object) -> bool:
 
 
 def make_json_safe_parquet_value(value: object) -> object:
-    """Convert container values into JSON-compatible structures."""
+    """Convert container values into JSON-compatible structures.
+
+    Recurses into dicts, lists, tuples, and sets (sets are sorted by string form).
+
+    Args:
+        value (object): Value to convert.
+
+    Returns:
+        object: JSON-safe equivalent of the value.
+
+    """
     if is_missing_parquet_value(value):
         return None
     if isinstance(value, dict):
@@ -91,7 +143,17 @@ def make_json_safe_parquet_value(value: object) -> object:
 
 
 def normalize_parquet_value(value: object) -> object:
-    """Normalize a single value for safe Parquet export."""
+    """Normalize a single value for safe Parquet export.
+
+    Missing values become ``pd.NA``; containers are JSON-serialized to a string.
+
+    Args:
+        value (object): Value to normalize.
+
+    Returns:
+        object: Normalized value suitable for a Parquet column.
+
+    """
     if is_missing_parquet_value(value):
         return pd.NA
     if isinstance(value, (list, tuple, set, dict)):
@@ -101,7 +163,15 @@ def normalize_parquet_value(value: object) -> object:
 
 
 def parquet_scalar_kind(value: object) -> str:
-    """Return a coarse scalar kind for object-column Parquet decisions."""
+    """Return a coarse scalar kind for object-column Parquet decisions.
+
+    Args:
+        value (object): Scalar value to classify.
+
+    Returns:
+        str: One of ``bool``, ``datetime``, ``str``, ``number``, or the type name.
+
+    """
     if isinstance(value, bool):
         return "bool"
     if isinstance(value, (dt.datetime, dt.date, pd.Timestamp)):
@@ -114,7 +184,17 @@ def parquet_scalar_kind(value: object) -> str:
 
 
 def object_column_has_only_datetime_values(series: pd.Series) -> bool:
-    """Return whether an object column contains only datetime-like values."""
+    """Return whether an object column contains only datetime-like values.
+
+    Missing values are ignored; returns False for an all-missing column.
+
+    Args:
+        series (pd.Series): Object-dtype column to inspect.
+
+    Returns:
+        bool: True if every present value is datetime-like.
+
+    """
     has_value = False
     for value in series:
         if is_missing_parquet_value(value):
@@ -126,7 +206,17 @@ def object_column_has_only_datetime_values(series: pd.Series) -> bool:
 
 
 def object_column_needs_string_dtype(series: pd.Series) -> bool:
-    """Return whether an object column should be converted to string dtype."""
+    """Return whether an object column should be converted to string dtype.
+
+    True when the column holds any container value or mixes scalar kinds.
+
+    Args:
+        series (pd.Series): Object-dtype column to inspect.
+
+    Returns:
+        bool: True if the column needs string dtype for Parquet.
+
+    """
     kinds = set()
     for value in series:
         if is_missing_parquet_value(value):
@@ -138,7 +228,18 @@ def object_column_needs_string_dtype(series: pd.Series) -> bool:
 
 
 def prepare_dataframe_for_parquet(df: pd.DataFrame) -> pd.DataFrame:
-    """Return a Parquet-safe copy of a DataFrame."""
+    """Return a Parquet-safe copy of a DataFrame.
+
+    Converts datetime-only object columns to datetime, and mixed/container object
+    columns to string dtype; numeric/bool/datetime columns are left untouched.
+
+    Args:
+        df (pd.DataFrame): DataFrame to make Parquet-safe.
+
+    Returns:
+        pd.DataFrame: A copy with object columns normalized for Parquet.
+
+    """
     safe_df = df.copy()
 
     for column in safe_df.columns:
@@ -168,7 +269,24 @@ def export_dataframe(
     output_path: PathLike,
     output_format: str | None = None,
 ) -> Path:
-    """Export a DataFrame to CSV, TSV, JSON, XML, or Parquet."""
+    """Export a DataFrame to CSV, TSV, JSON, XML, or Parquet.
+
+    The format is taken from ``output_format`` or the path suffix; a missing suffix
+    is added from the resolved format and parent directories are created.
+
+    Args:
+        df (pd.DataFrame): DataFrame to export.
+        output_path (PathLike): Destination file path.
+        output_format (str | None): Explicit format; falls back to the path suffix.
+
+    Returns:
+        Path: The path the DataFrame was written to.
+
+    Raises:
+        TypeError: If ``df`` is not a pandas DataFrame.
+        ValueError: If the export format is unsupported.
+
+    """
     if not isinstance(df, pd.DataFrame):
         msg = "export_dataframe expects a pandas DataFrame."
         raise TypeError(msg)
