@@ -84,14 +84,14 @@ class GenOntologyInterface(BaseAPIInterface):
 
         Args:
             data (Any): Raw data from the API response.
-            fields_to_extract (List|Dict): Fields to keep from the original response.
-                - If List: Keep those keys.
-                - If Dict: Maps {desired_name: real_field_name}.
+            fields_to_extract (list | dict | None): Fields to keep from the original response.
+                - If list: Keep those keys.
+                - If dict: Maps {desired_name: real_field_name}.
             **kwargs: Additional parameters for parsing.
-            - `look_for_relationships`: If True, fetch related ontology terms.
+                - ``look_for_relationships``: If True, fetch related ontology terms.
 
         Returns:
-            dict: Parsed response.
+            dict | list: Parsed response.
 
         """
         look_for_relationships = kwargs.pop("look_for_relationships", None)

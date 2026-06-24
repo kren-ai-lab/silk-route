@@ -13,7 +13,18 @@ log = get_logger("bioseq_dl.core.utils.crossref_enrichment")
 
 
 def normalize_crossref_fields(crossref_fields: object) -> list[str]:
-    """Return cleaned cross-reference field names."""
+    """Return cleaned cross-reference field names.
+
+    Accepts a comma-separated string or a list/tuple/set; non-string entries are
+    skipped with a warning, and blank entries are dropped.
+
+    Args:
+        crossref_fields (object): Raw cross-reference field specification.
+
+    Returns:
+        list[str]: Stripped, non-empty field names.
+
+    """
     if crossref_fields is None:
         return []
     if isinstance(crossref_fields, str):
@@ -35,7 +46,18 @@ def normalize_crossref_fields(crossref_fields: object) -> list[str]:
 
 
 def is_empty_enrichment_input(data: object) -> bool:
-    """Return whether enrichment input has no records to process."""
+    """Return whether enrichment input has no records to process.
+
+    Handles DataFrames, lists/dicts, bytes, and strings; other types are treated
+    as non-empty.
+
+    Args:
+        data (object): Input data to check.
+
+    Returns:
+        bool: True if the input has no records to process.
+
+    """
     if data is None:
         return True
     if isinstance(data, pd.DataFrame):
@@ -50,7 +72,18 @@ def is_empty_enrichment_input(data: object) -> bool:
 
 
 def has_enrichment_result_value(value: object) -> bool:
-    """Return whether an enrichment result value contains exportable data."""
+    """Return whether an enrichment result value contains exportable data.
+
+    Handles DataFrames, strings, bytes, and collections; other types are treated
+    as containing data.
+
+    Args:
+        value (object): Enrichment result value to check.
+
+    Returns:
+        bool: True if the value contains exportable data.
+
+    """
     if value is None:
         return False
     if isinstance(value, pd.DataFrame):
@@ -71,7 +104,26 @@ def run_crossref_enrichment(
     max_workers: int = 4,
     total_retries: int = 3,
 ) -> tuple[Any, dict | list[dict]]:
-    """Run cross-reference enrichment for all configured endpoint specs."""
+    """Run cross-reference enrichment for the requested fields.
+
+    Parses each field into a database/method/option spec (supporting ``db``,
+    ``db_method``, ``db_method_option``, and ``db_all`` forms), resolves matching
+    endpoint specs from the packaged config, runs the enricher, and filters the
+    output to exportable values. Returns early with skip metadata when there are
+    no fields, no input, or no resolved specs.
+
+    Args:
+        data (Any): Input records to enrich.
+        crossref_fields (list): Requested cross-reference fields.
+        format (Literal["dataframe", "json", "xml"]): Output format for results. Default is "json".
+        max_workers (int): Maximum number of worker threads. Default is 4.
+        total_retries (int): Number of retries per request. Default is 3.
+
+    Returns:
+        tuple[Any, dict | list[dict]]: Enriched data (empty dict if skipped) and
+            accompanying metadata.
+
+    """
     crossref_fields = normalize_crossref_fields(crossref_fields)
     if not crossref_fields:
         log.info("Skipping CrossRef enrichment because no cross-reference fields were requested.")

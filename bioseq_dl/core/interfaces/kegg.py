@@ -74,23 +74,16 @@ class KEGGInterface(BaseAPIInterface):
         """Fetch data from the KEGG API.
 
         Args:
-            query (str): Query string to search for.
-            method (str): Method to use for the request. Used methods are
-                'info', 'list', 'find', 'get', 'conv', 'link', 'ddi'.
-            **kwargs: Additional parameters for the request.
-            - `database`: Database to use for the request. Used databases are
-                'pathway', 'brite', 'module', 'genome', 'compound',
-                'glycan', 'reaction', 'enzyme', 'network', 'disease',
-                'drug', 'genes', 'ligand', 'kegg'.
-            - `option`: Additional options for the request. Used options are
-                'aaseq', 'ntseq', 'mol', 'kcf', 'image', 'conf', 'kml', 'json'
-                for method 'get' and 'turtle', 'n-triple' for method 'link'.
-
-        Raises:
-            ValueError: If the method or option is not supported.
+            query (str | dict | list): Query string or structured query to fetch.
+            method (str): Method to use for the request, one of ``get``, ``link``,
+                ``pathways``.
+            **kwargs: Additional parameters for the request. Notable keys:
+                ``db`` (database to query, e.g. ``pathway``, ``compound``, ``genes``)
+                and ``option`` (extra format option such as ``aaseq``, ``ntseq``,
+                ``mol``, ``json`` for ``get``, or ``turtle``, ``n-triple`` for ``link``).
 
         Returns:
-            any: Response from the API.
+            dict | list | str: Response from the API; empty dict on error.
 
         """
         if not method:
@@ -170,23 +163,18 @@ class KEGGInterface(BaseAPIInterface):
     def parse(self, data: Any, fields_to_extract: list | dict | None = None, **kwargs: Any) -> dict | list:
         r"""Parse the response from the KEGG API.
 
+        For ``get``/``pathways`` responses the flat KEGG flat-file text is parsed into a
+        nested dict of primary and secondary keys; ``link`` responses are returned as-is.
+
         Args:
             data (Any): Raw data from the API response.
-            fields_to_extract (list or dict): Fields to extract from the response.
-                - If list: Keep those keys.
-                - If dict: Maps {desired_name: real_field_name}.
-
-            **kwargs: Additional parameters for parsing.
-            - `type_response`: Type of data to parse. It can be "table" or "entry".
-            - `columns`: List of column names to use for parsing.
-            - `delimiter`: Delimiter used in the response. Default is tab ("\t").
-            - `header`: Whether the first line contains headers. Default is True.
-
-        Raises:
-            ValueError: If the type_response is not supported.
+            fields_to_extract (list | dict | None): Fields to extract from the response.
+                If a list, keep those keys; if a dict, map ``{desired_name: real_field_name}``.
+            **kwargs: Additional parameters for parsing. Notable key: ``method``
+                (one of ``get``, ``pathways``, ``link``; defaults to ``get``).
 
         Returns:
-            list: Parsed data as a list of dictionaries.
+            dict | list: Parsed data; empty dict if the method is unsupported.
 
         """
         method = kwargs.get("method", "get")

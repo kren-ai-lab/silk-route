@@ -13,11 +13,12 @@ from pathlib import Path
 def _resolve_log_dir() -> Path:
     """Resolve the directory where log files will be written.
 
-    Precedence
-    ----------
-    1) BIOSEQ_DL_LOG_DIR env var (if set)
-    2) bioseq_dl.core.config cache log path (if available)
-    3) ~/.cache/bioseq_dl/logs
+    Precedence: (1) the ``BIOSEQ_DL_LOG_DIR`` env var if set, (2) the
+    ``bioseq_dl.core.config`` cache log path if available, (3) ``~/.cache/bioseq_dl/logs``.
+
+    Returns:
+        Path: The resolved log directory.
+
     """
     env_dir = os.environ.get("BIOSEQ_DL_LOG_DIR")
     if env_dir:
@@ -36,13 +37,12 @@ def _resolve_log_dir() -> Path:
 class _LoggingManager:
     """Configure root logging once and hand out child loggers that propagate to the root handlers.
 
-    Key points
-    ----------
-    - Handlers (console/file) are installed on the ROOT logger.
-    - Child loggers PROPAGATE so their messages reach the root handlers.
+    Handlers (console/file) are installed on the ROOT logger; child loggers
+    propagate so their messages reach the root handlers.
     """
 
     def __init__(self) -> None:
+        """Initialize default logging settings (unconfigured until first use)."""
         self._configured = False
         self._enable = True
         self._level = logging.INFO
@@ -65,12 +65,19 @@ class _LoggingManager:
     ) -> None:
         """Update the global logging configuration.
 
-        Changes are applied lazily (on the next logger access).
+        Changes are applied lazily (on the next logger access). If ``log_dir`` is not
+        provided, the directory is re-resolved so a runtime change to
+        ``BIOSEQ_DL_LOG_DIR`` is honored (useful for pytest fixtures). The same env
+        var can also disable logging entirely.
 
-        Notes
-        -----
-        If `log_dir` is not provided, we re-resolve the directory so that any
-        runtime change to BIOSEQ_DL_LOG_DIR is honored (useful for pytest fixtures).
+        Args:
+            enable (bool | None): Whether logging is enabled; unchanged if None.
+            level (int | None): Root/console log level; unchanged if None.
+            log_dir (os.PathLike[str] | str | None): Log directory; re-resolved if None.
+            fmt (str | None): Log record format string; unchanged if None.
+            datefmt (str | None): Date format string; unchanged if None.
+            use_rotation (bool | None): Whether to use a timed rotating file handler.
+            filename (str | None): Log file name; unchanged if None.
 
         """
         if enable is not None:
@@ -102,7 +109,14 @@ class _LoggingManager:
         self._configured = False
 
     def _build_handlers(self) -> list[logging.Handler]:
-        """Build console + (optional) file handlers for the ROOT logger."""
+        """Build console and (optional) file handlers for the ROOT logger.
+
+        Falls back to console-only if the file handler cannot be created.
+
+        Returns:
+            list[logging.Handler]: The handlers to attach to the root logger.
+
+        """
         formatter = logging.Formatter(self._fmt, self._datefmt)
 
         # Console handler
@@ -158,6 +172,7 @@ class _LoggingManager:
         # root has no parent; no need to set propagate.
 
     def _ensure_configured(self) -> None:
+        """Install root handlers on first use after a (re)configuration."""
         if not self._configured:
             self._install_root_handlers()
             self._configured = True
@@ -176,7 +191,21 @@ def configure_logging(
     use_rotation: bool | None = None,
     filename: str | None = None,
 ) -> None:
-    """Configure bioseq_dl logging once at program start (optional)."""
+    """Configure bioseq_dl logging once at program start (optional).
+
+    Also quiets ``zeep`` and ``urllib3`` to WARNING. Changes are applied lazily on
+    the next ``get_logger`` call.
+
+    Args:
+        enable (bool | None): Whether logging is enabled; unchanged if None.
+        level (int | None): Root/console log level; unchanged if None.
+        log_dir (os.PathLike[str] | str | None): Log directory; re-resolved if None.
+        fmt (str | None): Log record format string; unchanged if None.
+        datefmt (str | None): Date format string; unchanged if None.
+        use_rotation (bool | None): Whether to use a timed rotating file handler.
+        filename (str | None): Log file name; unchanged if None.
+
+    """
     # Deactivate zeep and urllib3 logging by default
     logging.getLogger("zeep").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
@@ -207,6 +236,11 @@ def setup_logging(level: str = "info") -> None:
     lazily on the next ``get_logger``). CLI commands that use module-level loggers
     created at import time would otherwise never pick up the new level, so we force
     the root handlers to be (re)installed immediately.
+
+    Args:
+        level (str): Log level name (``debug``/``info``/``warning``/``error``/``critical``);
+            unknown values fall back to INFO.
+
     """
     configure_logging(level=LOG_LEVELS.get(level.lower(), logging.INFO))
     _manager._ensure_configured()  # noqa: SLF001  # apply eagerly for the CLI
@@ -216,6 +250,13 @@ def get_logger(name: str | None = None) -> logging.Logger:
     """Return a logger for the current module/class.
 
     Children keep level=NOTSET to inherit the root's effective level.
+
+    Args:
+        name (str | None): Logger name; the root logger is used when None.
+
+    Returns:
+        logging.Logger: A configured logger that propagates to the root handlers.
+
     """
     _manager._ensure_configured()  # noqa: SLF001  # module logging singleton
     logger = logging.getLogger(name or "")

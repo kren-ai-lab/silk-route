@@ -26,7 +26,7 @@ BRENDA_PASSWORD_ENV_VARS = (
 )
 
 
-# For aditional implementations see: https://www.brenda-enzymes.org/soap.php
+# For additional implementations see: https://www.brenda-enzymes.org/soap.php
 class BrendaInterface(BaseAPIInterface):
     """BRENDA enzyme kinetics database SOAP API interface."""
 
@@ -45,10 +45,10 @@ class BrendaInterface(BaseAPIInterface):
         """Initialize the BrendaInstance.
 
         Args:
-            email (str): Email address for BRENDA API.
-            password (str): Password for BRENDA API.
-            cache_dir (str): Directory to cache results.
-            config_dir (str): Directory for configuration files.
+            email (str | None): Email address for BRENDA API.
+            password (str | None): Password for BRENDA API.
+            cache_dir (str | None): Directory to cache results.
+            config_dir (str | None): Directory for configuration files.
             **kwargs: Passed through to the base class.
 
         """
@@ -65,14 +65,17 @@ class BrendaInterface(BaseAPIInterface):
         """Fetch data from BRENDA for a given EC number and organism.
 
         Args:
-            query (dict): Query parameters to filter the results.
-                - `ecNumber`: Enzyme Commission number (e.g., '1.1.1.1').
-                - `organism`: Organism name (e.g., 'Escherichia coli').
+            query (str | dict | list): Query parameters to filter the results. Expected as a dict with:
+                - ``ecNumber``: Enzyme Commission number (e.g., '1.1.1.1').
+                - ``organism``: Organism name (e.g., 'Escherichia coli').
             method (str): Name of the method to perform (e.g., 'getKmValue').
             **kwargs: Additional keyword arguments passed to the request builder.
 
         Returns:
-            list: List of results from the BRENDA API.
+            dict | list: List of results from the BRENDA API.
+
+        Raises:
+            ValueError: If BRENDA credentials are missing.
 
         """
         if method not in self.METHODS:
@@ -129,7 +132,7 @@ class BrendaInterface(BaseAPIInterface):
         """Get the list of available methods.
 
         Returns:
-            List[str]: List of method names.
+            list[str]: List of method names.
 
         """
         return list(self.METHODS.keys())

@@ -20,7 +20,17 @@ CROSS_REF_FIELDS = [xref.lower() for xref in XREF_MAPPING]
 def save_to_file(
     df: pd.DataFrame, out_dir: str, filename: str, db: str, endpoint: str, option: str | None
 ) -> None:
-    """Run UniProt cross-reference ID mapping."""
+    """Save a cross-reference result DataFrame to a CSV file under ``out_dir/filename``.
+
+    Args:
+        df (pd.DataFrame): The results to save.
+        out_dir (str): Base output directory.
+        filename (str): Subfolder name (typically the input file stem).
+        db (str): Database name, used in the output file name.
+        endpoint (str): Endpoint name, used in the output file name.
+        option (str | None): Optional variant, included in the file name when set.
+
+    """
     # Make folder with filename
     (Path(out_dir) / filename).mkdir(parents=True, exist_ok=True)
     # Save the DataFrame to a CSV file

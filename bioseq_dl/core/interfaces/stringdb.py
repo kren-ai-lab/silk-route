@@ -70,13 +70,13 @@ class StringInterface(BaseAPIInterface):
 
         Args:
             data (Any): Data to parse.
-            fields_to_extract (List|Dict): Fields to keep from the original response.
-                - If List: Keep those keys.
-                - If Dict: Maps {desired_name: real_field_name}
-            **kwargs: Supports `fmt` key for response format (default: "json").
+            fields_to_extract (list | dict | None): Fields to keep from the original response.
+                - If list: keep those keys.
+                - If dict: maps ``{desired_name: real_field_name}``.
+            **kwargs: Supports ``fmt`` key for response format (default: "json").
 
         Returns:
-            dict: Parsed response.
+            dict | str | None: Parsed response (JSON dict, TSV text, or None for image).
 
         """
         fmt = kwargs.pop("fmt", "json")

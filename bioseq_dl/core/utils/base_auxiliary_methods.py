@@ -9,12 +9,15 @@ def get_nested(data: dict | list, path: str, sep: str = ".") -> Any:
     """Get a nested value from a dictionary or list given a specific path.
 
     Args:
-        data (Union[dict, list]): Dictionary or list to search.
-        path (str): path to the desired value.
+        data (dict | list): Dictionary or list to search.
+        path (str): Path to the desired value.
         sep (str): Separator used in the path. Default is '.'.
 
     Returns:
         Any: Value at the specified path, or None if not found.
+
+    Raises:
+        TypeError: If ``path`` is not a string.
 
     """
     if not path:
@@ -88,7 +91,15 @@ def validate_parameters(inputs: dict, param_schema: dict) -> dict:
 
 
 def get_primary_keys(methods_def: dict) -> list:
-    """Extract primary keys from the methods definition."""
+    """Extract the sorted, unique primary-key parameter names from a methods definition.
+
+    Args:
+        methods_def (dict): Schema dict mapping param name to (type, default, is_primary) tuples.
+
+    Returns:
+        list: Sorted, de-duplicated names of parameters flagged as primary.
+
+    """
     primary_keys = []
     for param, (_, _, is_primary) in methods_def.items():
         if is_primary:

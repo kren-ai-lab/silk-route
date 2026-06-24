@@ -16,6 +16,7 @@ app.add_typer(cache_app, name="cache", help="Cache management commands.")
 
 
 def _version_callback(value: bool) -> None:
+    """Print the package version and exit when ``value`` is true."""
     if value:
         typer.echo(f"bioseq-dl {__version__}")
         raise typer.Exit

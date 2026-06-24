@@ -46,7 +46,23 @@ class SabiorkInterface(BaseAPIInterface):
     def fetch(
         self, query: str | dict | list, *, method: str = "kineticlaws", **kwargs: Any
     ) -> dict | list | str:
-        """Fetch data from the Sabio-RK API based on the provided query."""
+        """Fetch data from the Sabio-RK API based on the provided query.
+
+        Builds a SABIO-RK query string from the validated parameters and requests a TSV
+        export, returning the rows as a list of dicts keyed by the header row.
+
+        Args:
+            query (str | dict | list): Identifier(s) or structured query to fetch.
+            method (str): Method name; must be a key of ``METHODS``.
+            **kwargs: Forwarded to method parameter initialization.
+
+        Returns:
+            dict | list | str: Parsed kinetic-law rows, or the raw response text.
+
+        Raises:
+            ValueError: If ``method`` is not supported.
+
+        """
         if method not in self.METHODS:
             msg = f"Method '{method}' is not supported. Available methods: {list(self.METHODS.keys())}"
             raise ValueError(msg)

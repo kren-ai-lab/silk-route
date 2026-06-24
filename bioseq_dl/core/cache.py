@@ -41,10 +41,14 @@ _CACHE_REGISTRY: dict[str, Path] = {}
 
 
 def register_cache(name: str, path: str | Path) -> None:
-    """Register a cache directory under `name`.
+    """Register a cache directory under ``name``.
 
-    ``path`` is a filesystem path (str or Path). Registering overwrites any
-    previous entry with the same name.
+    Registering overwrites any previous entry with the same name.
+
+    Args:
+        name (str): Key under which the cache directory is registered.
+        path (str | Path): Filesystem path of the cache directory.
+
     """
     _CACHE_REGISTRY[name] = Path(path)
 
@@ -138,7 +142,22 @@ def _delete_target(
     empty: bool,
     allowed_bases: list[Path],
 ) -> list[str]:
-    """Delete one target subject to safety/age/empty filters; return paths removed."""
+    """Delete one target subject to safety/age/empty filters.
+
+    Skips paths outside ``allowed_bases``, paths newer than ``age_cutoff``, and
+    non-empty targets when ``empty`` is set.
+
+    Args:
+        path (Path): Target file or directory to consider for deletion.
+        dry_run (bool): If True, report matches without deleting.
+        age_cutoff (float | None): If set, skip paths modified after this epoch time.
+        empty (bool): If True, only remove empty files (prune empty files within dirs).
+        allowed_bases (list[Path]): Base directories within which deletion is permitted.
+
+    Returns:
+        list[str]: Paths removed (or matched, when ``dry_run``).
+
+    """
     if not path.exists():
         return []
     if not _is_within_allowed_bases(path, allowed_bases):
@@ -170,16 +189,17 @@ def clear_cache(
     """Clear registered cache entries.
 
     Args:
-        selected_names: registered cache names to clear; if None, all are used.
-        dry_run: if True, don't delete anything; only report what would be deleted.
-        older_than_days: if set, only delete entries older than this many days.
-        empty: if True, only delete entries that are empty files.
-        pattern: recursive glob applied under each provider path.
-        allowed_bases: base directories considered safe to delete within;
-            defaults to dirs gathered from the registry and constants.
+        selected_names (list[str] | None): Registered cache names to clear; if None, all are used.
+        dry_run (bool): If True, don't delete anything; only report what would be deleted.
+        older_than_days (int | None): If set, only delete entries older than this many days.
+        empty (bool): If True, only delete entries that are empty files.
+        pattern (str | None): Recursive glob applied under each provider path.
+        allowed_bases (list[str | Path] | None): Base directories considered safe to delete
+            within; defaults to dirs gathered from the registry and constants.
 
     Returns:
-        Dict mapping each cache name to the paths deleted (or matched, if dry_run).
+        dict[str, list[str]]: Mapping of each cache name to the paths deleted
+            (or matched, if ``dry_run``).
 
     """
     bases = _default_allowed_bases() if allowed_bases is None else [Path(p) for p in allowed_bases]

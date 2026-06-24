@@ -111,7 +111,7 @@ class InterproInterface(BaseAPIInterface):
             pages_to_fetch (int): Maximum number of pages to fetch recursively. Default is 1.
 
         Returns:
-            dict: The fetched data from the next page.
+            dict | list: The fetched results; empty dict on error or no content.
 
         """
         responses = []
@@ -156,12 +156,16 @@ class InterproInterface(BaseAPIInterface):
         """Fetch data from InterPro API.
 
         Args:
-            query (str|dict|list): The query parameters to fetch data.
+            query (str | dict | list): The query parameters to fetch data; must be a dict.
             method (str): The method to use for the request.
-            **kwargs: Supports `pages_to_fetch` key for pagination depth.
+            **kwargs: Additional parameters. Notable key: ``pages_to_fetch``
+                (pagination depth, default 1).
 
         Returns:
-            dict: The fetched data.
+            dict | list: The fetched data; empty dict on error.
+
+        Raises:
+            ConfigError: If the query parameters are invalid.
 
         """
         pages_to_fetch = kwargs.get("pages_to_fetch", 1)
