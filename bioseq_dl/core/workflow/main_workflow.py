@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import contextlib
-import inspect
 import time
 import xml.etree.ElementTree as ET
 from typing import TYPE_CHECKING, Any, Literal, cast
@@ -16,6 +15,11 @@ from bioseq_dl.core.export import normalize_parse_format
 from bioseq_dl.core.utils.crossref_enrichment import normalize_crossref_fields, run_crossref_enrichment
 from bioseq_dl.logging import get_logger
 
+from .chembl_query_parser import (
+    get_chembl_prefixed_query_resource,
+    is_chembl_prefixed_query,
+    parse_chembl_query_builder_string,
+)
 from .query_interpreter import (
     UniProtQueryInterpreter,
     build_default_chembl_interpreter,
@@ -30,6 +34,19 @@ log = get_logger("bioseq_dl.core.workflow.main")
 
 # Split large ChEMBL ID lists into chunks of this size to keep UniProt queries short.
 CHEMBL_ID_CHUNK_SIZE = 100
+PROTEIN_CHEMBL_QUERY_ERROR = (
+    "ChEMBL-prefixed queries are not valid for protein workflows. "
+    "Use a compound workflow or a protein-ligand interaction workflow."
+)
+PPI_CHEMBL_QUERY_ERROR = (
+    "ChEMBL-prefixed queries are not valid for protein-protein interaction workflows. "
+    "Use a protein-ligand interaction workflow for ChEMBL target or activity queries."
+)
+COMPOUND_UNSUPPORTED_CHEMBL_RESOURCE_ERROR = (
+    "ChEMBL resource '{resource}' is not valid for compound workflows. "
+    "Use chembl.molecule or chembl.activity for compound workflows, or use a "
+    "protein-ligand interaction workflow for target, assay, or cell-line queries."
+)
 
 
 def calculate_enrichment_execution_time(enrichment_metadata: object) -> float:
@@ -191,6 +208,32 @@ def normalize_chembl_pages_to_fetch(value: int | None) -> int:
         msg = "chembl_pages_to_fetch must be -1 or a positive integer."
         raise ValueError(msg)
     return pages_to_fetch
+
+
+def resolve_chembl_search_type_from_query(query: str, default_search_type: str | None) -> str:
+    """Return the ChEMBL resource/search type for a workflow query."""
+    resource = get_chembl_prefixed_query_resource(query)
+    if resource:
+        return resource
+    return default_search_type or "activity"
+
+
+def validate_compound_chembl_query_resource(query: str) -> None:
+    """Validate ChEMBL-prefixed query resources for compound workflows."""
+    resource = get_chembl_prefixed_query_resource(query)
+    if resource is None:
+        return
+    if resource in {"molecule", "activity"}:
+        return
+    msg = COMPOUND_UNSUPPORTED_CHEMBL_RESOURCE_ERROR.format(resource=resource)
+    raise ValueError(msg)
+
+
+def build_chembl_query_structure(query: str) -> dict[str, object] | None:
+    """Parse a ChEMBL-prefixed query string, if one is present."""
+    if not is_chembl_prefixed_query(query):
+        return None
+    return parse_chembl_query_builder_string(query)
 
 
 def merge_enrichment_data(existing: list[Any], new: Any) -> list[Any]:
@@ -484,9 +527,10 @@ class MainWorkflow:
         self.log.info("Pipeline: CrossRef enrichment completed (elapsed=%.2fs)", enrich_elapsed)
 
     def _step_fetch_chembl(self, context: dict[str, Any], search_type: str | None = "activity") -> None:
-        """Search ChEMBL for queries found in context['searches']['chembl']."""
+        """Search ChEMBL using the query stored in the workflow context."""
         chembl_search = context.get("searches", {}).get("chembl", {})
         query = chembl_search.get("interpreted_query") or chembl_search.get("query")
+        query_structure = chembl_search.get("query_structure")
         export_format = chembl_search.get("export_format") or self.default_export_format
         pages_to_fetch = normalize_chembl_pages_to_fetch(chembl_search.get("pages_to_fetch", -1))
         limit = int(chembl_search.get("limit", 100))
@@ -501,10 +545,23 @@ class MainWorkflow:
 
         self.log.info("Pipeline: fetching ChEMBL for query=%s search_type=%s", query, search_type)
         instance = ChEMBLInterface()
-        activity_filter = instance.extract_ic50_activity_filter(query) if search_type == "activity" else None
+        activity_filter = None
+        fetch_query = query
+        fetch_method = f"{search_type}-search" or "activity-search"
+        if isinstance(query_structure, dict):
+            resource = str(query_structure.get("resource") or "")
+            fetch_method = resource
+            if "filters" in query_structure:
+                fetch_query = {"filters": query_structure["filters"]}
+            elif "parameters" in query_structure:
+                fetch_query = query_structure["parameters"]
+            else:
+                fetch_query = query
+        elif search_type == "activity":
+            activity_filter = instance.extract_ic50_activity_filter(query)
         result, meta = instance.fetch_single(
-            query=query,
-            method=f"{search_type}-search" or "activity-search",
+            query=fetch_query,
+            method=fetch_method,
             parse=True,
             format=cast("Any", parse_format),
             pages_to_fetch=pages_to_fetch,
@@ -606,6 +663,9 @@ class MainWorkflow:
 
         Returns (data, metadata).
         """
+        if context is None and query is not None and is_chembl_prefixed_query(query):
+            raise ValueError(PROTEIN_CHEMBL_QUERY_ERROR)
+
         uniprot_interpreter = build_default_uniprot_interpreter()
 
         export_format = export_format or self.default_export_format
@@ -678,12 +738,13 @@ class MainWorkflow:
         export_format: str | None = None,
         chembl_pages_to_fetch: int | None = None,
         context: dict[str, Any] | None = None,
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> tuple[dict, dict]:
-        """Run the compound modality, routing queries through ChEMBL -> UniProt.
+        """Run the compound modality through compound/activity-oriented ChEMBL searches.
 
-        Some queries include just ChEMBL searches; others combine ChEMBL + UniProt.
-        For example: by target ("Proteases"), by activity ("IC50:<1000" or "Ki:<50").
+        Compound workflows keep ChEMBL compound or activity outputs and do not
+        automatically map ChEMBL targets back to UniProt. Protein-ligand
+        interaction workflows own that cross-entity mapping behavior.
 
         Args:
             query: The user-friendly compound query string.
@@ -694,26 +755,27 @@ class MainWorkflow:
             **kwargs: Additional keyword arguments (currently unused, reserved for future use).
 
         """
+        validate_compound_chembl_query_resource(query)
         chembl_interpreter = build_default_chembl_interpreter()
-        uniprot_interpreter = build_default_uniprot_interpreter()
         export_format = export_format or self.default_export_format
         pages_to_fetch = normalize_chembl_pages_to_fetch(chembl_pages_to_fetch)
+        query_structure = build_chembl_query_structure(query)
+        resolved_search_type = resolve_chembl_search_type_from_query(query, search_type)
 
         args: dict[str, Any] = {
             "query": query,
             "interpreted_query": None,
             "export_format": export_format,
-            "search_type": search_type,
+            "search_type": resolved_search_type,
             "modality": "compound",
             "pages_to_fetch": pages_to_fetch,
         }
+        if query_structure is not None:
+            args["query_structure"] = query_structure
         if context is None:
             context = {
                 "searches": {
                     "chembl": args,
-                    "uniprot": {
-                        "query": None,
-                    },
                 },
                 "data": {},
                 "metadata": {"mode": "query_first", "modality": "compound", "origin": "query"},
@@ -727,54 +789,16 @@ class MainWorkflow:
             merged = {**existing_searches, **override}
             context["searches"] = merged
 
-        # Interpret original compound query
-        context["searches"]["chembl"]["interpreted_query"] = chembl_interpreter.interpret(
-            query=args.get("query", "")
-        )
+        if query_structure is None:
+            context["searches"]["chembl"]["interpreted_query"] = chembl_interpreter.interpret(
+                query=args.get("query", "")
+            )
+        else:
+            context["searches"]["chembl"]["interpreted_query"] = query
 
         # Fetch ChEMBL results
-        self._step_fetch_chembl(context, search_type=search_type)
-        # Build UniProt-compatible subquery from ChEMBL IDs (if any)
-        self._step_chembl_to_uniprot_query(context)
-
-        uniprot_query = context.get("searches", {}).get("uniprot", {}).get("query")
-        if not uniprot_query:
-            self.log.debug("Pipeline: no UniProt query generated from ChEMBL IDs")
-            return context.get("data", {}), context.get("metadata", {})
-
-        # Interpret UniProt query and append to ChEMBL IDs search
-        chembl_ids_query = context["searches"]["uniprot"]["query"]
-        # We extract the UniProt part of the original query
-        interpreted_uniprot_query = uniprot_interpreter.interpret(query=query)
-
-        combined_queries: str | list[str]
-        if chembl_ids_query and isinstance(chembl_ids_query, list):
-            combined_list: list[str] = []
-            for chembl_query in chembl_ids_query:
-                if interpreted_uniprot_query:
-                    combined_query = f"({interpreted_uniprot_query}) AND {chembl_query}"
-                else:
-                    combined_query = chembl_query
-                combined_list.append(combined_query)
-            combined_queries = combined_list
-        else:
-            combined_queries = (
-                f"({interpreted_uniprot_query}) AND {chembl_ids_query}"
-                if interpreted_uniprot_query
-                else cast("str", chembl_ids_query)
-            )
-
-        # Combine both queries
-        context["searches"]["uniprot"] = {
-            "query": query,
-            "interpreted_query": combined_queries,
-            "export_format": export_format,
-        }
-
-        run_protein_sig = inspect.signature(self.run_protein)
-        run_protein_args = {k: v for k, v in kwargs.items() if k in run_protein_sig.parameters}
-
-        return self.run_protein(context=context, **run_protein_args)
+        self._step_fetch_chembl(context, search_type=resolved_search_type)
+        return context.get("data", {}), context.get("metadata", {})
 
     def run_interaction(
         self,
@@ -833,6 +857,8 @@ class MainWorkflow:
 
         # Fetch interaction candidates
         if interaction_type == "protein-protein":
+            if is_chembl_prefixed_query(query):
+                raise ValueError(PPI_CHEMBL_QUERY_ERROR)
             # Interpret original interaction query
             context["searches"]["uniprot"]["interpreted_query"] = uniprot_interpreter.interpret(
                 query=args.get("query", "")
@@ -847,18 +873,33 @@ class MainWorkflow:
 
             return context.get("data", {}), context.get("metadata", {})
         if interaction_type == "protein-ligand":
+            query_structure = build_chembl_query_structure(query)
+            resolved_search_type = resolve_chembl_search_type_from_query(query, "target")
+            if query_structure is not None and resolved_search_type not in {
+                "target",
+                "activity",
+                "assay",
+            }:
+                msg = (
+                    f"ChEMBL resource '{resolved_search_type}' is not valid for protein-ligand "
+                    "interaction workflows. Use chembl.target, chembl.activity, or chembl.assay."
+                )
+                raise ValueError(msg)
             context["searches"]["chembl"] = {
                 "query": query,
                 "export_format": export_format,
-                "search_type": "target",
+                "search_type": resolved_search_type,
                 "pages_to_fetch": chembl_pages_to_fetch,
             }
-            # Interpret original interaction query
-            context["searches"]["chembl"]["interpreted_query"] = chembl_interpreter.interpret(
-                query=args.get("query", "")
-            )
+            if query_structure is None:
+                context["searches"]["chembl"]["interpreted_query"] = chembl_interpreter.interpret(
+                    query=args.get("query", "")
+                )
+            else:
+                context["searches"]["chembl"]["interpreted_query"] = query
+                context["searches"]["chembl"]["query_structure"] = query_structure
             # For PLI, we first search ChEMBL to get compounds/targets matching the query,
-            self._step_fetch_chembl(context, search_type="target")
+            self._step_fetch_chembl(context, search_type=resolved_search_type)
             # then use those targets to fetch UniProt details.
             self._step_chembl_to_uniprot_query(context, keep_original_query=False)
             uniprot_query = context.get("searches", {}).get("uniprot", {}).get("query")

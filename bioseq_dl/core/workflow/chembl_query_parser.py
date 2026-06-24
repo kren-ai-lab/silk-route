@@ -12,6 +12,27 @@ from bioseq_dl.core.workflow.chembl_query_catalog import (
 )
 
 CHEMBL_QUERY_PATTERN = re.compile(r"^chembl\.(?P<resource>[a-z_]+):(?P<body>.+)$")
+CHEMBL_BUILDER_QUERY_PREFIXES = (
+    "chembl.target:",
+    "chembl.assay:",
+    "chembl.cell_line:",
+    "chembl.molecule:",
+    "chembl.activity:",
+)
+
+
+def is_chembl_prefixed_query(query: str) -> bool:
+    """Return whether the query uses a ChEMBL builder prefix."""
+    normalized = str(query or "").strip().lower()
+    return normalized.startswith(CHEMBL_BUILDER_QUERY_PREFIXES)
+
+
+def get_chembl_prefixed_query_resource(query: str) -> str | None:
+    """Return the ChEMBL resource name from a prefixed query, if present."""
+    match = CHEMBL_QUERY_PATTERN.match(str(query or "").strip())
+    if not match:
+        return None
+    return match.group("resource")
 
 
 def split_chembl_condition_fragment(fragment: str) -> tuple[str, str, str]:
@@ -74,4 +95,3 @@ def parse_chembl_query_builder_string(query: str) -> dict[str, object]:
 
     msg = f"ChEMBL query model '{resource.query_model}' is not implemented for parsing."
     raise ValueError(msg)
-
