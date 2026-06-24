@@ -14,7 +14,10 @@ from bioseq_dl.gui.query_builders.chembl import (
     build_chembl_friendly_query,
     build_chembl_interpreted_query,
 )
-from bioseq_dl.gui.query_builders.registry import get_query_builder_choices
+from bioseq_dl.gui.query_builders.registry import (
+    get_compatible_query_builder_choices,
+    get_query_builder_choices,
+)
 from bioseq_dl.gui.query_builders.uniprot import (
     build_uniprot_friendly_query,
     build_uniprot_interpreted_query,
@@ -268,6 +271,25 @@ def build_chembl_builder_form_rows(
     ]
 
 
+def get_dataset_modality_value(form_values: dict[str, object]) -> str:
+    """Return the selected dataset modality as a workflow-v1 value."""
+    return str(
+        normalize_labeled_value(
+            form_values.get("dataset.modality", "protein"),
+            MODALITY_LABEL_TO_VALUE,
+        )
+    )
+
+
+def get_dataset_interaction_type_value(form_values: dict[str, object]) -> str | None:
+    """Return the selected interaction type as a workflow-v1 value."""
+    value = normalize_labeled_value(
+        form_values.get("dataset.interaction_type"),
+        INTERACTION_TYPE_LABEL_TO_VALUE,
+    )
+    return str(value) if value else None
+
+
 class WorkflowYamlBuilderApp:
     """Render and manage the BioSeqDownloader workflow YAML builder."""
 
@@ -281,6 +303,8 @@ class WorkflowYamlBuilderApp:
         self.chembl_builder_rows = [make_chembl_builder_ui_row(get_query_builder_label("chembl_target"))]
         self.friendly_query_preview: Any = None
         self.interpreted_query_preview: Any = None
+        self.query_builder_select: Any = None
+        self.builder_availability_message: Any = None
         self.yaml_output: Any = None
         self.status: Any = None
 
@@ -330,6 +354,7 @@ class WorkflowYamlBuilderApp:
                 (
                     ui.select(list(MODALITY_LABEL_TO_VALUE), label="Modality")
                     .bind_value(self.form_values, "dataset.modality")
+                    .on_value_change(self.handle_dataset_builder_context_change)
                     .tooltip("The type of biomolecular data described by this workflow.")
                 )
                 (
@@ -343,6 +368,7 @@ class WorkflowYamlBuilderApp:
                 (
                     ui.select(list(INTERACTION_TYPE_LABEL_TO_VALUE), label="Interaction type")
                     .bind_value(self.form_values, "dataset.interaction_type")
+                    .on_value_change(self.handle_dataset_builder_context_change)
                     .tooltip(
                         "Only needed when Modality is Interaction. Choose No interaction for "
                         "protein or compound datasets."
@@ -382,8 +408,13 @@ class WorkflowYamlBuilderApp:
             )
 
             with ui.column().classes("w-full gap-3") as builder_panel:
-                (
-                    ui.select(list(QUERY_BUILDER_LABEL_TO_KEY), label="Query builder")
+                ui.label(
+                    "Available builders depend on the selected dataset modality and "
+                    "interaction type."
+                ).classes("text-sm text-gray-700")
+                self.builder_availability_message = ui.label("").classes("text-sm text-orange-700")
+                self.query_builder_select = (
+                    ui.select(self.get_compatible_query_builder_labels(), label="Query builder")
                     .bind_value(self.form_values, "query.builder.key")
                     .on_value_change(self.handle_query_builder_change)
                     .tooltip("Choose the database-specific query builder.")
@@ -412,6 +443,7 @@ class WorkflowYamlBuilderApp:
                     .classes("w-full font-mono")
                     .props("readonly rows=3")
                 )
+                self.refresh_query_builder_options()
             builder_panel.bind_visibility_from(
                 self.form_values,
                 "query.input_mode",
@@ -627,6 +659,60 @@ class WorkflowYamlBuilderApp:
             self.build_chembl_builder_rows.refresh()
         self.sync_builder_rows_to_form()
         self.update_builder_previews()
+
+    def get_compatible_query_builder_labels(self) -> list[str]:
+        """Return visible labels for builders compatible with current dataset settings."""
+        choices = get_compatible_query_builder_choices(
+            get_dataset_modality_value(self.form_values),
+            get_dataset_interaction_type_value(self.form_values),
+        )
+        return list(choices.values())
+
+    def get_first_compatible_query_builder_label(self) -> str | None:
+        """Return the first compatible builder label, if any."""
+        labels = self.get_compatible_query_builder_labels()
+        return labels[0] if labels else None
+
+    def is_current_query_builder_compatible(self) -> bool:
+        """Return whether the selected builder is compatible with current dataset settings."""
+        return self.form_values.get("query.builder.key") in self.get_compatible_query_builder_labels()
+
+    def refresh_query_builder_options(self) -> None:
+        """Refresh query-builder choices for the selected dataset settings."""
+        labels = self.get_compatible_query_builder_labels()
+        if self.query_builder_select is not None:
+            self.query_builder_select.options = labels
+            self.query_builder_select.update()
+
+        if labels:
+            if not self.is_current_query_builder_compatible():
+                self.form_values["query.builder.key"] = labels[0]
+            if self.builder_availability_message is not None:
+                self.builder_availability_message.text = ""
+            if is_chembl_builder_key(self.form_values["query.builder.key"]):
+                self.chembl_builder_rows = [
+                    make_chembl_builder_ui_row(self.form_values["query.builder.key"])
+                ]
+                self.build_chembl_builder_rows.refresh()
+            self.build_uniprot_builder_rows.refresh()
+            self.sync_builder_rows_to_form()
+            self.update_builder_previews()
+            return
+
+        self.form_values["query.input_mode"] = get_labeled_option_default(
+            "manual",
+            QUERY_INPUT_MODE_LABEL_TO_VALUE,
+        )
+        if self.builder_availability_message is not None:
+            self.builder_availability_message.text = (
+                "No advanced query builder is available for the current dataset modality and "
+                "interaction type. Use Manual query or adjust the dataset settings."
+            )
+        self.update_builder_previews()
+
+    def handle_dataset_builder_context_change(self, *_args: object) -> None:
+        """Refresh builder choices after dataset modality or interaction type changes."""
+        self.refresh_query_builder_options()
 
     def sync_builder_rows_to_form(self) -> None:
         """Synchronize visible builder rows into pure form values."""
@@ -891,9 +977,7 @@ class WorkflowYamlBuilderApp:
         )
         self.uniprot_builder_rows = [make_uniprot_builder_ui_row()]
         self.chembl_builder_rows = [make_chembl_builder_ui_row(get_query_builder_label("chembl_target"))]
-        self.build_uniprot_builder_rows.refresh()
-        self.build_chembl_builder_rows.refresh()
-        self.update_builder_previews()
+        self.refresh_query_builder_options()
 
     def regenerate_loaded_yaml_preview(self, warnings: list[str]) -> None:
         """Regenerate YAML preview from loaded editable form values."""

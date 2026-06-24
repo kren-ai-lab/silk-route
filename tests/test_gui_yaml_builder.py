@@ -12,6 +12,7 @@ import yaml
 
 from bioseq_dl.gui.yaml_builder import (
     LOADED_QUERY_VALUE_WARNING,
+    PROTEIN_CHEMBL_QUERY_WARNING,
     QUERY_BUILDER_NOT_EDITABLE_WARNING,
     QUERY_COMPOSITION_NOT_EDITABLE_WARNING,
     build_workflow_descriptor,
@@ -882,6 +883,17 @@ def test_loaded_query_value_warns_and_uses_manual_query_mode() -> None:
     assert form_values["query.input_mode"] == "Manual query"
     assert form_values["query.value"] == "reviewed:true"
     assert LOADED_QUERY_VALUE_WARNING in warnings
+
+
+def test_loaded_protein_descriptor_with_chembl_query_warns() -> None:
+    yaml_text = minimal_workflow_yaml().replace(
+        'value: "reviewed:true"',
+        'value: "chembl.target:gene_symbol__iexact=EGFR"',
+    )
+
+    _form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert PROTEIN_CHEMBL_QUERY_WARNING in warnings
 
 
 def test_invalid_yaml_raises_clear_error() -> None:

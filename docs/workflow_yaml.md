@@ -275,6 +275,16 @@ does not call ChEMBL, does not validate values against live ChEMBL records, and
 does not execute the workflow. `query.fields` and `query.crossref_fields`
 remain separate from all query-builder fields.
 
+Advanced query builders are filtered by the selected dataset modality and
+interaction type. Protein datasets currently expose the UniProt builder.
+Compound datasets expose compatible ChEMBL molecule and activity builders.
+Protein-ligand interaction datasets expose compatible ChEMBL target, assay, and
+activity builders. Protein-protein interaction datasets expose the UniProt
+builder. If Interaction is selected without an interaction type, no advanced
+builder is shown and Manual query mode remains available. These filters only
+control GUI choices; the GUI still does not execute workflows, call APIs, or
+download data.
+
 Developer query-builder architecture note: query builders are database- and
 resource-specific. The extension point is
 `bioseq_dl.gui.query_builders.registry`, which registers lightweight builder

@@ -30,6 +30,10 @@ QUERY_BUILDER_NOT_EDITABLE_WARNING = (
 QUERY_COMPOSITION_NOT_EDITABLE_WARNING = (
     "query.composition metadata was found but is not editable in this GUI version."
 )
+PROTEIN_CHEMBL_QUERY_WARNING = (
+    "Loaded query.value appears to be a ChEMBL query, but dataset.modality is Protein. "
+    "Protein workflows are routed through UniProt."
+)
 NON_EDITABLE_METADATA_WARNINGS = {
     "resources": "resources metadata was found but is not editable in this GUI version.",
     "reporting": "reporting metadata was found but is not editable in this GUI version.",
@@ -274,9 +278,13 @@ def csv_text_from_value(value: object) -> str:
 def collect_load_warnings(descriptor: Mapping[str, object]) -> list[str]:
     """Return warnings for loaded metadata the GUI cannot edit."""
     warnings = []
+    dataset = get_mapping_section(descriptor, "dataset")
     query = get_mapping_section(descriptor, "query")
-    if query.get("value"):
+    query_value = str(query.get("value") or "").strip()
+    if query_value:
         warnings.append(LOADED_QUERY_VALUE_WARNING)
+    if dataset.get("modality") == "protein" and query_value.lower().startswith("chembl."):
+        warnings.append(PROTEIN_CHEMBL_QUERY_WARNING)
     if "builder" in query:
         warnings.append(QUERY_BUILDER_NOT_EDITABLE_WARNING)
     if "composition" in query:

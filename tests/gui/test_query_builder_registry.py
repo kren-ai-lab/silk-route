@@ -8,6 +8,8 @@ import sys
 import pytest
 
 from bioseq_dl.gui.query_builders.registry import (
+    get_compatible_query_builder_choices,
+    get_compatible_query_builder_specs,
     get_query_builder_choices,
     get_query_builder_spec,
     get_query_builder_specs,
@@ -33,6 +35,7 @@ def test_query_builder_registry_labels_and_builder_types():
     assert specs["uniprot"].label == "UniProt query builder"
     assert specs["uniprot"].database == "uniprot"
     assert specs["uniprot"].builder_type == "field_boolean"
+    assert specs["uniprot"].compatible_modalities == ("protein", "interaction")
     assert specs["chembl_target"].label == "ChEMBL target filter builder"
     assert specs["chembl_target"].database == "chembl"
     assert specs["chembl_target"].builder_type == "resource_filter"
@@ -49,6 +52,49 @@ def test_query_builder_choices_expose_user_facing_labels():
 
     assert choices["uniprot"] == "UniProt query builder"
     assert choices["chembl_activity"] == "ChEMBL activity parameter builder"
+
+
+def test_protein_modality_returns_only_uniprot_builder():
+    choices = get_compatible_query_builder_choices("protein", None)
+
+    assert choices == {"uniprot": "UniProt query builder"}
+
+
+def test_compound_modality_returns_compound_chembl_builders():
+    choices = get_compatible_query_builder_choices("compound", None)
+
+    assert choices == {
+        "chembl_molecule": "ChEMBL molecule filter builder",
+        "chembl_activity": "ChEMBL activity parameter builder",
+    }
+
+
+def test_protein_ligand_interaction_returns_compatible_chembl_builders():
+    choices = get_compatible_query_builder_choices("interaction", "protein-ligand")
+
+    assert choices == {
+        "chembl_target": "ChEMBL target filter builder",
+        "chembl_assay": "ChEMBL assay filter builder",
+        "chembl_activity": "ChEMBL activity parameter builder",
+    }
+
+
+def test_protein_protein_interaction_returns_uniprot_builder():
+    choices = get_compatible_query_builder_choices("interaction", "protein-protein")
+
+    assert choices == {"uniprot": "UniProt query builder"}
+
+
+def test_interaction_without_interaction_type_returns_no_builders():
+    choices = get_compatible_query_builder_choices("interaction", None)
+
+    assert choices == {}
+
+
+def test_unknown_modality_returns_no_builders():
+    specs = get_compatible_query_builder_specs("unknown", None)
+
+    assert specs == ()
 
 
 def test_query_builder_registry_import_is_lightweight():
@@ -77,4 +123,3 @@ for blocked_prefix in blocked_prefixes:
         capture_output=True,
         text=True,
     )
-

@@ -33,6 +33,8 @@ class QueryBuilderSpec:
     build_friendly_query: Callable[..., str]
     build_interpreted_query: Callable[..., str]
     get_field_catalog: Callable[[], Mapping[str, object]]
+    compatible_modalities: tuple[str, ...]
+    compatible_interaction_types: tuple[str | None, ...] = (None,)
 
 
 def get_query_builder_specs() -> dict[str, QueryBuilderSpec]:
@@ -47,6 +49,8 @@ def get_query_builder_specs() -> dict[str, QueryBuilderSpec]:
             build_friendly_query=build_uniprot_friendly_query,
             build_interpreted_query=build_uniprot_interpreted_query,
             get_field_catalog=get_uniprot_query_builder_field_catalog,
+            compatible_modalities=("protein", "interaction"),
+            compatible_interaction_types=(None, "protein-protein"),
         ),
         QueryBuilderSpec(
             key="chembl_target",
@@ -57,6 +61,8 @@ def get_query_builder_specs() -> dict[str, QueryBuilderSpec]:
             build_friendly_query=build_chembl_friendly_query,
             build_interpreted_query=build_chembl_interpreted_query,
             get_field_catalog=partial(get_chembl_query_builder_field_catalog, "target"),
+            compatible_modalities=("interaction",),
+            compatible_interaction_types=("protein-ligand",),
         ),
         QueryBuilderSpec(
             key="chembl_assay",
@@ -67,6 +73,8 @@ def get_query_builder_specs() -> dict[str, QueryBuilderSpec]:
             build_friendly_query=build_chembl_friendly_query,
             build_interpreted_query=build_chembl_interpreted_query,
             get_field_catalog=partial(get_chembl_query_builder_field_catalog, "assay"),
+            compatible_modalities=("interaction",),
+            compatible_interaction_types=("protein-ligand",),
         ),
         QueryBuilderSpec(
             key="chembl_cell_line",
@@ -77,6 +85,8 @@ def get_query_builder_specs() -> dict[str, QueryBuilderSpec]:
             build_friendly_query=build_chembl_friendly_query,
             build_interpreted_query=build_chembl_interpreted_query,
             get_field_catalog=partial(get_chembl_query_builder_field_catalog, "cell_line"),
+            compatible_modalities=(),
+            compatible_interaction_types=(),
         ),
         QueryBuilderSpec(
             key="chembl_molecule",
@@ -87,6 +97,8 @@ def get_query_builder_specs() -> dict[str, QueryBuilderSpec]:
             build_friendly_query=build_chembl_friendly_query,
             build_interpreted_query=build_chembl_interpreted_query,
             get_field_catalog=partial(get_chembl_query_builder_field_catalog, "molecule"),
+            compatible_modalities=("compound",),
+            compatible_interaction_types=(None,),
         ),
         QueryBuilderSpec(
             key="chembl_activity",
@@ -97,6 +109,8 @@ def get_query_builder_specs() -> dict[str, QueryBuilderSpec]:
             build_friendly_query=build_chembl_friendly_query,
             build_interpreted_query=build_chembl_interpreted_query,
             get_field_catalog=partial(get_chembl_query_builder_field_catalog, "activity"),
+            compatible_modalities=("compound", "interaction"),
+            compatible_interaction_types=(None, "protein-ligand"),
         ),
     ]
     return {spec.key: spec for spec in specs}
@@ -115,3 +129,42 @@ def get_query_builder_choices() -> dict[str, str]:
     """Return query-builder choices as key-to-label mappings."""
     return {key: spec.label for key, spec in get_query_builder_specs().items()}
 
+
+def is_query_builder_compatible(
+    spec: QueryBuilderSpec,
+    modality: str,
+    interaction_type: str | None,
+) -> bool:
+    """Return whether a builder is compatible with selected dataset settings."""
+    normalized_modality = str(modality or "").strip()
+    normalized_interaction_type = interaction_type or None
+    if normalized_modality not in spec.compatible_modalities:
+        return False
+    if normalized_modality != "interaction":
+        return None in spec.compatible_interaction_types
+    if normalized_interaction_type is None:
+        return False
+    return normalized_interaction_type in spec.compatible_interaction_types
+
+
+def get_compatible_query_builder_specs(
+    modality: str,
+    interaction_type: str | None,
+) -> tuple[QueryBuilderSpec, ...]:
+    """Return query builder specs compatible with the selected dataset settings."""
+    return tuple(
+        spec
+        for spec in get_query_builder_specs().values()
+        if is_query_builder_compatible(spec, modality, interaction_type)
+    )
+
+
+def get_compatible_query_builder_choices(
+    modality: str,
+    interaction_type: str | None,
+) -> dict[str, str]:
+    """Return compatible query-builder choices as key-to-label mappings."""
+    return {
+        spec.key: spec.label
+        for spec in get_compatible_query_builder_specs(modality, interaction_type)
+    }

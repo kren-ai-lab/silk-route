@@ -206,6 +206,12 @@ use resource filters that are combined with `AND`; ChEMBL activity uses flat
 parameters. For ChEMBL, use the `in` filter type for multiple values in one
 field. These builders still generate only final interpreted `query.value`
 strings and do not call external APIs.
+Advanced query builders are filtered by the selected dataset modality and
+interaction type. Protein datasets expose the UniProt builder. Compound
+datasets expose compatible ChEMBL molecule and activity builders.
+Protein-ligand interaction datasets expose compatible ChEMBL target, assay, and
+activity builders. Protein-protein interaction datasets expose the UniProt
+builder. Manual query mode remains available for every dataset setting.
 The visible `Harmonization` controls describe expected output columns and
 reporting-related behavior. Metadata fields are entered as comma-separated
 values and generated as a YAML list; descriptive harmonization values do not
