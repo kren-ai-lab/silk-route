@@ -312,6 +312,101 @@ def test_advanced_uniprot_builder_descriptor_validates_as_workflow_v1() -> None:
     assert "composition" not in descriptor["query"]
 
 
+@pytest.mark.parametrize(
+    ("builder_key", "rows", "expected_query_value"),
+    [
+        (
+            "chembl_target",
+            [
+                {"field": "type", "filter_type": "iexact", "value": "protein"},
+                {"field": "gene_symbol", "filter_type": "icontains", "value": "EGFR"},
+            ],
+            "chembl.target:type__iexact=protein AND gene_symbol__icontains=EGFR",
+        ),
+        (
+            "chembl_assay",
+            [
+                {"field": "label_type", "filter_type": "iexact", "value": "functional"},
+                {"field": "organism", "filter_type": "icontains", "value": "virus"},
+            ],
+            "chembl.assay:label_type__iexact=functional AND organism__icontains=virus",
+        ),
+        (
+            "chembl_cell_line",
+            [{"field": "organism", "filter_type": "icontains", "value": "mus"}],
+            "chembl.cell_line:organism__icontains=mus",
+        ),
+        (
+            "chembl_molecule",
+            [
+                {"field": "name", "filter_type": "iexact", "value": "Imatinib"},
+                {"field": "molecular_weight", "filter_type": "range", "value": "80,200"},
+            ],
+            "chembl.molecule:name__iexact=Imatinib AND molecular_weight__range=80,200",
+        ),
+        (
+            "chembl_activity",
+            [
+                {"field": "target_chembl_id", "filter_type": "exact", "value": "CHEMBL5169197"},
+                {"field": "pchembl_value", "filter_type": "exact", "value": "5.83"},
+            ],
+            "chembl.activity:target_chembl_id=CHEMBL5169197 AND pchembl_value=5.83",
+        ),
+    ],
+)
+def test_advanced_chembl_builder_modes_generate_interpreted_query_value(
+    builder_key: str,
+    rows: list[dict[str, object]],
+    expected_query_value: str,
+) -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.input_mode": "Advanced builder",
+            "query.builder.key": builder_key,
+            "query.chembl_builder.rows": rows,
+        }
+    )
+
+    assert descriptor["query"]["value"] == expected_query_value
+    assert validate_generated_descriptor(descriptor) == []
+    assert "builder" not in descriptor["query"]
+    assert "composition" not in descriptor["query"]
+    assert "friendly_query" not in descriptor["query"]
+    assert "query.chembl_builder.rows" not in descriptor
+    assert "resources" not in descriptor
+    assert "reporting" not in descriptor
+
+
+def test_advanced_chembl_builder_rejects_invalid_row() -> None:
+    with pytest.raises(ValueError, match="Row 1: value is required"):
+        build_workflow_descriptor(
+            minimal_form_values()
+            | {
+                "query.input_mode": "advanced_builder",
+                "query.builder.key": "chembl_target",
+                "query.chembl_builder.rows": [
+                    {"field": "gene_symbol", "filter_type": "icontains", "value": ""}
+                ],
+            }
+        )
+
+
+def test_selected_chembl_builder_determines_resource() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.input_mode": "advanced_builder",
+            "query.builder.key": "ChEMBL activity parameter builder",
+            "query.chembl_builder.rows": [
+                {"field": "standard_type", "filter_type": "exact", "value": "IC50"},
+            ],
+        }
+    )
+
+    assert descriptor["query"]["value"] == "chembl.activity:standard_type=IC50"
+
+
 def test_future_only_sections_are_not_generated() -> None:
     descriptor = build_workflow_descriptor(minimal_form_values())
 

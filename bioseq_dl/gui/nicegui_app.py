@@ -8,13 +8,20 @@ from typing import Any
 import yaml
 from nicegui import ui
 
+from bioseq_dl.core.workflow.chembl_query_catalog import get_chembl_query_builder_field_catalog
 from bioseq_dl.core.workflow.query_field_catalog import get_uniprot_query_builder_field_catalog
+from bioseq_dl.gui.query_builders.chembl import (
+    build_chembl_friendly_query,
+    build_chembl_interpreted_query,
+)
+from bioseq_dl.gui.query_builders.registry import get_query_builder_choices
 from bioseq_dl.gui.query_builders.uniprot import (
     build_uniprot_friendly_query,
     build_uniprot_interpreted_query,
     get_uniprot_query_builder_field_metadata,
 )
 from bioseq_dl.gui.yaml_builder import (
+    CHEMBL_BUILDER_RESOURCE_BY_KEY,
     EXPORT_FORMAT_LABEL_TO_VALUE,
     INTERACTION_TYPE_LABEL_TO_VALUE,
     MODALITY_LABEL_TO_VALUE,
@@ -22,11 +29,13 @@ from bioseq_dl.gui.yaml_builder import (
     QUERY_INPUT_MODE_LABEL_TO_VALUE,
     UNIPROT_MATCH_MODE_LABEL_TO_VALUE,
     WORKFLOW_MODE_LABEL_TO_VALUE,
+    build_chembl_builder_rows_from_form,
     build_uniprot_builder_rows_from_form,
     build_workflow_descriptor,
     build_workflow_filename,
     get_labeled_option_default,
     normalize_labeled_value,
+    normalize_query_builder_key,
     normalize_query_input_mode,
     render_workflow_yaml,
     validate_generated_descriptor,
@@ -41,6 +50,15 @@ UNIPROT_BUILDER_FIELD_VALUE_TO_LABEL = {
     value: label for label, value in UNIPROT_BUILDER_FIELD_LABEL_TO_VALUE.items()
 }
 DEFAULT_UNIPROT_BUILDER_FIELD = "organism"
+QUERY_BUILDER_KEY_TO_LABEL = get_query_builder_choices()
+QUERY_BUILDER_LABEL_TO_KEY = {label: key for key, label in QUERY_BUILDER_KEY_TO_LABEL.items()}
+DEFAULT_CHEMBL_FIELDS_BY_RESOURCE = {
+    "target": "gene_symbol",
+    "assay": "label_type",
+    "cell_line": "organism",
+    "molecule": "name",
+    "activity": "target_chembl_id",
+}
 
 
 def is_manual_query_mode(value: object) -> bool:
@@ -50,7 +68,33 @@ def is_manual_query_mode(value: object) -> bool:
 
 def is_uniprot_builder_query_mode(value: object) -> bool:
     """Return whether a GUI query mode value means advanced UniProt builder entry."""
-    return normalize_query_input_mode(value) == "uniprot_builder"
+    return normalize_query_input_mode(value) == "advanced_builder"
+
+
+def is_advanced_builder_query_mode(value: object) -> bool:
+    """Return whether a GUI query mode value means advanced builder entry."""
+    return normalize_query_input_mode(value) == "advanced_builder"
+
+
+def is_uniprot_builder_key(value: object) -> bool:
+    """Return whether a GUI builder key or label selects the UniProt builder."""
+    return get_query_builder_key(value) == "uniprot"
+
+
+def is_chembl_builder_key(value: object) -> bool:
+    """Return whether a GUI builder key or label selects a ChEMBL builder."""
+    return get_query_builder_key(value) in CHEMBL_BUILDER_RESOURCE_BY_KEY
+
+
+def get_query_builder_label(builder_key: object) -> str:
+    """Return a query-builder label for an internal builder key."""
+    return QUERY_BUILDER_KEY_TO_LABEL.get(str(builder_key), str(builder_key))
+
+
+def get_query_builder_key(label_or_key: object) -> str:
+    """Return an internal query-builder key for a label or key."""
+    text = str(label_or_key)
+    return QUERY_BUILDER_LABEL_TO_KEY.get(text, text)
 
 
 def get_uniprot_builder_field_label(field: object) -> str:
@@ -117,6 +161,97 @@ def build_uniprot_builder_form_rows(ui_rows: list[dict[str, object]]) -> list[di
     return form_rows
 
 
+def get_chembl_builder_resource(builder_label_or_key: object) -> str:
+    """Return the ChEMBL resource for a selected builder key or label."""
+    builder_key = get_query_builder_key(builder_label_or_key)
+    return CHEMBL_BUILDER_RESOURCE_BY_KEY[builder_key]
+
+
+def get_active_chembl_builder_label(builder_label_or_key: object) -> str:
+    """Return a ChEMBL builder label, falling back to target when another builder is active."""
+    if is_chembl_builder_key(builder_label_or_key):
+        return str(builder_label_or_key)
+    return get_query_builder_label("chembl_target")
+
+
+def get_chembl_field_catalog_for_builder(builder_label_or_key: object) -> dict[str, object]:
+    """Return the ChEMBL field catalog for the selected builder."""
+    return get_chembl_query_builder_field_catalog(get_chembl_builder_resource(builder_label_or_key))
+
+
+def get_chembl_builder_field_label(builder_label_or_key: object, field: object) -> str:
+    """Return a visible ChEMBL field label."""
+    catalog = get_chembl_field_catalog_for_builder(builder_label_or_key)
+    field_text = str(field)
+    if field_text in catalog:
+        return f"{catalog[field_text].label} ({field_text})"
+    return field_text
+
+
+def get_chembl_builder_field_value(builder_label_or_key: object, label_or_value: object) -> str:
+    """Return an internal ChEMBL field key for a visible field label or field key."""
+    catalog = get_chembl_field_catalog_for_builder(builder_label_or_key)
+    text = str(label_or_value)
+    for key, entry in catalog.items():
+        if text == f"{entry.label} ({key})":
+            return key
+    return text
+
+
+def get_chembl_field_entry(builder_label_or_key: object, label_or_value: object) -> object:
+    """Return ChEMBL catalog metadata for a visible field label or field key."""
+    catalog = get_chembl_field_catalog_for_builder(builder_label_or_key)
+    field = get_chembl_builder_field_value(builder_label_or_key, label_or_value)
+    return catalog[field]
+
+
+def get_chembl_field_options(builder_label_or_key: object) -> list[str]:
+    """Return visible ChEMBL field options for the selected builder."""
+    catalog = get_chembl_field_catalog_for_builder(builder_label_or_key)
+    return [get_chembl_builder_field_label(builder_label_or_key, key) for key in catalog]
+
+
+def get_chembl_filter_type_options(builder_label_or_key: object, label_or_value: object) -> list[str]:
+    """Return filter type options for one selected ChEMBL field."""
+    entry = get_chembl_field_entry(builder_label_or_key, label_or_value)
+    return list(entry.allowed_operators)
+
+
+def get_chembl_field_help(builder_label_or_key: object, label_or_value: object) -> str:
+    """Return compact ChEMBL field help."""
+    entry = get_chembl_field_entry(builder_label_or_key, label_or_value)
+    examples = ", ".join(entry.examples)
+    operators = ", ".join(entry.allowed_operators)
+    return f"{entry.description} Examples: {examples}. Operators: {operators}"
+
+
+def make_chembl_builder_ui_row(builder_label_or_key: object) -> dict[str, object]:
+    """Return one mutable UI row for the selected ChEMBL builder."""
+    resource = get_chembl_builder_resource(builder_label_or_key)
+    field = DEFAULT_CHEMBL_FIELDS_BY_RESOURCE[resource]
+    entry = get_chembl_field_entry(builder_label_or_key, field)
+    return {
+        "field": get_chembl_builder_field_label(builder_label_or_key, field),
+        "filter_type": entry.allowed_operators[0],
+        "value": "",
+    }
+
+
+def build_chembl_builder_form_rows(
+    builder_label_or_key: object,
+    ui_rows: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    """Convert visible ChEMBL builder rows to pure builder form rows."""
+    return [
+        {
+            "field": get_chembl_builder_field_value(builder_label_or_key, row.get("field", "")),
+            "filter_type": row.get("filter_type", ""),
+            "value": row.get("value", ""),
+        }
+        for row in ui_rows
+    ]
+
+
 class WorkflowYamlBuilderApp:
     """Render and manage the BioSeqDownloader workflow YAML builder."""
 
@@ -139,6 +274,9 @@ class WorkflowYamlBuilderApp:
             self.form_values["query.input_mode"],
             QUERY_INPUT_MODE_LABEL_TO_VALUE,
         )
+        self.form_values["query.builder.key"] = get_query_builder_label(
+            self.form_values["query.builder.key"]
+        )
         self.form_values["export.output_dir_mode"] = get_labeled_option_default(
             self.form_values["export.output_dir_mode"],
             OUTPUT_DIRECTORY_MODE_LABEL_TO_VALUE,
@@ -148,6 +286,7 @@ class WorkflowYamlBuilderApp:
             EXPORT_FORMAT_LABEL_TO_VALUE,
         )
         self.uniprot_builder_rows = [make_uniprot_builder_ui_row()]
+        self.chembl_builder_rows = [make_chembl_builder_ui_row(get_query_builder_label("chembl_target"))]
         self.friendly_query_preview: Any = None
         self.interpreted_query_preview: Any = None
         self.yaml_output: Any = None
@@ -214,14 +353,14 @@ class WorkflowYamlBuilderApp:
         """Build query form controls."""
         with ui.expansion("Query", value=True).classes("w-full"):
             ui.label(
-                "Choose manual query entry or build an interpreted UniProt query. "
+                "Choose manual query entry or build an interpreted query. "
                 "Generated YAML always stores only query.value."
             ).classes("text-sm text-gray-700")
             (
                 ui.select(list(QUERY_INPUT_MODE_LABEL_TO_VALUE), label="Query input mode")
                 .bind_value(self.form_values, "query.input_mode")
                 .on_value_change(self.update_builder_previews)
-                .tooltip("Manual mode writes query.value directly. Advanced UniProt mode builds it.")
+                .tooltip("Manual mode writes query.value directly. Advanced builder mode builds it.")
             )
             with ui.column().classes("w-full gap-2") as manual_query_panel:
                 (
@@ -237,28 +376,26 @@ class WorkflowYamlBuilderApp:
             )
 
             with ui.column().classes("w-full gap-3") as builder_panel:
-                ui.label(
-                    "Build a UniProt-style query using rows. Each row selects a query field, "
-                    "one or more comma-separated values, and how those values are matched. "
-                    "The final interpreted query is stored as query.value in the YAML."
-                ).classes("text-sm text-gray-700")
-                ui.label(
-                    "This builder does not call UniProt, does not validate values against live "
-                    "databases, and does not execute the workflow."
-                ).classes("text-sm text-gray-700")
-                ui.label(
-                    "Connector combines this row with the previous row. Use AND when both "
-                    "conditions should be required; use OR when either condition can match."
-                ).classes("text-sm text-gray-700")
-                ui.label(
-                    "Match mode combines comma-separated values inside one row. Any means at "
-                    "least one value can match. All means every value must match. Not means the "
-                    "values are excluded."
-                ).classes("text-sm text-gray-700")
-                self.build_uniprot_builder_rows()
-                with ui.row().classes("items-center gap-3"):
-                    ui.button("Add condition", on_click=self.add_uniprot_builder_row)
-                    ui.button("Update query preview", on_click=self.update_builder_previews)
+                (
+                    ui.select(list(QUERY_BUILDER_LABEL_TO_KEY), label="Query builder")
+                    .bind_value(self.form_values, "query.builder.key")
+                    .on_value_change(self.handle_query_builder_change)
+                    .tooltip("Choose the database-specific query builder.")
+                )
+                with ui.column().classes("w-full gap-3") as uniprot_builder_panel:
+                    self.build_uniprot_builder_controls()
+                uniprot_builder_panel.bind_visibility_from(
+                    self.form_values,
+                    "query.builder.key",
+                    backward=is_uniprot_builder_key,
+                )
+                with ui.column().classes("w-full gap-3") as chembl_builder_panel:
+                    self.build_chembl_builder_controls()
+                chembl_builder_panel.bind_visibility_from(
+                    self.form_values,
+                    "query.builder.key",
+                    backward=is_chembl_builder_key,
+                )
                 self.friendly_query_preview = (
                     ui.textarea("Friendly query preview")
                     .classes("w-full font-mono")
@@ -272,7 +409,7 @@ class WorkflowYamlBuilderApp:
             builder_panel.bind_visibility_from(
                 self.form_values,
                 "query.input_mode",
-                backward=is_uniprot_builder_query_mode,
+                backward=is_advanced_builder_query_mode,
             )
 
             with ui.grid(columns=2).classes("w-full gap-3"):
@@ -302,6 +439,32 @@ class WorkflowYamlBuilderApp:
                         "Whether UniProt isoforms should be included when supported by the workflow."
                     )
                 )
+
+    def build_uniprot_builder_controls(self) -> None:
+        """Build UniProt-specific advanced builder controls."""
+        with ui.column().classes("w-full gap-3"):
+                ui.label(
+                    "Build a UniProt-style query using rows. Each row selects a query field, "
+                    "one or more comma-separated values, and how those values are matched. "
+                    "The final interpreted query is stored as query.value in the YAML."
+                ).classes("text-sm text-gray-700")
+                ui.label(
+                    "This builder does not call UniProt, does not validate values against live "
+                    "databases, and does not execute the workflow."
+                ).classes("text-sm text-gray-700")
+                ui.label(
+                    "Connector combines this row with the previous row. Use AND when both "
+                    "conditions should be required; use OR when either condition can match."
+                ).classes("text-sm text-gray-700")
+                ui.label(
+                    "Match mode combines comma-separated values inside one row. Any means at "
+                    "least one value can match. All means every value must match. Not means the "
+                    "values are excluded."
+                ).classes("text-sm text-gray-700")
+                self.build_uniprot_builder_rows()
+                with ui.row().classes("items-center gap-3"):
+                    ui.button("Add condition", on_click=self.add_uniprot_builder_row)
+                    ui.button("Update query preview", on_click=self.update_builder_previews)
 
     @ui.refreshable
     def build_uniprot_builder_rows(self) -> None:
@@ -354,7 +517,7 @@ class WorkflowYamlBuilderApp:
     def add_uniprot_builder_row(self) -> None:
         """Add one advanced UniProt builder condition row."""
         self.uniprot_builder_rows.append(make_uniprot_builder_ui_row(connector="AND"))
-        self.sync_uniprot_builder_rows_to_form()
+        self.sync_builder_rows_to_form()
         self.build_uniprot_builder_rows.refresh()
         self.update_builder_previews()
 
@@ -363,31 +526,128 @@ class WorkflowYamlBuilderApp:
         if index <= 0 or index >= len(self.uniprot_builder_rows):
             return
         self.uniprot_builder_rows.pop(index)
-        self.sync_uniprot_builder_rows_to_form()
+        self.sync_builder_rows_to_form()
         self.build_uniprot_builder_rows.refresh()
         self.update_builder_previews()
 
     def handle_uniprot_builder_field_change(self, _index: int, *_args: object) -> None:
         """Refresh field-specific help after a builder field changes."""
-        self.sync_uniprot_builder_rows_to_form()
+        self.sync_builder_rows_to_form()
         self.build_uniprot_builder_rows.refresh()
         self.update_builder_previews()
 
-    def sync_uniprot_builder_rows_to_form(self) -> None:
+    def build_chembl_builder_controls(self) -> None:
+        """Build ChEMBL-specific advanced builder controls."""
+        with ui.column().classes("w-full gap-3"):
+            ui.label(
+                "ChEMBL builders use resource-specific filters. Rows are combined with AND. "
+                "Use the IN filter type for multiple allowed values in one field."
+            ).classes("text-sm text-gray-700")
+            ui.label(
+                "The builder does not call ChEMBL, does not validate values against live "
+                "ChEMBL records, and does not execute the workflow."
+            ).classes("text-sm text-gray-700")
+            self.build_chembl_builder_rows()
+            with ui.row().classes("items-center gap-3"):
+                ui.button("Add condition", on_click=self.add_chembl_builder_row)
+                ui.button("Update query preview", on_click=self.update_builder_previews)
+
+    @ui.refreshable
+    def build_chembl_builder_rows(self) -> None:
+        """Build ChEMBL query builder row controls."""
+        builder_label = get_active_chembl_builder_label(self.form_values["query.builder.key"])
+        for index, row in enumerate(self.chembl_builder_rows):
+            field_help = get_chembl_field_help(builder_label, row.get("field", ""))
+            values_placeholder = str(get_chembl_field_entry(builder_label, row.get("field", "")).placeholder)
+            filter_type_options = get_chembl_filter_type_options(builder_label, row.get("field", ""))
+            if row.get("filter_type") not in filter_type_options:
+                row["filter_type"] = filter_type_options[0]
+            with ui.row().classes("w-full items-end gap-3"):
+                (
+                    ui.select(get_chembl_field_options(builder_label), label="Field")
+                    .bind_value(row, "field")
+                    .on_value_change(partial(self.handle_chembl_builder_field_change, index))
+                    .classes("min-w-72")
+                    .tooltip(field_help)
+                )
+                (
+                    ui.select(filter_type_options, label="Filter type")
+                    .bind_value(row, "filter_type")
+                    .on_value_change(self.update_builder_previews)
+                    .classes("w-40")
+                    .tooltip("Filter type controls the ChEMBL field suffix/operator.")
+                )
+                (
+                    ui.input("Value", placeholder=values_placeholder)
+                    .props("clearable")
+                    .bind_value(row, "value")
+                    .on_value_change(self.update_builder_previews)
+                    .classes("grow")
+                    .tooltip("Enter the value for this ChEMBL filter.")
+                )
+                if index > 0:
+                    ui.button("Remove", on_click=partial(self.remove_chembl_builder_row, index))
+            ui.label(field_help).classes("text-xs text-gray-600")
+
+    def add_chembl_builder_row(self) -> None:
+        """Add one ChEMBL builder condition row."""
+        self.chembl_builder_rows.append(
+            make_chembl_builder_ui_row(self.form_values["query.builder.key"])
+        )
+        self.sync_builder_rows_to_form()
+        self.build_chembl_builder_rows.refresh()
+        self.update_builder_previews()
+
+    def remove_chembl_builder_row(self, index: int) -> None:
+        """Remove one ChEMBL builder condition row."""
+        if index <= 0 or index >= len(self.chembl_builder_rows):
+            return
+        self.chembl_builder_rows.pop(index)
+        self.sync_builder_rows_to_form()
+        self.build_chembl_builder_rows.refresh()
+        self.update_builder_previews()
+
+    def handle_chembl_builder_field_change(self, _index: int, *_args: object) -> None:
+        """Refresh ChEMBL field-specific filter options and help."""
+        self.sync_builder_rows_to_form()
+        self.build_chembl_builder_rows.refresh()
+        self.update_builder_previews()
+
+    def handle_query_builder_change(self, *_args: object) -> None:
+        """Refresh builder-specific controls after the selected builder changes."""
+        builder_label = self.form_values["query.builder.key"]
+        if is_chembl_builder_key(builder_label):
+            self.chembl_builder_rows = [make_chembl_builder_ui_row(builder_label)]
+            self.build_chembl_builder_rows.refresh()
+        self.sync_builder_rows_to_form()
+        self.update_builder_previews()
+
+    def sync_builder_rows_to_form(self) -> None:
         """Synchronize visible builder rows into pure form values."""
         self.form_values["query.uniprot_builder.rows"] = build_uniprot_builder_form_rows(
             self.uniprot_builder_rows
         )
+        if is_chembl_builder_key(self.form_values["query.builder.key"]):
+            self.form_values["query.chembl_builder.rows"] = build_chembl_builder_form_rows(
+                self.form_values["query.builder.key"],
+                self.chembl_builder_rows,
+            )
 
     def update_builder_previews(self, *_args: object) -> None:
-        """Update friendly and interpreted advanced UniProt query previews."""
-        self.sync_uniprot_builder_rows_to_form()
+        """Update friendly and interpreted advanced query previews."""
+        self.sync_builder_rows_to_form()
         if self.friendly_query_preview is None or self.interpreted_query_preview is None:
             return
         try:
-            rows = build_uniprot_builder_rows_from_form(self.form_values)
-            friendly_query = build_uniprot_friendly_query(rows)
-            interpreted_query = build_uniprot_interpreted_query(rows)
+            builder_key = normalize_query_builder_key(self.form_values["query.builder.key"])
+            if builder_key == "uniprot":
+                rows = build_uniprot_builder_rows_from_form(self.form_values)
+                friendly_query = build_uniprot_friendly_query(rows)
+                interpreted_query = build_uniprot_interpreted_query(rows)
+            else:
+                rows = build_chembl_builder_rows_from_form(self.form_values)
+                friendly_query = build_chembl_friendly_query(rows)
+                interpreted_query = build_chembl_interpreted_query(rows)
         except ValueError as exc:
             self.friendly_query_preview.value = ""
             self.interpreted_query_preview.value = f"Builder error: {exc}"
@@ -559,7 +819,7 @@ class WorkflowYamlBuilderApp:
 
     def generate_yaml(self) -> None:
         """Generate YAML from the current form state."""
-        self.sync_uniprot_builder_rows_to_form()
+        self.sync_builder_rows_to_form()
         try:
             descriptor = build_workflow_descriptor(self.form_values)
         except (TypeError, ValueError) as exc:

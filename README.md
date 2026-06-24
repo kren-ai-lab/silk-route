@@ -184,21 +184,22 @@ from bioseq_dl.workflow_schema_definition import get_workflow_v1_schema_definiti
 The optional NiceGUI interface generates `workflow-v1` YAML descriptors only.
 It does not execute workflows, call APIs, or download data. The Query section
 supports Manual query mode, which writes `query.value` directly, and Advanced
-UniProt builder mode, which builds an interpreted UniProt-compatible query and
-stores only that final interpreted string in `query.value`. Friendly query
-previews and builder rows are not saved to YAML. Human-friendly GUI labels are
-translated to exact workflow-v1 schema values.
+builder mode, which currently offers UniProt and ChEMBL builders and stores
+only the final interpreted string in `query.value`. Friendly query previews and
+builder rows are not saved to YAML. Human-friendly GUI labels are translated to
+exact workflow-v1 schema values.
 `query.fields` and `query.crossref_fields` remain separate optional inputs and
 are not advanced-builder search conditions.
 In the Advanced UniProt builder, Connector combines a row with the previous row
 using `AND` or `OR`, while Match mode combines comma-separated values inside
 one row as `Any`, `All`, or `Not`. Values containing spaces can be quoted. The
 builder does not call UniProt or validate values against live services.
-Query-builder foundations are registered per database/resource: UniProt uses a
-field/boolean builder, while ChEMBL foundations use filter-list builders for
-target, assay, cell line, and molecule resources plus a flat-parameter builder
-for activity. These foundations still generate only final interpreted
-`query.value` strings and do not call external APIs.
+Query builders are registered per database/resource: UniProt uses connectors
+and match modes, while ChEMBL target, assay, cell line, and molecule builders
+use resource filters that are combined with `AND`; ChEMBL activity uses flat
+parameters. For ChEMBL, use the `in` filter type for multiple values in one
+field. These builders still generate only final interpreted `query.value`
+strings and do not call external APIs.
 The visible `Harmonization` controls describe expected output columns and
 reporting-related behavior. Metadata fields are entered as comma-separated
 values and generated as a YAML list; descriptive harmonization values do not

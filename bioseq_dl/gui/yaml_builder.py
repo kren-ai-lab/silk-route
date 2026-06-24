@@ -51,12 +51,19 @@ OUTPUT_DIRECTORY_MODE_LABEL_TO_VALUE = {
 }
 QUERY_INPUT_MODE_LABEL_TO_VALUE = {
     "Manual query": "manual",
-    "Advanced UniProt builder": "uniprot_builder",
+    "Advanced builder": "advanced_builder",
 }
 UNIPROT_MATCH_MODE_LABEL_TO_VALUE = {
     "Any": "any",
     "All": "all",
     "Not": "not",
+}
+CHEMBL_BUILDER_RESOURCE_BY_KEY = {
+    "chembl_target": "target",
+    "chembl_assay": "assay",
+    "chembl_cell_line": "cell_line",
+    "chembl_molecule": "molecule",
+    "chembl_activity": "activity",
 }
 
 DEFAULT_FORM_VALUES: dict[str, object] = {
@@ -66,6 +73,7 @@ DEFAULT_FORM_VALUES: dict[str, object] = {
     "dataset.mode": "query_first",
     "dataset.interaction_type": None,
     "query.input_mode": "manual",
+    "query.builder.key": "uniprot",
     "query.value": "",
     "query.uniprot_builder.rows": [
         {
@@ -73,6 +81,13 @@ DEFAULT_FORM_VALUES: dict[str, object] = {
             "field": "organism",
             "values": "",
             "match_mode": "any",
+        }
+    ],
+    "query.chembl_builder.rows": [
+        {
+            "field": "gene_symbol",
+            "filter_type": "icontains",
+            "value": "",
         }
     ],
     "query.fields": "",
@@ -105,8 +120,10 @@ FORM_VALUE_ALIASES: dict[str, tuple[str, ...]] = {
     "dataset.mode": ("dataset_mode",),
     "dataset.interaction_type": ("dataset_interaction_type",),
     "query.input_mode": ("query_input_mode",),
+    "query.builder.key": ("query_builder_key",),
     "query.value": ("query_value",),
     "query.uniprot_builder.rows": ("query_uniprot_builder_rows",),
+    "query.chembl_builder.rows": ("query_chembl_builder_rows",),
     "query.fields": ("query_fields",),
     "query.crossref_fields": ("query_crossref_fields",),
     "query.include_isoform": ("query_include_isoform",),
@@ -176,10 +193,29 @@ def get_labeled_option_default(value: object, label_to_value: Mapping[str, objec
 
 def normalize_query_input_mode(value: object) -> str:
     """Normalize the GUI query input mode."""
+    if value == "Advanced UniProt builder":
+        return "advanced_builder"
     normalized = normalize_labeled_value(value, QUERY_INPUT_MODE_LABEL_TO_VALUE)
-    if normalized in {"manual", "uniprot_builder"}:
+    if normalized == "uniprot_builder":
+        return "advanced_builder"
+    if normalized in {"manual", "advanced_builder"}:
         return str(normalized)
     msg = f"Unsupported query input mode '{value}'."
+    raise ValueError(msg)
+
+
+def normalize_query_builder_key(value: object) -> str:
+    """Normalize the selected advanced query builder key."""
+    from bioseq_dl.gui.query_builders.registry import get_query_builder_choices  # noqa: PLC0415
+
+    text = str(value or "uniprot").strip()
+    choices = get_query_builder_choices()
+    if text in choices:
+        return text
+    for key, label in choices.items():
+        if text == label:
+            return key
+    msg = f"Unsupported query builder '{value}'."
     raise ValueError(msg)
 
 
@@ -226,19 +262,59 @@ def build_uniprot_builder_rows_from_form(form_values: Mapping[str, object]) -> l
     return rows
 
 
+def build_chembl_builder_rows_from_form(form_values: Mapping[str, object]) -> list[object]:
+    """Build pure ChEMBL query builder rows from GUI form values."""
+    from bioseq_dl.gui.query_builders.chembl import ChEMBLFilterQueryBuilderRow  # noqa: PLC0415
+
+    builder_key = normalize_query_builder_key(get_form_value(form_values, "query.builder.key"))
+    if builder_key not in CHEMBL_BUILDER_RESOURCE_BY_KEY:
+        msg = f"Query builder '{builder_key}' is not a ChEMBL builder."
+        raise ValueError(msg)
+
+    raw_rows = get_form_value(form_values, "query.chembl_builder.rows")
+    if not isinstance(raw_rows, list):
+        msg = "Advanced ChEMBL builder rows must be a list."
+        raise TypeError(msg)
+
+    resource = CHEMBL_BUILDER_RESOURCE_BY_KEY[builder_key]
+    return [
+        ChEMBLFilterQueryBuilderRow(
+            resource=resource,
+            field=str(get_builder_row_value(raw_row, "field", "")),
+            filter_type=str(get_builder_row_value(raw_row, "filter_type", "")),
+            value=str(get_builder_row_value(raw_row, "value", "")),
+        )
+        for raw_row in raw_rows
+    ]
+
+
 def resolve_query_value_from_form(form_values: Mapping[str, object]) -> str:
     """Resolve the executable query.value from manual or advanced query form values."""
     mode = normalize_query_input_mode(get_form_value(form_values, "query.input_mode"))
     if mode == "manual":
         return str(get_form_value(form_values, "query.value") or "").strip()
 
-    from bioseq_dl.gui.query_builders.uniprot import build_uniprot_interpreted_query  # noqa: PLC0415
+    builder_key = normalize_query_builder_key(get_form_value(form_values, "query.builder.key"))
+    if builder_key == "uniprot":
+        from bioseq_dl.gui.query_builders.uniprot import build_uniprot_interpreted_query  # noqa: PLC0415
 
-    rows = build_uniprot_builder_rows_from_form(form_values)
-    if not rows:
-        msg = "Advanced UniProt builder requires at least one condition."
-        raise ValueError(msg)
-    return build_uniprot_interpreted_query(rows)
+        rows = build_uniprot_builder_rows_from_form(form_values)
+        if not rows:
+            msg = "Advanced UniProt builder requires at least one condition."
+            raise ValueError(msg)
+        return build_uniprot_interpreted_query(rows)
+
+    if builder_key in CHEMBL_BUILDER_RESOURCE_BY_KEY:
+        from bioseq_dl.gui.query_builders.chembl import build_chembl_interpreted_query  # noqa: PLC0415
+
+        rows = build_chembl_builder_rows_from_form(form_values)
+        if not rows:
+            msg = "Advanced ChEMBL builder requires at least one condition."
+            raise ValueError(msg)
+        return build_chembl_interpreted_query(rows)
+
+    msg = f"Unsupported query builder '{builder_key}'."
+    raise ValueError(msg)
 
 
 def parse_csv_list(value: object) -> list[str]:

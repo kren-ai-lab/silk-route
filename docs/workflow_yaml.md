@@ -204,12 +204,11 @@ download data, or validate against live UniProt.
 The optional NiceGUI interface only generates `workflow-v1`
 YAML descriptors. It does not execute workflows, call APIs, download data,
 or collect credentials. The Query section has two modes: Manual query writes
-the typed text directly to `query.value`, while Advanced UniProt builder creates
-row-based UniProt-friendly conditions, shows a friendly query preview, builds a
-final interpreted UniProt-compatible query, and writes only that final
-interpreted query to `query.value`. The friendly query preview, builder row
-metadata, `query.builder`, and `query.composition` are not saved to generated
-YAML. Install it with the optional GUI extra and run:
+the typed text directly to `query.value`, while Advanced builder lets users
+choose a database-specific builder. The interpreted query preview is the value
+written to `query.value`. The friendly query preview, builder row metadata,
+`query.builder`, and `query.composition` are not saved to generated YAML.
+Install it with the optional GUI extra and run:
 
 ```bash
 pip install -e ".[gui]"
@@ -255,6 +254,15 @@ values. Values with spaces can be quoted, such as `"Homo sapiens"` or
 `"DNA repair"`. The friendly query preview is an intermediate display only; the
 interpreted `query.value` preview is the value that generated YAML stores under
 `query.value`.
+
+Advanced ChEMBL builders use resource-specific filters rather than UniProt-style
+connectors and match modes. ChEMBL target, assay, cell line, and molecule
+builders emit filter-list query strings; the ChEMBL activity builder emits flat
+parameter query strings. ChEMBL rows are combined with `AND`; use the `in`
+filter type for multiple allowed values in a single field. The ChEMBL builder
+does not call ChEMBL, does not validate values against live ChEMBL records, and
+does not execute the workflow. `query.fields` and `query.crossref_fields`
+remain separate from all query-builder fields.
 
 Developer query-builder architecture note: query builders are database- and
 resource-specific. The extension point is
