@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import importlib
 import subprocess
 import sys
@@ -24,6 +25,51 @@ from bioseq_dl.gui.yaml_builder import (
     validate_generated_descriptor,
     workflow_yaml_form_defaults,
 )
+
+
+class FakeNiceGUIUploadFile:
+    """Fake NiceGUI upload file with an async text method."""
+
+    def __init__(self, name: str, content: str) -> None:
+        """Create a fake upload file."""
+        self.name = name
+        self.content = content
+        self.requested_encoding = ""
+
+    async def text(self, encoding: str) -> str:
+        """Return uploaded text content."""
+        self.requested_encoding = encoding
+        return self.content
+
+
+class FakeNiceGUIUploadEvent:
+    """Fake NiceGUI upload event using the NiceGUI 3.13 file attribute."""
+
+    def __init__(self, name: str, content: str) -> None:
+        """Create a fake upload event."""
+        self.file = FakeNiceGUIUploadFile(name, content)
+
+
+class FakeUploadHandlerApp:
+    """Small upload handler test double."""
+
+    def __init__(self) -> None:
+        """Initialize captured handler state."""
+        self.loaded_form_values: dict[str, object] | None = None
+        self.warnings: list[str] | None = None
+        self.errors: list[str] | None = None
+
+    def apply_loaded_form_values(self, loaded_form_values: dict[str, object]) -> None:
+        """Capture loaded form values."""
+        self.loaded_form_values = loaded_form_values
+
+    def regenerate_loaded_yaml_preview(self, warnings: list[str]) -> None:
+        """Capture load warnings."""
+        self.warnings = warnings
+
+    def show_errors(self, errors: list[str]) -> None:
+        """Capture load errors."""
+        self.errors = errors
 
 
 def minimal_form_values() -> dict[str, object]:
@@ -921,6 +967,47 @@ for blocked_prefix in blocked_prefixes:
         capture_output=True,
         text=True,
     )
+
+
+def test_read_upload_event_text_uses_nicegui_file_text() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    event = FakeNiceGUIUploadEvent("workflow.yml", minimal_workflow_yaml())
+
+    yaml_text = asyncio.run(module.read_upload_event_text(event))
+
+    assert yaml_text == minimal_workflow_yaml()
+    assert event.file.requested_encoding == "utf-8"
+
+
+def test_load_yaml_upload_uses_event_file_name_and_async_text() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    app = FakeUploadHandlerApp()
+    event = FakeNiceGUIUploadEvent("workflow.yaml", minimal_workflow_yaml())
+
+    asyncio.run(module.WorkflowYamlBuilderApp.load_yaml_upload(app, event))
+
+    assert app.errors is None
+    assert app.loaded_form_values is not None
+    assert app.loaded_form_values["query.value"] == "reviewed:true"
+    assert app.loaded_form_values["query.input_mode"] == "Manual query"
+    assert app.warnings is not None
+    assert LOADED_QUERY_VALUE_WARNING in app.warnings
+    assert event.file.requested_encoding == "utf-8"
+
+
+def test_load_yaml_upload_rejects_unsupported_event_file_name() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    app = FakeUploadHandlerApp()
+    event = FakeNiceGUIUploadEvent("workflow.txt", minimal_workflow_yaml())
+
+    asyncio.run(module.WorkflowYamlBuilderApp.load_yaml_upload(app, event))
+
+    assert app.errors == ["Unsupported file type. Upload a .yml or .yaml workflow file."]
+    assert app.loaded_form_values is None
+    assert event.file.requested_encoding == ""
 
 
 def test_nicegui_app_imports_when_nicegui_is_installed() -> None:

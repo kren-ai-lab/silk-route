@@ -68,16 +68,13 @@ def is_supported_workflow_yaml_filename(filename: object) -> bool:
     return str(filename or "").lower().endswith(SUPPORTED_WORKFLOW_YAML_SUFFIXES)
 
 
-def read_upload_event_text(event: Any) -> str:
+async def read_upload_event_text(event: Any) -> str:
     """Read uploaded NiceGUI file content as UTF-8 text."""
-    content = getattr(event, "content", None)
-    if content is None:
+    upload_file = getattr(event, "file", None)
+    if upload_file is None:
         msg = "Uploaded file content was not available."
         raise ValueError(msg)
-    data = content.read()
-    if isinstance(data, bytes):
-        return data.decode("utf-8")
-    return str(data)
+    return await upload_file.text("utf-8")
 
 
 def is_manual_query_mode(value: object) -> bool:
@@ -866,14 +863,15 @@ class WorkflowYamlBuilderApp:
         ui.download.content(str(self.yaml_output.value), filename)
         self.status.text = f"Downloaded {filename}."
 
-    def load_yaml_upload(self, event: Any) -> None:
+    async def load_yaml_upload(self, event: Any) -> None:
         """Load an uploaded workflow YAML file into supported form controls."""
-        filename = getattr(event, "name", "")
+        upload_file = getattr(event, "file", None)
+        filename = getattr(upload_file, "name", "")
         if filename and not is_supported_workflow_yaml_filename(filename):
             self.show_errors(["Unsupported file type. Upload a .yml or .yaml workflow file."])
             return
         try:
-            yaml_text = read_upload_event_text(event)
+            yaml_text = await read_upload_event_text(event)
             loaded_form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
         except (TypeError, ValueError, UnicodeDecodeError) as exc:
             self.show_errors([f"Could not load workflow YAML: {exc}"])
