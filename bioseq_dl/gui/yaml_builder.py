@@ -635,6 +635,13 @@ def parse_required_int(value: object, field_name: str) -> int:
     if value is None:
         msg = f"{field_name} is required and must be an integer."
         raise ValueError(msg)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        if value.is_integer():
+            return int(value)
+        msg = f"{field_name} must be an integer."
+        raise ValueError(msg)
     normalized = str(value).strip()
     if not normalized:
         msg = f"{field_name} is required and must be an integer."

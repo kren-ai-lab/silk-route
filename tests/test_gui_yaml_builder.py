@@ -709,6 +709,22 @@ def test_numeric_execution_strings_are_converted_to_numbers() -> None:
     assert validate_generated_descriptor(descriptor) == []
 
 
+def test_numeric_execution_integer_floats_are_converted_to_numbers() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "execution.max_workers": 5.0,
+            "execution.total_retries": 3.0,
+            "execution.chembl_pages_to_fetch": -1.0,
+        }
+    )
+
+    assert descriptor["execution"]["max_workers"] == 5
+    assert descriptor["execution"]["total_retries"] == 3
+    assert descriptor["execution"]["chembl_pages_to_fetch"] == -1
+    assert validate_generated_descriptor(descriptor) == []
+
+
 def test_optional_uniprot_timeout_empty_string_is_omitted() -> None:
     descriptor = build_workflow_descriptor(
         minimal_form_values() | {"execution.uniprot_timeout": "  "}
@@ -730,6 +746,21 @@ def test_invalid_required_integer_string_raises_clear_error() -> None:
         build_workflow_descriptor(
             minimal_form_values() | {"execution.chembl_pages_to_fetch": "abc"}
         )
+
+
+def test_non_integer_required_float_raises_clear_error() -> None:
+    with pytest.raises(ValueError, match=r"execution\.max_workers must be an integer"):
+        build_workflow_descriptor(minimal_form_values() | {"execution.max_workers": 1.5})
+
+
+def test_non_integer_required_string_raises_clear_error() -> None:
+    with pytest.raises(ValueError, match=r"execution\.max_workers must be an integer"):
+        build_workflow_descriptor(minimal_form_values() | {"execution.max_workers": "1.5"})
+
+
+def test_boolean_required_integer_raises_clear_error() -> None:
+    with pytest.raises(TypeError, match=r"execution\.max_workers must be an integer"):
+        build_workflow_descriptor(minimal_form_values() | {"execution.max_workers": True})
 
 
 def test_empty_required_integer_string_raises_clear_error() -> None:
