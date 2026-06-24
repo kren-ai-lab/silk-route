@@ -228,6 +228,17 @@ GUI. Review the generated YAML before long-running or broad queries. Generated
 YAML can be copied from the preview or saved as a `.yml` file through the
 browser.
 
+The GUI can load an existing `workflow-v1` YAML file and populate supported form
+fields. Loading validates the descriptor, fills the editable Dataset, Query,
+Execution, Harmonization, and Export controls, and regenerates the YAML preview
+from those editable fields. Loaded `query.value` is placed into Manual query
+mode. Advanced builder rows are not reconstructed because generated YAML
+currently stores only the final executable `query.value`, not `query.builder`
+metadata or builder row state. Unsupported editable metadata such as
+`query.builder`, `query.composition`, `resources`, or `reporting` may be accepted
+by workflow-v1 schema validation, but it is shown only as a warning and is not
+editable in this GUI version.
+
 GUI controls use human-friendly labels while generated YAML keeps exact
 `workflow-v1` values. `Query First` writes `query_first`, `Query Composition`
 writes `query_composition`, and modality labels write `protein`, `compound`, or
@@ -300,6 +311,19 @@ themselves clean, merge, rename, filter, or deduplicate output data.
 9. Click `Save YAML`.
 10. Confirm a `.yml` file is downloaded.
 11. Confirm the GUI did not execute a workflow or call external APIs.
+
+### Manual GUI load smoke test
+
+1. Install GUI dependencies with `pip install -e ".[gui]"`.
+2. Start the GUI with `bioseq-dl-gui`.
+3. Open `Load existing workflow YAML`.
+4. Upload a valid `.yml` or `.yaml` workflow-v1 descriptor.
+5. Confirm supported form fields are populated.
+6. Confirm loaded `query.value` appears in Manual query mode.
+7. Confirm warnings appear for unsupported editable metadata when present.
+8. Click `Generate YAML`.
+9. Confirm the preview still contains `schema_version: workflow-v1`.
+10. Confirm the GUI did not execute a workflow, call APIs, or download data.
 
 ### `dataset`
 

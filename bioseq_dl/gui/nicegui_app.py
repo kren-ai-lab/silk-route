@@ -34,12 +34,13 @@ from bioseq_dl.gui.yaml_builder import (
     build_workflow_descriptor,
     build_workflow_filename,
     get_labeled_option_default,
+    load_workflow_yaml_to_form_values,
     normalize_labeled_value,
     normalize_query_builder_key,
     normalize_query_input_mode,
     render_workflow_yaml,
     validate_generated_descriptor,
-    workflow_yaml_form_defaults,
+    workflow_yaml_gui_form_defaults,
 )
 
 UNIPROT_QUERY_FIELD_CATALOG = get_uniprot_query_builder_field_catalog()
@@ -59,6 +60,24 @@ DEFAULT_CHEMBL_FIELDS_BY_RESOURCE = {
     "molecule": "name",
     "activity": "target_chembl_id",
 }
+SUPPORTED_WORKFLOW_YAML_SUFFIXES = (".yml", ".yaml")
+
+
+def is_supported_workflow_yaml_filename(filename: object) -> bool:
+    """Return whether an uploaded filename looks like YAML."""
+    return str(filename or "").lower().endswith(SUPPORTED_WORKFLOW_YAML_SUFFIXES)
+
+
+def read_upload_event_text(event: Any) -> str:
+    """Read uploaded NiceGUI file content as UTF-8 text."""
+    content = getattr(event, "content", None)
+    if content is None:
+        msg = "Uploaded file content was not available."
+        raise ValueError(msg)
+    data = content.read()
+    if isinstance(data, bytes):
+        return data.decode("utf-8")
+    return str(data)
 
 
 def is_manual_query_mode(value: object) -> bool:
@@ -257,33 +276,9 @@ class WorkflowYamlBuilderApp:
 
     def __init__(self) -> None:
         """Initialize app state for form binding and status output."""
-        self.form_values = workflow_yaml_form_defaults()
-        self.form_values["dataset.modality"] = get_labeled_option_default(
-            self.form_values["dataset.modality"],
-            MODALITY_LABEL_TO_VALUE,
-        )
-        self.form_values["dataset.mode"] = get_labeled_option_default(
-            self.form_values["dataset.mode"],
-            WORKFLOW_MODE_LABEL_TO_VALUE,
-        )
-        self.form_values["dataset.interaction_type"] = get_labeled_option_default(
-            self.form_values["dataset.interaction_type"],
-            INTERACTION_TYPE_LABEL_TO_VALUE,
-        )
-        self.form_values["query.input_mode"] = get_labeled_option_default(
-            self.form_values["query.input_mode"],
-            QUERY_INPUT_MODE_LABEL_TO_VALUE,
-        )
+        self.form_values = workflow_yaml_gui_form_defaults()
         self.form_values["query.builder.key"] = get_query_builder_label(
             self.form_values["query.builder.key"]
-        )
-        self.form_values["export.output_dir_mode"] = get_labeled_option_default(
-            self.form_values["export.output_dir_mode"],
-            OUTPUT_DIRECTORY_MODE_LABEL_TO_VALUE,
-        )
-        self.form_values["export.format"] = get_labeled_option_default(
-            self.form_values["export.format"],
-            EXPORT_FORMAT_LABEL_TO_VALUE,
         )
         self.uniprot_builder_rows = [make_uniprot_builder_ui_row()]
         self.chembl_builder_rows = [make_chembl_builder_ui_row(get_query_builder_label("chembl_target"))]
@@ -301,12 +296,26 @@ class WorkflowYamlBuilderApp:
                 "This GUI only generates workflow-v1 YAML descriptors. "
                 "It does not execute workflows or call external APIs."
             ).classes("text-sm text-gray-700")
+            self.build_load_controls()
             self.build_dataset_controls()
             self.build_query_controls()
             self.build_execution_controls()
             self.build_harmonization_controls()
             self.build_export_controls()
             self.build_preview_controls()
+
+    def build_load_controls(self) -> None:
+        """Build upload controls for loading an existing workflow YAML file."""
+        with ui.expansion("Load existing workflow YAML", value=False).classes("w-full"):
+            ui.label(
+                "Upload a workflow-v1 .yml or .yaml file to populate supported form fields. "
+                "Loaded query.value is placed in Manual query mode."
+            ).classes("text-sm text-gray-700")
+            (
+                ui.upload(on_upload=self.load_yaml_upload)
+                .props('accept=".yml,.yaml" auto-upload')
+                .classes("w-full")
+            )
 
     def build_dataset_controls(self) -> None:
         """Build dataset form controls."""
@@ -856,6 +865,61 @@ class WorkflowYamlBuilderApp:
         filename = build_workflow_filename(self.form_values.get("dataset.name"))
         ui.download.content(str(self.yaml_output.value), filename)
         self.status.text = f"Downloaded {filename}."
+
+    def load_yaml_upload(self, event: Any) -> None:
+        """Load an uploaded workflow YAML file into supported form controls."""
+        filename = getattr(event, "name", "")
+        if filename and not is_supported_workflow_yaml_filename(filename):
+            self.show_errors(["Unsupported file type. Upload a .yml or .yaml workflow file."])
+            return
+        try:
+            yaml_text = read_upload_event_text(event)
+            loaded_form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+        except (TypeError, ValueError, UnicodeDecodeError) as exc:
+            self.show_errors([f"Could not load workflow YAML: {exc}"])
+            return
+        self.apply_loaded_form_values(loaded_form_values)
+        self.regenerate_loaded_yaml_preview(warnings)
+
+    def apply_loaded_form_values(self, loaded_form_values: dict[str, object]) -> None:
+        """Apply loaded descriptor values to GUI state."""
+        self.form_values.update(loaded_form_values)
+        self.form_values["query.input_mode"] = get_labeled_option_default(
+            "manual",
+            QUERY_INPUT_MODE_LABEL_TO_VALUE,
+        )
+        self.form_values["query.builder.key"] = get_query_builder_label(
+            self.form_values.get("query.builder.key", "uniprot")
+        )
+        self.uniprot_builder_rows = [make_uniprot_builder_ui_row()]
+        self.chembl_builder_rows = [make_chembl_builder_ui_row(get_query_builder_label("chembl_target"))]
+        self.build_uniprot_builder_rows.refresh()
+        self.build_chembl_builder_rows.refresh()
+        self.update_builder_previews()
+
+    def regenerate_loaded_yaml_preview(self, warnings: list[str]) -> None:
+        """Regenerate YAML preview from loaded editable form values."""
+        try:
+            descriptor = build_workflow_descriptor(self.form_values)
+        except (TypeError, ValueError) as exc:
+            self.show_errors([f"Loaded YAML could not be regenerated: {exc}"])
+            return
+        self.yaml_output.value = render_workflow_yaml(descriptor)
+        errors = validate_generated_descriptor(descriptor)
+        if errors:
+            self.show_errors(errors)
+            return
+        self.show_load_result(warnings)
+
+    def show_load_result(self, warnings: list[str]) -> None:
+        """Show YAML loading success with non-editable metadata warnings."""
+        lines = ["Workflow YAML loaded into supported form fields."]
+        if warnings:
+            lines.extend(warnings)
+            ui.notify("Workflow YAML loaded with warnings.", type="warning")
+        else:
+            ui.notify("Workflow YAML loaded.", type="positive")
+        self.status.text = "\n".join(lines)
 
     def current_validation_errors(self) -> list[str]:
         """Return validation errors for the current YAML preview."""

@@ -10,8 +10,14 @@ import pytest
 import yaml
 
 from bioseq_dl.gui.yaml_builder import (
+    LOADED_QUERY_VALUE_WARNING,
+    QUERY_BUILDER_NOT_EDITABLE_WARNING,
+    QUERY_COMPOSITION_NOT_EDITABLE_WARNING,
     build_workflow_descriptor,
     build_workflow_filename,
+    descriptor_to_form_values,
+    load_workflow_yaml_text,
+    load_workflow_yaml_to_form_values,
     parse_csv_list,
     render_workflow_yaml,
     resolve_query_value_from_form,
@@ -39,6 +45,49 @@ def minimal_form_values() -> dict[str, object]:
         "export.manifest_file": "metadata.json",
         "export.summary_file": "run_summary.yml",
     }
+
+
+def minimal_workflow_yaml(output_dir: str | None = "results/loaded_dataset") -> str:
+    """Return minimal valid workflow-v1 YAML text."""
+    export_output_dir = f'  output_dir: "{output_dir}"\n' if output_dir else ""
+    return f"""
+schema_version: "workflow-v1"
+dataset:
+  name: loaded_dataset
+  description: Loaded dataset.
+  modality: protein
+  mode: query_first
+query:
+  value: "reviewed:true"
+  fields:
+    - accession
+    - sequence
+  crossref_fields:
+    - xref_pdb
+    - xref_string
+  include_isoform: true
+execution:
+  enrich: false
+  max_workers: 4
+  total_retries: 2
+  chembl_pages_to_fetch: 1
+  uniprot_timeout: 12.5
+  debug: true
+harmonization:
+  id_column: "_id"
+  label_column: "_label"
+  sequence_column: "sequence"
+  unique_sequence_strategy: "exact"
+  metadata_fields:
+    - accession
+    - protein_name
+export:
+{export_output_dir}  format: csv
+  include_metadata: true
+  include_summary: true
+  manifest_file: "metadata.json"
+  summary_file: "run_summary.yml"
+"""
 
 
 def test_build_workflow_descriptor_generates_workflow_v1_schema_version() -> None:
@@ -699,6 +748,141 @@ def test_render_workflow_yaml_round_trips_equivalent_dictionary() -> None:
     yaml_text = render_workflow_yaml(descriptor)
 
     assert yaml.safe_load(yaml_text) == descriptor
+
+
+def test_load_workflow_yaml_text_parses_mapping() -> None:
+    descriptor = load_workflow_yaml_text(minimal_workflow_yaml())
+
+    assert descriptor["schema_version"] == "workflow-v1"
+    assert descriptor["query"]["value"] == "reviewed:true"
+
+
+def test_descriptor_to_form_values_loads_supported_fields() -> None:
+    descriptor = load_workflow_yaml_text(minimal_workflow_yaml())
+
+    form_values = descriptor_to_form_values(descriptor)
+
+    assert form_values["dataset.name"] == "loaded_dataset"
+    assert form_values["dataset.description"] == "Loaded dataset."
+    assert form_values["dataset.modality"] == "Protein"
+    assert form_values["dataset.mode"] == "Query First"
+    assert form_values["dataset.interaction_type"] == "No interaction"
+    assert form_values["query.value"] == "reviewed:true"
+    assert form_values["query.input_mode"] == "Manual query"
+    assert form_values["query.include_isoform"] is True
+    assert form_values["execution.max_workers"] == 4
+    assert form_values["execution.total_retries"] == 2
+    assert form_values["execution.chembl_pages_to_fetch"] == 1
+    assert form_values["execution.uniprot_timeout"] == 12.5
+    assert form_values["execution.debug"] is True
+    assert form_values["harmonization.id_column"] == "_id"
+    assert form_values["harmonization.label_column"] == "_label"
+    assert form_values["harmonization.sequence_column"] == "sequence"
+    assert form_values["harmonization.unique_sequence_strategy"] == "exact"
+    assert form_values["export.format"] == "CSV"
+    assert form_values["export.include_metadata"] is True
+    assert form_values["export.include_summary"] is True
+
+
+def test_loaded_list_fields_become_comma_separated_text() -> None:
+    form_values, _warnings = load_workflow_yaml_to_form_values(minimal_workflow_yaml())
+
+    assert form_values["query.fields"] == "accession, sequence"
+    assert form_values["query.crossref_fields"] == "xref_pdb, xref_string"
+    assert form_values["harmonization.metadata_fields"] == "accession, protein_name"
+
+
+def test_missing_optional_list_fields_become_empty_strings() -> None:
+    yaml_text = """
+schema_version: "workflow-v1"
+dataset:
+  name: loaded_dataset
+  modality: protein
+  mode: query_first
+query:
+  value: "reviewed:true"
+execution:
+  enrich: false
+export:
+  format: csv
+"""
+
+    form_values, _warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert form_values["query.fields"] == ""
+    assert form_values["query.crossref_fields"] == ""
+    assert form_values["harmonization.metadata_fields"] == ""
+
+
+def test_loaded_output_dir_selects_custom_output_directory_mode() -> None:
+    form_values, _warnings = load_workflow_yaml_to_form_values(minimal_workflow_yaml())
+
+    assert form_values["export.output_dir_mode"] == "Use custom relative path"
+    assert form_values["export.output_dir"] == "results/loaded_dataset"
+
+
+def test_missing_output_dir_selects_default_output_directory_mode() -> None:
+    form_values, _warnings = load_workflow_yaml_to_form_values(
+        minimal_workflow_yaml(output_dir=None)
+    )
+
+    assert form_values["export.output_dir_mode"] == "Use default results folder"
+    assert form_values["export.output_dir"] == ""
+
+
+def test_loaded_query_value_warns_and_uses_manual_query_mode() -> None:
+    form_values, warnings = load_workflow_yaml_to_form_values(minimal_workflow_yaml())
+
+    assert form_values["query.input_mode"] == "Manual query"
+    assert form_values["query.value"] == "reviewed:true"
+    assert LOADED_QUERY_VALUE_WARNING in warnings
+
+
+def test_invalid_yaml_raises_clear_error() -> None:
+    with pytest.raises(ValueError, match="Invalid YAML"):
+        load_workflow_yaml_text("dataset: [")
+
+
+def test_non_mapping_yaml_raises_clear_error() -> None:
+    with pytest.raises(TypeError, match="root must be a mapping"):
+        load_workflow_yaml_text("- one\n- two\n")
+
+
+def test_invalid_schema_version_is_rejected_on_load() -> None:
+    yaml_text = minimal_workflow_yaml().replace('"workflow-v1"', '"workflow-v2"')
+
+    with pytest.raises(ValueError, match="Unsupported workflow schema_version"):
+        load_workflow_yaml_to_form_values(yaml_text)
+
+
+def test_query_builder_metadata_warns_and_is_not_exposed_as_editable_form_value() -> None:
+    yaml_text = minimal_workflow_yaml().replace(
+        "  include_isoform: true\n",
+        "  include_isoform: true\n  builder:\n    name: uniprot\n",
+    )
+
+    form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert QUERY_BUILDER_NOT_EDITABLE_WARNING in warnings
+    assert "query.builder" not in form_values
+    assert "query.composition" not in form_values
+
+
+def test_query_composition_metadata_warns_and_is_not_exposed_as_editable_form_value() -> None:
+    yaml_text = minimal_workflow_yaml().replace(
+        "  include_isoform: true\n",
+        (
+            "  include_isoform: true\n"
+            "  composition:\n"
+            "    - label: reviewed\n"
+            "      value: reviewed:true\n"
+        ),
+    )
+
+    form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert QUERY_COMPOSITION_NOT_EDITABLE_WARNING in warnings
+    assert "query.composition" not in form_values
 
 
 def test_builder_does_not_require_nicegui_to_be_installed() -> None:

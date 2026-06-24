@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from copy import deepcopy
 from pathlib import PurePosixPath, PureWindowsPath
-from typing import TYPE_CHECKING, cast
+from typing import cast
 
 import yaml
 
@@ -15,13 +16,42 @@ from bioseq_dl.workflow_schema_definition import (
     validate_workflow_v1_descriptor,
 )
 
-if TYPE_CHECKING:
-    from collections.abc import Mapping
-
 DEFAULT_MAX_WORKERS = 5
 DEFAULT_TOTAL_RETRIES = 3
 DEFAULT_CHEMBL_PAGES_TO_FETCH = -1
 DEFAULT_WORKFLOW_FILENAME = "workflow-v1.yml"
+LOADED_QUERY_VALUE_WARNING = (
+    "Loaded query.value into Manual query mode. Advanced builder rows cannot be "
+    "reconstructed because query.builder metadata is not currently stored."
+)
+QUERY_BUILDER_NOT_EDITABLE_WARNING = (
+    "query.builder metadata was found but is not editable in this GUI version."
+)
+QUERY_COMPOSITION_NOT_EDITABLE_WARNING = (
+    "query.composition metadata was found but is not editable in this GUI version."
+)
+NON_EDITABLE_METADATA_WARNINGS = {
+    "resources": "resources metadata was found but is not editable in this GUI version.",
+    "reporting": "reporting metadata was found but is not editable in this GUI version.",
+    "interaction_retrieval": (
+        "interaction_retrieval metadata was found but is not editable in this GUI version."
+    ),
+    "activity_retrieval": (
+        "activity_retrieval metadata was found but is not editable in this GUI version."
+    ),
+    "chemical_metadata_integration": (
+        "chemical_metadata_integration metadata was found but is not editable in this GUI version."
+    ),
+    "protein_target_integration": (
+        "protein_target_integration metadata was found but is not editable in this GUI version."
+    ),
+    "temperature_enrichment": (
+        "temperature_enrichment metadata was found but is not editable in this GUI version."
+    ),
+    "cross_source_integration": (
+        "cross_source_integration metadata was found but is not editable in this GUI version."
+    ),
+}
 UNSAFE_FILENAME_CHARACTERS = re.compile(r"[^a-z0-9_-]+")
 REPEATED_FILENAME_SEPARATOR = re.compile(r"_+")
 
@@ -159,6 +189,36 @@ def workflow_yaml_form_defaults() -> dict[str, object]:
     return defaults
 
 
+def workflow_yaml_gui_form_defaults() -> dict[str, object]:
+    """Return mutable default form values using visible GUI labels."""
+    defaults = workflow_yaml_form_defaults()
+    defaults["dataset.modality"] = get_labeled_option_default(
+        defaults["dataset.modality"],
+        MODALITY_LABEL_TO_VALUE,
+    )
+    defaults["dataset.mode"] = get_labeled_option_default(
+        defaults["dataset.mode"],
+        WORKFLOW_MODE_LABEL_TO_VALUE,
+    )
+    defaults["dataset.interaction_type"] = get_labeled_option_default(
+        defaults["dataset.interaction_type"],
+        INTERACTION_TYPE_LABEL_TO_VALUE,
+    )
+    defaults["query.input_mode"] = get_labeled_option_default(
+        defaults["query.input_mode"],
+        QUERY_INPUT_MODE_LABEL_TO_VALUE,
+    )
+    defaults["export.output_dir_mode"] = get_labeled_option_default(
+        defaults["export.output_dir_mode"],
+        OUTPUT_DIRECTORY_MODE_LABEL_TO_VALUE,
+    )
+    defaults["export.format"] = get_labeled_option_default(
+        defaults["export.format"],
+        EXPORT_FORMAT_LABEL_TO_VALUE,
+    )
+    return defaults
+
+
 def get_form_value(form_values: Mapping[str, object], field_name: str) -> object:
     """Return a form value using canonical dotted names with legacy aliases."""
     if field_name in form_values:
@@ -189,6 +249,141 @@ def get_labeled_option_default(value: object, label_to_value: Mapping[str, objec
         if value == internal_value:
             return label
     return str(value)
+
+
+def get_mapping_section(
+    descriptor: Mapping[str, object],
+    section_name: str,
+) -> Mapping[str, object]:
+    """Return a mapping section from a workflow descriptor, or an empty mapping."""
+    section = descriptor.get(section_name)
+    if isinstance(section, Mapping):
+        return section
+    return {}
+
+
+def csv_text_from_value(value: object) -> str:
+    """Convert a YAML string-list field into comma-separated GUI text."""
+    if value is None:
+        return ""
+    if isinstance(value, list):
+        return ", ".join(str(item).strip() for item in value if str(item).strip())
+    return str(value).strip()
+
+
+def collect_load_warnings(descriptor: Mapping[str, object]) -> list[str]:
+    """Return warnings for loaded metadata the GUI cannot edit."""
+    warnings = []
+    query = get_mapping_section(descriptor, "query")
+    if query.get("value"):
+        warnings.append(LOADED_QUERY_VALUE_WARNING)
+    if "builder" in query:
+        warnings.append(QUERY_BUILDER_NOT_EDITABLE_WARNING)
+    if "composition" in query:
+        warnings.append(QUERY_COMPOSITION_NOT_EDITABLE_WARNING)
+    for section_name, warning in NON_EDITABLE_METADATA_WARNINGS.items():
+        if section_name in descriptor:
+            warnings.append(warning)
+    return warnings
+
+
+def load_workflow_yaml_text(yaml_text: str) -> dict[str, object]:
+    """Parse workflow YAML text into a descriptor dictionary."""
+    try:
+        descriptor = yaml.safe_load(yaml_text)
+    except yaml.YAMLError as exc:
+        msg = f"Invalid YAML: {exc}"
+        raise ValueError(msg) from exc
+    if not isinstance(descriptor, dict):
+        msg = "Workflow YAML root must be a mapping."
+        raise TypeError(msg)
+    return cast("dict[str, object]", descriptor)
+
+
+def descriptor_to_form_values(descriptor: Mapping[str, object]) -> dict[str, object]:
+    """Convert a workflow-v1 descriptor into GUI form values."""
+    form_values = workflow_yaml_gui_form_defaults()
+    dataset = get_mapping_section(descriptor, "dataset")
+    query = get_mapping_section(descriptor, "query")
+    execution = get_mapping_section(descriptor, "execution")
+    harmonization = get_mapping_section(descriptor, "harmonization")
+    export = get_mapping_section(descriptor, "export")
+
+    form_values["dataset.name"] = str(dataset.get("name") or "")
+    form_values["dataset.description"] = str(dataset.get("description") or "")
+    form_values["dataset.modality"] = get_labeled_option_default(
+        dataset.get("modality", "protein"),
+        MODALITY_LABEL_TO_VALUE,
+    )
+    form_values["dataset.mode"] = get_labeled_option_default(
+        dataset.get("mode", "query_first"),
+        WORKFLOW_MODE_LABEL_TO_VALUE,
+    )
+    form_values["dataset.interaction_type"] = get_labeled_option_default(
+        dataset.get("interaction_type"),
+        INTERACTION_TYPE_LABEL_TO_VALUE,
+    )
+
+    form_values["query.input_mode"] = get_labeled_option_default(
+        "manual",
+        QUERY_INPUT_MODE_LABEL_TO_VALUE,
+    )
+    form_values["query.value"] = str(query.get("value") or "")
+    form_values["query.fields"] = csv_text_from_value(query.get("fields"))
+    form_values["query.crossref_fields"] = csv_text_from_value(query.get("crossref_fields"))
+    form_values["query.include_isoform"] = parse_bool(query.get("include_isoform", False))
+
+    for key in (
+        "enrich",
+        "max_workers",
+        "total_retries",
+        "chembl_pages_to_fetch",
+        "uniprot_timeout",
+        "debug",
+    ):
+        field_name = f"execution.{key}"
+        if key in execution:
+            form_values[field_name] = execution[key]
+
+    for key in ("id_column", "label_column", "sequence_column", "unique_sequence_strategy"):
+        form_values[f"harmonization.{key}"] = str(harmonization.get(key) or "")
+    form_values["harmonization.metadata_fields"] = csv_text_from_value(
+        harmonization.get("metadata_fields")
+    )
+
+    output_dir = str(export.get("output_dir") or "").strip()
+    if output_dir:
+        form_values["export.output_dir_mode"] = get_labeled_option_default(
+            "custom",
+            OUTPUT_DIRECTORY_MODE_LABEL_TO_VALUE,
+        )
+        form_values["export.output_dir"] = output_dir
+    else:
+        form_values["export.output_dir_mode"] = get_labeled_option_default(
+            "default",
+            OUTPUT_DIRECTORY_MODE_LABEL_TO_VALUE,
+        )
+        form_values["export.output_dir"] = ""
+    form_values["export.format"] = get_labeled_option_default(
+        export.get("format", "csv"),
+        EXPORT_FORMAT_LABEL_TO_VALUE,
+    )
+    for key in ("include_metadata", "include_summary", "manifest_file", "summary_file"):
+        field_name = f"export.{key}"
+        if key in export:
+            form_values[field_name] = export[key]
+
+    return form_values
+
+
+def load_workflow_yaml_to_form_values(yaml_text: str) -> tuple[dict[str, object], list[str]]:
+    """Parse, validate, and convert workflow YAML text to form values and warnings."""
+    descriptor = load_workflow_yaml_text(yaml_text)
+    validated_descriptor = validate_workflow_v1_descriptor(descriptor)
+    form_values = descriptor_to_form_values(validated_descriptor)
+    warnings = collect_load_warnings(validated_descriptor)
+    return form_values, warnings
+
 
 
 def normalize_query_input_mode(value: object) -> str:

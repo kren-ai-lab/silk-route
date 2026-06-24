@@ -188,6 +188,12 @@ builder mode, which currently offers UniProt and ChEMBL builders and stores
 only the final interpreted string in `query.value`. Friendly query previews and
 builder rows are not saved to YAML. Human-friendly GUI labels are translated to
 exact workflow-v1 schema values.
+The GUI can also load an existing `workflow-v1` YAML file and populate the
+supported form fields. Loaded `query.value` is placed into Manual query mode;
+Advanced builder rows are not reconstructed because generated YAML does not
+currently store editable builder metadata. Metadata such as `query.builder`,
+`query.composition`, `resources`, and `reporting` may validate as workflow-v1
+descriptor metadata, but it is not editable in this GUI version.
 `query.fields` and `query.crossref_fields` remain separate optional inputs and
 are not advanced-builder search conditions.
 In the Advanced UniProt builder, Connector combines a row with the previous row
