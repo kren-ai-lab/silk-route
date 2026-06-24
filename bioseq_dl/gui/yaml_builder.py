@@ -20,6 +20,13 @@ DEFAULT_MAX_WORKERS = 5
 DEFAULT_TOTAL_RETRIES = 3
 DEFAULT_CHEMBL_PAGES_TO_FETCH = -1
 DEFAULT_WORKFLOW_FILENAME = "workflow-v1.yml"
+DEFAULT_OUTPUT_DIRECTORY_NAME_ERROR = (
+    "Dataset name is required because the default output folder is generated as "
+    "results/{dataset.name}."
+)
+LEGACY_OUTPUT_DIRECTORY_NAME_ERROR = (
+    "dataset.name is required when export.output_dir is not provided."
+)
 LOADED_QUERY_VALUE_WARNING = (
     "Loaded query.value into Manual query mode. Advanced builder rows cannot be "
     "reconstructed because query.builder metadata is not currently stored."
@@ -620,29 +627,50 @@ def parse_bool(value: object) -> bool:
     return bool(value)
 
 
-def parse_int(value: object, field_name: str) -> int:
-    """Parse an integer form value."""
+def parse_required_int(value: object, field_name: str) -> int:
+    """Parse a required integer GUI value."""
     if isinstance(value, bool):
         msg = f"{field_name} must be an integer."
         raise TypeError(msg)
-    try:
-        return int(str(value).strip())
-    except (TypeError, ValueError) as exc:
+    if value is None:
+        msg = f"{field_name} is required and must be an integer."
+        raise ValueError(msg)
+    normalized = str(value).strip()
+    if not normalized:
+        msg = f"{field_name} is required and must be an integer."
+        raise ValueError(msg)
+    if not re.fullmatch(r"[+-]?\d+", normalized):
         msg = f"{field_name} must be an integer."
-        raise TypeError(msg) from exc
+        raise ValueError(msg)
+    return int(normalized)
+
+
+def parse_optional_int(value: object, field_name: str) -> int | None:
+    """Parse an optional integer GUI value."""
+    if value is None:
+        return None
+    try:
+        return parse_required_int(value, field_name)
+    except ValueError:
+        if isinstance(value, str) and not value.strip():
+            return None
+        raise
 
 
 def parse_optional_number(value: object, field_name: str) -> float | int | None:
     """Parse an optional integer or float form value."""
-    if value is None or value == "":
+    if value is None:
         return None
     if isinstance(value, bool):
         msg = f"{field_name} must be numeric."
         raise TypeError(msg)
     if isinstance(value, int | float):
         return value
+    normalized = str(value).strip()
+    if not normalized:
+        return None
     try:
-        parsed = float(str(value).strip())
+        parsed = float(normalized)
     except ValueError as exc:
         msg = f"{field_name} must be numeric."
         raise TypeError(msg) from exc
@@ -705,15 +733,15 @@ def build_execution_section(form_values: Mapping[str, object]) -> dict[str, obje
     """Build the workflow execution section."""
     execution: dict[str, object] = {
         "enrich": parse_bool(get_form_value(form_values, "execution.enrich")),
-        "max_workers": parse_int(
+        "max_workers": parse_required_int(
             get_form_value(form_values, "execution.max_workers"),
             "execution.max_workers",
         ),
-        "total_retries": parse_int(
+        "total_retries": parse_required_int(
             get_form_value(form_values, "execution.total_retries"),
             "execution.total_retries",
         ),
-        "chembl_pages_to_fetch": parse_int(
+        "chembl_pages_to_fetch": parse_required_int(
             get_form_value(form_values, "execution.chembl_pages_to_fetch"),
             "execution.chembl_pages_to_fetch",
         ),
@@ -792,12 +820,19 @@ def collect_prevalidation_errors(descriptor: Mapping[str, object]) -> list[str]:
     else:
         output_dir = export.get("output_dir") if isinstance(export, dict) else None
         if not dataset.get("name") and not output_dir:
-            errors.append("dataset.name is required when export.output_dir is not provided.")
+            errors.append(DEFAULT_OUTPUT_DIRECTORY_NAME_ERROR)
         if dataset.get("modality") == "interaction" and not dataset.get("interaction_type"):
             errors.append("dataset.interaction_type is required when dataset.modality is 'interaction'.")
     if not isinstance(query, dict) or not query.get("value"):
         errors.append("query.value is required.")
     return errors
+
+
+def normalize_validation_error_message(message: str) -> str:
+    """Normalize workflow validation messages for GUI users."""
+    if message == LEGACY_OUTPUT_DIRECTORY_NAME_ERROR:
+        return DEFAULT_OUTPUT_DIRECTORY_NAME_ERROR
+    return message
 
 
 def validate_generated_descriptor(descriptor: dict[str, object]) -> list[str]:
@@ -806,5 +841,5 @@ def validate_generated_descriptor(descriptor: dict[str, object]) -> list[str]:
     try:
         validate_workflow_v1_descriptor(descriptor)
     except (TypeError, ValueError) as exc:
-        errors.append(str(exc))
+        errors.append(normalize_validation_error_message(str(exc)))
     return list(dict.fromkeys(errors))

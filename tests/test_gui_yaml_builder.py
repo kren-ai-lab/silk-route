@@ -11,6 +11,7 @@ import pytest
 import yaml
 
 from bioseq_dl.gui.yaml_builder import (
+    DEFAULT_OUTPUT_DIRECTORY_NAME_ERROR,
     LOADED_QUERY_VALUE_WARNING,
     PROTEIN_CHEMBL_QUERY_WARNING,
     QUERY_BUILDER_NOT_EDITABLE_WARNING,
@@ -692,6 +693,53 @@ def test_default_output_directory_mode_uses_dataset_name() -> None:
     assert descriptor["export"]["output_dir"] == "results/example_dataset"
 
 
+def test_numeric_execution_strings_are_converted_to_numbers() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "execution.max_workers": "5",
+            "execution.total_retries": "3",
+            "execution.chembl_pages_to_fetch": "-1",
+        }
+    )
+
+    assert descriptor["execution"]["max_workers"] == 5
+    assert descriptor["execution"]["total_retries"] == 3
+    assert descriptor["execution"]["chembl_pages_to_fetch"] == -1
+    assert validate_generated_descriptor(descriptor) == []
+
+
+def test_optional_uniprot_timeout_empty_string_is_omitted() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values() | {"execution.uniprot_timeout": "  "}
+    )
+
+    assert "uniprot_timeout" not in descriptor["execution"]
+
+
+def test_optional_uniprot_timeout_string_is_converted_to_number() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values() | {"execution.uniprot_timeout": " 12.5 "}
+    )
+
+    assert descriptor["execution"]["uniprot_timeout"] == 12.5
+
+
+def test_invalid_required_integer_string_raises_clear_error() -> None:
+    with pytest.raises(ValueError, match=r"execution\.chembl_pages_to_fetch must be an integer"):
+        build_workflow_descriptor(
+            minimal_form_values() | {"execution.chembl_pages_to_fetch": "abc"}
+        )
+
+
+def test_empty_required_integer_string_raises_clear_error() -> None:
+    with pytest.raises(
+        ValueError,
+        match=r"execution\.max_workers is required and must be an integer",
+    ):
+        build_workflow_descriptor(minimal_form_values() | {"execution.max_workers": ""})
+
+
 def test_custom_output_directory_mode_normalizes_relative_path() -> None:
     descriptor = build_workflow_descriptor(
         minimal_form_values()
@@ -750,7 +798,22 @@ def test_prevalidation_requires_dataset_name_without_output_directory() -> None:
 
     errors = validate_generated_descriptor(descriptor)
 
-    assert errors == ["dataset.name is required when export.output_dir is not provided."]
+    assert errors == [DEFAULT_OUTPUT_DIRECTORY_NAME_ERROR]
+
+
+def test_default_output_directory_error_explains_dataset_name_source() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "dataset.name": "",
+            "export.output_dir_mode": "Use default results folder",
+        }
+    )
+
+    errors = validate_generated_descriptor(descriptor)
+
+    assert errors == [DEFAULT_OUTPUT_DIRECTORY_NAME_ERROR]
+    assert "results/{dataset.name}" in errors[0]
 
 
 def test_default_generated_descriptor_validates_as_workflow_v1() -> None:

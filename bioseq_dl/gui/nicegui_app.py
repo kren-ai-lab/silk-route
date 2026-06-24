@@ -443,7 +443,7 @@ class WorkflowYamlBuilderApp:
                     .classes("w-full font-mono")
                     .props("readonly rows=3")
                 )
-                self.refresh_query_builder_options()
+                self.refresh_query_builder_options(refresh_rows=False)
             builder_panel.bind_visibility_from(
                 self.form_values,
                 "query.input_mode",
@@ -677,7 +677,7 @@ class WorkflowYamlBuilderApp:
         """Return whether the selected builder is compatible with current dataset settings."""
         return self.form_values.get("query.builder.key") in self.get_compatible_query_builder_labels()
 
-    def refresh_query_builder_options(self) -> None:
+    def refresh_query_builder_options(self, *, refresh_rows: bool = True) -> None:
         """Refresh query-builder choices for the selected dataset settings."""
         labels = self.get_compatible_query_builder_labels()
         if self.query_builder_select is not None:
@@ -693,8 +693,10 @@ class WorkflowYamlBuilderApp:
                 self.chembl_builder_rows = [
                     make_chembl_builder_ui_row(self.form_values["query.builder.key"])
                 ]
-                self.build_chembl_builder_rows.refresh()
-            self.build_uniprot_builder_rows.refresh()
+                if refresh_rows:
+                    self.build_chembl_builder_rows.refresh()
+            if refresh_rows:
+                self.build_uniprot_builder_rows.refresh()
             self.sync_builder_rows_to_form()
             self.update_builder_previews()
             return
