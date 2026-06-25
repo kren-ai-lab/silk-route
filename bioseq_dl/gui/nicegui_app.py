@@ -64,6 +64,7 @@ DEFAULT_CHEMBL_FIELDS_BY_RESOURCE = {
     "activity": "target_chembl_id",
 }
 SUPPORTED_WORKFLOW_YAML_SUFFIXES = (".yml", ".yaml")
+NO_INTERACTION_LABEL = get_labeled_option_default(None, INTERACTION_TYPE_LABEL_TO_VALUE)
 
 
 def is_supported_workflow_yaml_filename(filename: object) -> bool:
@@ -290,6 +291,11 @@ def get_dataset_interaction_type_value(form_values: dict[str, object]) -> str | 
     return str(value) if value else None
 
 
+def should_show_interaction_type_selector(form_values: dict[str, object]) -> bool:
+    """Return whether the dataset interaction type selector should be visible."""
+    return get_dataset_modality_value(form_values) == "interaction"
+
+
 class WorkflowYamlBuilderApp:
     """Render and manage the BioSeqDownloader workflow YAML builder."""
 
@@ -304,6 +310,12 @@ class WorkflowYamlBuilderApp:
         self.friendly_query_preview: Any = None
         self.interpreted_query_preview: Any = None
         self.query_builder_select: Any = None
+        self.interaction_type_select: Any = None
+        self.workflow_upload: Any = None
+        self.loaded_workflow_filename: str | None = None
+        self.loaded_workflow_upload_status: str | None = None
+        self.loaded_workflow_upload_message: str | None = None
+        self.loaded_workflow_upload_warnings: list[str] = []
         self.builder_availability_message: Any = None
         self.yaml_output: Any = None
         self.status: Any = None
@@ -332,11 +344,49 @@ class WorkflowYamlBuilderApp:
                 "Upload a workflow-v1 .yml or .yaml file to populate supported form fields. "
                 "Loaded query.value is placed in Manual query mode."
             ).classes("text-sm text-gray-700")
-            (
-                ui.upload(on_upload=self.load_yaml_upload)
-                .props('accept=".yml,.yaml" auto-upload')
+            ui.label(
+                "Upload one .yml or .yaml file. Uploading another file replaces the current "
+                "loaded workflow."
+            ).classes("text-sm text-gray-700")
+            self.workflow_upload = (
+                ui.upload(
+                    label="Select workflow YAML",
+                    on_upload=self.load_yaml_upload,
+                    max_files=1,
+                    auto_upload=True,
+                )
+                .props('accept=".yml,.yaml"')
                 .classes("w-full")
             )
+            self.build_upload_status_card()
+
+    @ui.refreshable
+    def build_upload_status_card(self) -> None:
+        """Build the persistent workflow upload status card."""
+        if self.loaded_workflow_upload_status is None:
+            return
+        is_success = self.loaded_workflow_upload_status == "success"
+        title = "Loaded workflow YAML" if is_success else "Could not load workflow YAML"
+        tone_classes = (
+            "border-l-4 border-green-500 bg-green-50"
+            if is_success
+            else "border-l-4 border-red-500 bg-red-50"
+        )
+        with ui.card().classes(f"w-full gap-2 rounded-md {tone_classes}"):
+            ui.label(title).classes("text-base font-semibold")
+            filename = self.loaded_workflow_filename or "workflow YAML file"
+            status_text = (
+                f"{filename} loaded successfully."
+                if is_success
+                else f"{filename} could not be loaded."
+            )
+            ui.label(status_text).classes("text-sm font-medium")
+            if self.loaded_workflow_upload_message:
+                ui.label(self.loaded_workflow_upload_message).classes("text-sm text-gray-700")
+            if self.loaded_workflow_upload_warnings:
+                ui.label("Warnings").classes("text-sm font-semibold text-orange-800")
+                for warning in self.loaded_workflow_upload_warnings:
+                    ui.label(f"- {warning}").classes("text-sm text-orange-800")
 
     def build_dataset_controls(self) -> None:
         """Build dataset form controls."""
@@ -365,7 +415,7 @@ class WorkflowYamlBuilderApp:
                         "Query Composition groups multiple query fragments with labels."
                     )
                 )
-                (
+                self.interaction_type_select = (
                     ui.select(list(INTERACTION_TYPE_LABEL_TO_VALUE), label="Interaction type")
                     .bind_value(self.form_values, "dataset.interaction_type")
                     .on_value_change(self.handle_dataset_builder_context_change)
@@ -374,6 +424,7 @@ class WorkflowYamlBuilderApp:
                         "protein or compound datasets."
                     )
                 )
+                self.update_interaction_type_visibility(update_select=False)
             (
                 ui.textarea("Dataset description")
                 .bind_value(self.form_values, "dataset.description")
@@ -714,7 +765,21 @@ class WorkflowYamlBuilderApp:
 
     def handle_dataset_builder_context_change(self, *_args: object) -> None:
         """Refresh builder choices after dataset modality or interaction type changes."""
+        self.update_interaction_type_visibility()
         self.refresh_query_builder_options()
+
+    def update_interaction_type_visibility(self, *, update_select: bool = True) -> None:
+        """Update interaction type selector visibility for the selected modality."""
+        should_show = should_show_interaction_type_selector(self.form_values)
+        if not should_show:
+            self.form_values["dataset.interaction_type"] = NO_INTERACTION_LABEL
+        if self.interaction_type_select is None:
+            return
+        self.interaction_type_select.visible = should_show
+        if not should_show:
+            self.interaction_type_select.value = NO_INTERACTION_LABEL
+        if update_select:
+            self.interaction_type_select.update()
 
     def sync_builder_rows_to_form(self) -> None:
         """Synchronize visible builder rows into pure form values."""
@@ -953,19 +1018,65 @@ class WorkflowYamlBuilderApp:
 
     async def load_yaml_upload(self, event: Any) -> None:
         """Load an uploaded workflow YAML file into supported form controls."""
-        upload_file = getattr(event, "file", None)
-        filename = getattr(upload_file, "name", "")
-        if filename and not is_supported_workflow_yaml_filename(filename):
-            self.show_errors(["Unsupported file type. Upload a .yml or .yaml workflow file."])
-            return
         try:
-            yaml_text = await read_upload_event_text(event)
-            loaded_form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
-        except (TypeError, ValueError, UnicodeDecodeError) as exc:
-            self.show_errors([f"Could not load workflow YAML: {exc}"])
+            upload_file = getattr(event, "file", None)
+            filename = getattr(upload_file, "name", "")
+            if filename and not is_supported_workflow_yaml_filename(filename):
+                message = "Unsupported file type. Upload a .yml or .yaml workflow file."
+                self.set_workflow_upload_error(filename, message)
+                self.show_errors([message])
+                return
+            try:
+                yaml_text = await read_upload_event_text(event)
+                loaded_form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+            except (TypeError, ValueError, UnicodeDecodeError) as exc:
+                message = f"Could not load workflow YAML: {exc}"
+                self.set_workflow_upload_error(filename, message)
+                self.show_errors([message])
+                return
+            self.apply_loaded_form_values(loaded_form_values)
+            errors = self.regenerate_loaded_yaml_preview(warnings)
+            if errors:
+                self.set_workflow_upload_error(filename, "\n".join(errors))
+                return
+            self.set_workflow_upload_success(filename, warnings)
+        finally:
+            self.reset_workflow_upload()
+
+    def set_workflow_upload_success(self, filename: object, warnings: list[str]) -> None:
+        """Set upload status state for a successfully loaded workflow YAML file."""
+        self.loaded_workflow_filename = str(filename or "workflow YAML file")
+        self.loaded_workflow_upload_status = "success"
+        self.loaded_workflow_upload_message = (
+            "The form was populated from this file. Upload another YAML file to replace it."
+        )
+        self.loaded_workflow_upload_warnings = list(warnings)
+        self.refresh_upload_status_card()
+
+    def set_workflow_upload_error(self, filename: object, message: str) -> None:
+        """Set upload status state for a failed workflow YAML upload."""
+        self.loaded_workflow_filename = str(filename or "workflow YAML file")
+        self.loaded_workflow_upload_status = "error"
+        self.loaded_workflow_upload_message = message
+        self.loaded_workflow_upload_warnings = []
+        self.refresh_upload_status_card()
+
+    def refresh_upload_status_card(self) -> None:
+        """Refresh the workflow upload status card when the app is running."""
+        self.build_upload_status_card.refresh()
+
+    def reset_workflow_upload(self) -> None:
+        """Clear the workflow upload control after each load attempt."""
+        upload = getattr(self, "workflow_upload", None)
+        if upload is None:
             return
-        self.apply_loaded_form_values(loaded_form_values)
-        self.regenerate_loaded_yaml_preview(warnings)
+        reset = getattr(upload, "reset", None)
+        if callable(reset):
+            reset()
+            return
+        clear = getattr(upload, "clear", None)
+        if callable(clear):
+            clear()
 
     def apply_loaded_form_values(self, loaded_form_values: dict[str, object]) -> None:
         """Apply loaded descriptor values to GUI state."""
@@ -979,21 +1090,24 @@ class WorkflowYamlBuilderApp:
         )
         self.uniprot_builder_rows = [make_uniprot_builder_ui_row()]
         self.chembl_builder_rows = [make_chembl_builder_ui_row(get_query_builder_label("chembl_target"))]
+        self.update_interaction_type_visibility()
         self.refresh_query_builder_options()
 
-    def regenerate_loaded_yaml_preview(self, warnings: list[str]) -> None:
+    def regenerate_loaded_yaml_preview(self, warnings: list[str]) -> list[str]:
         """Regenerate YAML preview from loaded editable form values."""
         try:
             descriptor = build_workflow_descriptor(self.form_values)
         except (TypeError, ValueError) as exc:
-            self.show_errors([f"Loaded YAML could not be regenerated: {exc}"])
-            return
+            errors = [f"Loaded YAML could not be regenerated: {exc}"]
+            self.show_errors(errors)
+            return errors
         self.yaml_output.value = render_workflow_yaml(descriptor)
         errors = validate_generated_descriptor(descriptor)
         if errors:
             self.show_errors(errors)
-            return
+            return errors
         self.show_load_result(warnings)
+        return []
 
     def show_load_result(self, warnings: list[str]) -> None:
         """Show YAML loading success with non-editable metadata warnings."""

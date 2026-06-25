@@ -52,6 +52,18 @@ class FakeNiceGUIUploadEvent:
         self.file = FakeNiceGUIUploadFile(name, content)
 
 
+class FakeWorkflowUpload:
+    """Fake NiceGUI upload control with a reset method."""
+
+    def __init__(self) -> None:
+        """Initialize reset call capture."""
+        self.reset_count = 0
+
+    def reset(self) -> None:
+        """Capture upload reset calls."""
+        self.reset_count += 1
+
+
 class FakeUploadHandlerApp:
     """Small upload handler test double."""
 
@@ -60,18 +72,58 @@ class FakeUploadHandlerApp:
         self.loaded_form_values: dict[str, object] | None = None
         self.warnings: list[str] | None = None
         self.errors: list[str] | None = None
+        self.workflow_upload = FakeWorkflowUpload()
+        self.loaded_workflow_filename: str | None = None
+        self.loaded_workflow_upload_status: str | None = None
+        self.loaded_workflow_upload_message: str | None = None
+        self.loaded_workflow_upload_warnings: list[str] = []
 
     def apply_loaded_form_values(self, loaded_form_values: dict[str, object]) -> None:
         """Capture loaded form values."""
         self.loaded_form_values = loaded_form_values
 
-    def regenerate_loaded_yaml_preview(self, warnings: list[str]) -> None:
+    def regenerate_loaded_yaml_preview(self, warnings: list[str]) -> list[str]:
         """Capture load warnings."""
         self.warnings = warnings
+        return []
 
     def show_errors(self, errors: list[str]) -> None:
         """Capture load errors."""
         self.errors = errors
+
+    def set_workflow_upload_success(self, filename: object, warnings: list[str]) -> None:
+        """Capture successful upload status state."""
+        self.loaded_workflow_filename = str(filename or "workflow YAML file")
+        self.loaded_workflow_upload_status = "success"
+        self.loaded_workflow_upload_message = (
+            "The form was populated from this file. Upload another YAML file to replace it."
+        )
+        self.loaded_workflow_upload_warnings = list(warnings)
+
+    def set_workflow_upload_error(self, filename: object, message: str) -> None:
+        """Capture failed upload status state."""
+        self.loaded_workflow_filename = str(filename or "workflow YAML file")
+        self.loaded_workflow_upload_status = "error"
+        self.loaded_workflow_upload_message = message
+        self.loaded_workflow_upload_warnings = []
+
+    def reset_workflow_upload(self) -> None:
+        """Reset the fake upload control."""
+        self.workflow_upload.reset()
+
+
+class FakeInteractionTypeSelect:
+    """Small test double for the NiceGUI interaction type select."""
+
+    def __init__(self) -> None:
+        """Initialize visible state and captured updates."""
+        self.visible = True
+        self.value = ""
+        self.update_count = 0
+
+    def update(self) -> None:
+        """Capture update calls."""
+        self.update_count += 1
 
 
 def minimal_form_values() -> dict[str, object]:
@@ -1101,6 +1153,13 @@ def test_load_yaml_upload_uses_event_file_name_and_async_text() -> None:
     assert app.warnings is not None
     assert LOADED_QUERY_VALUE_WARNING in app.warnings
     assert event.file.requested_encoding == "utf-8"
+    assert app.workflow_upload.reset_count == 1
+    assert app.loaded_workflow_filename == "workflow.yaml"
+    assert app.loaded_workflow_upload_status == "success"
+    assert app.loaded_workflow_upload_message == (
+        "The form was populated from this file. Upload another YAML file to replace it."
+    )
+    assert LOADED_QUERY_VALUE_WARNING in app.loaded_workflow_upload_warnings
 
 
 def test_load_yaml_upload_rejects_unsupported_event_file_name() -> None:
@@ -1114,6 +1173,104 @@ def test_load_yaml_upload_rejects_unsupported_event_file_name() -> None:
     assert app.errors == ["Unsupported file type. Upload a .yml or .yaml workflow file."]
     assert app.loaded_form_values is None
     assert event.file.requested_encoding == ""
+    assert app.workflow_upload.reset_count == 1
+    assert app.loaded_workflow_filename == "workflow.txt"
+    assert app.loaded_workflow_upload_status == "error"
+    assert app.loaded_workflow_upload_message == (
+        "Unsupported file type. Upload a .yml or .yaml workflow file."
+    )
+    assert app.loaded_workflow_upload_warnings == []
+
+
+def test_load_yaml_upload_resets_upload_control_after_invalid_yaml() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    app = FakeUploadHandlerApp()
+    event = FakeNiceGUIUploadEvent("workflow.yml", "dataset: [")
+
+    asyncio.run(module.WorkflowYamlBuilderApp.load_yaml_upload(app, event))
+
+    assert app.errors is not None
+    assert app.errors[0].startswith("Could not load workflow YAML: Invalid YAML")
+    assert app.loaded_form_values is None
+    assert event.file.requested_encoding == "utf-8"
+    assert app.workflow_upload.reset_count == 1
+    assert app.loaded_workflow_filename == "workflow.yml"
+    assert app.loaded_workflow_upload_status == "error"
+    assert app.loaded_workflow_upload_message is not None
+    assert app.loaded_workflow_upload_message.startswith("Could not load workflow YAML: Invalid YAML")
+    assert app.loaded_workflow_upload_warnings == []
+
+
+def test_load_yaml_upload_replaces_previous_success_with_error_status() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    app = FakeUploadHandlerApp()
+
+    asyncio.run(
+        module.WorkflowYamlBuilderApp.load_yaml_upload(
+            app,
+            FakeNiceGUIUploadEvent("first.workflow-v1.yml", minimal_workflow_yaml()),
+        )
+    )
+    asyncio.run(
+        module.WorkflowYamlBuilderApp.load_yaml_upload(
+            app,
+            FakeNiceGUIUploadEvent("second.workflow-v1.yml", "dataset: ["),
+        )
+    )
+
+    assert app.loaded_workflow_filename == "second.workflow-v1.yml"
+    assert app.loaded_workflow_upload_status == "error"
+    assert app.loaded_workflow_upload_message is not None
+    assert app.loaded_workflow_upload_message.startswith("Could not load workflow YAML: Invalid YAML")
+    assert app.loaded_workflow_upload_warnings == []
+    assert app.workflow_upload.reset_count == 2
+
+
+def test_interaction_type_selector_visibility_helper_matches_modality() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+
+    assert module.should_show_interaction_type_selector({"dataset.modality": "Interaction"})
+    assert not module.should_show_interaction_type_selector({"dataset.modality": "Protein"})
+    assert not module.should_show_interaction_type_selector({"dataset.modality": "Compound"})
+
+
+def test_update_interaction_type_visibility_resets_non_interaction_value() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    app = object.__new__(module.WorkflowYamlBuilderApp)
+    app.form_values = {
+        "dataset.modality": "Protein",
+        "dataset.interaction_type": "Protein-ligand interaction",
+    }
+    app.interaction_type_select = FakeInteractionTypeSelect()
+
+    module.WorkflowYamlBuilderApp.update_interaction_type_visibility(app)
+
+    assert app.form_values["dataset.interaction_type"] == "No interaction"
+    assert app.interaction_type_select.value == "No interaction"
+    assert app.interaction_type_select.visible is False
+    assert app.interaction_type_select.update_count == 1
+
+
+def test_update_interaction_type_visibility_shows_interaction_value() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    app = object.__new__(module.WorkflowYamlBuilderApp)
+    app.form_values = {
+        "dataset.modality": "Interaction",
+        "dataset.interaction_type": "Protein-protein interaction",
+    }
+    app.interaction_type_select = FakeInteractionTypeSelect()
+    app.interaction_type_select.visible = False
+
+    module.WorkflowYamlBuilderApp.update_interaction_type_visibility(app)
+
+    assert app.form_values["dataset.interaction_type"] == "Protein-protein interaction"
+    assert app.interaction_type_select.visible is True
+    assert app.interaction_type_select.update_count == 1
 
 
 def test_nicegui_app_imports_when_nicegui_is_installed() -> None:
