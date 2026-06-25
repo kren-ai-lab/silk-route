@@ -110,7 +110,7 @@ Allowed descriptive extension sections:
 - `temperature_enrichment`
 - `cross_source_integration`
 
-These extension sections are preserved in metadata and run summary output. They do not currently activate extra APIs or retrieval steps.
+These extension sections are preserved in metadata and run summary output. API retrieval for them is handled only by workflow logic that explicitly supports it.
 
 Unknown top-level sections are rejected. For example, `resoures` fails because the accepted section is `resources`.
 
@@ -131,7 +131,7 @@ The canonical top-level order is:
 Field roles:
 
 - **Executable**: changes the workflow run.
-- **Descriptive**: accepted and preserved, but does not currently change execution.
+- **Descriptive**: accepted and preserved for metadata or reporting context.
 - **Generated**: filled or overwritten by BioSeqDownloader during reporting.
 
 Current executable fields are the fields that should be used to control
@@ -179,11 +179,11 @@ or summaries, but they must not be described as execution controls:
 | --- | --- |
 | `dataset.name` | Dataset identity and default output-directory source when `export.output_dir` is absent. |
 | `dataset.description` | Preserved descriptive text. |
-| `dataset.primary_data_source` | Preserved descriptive text; it does not route execution. |
+| `dataset.primary_data_source` | Preserved descriptive text; routing comes from modality, mode, and query interpretation. |
 | `query.description` | Preserved descriptive text. |
 | `query.filtering_strategy` | Preserved descriptive text; executable filtering belongs in `query.value`. |
 | `query.builder` | Preserved GUI-oriented metadata only. |
-| `query.composition` | Preserved GUI-oriented metadata only; it does not replace `query.value`. If `query.composition` is present, it must match the executable `query.value`. |
+| `query.composition` | Preserved GUI-oriented metadata only. If `query.composition` is present, it must match the executable `query.value`. |
 | `harmonization.sequence_column` | Used only for generated unique-sequence reporting when matching tabular output exists. |
 | `reporting` custom fields | Preserved YAML-safe descriptive values unless overwritten by generated reporting. |
 
@@ -209,16 +209,17 @@ both the current UniProt query interpreter and GUI query-builder code.
 Friendly query syntax supports quoted values with spaces, such as
 `organism_any:"Homo sapiens"` and `go_any:"DNA repair","protein folding"`.
 GUI builder rows compile to a final interpreted query and store that executable
-string in `query.value`. The pure builder utilities do not call external APIs,
-download data, or validate against live UniProt.
+string in `query.value`. The pure builder utilities prepare query text only;
+live validation and data retrieval happen in the workflow run.
 
-The optional NiceGUI interface only generates `workflow-v1`
-YAML descriptors. It does not execute workflows, call APIs, download data,
-or collect credentials. The Query section has two modes: Manual query writes
-the typed text directly to `query.value`, while Advanced builder lets users
-choose a database-specific builder. The interpreted query preview is the value
-written to `query.value`. The friendly query preview, builder row metadata,
-`query.builder`, and `query.composition` are not saved to generated YAML.
+The optional NiceGUI interface prepares `workflow-v1` YAML descriptors; workflow
+execution still happens through the CLI. The GUI keeps credentials out of YAML
+and treats live API access as part of the later workflow run. The Query section
+has two modes: Manual query writes the typed text directly to `query.value`,
+while Advanced builder lets users choose a database-specific builder. The
+interpreted query preview is the value written to `query.value`. The friendly
+query preview, builder row metadata, `query.builder`, and `query.composition`
+are reserved for future GUI reconstruction and are not saved to generated YAML.
 Install it with the optional GUI extra and run:
 
 ```bash
@@ -242,13 +243,11 @@ browser.
 The GUI can load an existing `workflow-v1` YAML file and populate supported form
 fields. Loading validates the descriptor, fills the editable Dataset, Query,
 Execution, Harmonization, and Export controls, and regenerates the YAML preview
-from those editable fields. Loaded `query.value` is placed into Manual query
-mode. Advanced builder rows are not reconstructed because generated YAML
-currently stores only the final executable `query.value`, not `query.builder`
-metadata or builder row state. Unsupported editable metadata such as
-`query.builder`, `query.composition`, `resources`, or `reporting` may be accepted
-by workflow-v1 schema validation, but it is shown only as a warning and is not
-editable in this GUI version.
+from those editable fields. When loading a YAML file, the saved query text opens
+in Manual query mode. Reconstructing visual builder rows is planned for a later
+version with `query.builder` metadata. Metadata such as `query.builder`,
+`query.composition`, `resources`, or `reporting` may validate as workflow-v1
+descriptor metadata and is shown as read-only in this GUI version.
 
 GUI controls use human-friendly labels while generated YAML keeps exact
 `workflow-v1` values. `Query First` writes `query_first`, `Query Composition`
@@ -259,13 +258,12 @@ compound datasets; it is invalid when the selected modality is `Interaction`.
 `Return fields` and `Cross-reference fields` accept optional comma-separated
 values. They remain separate from Advanced UniProt builder fields: return fields
 control optional requested/output fields, while builder fields control the
-executable search query. The builder does not call UniProt, call any external
-API, download data, or validate against live UniProt. The default
+executable search query. The builder prepares the query text only; UniProt
+validation and network access happen later when the workflow runs. The default
 output-directory mode writes `results/{dataset.name}`. The custom mode accepts
 only relative paths, normalizes backslashes to forward slashes, and rejects
-absolute paths or `..` traversal. This path is used later when the YAML is
-executed; the GUI does not create the directory, execute a workflow, or call an
-API.
+absolute paths or `..` traversal. This path is used later when the workflow
+runs.
 
 Advanced UniProt builder rows use two separate controls for query logic.
 Connector combines the current row with the previous row; use `AND` when both
@@ -282,9 +280,9 @@ connectors and match modes. ChEMBL target, assay, cell line, and molecule
 builders emit filter-list query strings; the ChEMBL activity builder emits flat
 parameter query strings. ChEMBL rows are combined with `AND`; use the `in`
 filter type for multiple allowed values in a single field. The ChEMBL builder
-does not call ChEMBL, does not validate values against live ChEMBL records, and
-does not execute the workflow. `query.fields` and `query.crossref_fields`
-remain separate from all query-builder fields.
+prepares the ChEMBL query text only; ChEMBL validation happens later when the
+workflow runs. `query.fields` and `query.crossref_fields` remain separate from
+all query-builder fields.
 
 Advanced query builders are filtered by the selected dataset modality and
 interaction type. Protein datasets currently expose the UniProt builder.
@@ -292,9 +290,9 @@ Compound datasets expose compatible ChEMBL molecule and activity builders.
 Protein-ligand interaction datasets expose compatible ChEMBL target, assay, and
 activity builders. Protein-protein interaction datasets expose the UniProt
 builder. If Interaction is selected without an interaction type, no advanced
-builder is shown and Manual query mode remains available. These filters only
-control GUI choices; the GUI still does not execute workflows, call APIs, or
-download data.
+builder is shown and Manual query mode remains available. These filters guide
+the GUI choices; the workflow runner still validates compatibility when the
+descriptor is executed from the CLI.
 
 ChEMBL queries generated by the GUI should be paired with a compatible modality.
 Use compound workflows for compound/activity-oriented ChEMBL outputs. Use
@@ -312,18 +310,18 @@ molecule builders use ChEMBL filter-list rows, while ChEMBL activity uses flat
 parameter rows. ChEMBL substructure and similarity are special structure-query
 patterns documented as future builder resources and are not implemented in the
 GUI. `examples/API_usage_demo.ipynb` was used as local usage context for the
-supported ChEMBL query patterns. All builders remain YAML generators only: they
-do not call external APIs, do not download data, and do not validate values
-against live databases. Generated YAML stores only the final interpreted
-`query.value`, not builder metadata.
+supported ChEMBL query patterns. Builders produce YAML-ready query text only;
+live validation and API access happen later in the workflow run. Generated YAML
+stores only the final interpreted `query.value`, not builder metadata.
 
 The `Harmonization` section describes expected output columns and related
 reporting behavior. `ID column`, `Label column`, `Sequence column`, and `Unique
 sequence strategy` are optional text inputs. `Metadata fields` accepts a
 comma-separated list and writes it as a YAML list. `sequence_column` is useful
 only when generated tabular output contains that column, and
-`unique_sequence_strategy` is currently descriptive. These controls do not by
-themselves clean, merge, rename, filter, or deduplicate output data.
+`unique_sequence_strategy` is currently descriptive. These controls describe
+expected output structure. Data cleaning, merging, renaming, filtering, and
+deduplication are handled by the workflow logic that supports those operations.
 
 ### Manual GUI smoke test
 
@@ -350,14 +348,14 @@ themselves clean, merge, rename, filter, or deduplicate output data.
 7. Confirm warnings appear for unsupported editable metadata when present.
 8. Click `Generate YAML`.
 9. Confirm the preview still contains `schema_version: workflow-v1`.
-10. Confirm the GUI did not execute a workflow, call APIs, or download data.
+10. Confirm no workflow output files or API activity were produced by the GUI.
 
 ### `dataset`
 
 | Field | Type | Required | Default | Role | Internal mapping | Limitations |
 | --- | --- | --- | --- | --- | --- | --- |
-| `name` | string | Required only when `export.output_dir` is absent | none | Descriptive and defaulting | Used to derive `output` as `results/{dataset.name}` when `export.output_dir` is not set | Does not otherwise affect retrieval. |
-| `description` | string or null | Optional | `null` | Descriptive | Preserved in descriptor metadata and summary | Does not affect execution. |
+| `name` | string | Required only when `export.output_dir` is absent | none | Descriptive and defaulting | Used to derive `output` as `results/{dataset.name}` when `export.output_dir` is not set | Retrieval is controlled by modality, mode, and query. |
+| `description` | string or null | Optional | `null` | Descriptive | Preserved in descriptor metadata and summary | Used as dataset context. |
 | `modality` | string | Required | none | Executable | Normalized to `workflow_values["modality"]` and passed to `MainWorkflow.run(modality=...)` | Must be `protein`, `compound`, or `interaction`. |
 | `mode` | string | Required | none | Executable | Normalized to `workflow_values["mode"]` and passed to `MainWorkflow.run(mode=...)` | Must be `query_first` or `query_composition`. |
 | `primary_data_source` | string or null | Optional | `null` | Descriptive | Preserved in metadata and summary | Does not route the workflow. |
@@ -368,17 +366,17 @@ themselves clean, merge, rename, filter, or deduplicate output data.
 | Field | Type | Required | Default | Role | Internal mapping | Limitations |
 | --- | --- | --- | --- | --- | --- | --- |
 | `value` | non-empty string | Required | none | Executable | Normalized to `workflow_values["query"]` | For `query_first`, this is the query string. For `query_composition`, use comma-separated labeled pairs such as `temperature:99=temp_99,temperature:98=temp_98`. |
-| `builder` | mapping | Optional | omitted | Descriptive GUI metadata | Preserved in descriptor metadata and summary | Intended for future GUI reconstruction. It does not affect execution, and nested values are not constrained yet. |
-| `composition` | list of mappings | Optional | omitted | Descriptive GUI metadata | Preserved in descriptor metadata and summary | Does not replace `query.value`. Each item must include non-empty string `label` and `value`; optional `description` may be a string or null. |
-| `description` | string or null | Optional | `null` | Descriptive | Preserved in metadata and summary | Does not affect query execution. |
+| `builder` | mapping | Optional | omitted | Descriptive GUI metadata | Preserved in descriptor metadata and summary | Intended for future GUI reconstruction; nested values are not constrained yet. |
+| `composition` | list of mappings | Optional | omitted | Descriptive GUI metadata | Preserved in descriptor metadata and summary | `query.value` remains the executable query. Each item must include non-empty string `label` and `value`; optional `description` may be a string or null. |
+| `description` | string or null | Optional | `null` | Descriptive | Preserved in metadata and summary | Used as descriptor context. |
 | `filtering_strategy` | string or null | Optional | `null` | Descriptive | Preserved in metadata and summary | Filtering must be encoded in `query.value`; `query.filters` is not supported. |
-| `fields` | null, string, or list of strings | Optional | `null` | Executable | Normalized to `workflow_values["fields"]` and passed to the UniProt fetch as the API `fields` parameter | It controls requested UniProt fields. It is not currently used as a parser column filter. |
+| `fields` | null, string, or list of strings | Optional | `null` | Executable | Normalized to `workflow_values["fields"]` and passed to the UniProt fetch as the API `fields` parameter | It controls requested UniProt fields. Parser columns still come from the workflow parser's field map. |
 | `crossref_fields` | null, string, or list of strings | Optional | `null` | Executable when enrichment is enabled | Normalized to `workflow_values["crossref_fields"]` and passed to the enrichment path | Used with `execution.enrich`; unavailable or unsupported cross-reference fields may produce no enrichment output. |
 | `include_isoform` | boolean | Optional | `false` | Executable | Normalized to `workflow_values["include_isoform"]` and passed to UniProt fetches | Applies to UniProt requests. |
 
 `query.value` is the only executable query field. `query.builder` and
 `query.composition` are preserved GUI-oriented metadata for future
-reconstruction and do not affect execution.
+reconstruction; execution continues to use `query.value`.
 
 When `dataset.mode` is `query_composition` and `query.composition` is present,
 the preserved composition metadata must match the executable comma-separated
@@ -391,8 +389,8 @@ composition items containing the exact `(value, label)` pairs
 
 | Field | Type | Required | Default | Role | Internal mapping | Limitations |
 | --- | --- | --- | --- | --- | --- | --- |
-| `primary` | list of strings | Optional | omitted | Descriptive | Preserved in metadata and summary | Does not choose the API. Current routing comes from `dataset.modality`, `dataset.mode`, and query interpretation. |
-| `integration` | list of strings | Optional | omitted | Descriptive | Preserved in metadata and summary | Does not automatically activate integration APIs. Use query cross-reference fields and `execution.enrich` for supported enrichment behavior. |
+| `primary` | list of strings | Optional | omitted | Descriptive | Preserved in metadata and summary | Current routing comes from `dataset.modality`, `dataset.mode`, and query interpretation. |
+| `integration` | list of strings | Optional | omitted | Descriptive | Preserved in metadata and summary | Use query cross-reference fields and `execution.enrich` for supported enrichment behavior. |
 
 ### `execution`
 
@@ -402,29 +400,29 @@ composition items containing the exact `(value, label)` pairs
 | `max_workers` | integer | Optional | `5` | Executable | Normalized to `workflow_values["workers"]` and passed to workflow/enrichment calls | Mainly affects enrichment and extra API calls that use worker pools. |
 | `total_retries` | integer | Optional | `3` | Executable | Normalized to `workflow_values["retries"]`; used to initialize `UniprotInterface(total_retries=...)` and passed to workflow/enrichment calls | Retry behavior depends on the called interface. |
 | `chembl_pages_to_fetch` | integer | Optional | `-1` | Executable for ChEMBL workflow fetches | Passed to ChEMBL workflow acquisition as `pages_to_fetch` | `-1` fetches all available ChEMBL pages. Positive values cap the number of pages. `0` and values below `-1` are rejected. |
-| `merge_results` | boolean | Optional | `false` | Descriptive metadata | Normalized to `workflow_values["merge_results"]` and written to metadata/summary | Does not currently trigger automatic result merging. Query-composition combines results independently of this flag. |
+| `merge_results` | boolean | Optional | `false` | Descriptive metadata | Normalized to `workflow_values["merge_results"]` and written to metadata/summary | Query-composition combines results independently of this descriptive flag. |
 | `uniprot_timeout` | number or null | Optional | `null` | Executable | Normalized to `workflow_values["uniprot_timeout"]` and passed to UniProt fetches | `null` uses the interface default timeout. |
 | `debug` | boolean | Optional | `false` | Executable | Normalized to `workflow_values["debug"]` | Enables debug logging when true. |
 
 For ChEMBL workflows, `chembl_pages_to_fetch: -1` is the default and means fetch all available pages until ChEMBL stops returning `page_meta.next`. Positive integers cap the number of pages. `limit` is records per page, not total records and not a page count. Large ChEMBL queries can take longer when all pages are fetched; use a positive page cap for quick validation runs.
 
-For IC50 activity queries, the ChEMBL workflow constrains `standard_type` to `IC50` and applies numeric `standard_value` filters for exact values or requested ranges. `standard_units` is reported when available, but the current workflow does not constrain units to nM.
+For IC50 activity queries, the ChEMBL workflow constrains `standard_type` to `IC50` and applies numeric `standard_value` filters for exact values or requested ranges. `standard_units` is reported when available; unit normalization to nM belongs to a later workflow enhancement.
 
 ### `harmonization`
 
 Harmonization fields describe expected tabular columns and reporting-related
 behavior. Except for the documented deterministic ID and sequence reporting
-uses, they are preserved as descriptor metadata and do not transform output.
+uses, they are preserved as descriptor metadata while exported data stays unchanged.
 The NiceGUI `Metadata fields` control accepts comma-separated values and emits
 `metadata_fields` as a YAML list.
 
 | Field | Type | Required | Default | Role | Internal mapping | Limitations |
 | --- | --- | --- | --- | --- | --- | --- |
-| `id_column` | string or null | Optional | `null` | Executable for tabular exports | Normalized to `workflow_values["id_column"]` and used by export helpers | Adds deterministic IDs to exported tabular results when the column is absent. It does not mutate in-memory data. |
-| `label_column` | string or null | Optional | `null` | Descriptive | Preserved in metadata and summary | Query-composition currently writes labels to `_label`; this field does not rename that column. |
-| `sequence_column` | string or null | Optional | `null` | Generated reporting aid | Used to calculate `reporting.unique_sequences` when tabular outputs contain the named column | Does not alter exported columns. |
-| `unique_sequence_strategy` | string or null | Optional | `null` | Descriptive | Preserved in metadata and summary | Does not currently change deduplication or export behavior. |
-| `metadata_fields` | list of strings | Optional | omitted | Descriptive | Preserved in metadata and summary | Does not currently filter output columns. |
+| `id_column` | string or null | Optional | `null` | Executable for tabular exports | Normalized to `workflow_values["id_column"]` and used by export helpers | Adds deterministic IDs to exported tabular results when the column is absent. In-memory data stays unchanged. |
+| `label_column` | string or null | Optional | `null` | Descriptive | Preserved in metadata and summary | Query-composition currently writes labels to `_label`; exported column names stay unchanged. |
+| `sequence_column` | string or null | Optional | `null` | Generated reporting aid | Used to calculate `reporting.unique_sequences` when tabular outputs contain the named column | Exported columns stay unchanged. |
+| `unique_sequence_strategy` | string or null | Optional | `null` | Descriptive | Preserved in metadata and summary | Deduplication is handled elsewhere for now. |
+| `metadata_fields` | list of strings | Optional | omitted | Descriptive | Preserved in metadata and summary | Exported columns stay unchanged. |
 
 ### `export`
 
@@ -436,7 +434,7 @@ The NiceGUI `Metadata fields` control accepts comma-separated values and emits
 | `include_summary` | boolean | Optional | `true` | Executable | Normalized to `workflow_values["include_summary"]` | Controls whether the run summary YAML is written. |
 | `manifest_file` | string or null | Optional | `metadata.json` | Executable | Normalized to `workflow_values["manifest_file"]` | The file content is JSON regardless of extension. |
 | `summary_file` | string or null | Optional | `run_summary.yml` | Executable | Normalized to `workflow_values["summary_file"]` | The file content is YAML regardless of extension. |
-| `result_files` | any YAML value | Optional | omitted | Descriptive | Preserved in the export descriptor | Does not currently control result filenames. Output filenames are derived from result labels such as `uniprot_results`. |
+| `result_files` | any YAML value | Optional | omitted | Descriptive | Preserved in the export descriptor | Output filenames are derived from result labels such as `uniprot_results`. |
 
 `dataframe` is not a public export format. Use `csv`, `json`, `xml`, or `parquet` in YAML and CLI export options.
 
@@ -631,9 +629,9 @@ Important current limitations:
 - `execution.merge_results` is metadata only.
 - Domain-specific extension sections are descriptive only.
 - The validated compound workflow uses ChEMBL activity retrieval with UniProt target mapping; PubChem is not part of the YAML compound workflow path.
-- `harmonization.metadata_fields`, `label_column`, and `unique_sequence_strategy` do not filter, rename, merge, or deduplicate output.
+- `harmonization.metadata_fields`, `label_column`, and `unique_sequence_strategy` describe expected structure; output filtering, renaming, merging, and deduplication come from supported workflow logic.
 - `query.fields` is sent to UniProt as the fetch `fields` parameter, but parsing currently uses the workflow parser's field map rather than this value as an output-column filter.
-- `export.result_files` does not control output filenames.
+- Output filenames are derived from result labels, not `export.result_files`.
 
 Keep preserved-only and future-facing fields out of runnable examples unless an
 example is specifically demonstrating metadata preservation. This includes

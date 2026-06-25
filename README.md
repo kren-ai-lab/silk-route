@@ -165,11 +165,11 @@ bioseq-dl workflow run --config examples/workflows/protein_query_first_minimal.y
 
 YAML descriptors use top-level `schema_version`, `dataset`, `query`, `resources`, `execution`, `harmonization`, `export`, and `reporting` sections, plus a small allowlist of descriptive integration sections. `dataset.mode` is the workflow execution mode, and the only valid values are `query_first` and `query_composition`. Only part of the descriptor is executable: `dataset.modality`, `dataset.mode`, `query.value`, selected `query` options, supported `execution` options, and `export` options are mapped to the current workflow. `query.value` is the actual API query. `query.builder`, `query.composition`, `query.description`, and `query.filtering_strategy` are descriptive metadata only. If `query.composition` is present, it must match the executable `query.value`.
 
-`resources`, allowed domain-specific integration sections, and most harmonization/reporting fields are preserved in `metadata.json` and `run_summary.yml` unless the current workflow already supports that behavior. `execution.merge_results` is descriptor metadata only; it does not currently trigger automatic result merging. Credentials must be provided through `.env` or environment variables, not YAML.
+`resources`, allowed domain-specific integration sections, and most harmonization/reporting fields are preserved in `metadata.json` and `run_summary.yml` unless the current workflow already supports that behavior. `execution.merge_results` is descriptor metadata for now. Credentials must be provided through `.env` or environment variables, not YAML.
 
 ChEMBL workflow fetches retrieve all available pages by default. In YAML, `execution.chembl_pages_to_fetch: -1` means all pages; a positive value caps the number of pages. ChEMBL `limit` remains records per page, not total records and not a page count. Large ChEMBL queries can take longer when all pages are fetched; use a positive page cap for quick validation runs.
 
-For IC50 queries, the ChEMBL workflow enforces `standard_type = IC50` and numeric `standard_value` constraints for requested ranges. `standard_units` is preserved when returned by ChEMBL, but the workflow does not currently constrain units to nM.
+For IC50 queries, the ChEMBL workflow enforces `standard_type = IC50` and numeric `standard_value` constraints for requested ranges. `standard_units` is preserved when returned by ChEMBL; unit normalization to nM belongs to a later workflow enhancement.
 
 Allowed top-level descriptor sections are: `schema_version`, `dataset`, `query`, `resources`, `execution`, `harmonization`, `export`, `reporting`, `interaction_retrieval`, `activity_retrieval`, `chemical_metadata_integration`, `protein_target_integration`, `temperature_enrichment`, and `cross_source_integration`.
 
@@ -181,31 +181,32 @@ tools can inspect the lightweight schema definition with:
 from bioseq_dl.workflow_schema_definition import get_workflow_v1_schema_definition
 ```
 
-The optional NiceGUI interface generates `workflow-v1` YAML descriptors only.
-It does not execute workflows, call APIs, or download data. The Query section
-supports Manual query mode, which writes `query.value` directly, and Advanced
-builder mode, which currently offers UniProt and ChEMBL builders and stores
-only the final interpreted string in `query.value`. Friendly query previews and
-builder rows are not saved to YAML. Human-friendly GUI labels are translated to
-exact workflow-v1 schema values.
+The optional NiceGUI interface prepares `workflow-v1` YAML descriptors; workflow
+execution still happens through the CLI. The Query section supports Manual
+query mode, which writes `query.value` directly, and Advanced builder mode,
+which currently offers UniProt and ChEMBL builders and stores only the final
+interpreted string in `query.value`. Friendly query previews and builder rows
+are reserved for future GUI reconstruction rather than saved to YAML.
+Human-friendly GUI labels are translated to exact workflow-v1 schema values.
 The GUI can also load an existing `workflow-v1` YAML file and populate the
-supported form fields. Loaded `query.value` is placed into Manual query mode;
-Advanced builder rows are not reconstructed because generated YAML does not
-currently store editable builder metadata. Metadata such as `query.builder`,
+supported form fields. When loading a YAML file, the saved query text opens in
+Manual query mode. Reconstructing visual builder rows is planned for a later
+version with `query.builder` metadata. Metadata such as `query.builder`,
 `query.composition`, `resources`, and `reporting` may validate as workflow-v1
-descriptor metadata, but it is not editable in this GUI version.
+descriptor metadata and is shown as read-only in this GUI version.
 `query.fields` and `query.crossref_fields` remain separate optional inputs and
 are not advanced-builder search conditions.
 In the Advanced UniProt builder, Connector combines a row with the previous row
 using `AND` or `OR`, while Match mode combines comma-separated values inside
 one row as `Any`, `All`, or `Not`. Values containing spaces can be quoted. The
-builder does not call UniProt or validate values against live services.
+builder prepares UniProt query text; live validation happens later when the
+workflow runs.
 Query builders are registered per database/resource: UniProt uses connectors
 and match modes, while ChEMBL target, assay, cell line, and molecule builders
 use resource filters that are combined with `AND`; ChEMBL activity uses flat
 parameters. For ChEMBL, use the `in` filter type for multiple values in one
-field. These builders still generate only final interpreted `query.value`
-strings and do not call external APIs.
+field. These builders produce final interpreted `query.value` strings for the
+descriptor; live ChEMBL access happens later in the workflow run.
 Advanced query builders are filtered by the selected dataset modality and
 interaction type. Protein datasets expose the UniProt builder. Compound
 datasets expose compatible ChEMBL molecule and activity builders.
@@ -214,8 +215,9 @@ activity builders. Protein-protein interaction datasets expose the UniProt
 builder. Manual query mode remains available for every dataset setting.
 The visible `Harmonization` controls describe expected output columns and
 reporting-related behavior. Metadata fields are entered as comma-separated
-values and generated as a YAML list; descriptive harmonization values do not
-by themselves rename, filter, merge, or deduplicate output.
+values and generated as a YAML list. Descriptive harmonization values describe
+expected output structure; workflow logic handles renaming, filtering, merging,
+or deduplication where those operations are supported.
 
 Install the optional GUI dependencies:
 

@@ -28,39 +28,54 @@ LEGACY_OUTPUT_DIRECTORY_NAME_ERROR = (
     "dataset.name is required when export.output_dir is not provided."
 )
 LOADED_QUERY_VALUE_WARNING = (
-    "Loaded query.value into Manual query mode. Advanced builder rows cannot be "
-    "reconstructed because query.builder metadata is not currently stored."
+    "Loaded the saved query text in Manual query mode. Builder rows can be restored "
+    "in a later version when GUI builder metadata is saved."
 )
 QUERY_BUILDER_NOT_EDITABLE_WARNING = (
-    "query.builder metadata was found but is not editable in this GUI version."
+    "This file includes query.builder metadata. It is kept with the descriptor and "
+    "shown as read-only in this GUI version."
 )
 QUERY_COMPOSITION_NOT_EDITABLE_WARNING = (
-    "query.composition metadata was found but is not editable in this GUI version."
+    "This file includes query.composition metadata. It is kept with the descriptor "
+    "and shown as read-only in this GUI version."
 )
 PROTEIN_CHEMBL_QUERY_WARNING = (
-    "Loaded query.value appears to be a ChEMBL query, but dataset.modality is Protein. "
-    "Protein workflows are routed through UniProt."
+    "The loaded query looks like a ChEMBL query while the dataset is set to Protein. "
+    "Protein workflows use UniProt; choose Compound or Protein-ligand interaction "
+    "for ChEMBL queries."
 )
 NON_EDITABLE_METADATA_WARNINGS = {
-    "resources": "resources metadata was found but is not editable in this GUI version.",
-    "reporting": "reporting metadata was found but is not editable in this GUI version.",
+    "resources": (
+        "This file includes resources metadata. It is kept with the descriptor and "
+        "shown as read-only in this GUI version."
+    ),
+    "reporting": (
+        "This file includes reporting metadata. It is kept with the descriptor and "
+        "shown as read-only in this GUI version."
+    ),
     "interaction_retrieval": (
-        "interaction_retrieval metadata was found but is not editable in this GUI version."
+        "This file includes interaction_retrieval metadata. It is kept with the "
+        "descriptor and shown as read-only in this GUI version."
     ),
     "activity_retrieval": (
-        "activity_retrieval metadata was found but is not editable in this GUI version."
+        "This file includes activity_retrieval metadata. It is kept with the "
+        "descriptor and shown as read-only in this GUI version."
     ),
     "chemical_metadata_integration": (
-        "chemical_metadata_integration metadata was found but is not editable in this GUI version."
+        "This file includes chemical_metadata_integration metadata. It is kept with "
+        "the descriptor and shown as read-only in this GUI version."
     ),
     "protein_target_integration": (
-        "protein_target_integration metadata was found but is not editable in this GUI version."
+        "This file includes protein_target_integration metadata. It is kept with the "
+        "descriptor and shown as read-only in this GUI version."
     ),
     "temperature_enrichment": (
-        "temperature_enrichment metadata was found but is not editable in this GUI version."
+        "This file includes temperature_enrichment metadata. It is kept with the "
+        "descriptor and shown as read-only in this GUI version."
     ),
     "cross_source_integration": (
-        "cross_source_integration metadata was found but is not editable in this GUI version."
+        "This file includes cross_source_integration metadata. It is kept with the "
+        "descriptor and shown as read-only in this GUI version."
     ),
 }
 UNSAFE_FILENAME_CHARACTERS = re.compile(r"[^a-z0-9_-]+")

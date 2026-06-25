@@ -326,8 +326,8 @@ class WorkflowYamlBuilderApp:
         with ui.column().classes("w-full max-w-5xl mx-auto gap-4 p-4"):
             ui.label("BioSeqDownloader Workflow YAML Builder").classes("text-2xl font-semibold")
             ui.label(
-                "This GUI only generates workflow-v1 YAML descriptors. "
-                "It does not execute workflows or call external APIs."
+                "Use this page to prepare workflow-v1 YAML descriptors for BioSeqDownloader. "
+                "Run the workflow later from the CLI."
             ).classes("text-sm text-gray-700")
             self.build_load_controls()
             self.build_dataset_controls()
@@ -342,7 +342,7 @@ class WorkflowYamlBuilderApp:
         with ui.expansion("Load existing workflow YAML", value=False).classes("w-full"):
             ui.label(
                 "Upload a workflow-v1 .yml or .yaml file to populate supported form fields. "
-                "Loaded query.value is placed in Manual query mode."
+                "When a file is loaded, the saved query text is shown in Manual query mode."
             ).classes("text-sm text-gray-700")
             ui.label(
                 "Upload one .yml or .yaml file. Uploading another file replaces the current "
@@ -384,7 +384,7 @@ class WorkflowYamlBuilderApp:
             if self.loaded_workflow_upload_message:
                 ui.label(self.loaded_workflow_upload_message).classes("text-sm text-gray-700")
             if self.loaded_workflow_upload_warnings:
-                ui.label("Warnings").classes("text-sm font-semibold text-orange-800")
+                ui.label("Load notes").classes("text-sm font-semibold text-orange-800")
                 for warning in self.loaded_workflow_upload_warnings:
                     ui.label(f"- {warning}").classes("text-sm text-orange-800")
 
@@ -538,8 +538,8 @@ class WorkflowYamlBuilderApp:
                     "The final interpreted query is stored as query.value in the YAML."
                 ).classes("text-sm text-gray-700")
                 ui.label(
-                    "This builder does not call UniProt, does not validate values against live "
-                    "databases, and does not execute the workflow."
+                    "The builder prepares the query text only. UniProt validation happens later "
+                    "when the workflow runs."
                 ).classes("text-sm text-gray-700")
                 ui.label(
                     "Connector combines this row with the previous row. Use AND when both "
@@ -633,8 +633,8 @@ class WorkflowYamlBuilderApp:
                 "Use the IN filter type for multiple allowed values in one field."
             ).classes("text-sm text-gray-700")
             ui.label(
-                "The builder does not call ChEMBL, does not validate values against live "
-                "ChEMBL records, and does not execute the workflow."
+                "The builder prepares the ChEMBL query text only. ChEMBL validation happens "
+                "later when the workflow runs."
             ).classes("text-sm text-gray-700")
             self.build_chembl_builder_rows()
             with ui.row().classes("items-center gap-3"):
@@ -758,8 +758,8 @@ class WorkflowYamlBuilderApp:
         )
         if self.builder_availability_message is not None:
             self.builder_availability_message.text = (
-                "No advanced query builder is available for the current dataset modality and "
-                "interaction type. Use Manual query or adjust the dataset settings."
+                "No advanced builder matches these dataset settings. Use Manual query or adjust "
+                "the modality and interaction type."
             )
         self.update_builder_previews()
 
@@ -876,8 +876,8 @@ class WorkflowYamlBuilderApp:
                 .bind_value(self.form_values, "harmonization.label_column")
                 .tooltip(
                     "Optional column name that identifies labels or groups in tabular outputs. "
-                    "This is preserved in the descriptor and does not rename output columns by "
-                    "itself."
+                    "Stored with the descriptor for reference. Exported columns keep their "
+                    "original names."
                 )
             )
             (
@@ -894,8 +894,8 @@ class WorkflowYamlBuilderApp:
                 .props('clearable placeholder="exact"')
                 .bind_value(self.form_values, "harmonization.unique_sequence_strategy")
                 .tooltip(
-                    "Optional descriptive strategy name for sequence uniqueness handling. It "
-                    "does not currently perform full deduplication."
+                    "Optional strategy name for sequence uniqueness notes. Deduplication is "
+                    "handled elsewhere for now."
                 )
             )
             (
@@ -904,8 +904,8 @@ class WorkflowYamlBuilderApp:
                 .bind_value(self.form_values, "harmonization.metadata_fields")
                 .classes("col-span-2")
                 .tooltip(
-                    "Optional comma-separated list of metadata fields expected or relevant in "
-                    "the output. This does not currently filter exported columns."
+                    "Optional comma-separated list of metadata fields expected in the output. "
+                    "Exported columns stay unchanged."
                 )
             )
 
@@ -930,8 +930,8 @@ class WorkflowYamlBuilderApp:
                 .props('clearable placeholder="results/my_dataset"')
                 .bind_value(self.form_values, "export.output_dir")
                 .tooltip(
-                    "Directory used later when the YAML is executed. The GUI does not create it. "
-                    "Absolute paths and '..' are not allowed."
+                    "Directory used later when the workflow runs. Use a relative path; absolute "
+                    "paths and '..' are blocked."
                 )
             )
             (
