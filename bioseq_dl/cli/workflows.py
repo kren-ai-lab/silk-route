@@ -2097,3 +2097,37 @@ def run_workflow(
         typer.echo(f"Workflow completed with errors. Results saved to '{output_dir}'")
     else:
         typer.echo(f"Workflow completed. Results saved to '{output_dir}'")
+
+
+def validate_workflow(
+    config: Path = typer.Argument(
+        ...,
+        help="Path to the YAML workflow descriptor to validate.",
+    ),
+) -> None:
+    """Validate a workflow YAML descriptor without running it.
+
+    Reports the first validation problem and exits non-zero, or confirms the
+    descriptor is valid and prints the resolved modality/mode/output.
+    """
+    try:
+        values = validate_workflow_recipe(load_workflow_recipe(config))
+    except (ValueError, TypeError) as exc:
+        typer.echo(f"✗ Invalid workflow descriptor: {exc}", err=True)
+        raise typer.Exit(code=1) from None
+
+    typer.echo(f"✓ {config} is a valid workflow descriptor.")
+    typer.echo(f"  modality: {values['modality']} | mode: {values['mode']}")
+    if values.get("output"):
+        typer.echo(f"  output: {values['output']}")
+
+
+workflow_app = typer.Typer(
+    name="workflow",
+    help="Run or validate data-fetching workflows.",
+    no_args_is_help=True,
+)
+workflow_app.command("run", help="Run a predefined data fetching workflow.")(run_workflow)
+workflow_app.command("validate", help="Validate a workflow YAML descriptor without running it.")(
+    validate_workflow
+)
