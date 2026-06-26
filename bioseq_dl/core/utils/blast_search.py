@@ -1,12 +1,16 @@
-"""BLAST sequence search utilities."""
+"""BLAST sequence search utilities.
 
-import os
-import re
+BLAST+ is treated as an external dependency: this module never installs it. Use
+your environment manager (pixi/conda/apt) to provide ``blastp``/``makeblastdb``
+on PATH; ``check_blast`` only locates and validates them.
+"""
+
+import csv
+import gzip
 import shutil
 import subprocess
-import tarfile
+import urllib.request
 from pathlib import Path
-from urllib.request import urlopen
 
 from bioseq_dl.constants.databases import BASE_BLAST_DB_DIR as DB_DIR
 from bioseq_dl.constants.uniprot import BASE_URL, DATABASES
@@ -14,11 +18,16 @@ from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.core.utils.blast_search")
 
-BLAST_BASE_URL = "https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/"
-BLAST_DIR = Path("blast_bin")
+# Surfaced when BLAST+ is not available on PATH.
+BLAST_INSTALL_HINT = (
+    "BLAST+ was not found on PATH. Install it with your environment manager, e.g.:\n"
+    "  pixi global add blast\n"
+    "  conda install -c bioconda blast\n"
+    "  apt install ncbi-blast+"
+)
 
-# Columns in the tabular output (outfmt 6): qseqid sseqid pident length evalue bitscore qcovs.
-BLAST_TABULAR_FIELD_COUNT = 7
+# Columns emitted by the CSV output (outfmt 10), in order.
+BLAST_OUTPUT_COLUMNS = ("qseqid", "sseqid", "pident", "length", "evalue", "bitscore", "qcovs")
 
 
 def download_uniprot_database(
@@ -37,93 +46,41 @@ def download_uniprot_database(
         raise ValueError(msg)
 
     db_path = DB_DIR / f"{db_name}.{extension}"
-
-    if not db_path.exists():
-        DB_DIR.mkdir(parents=True, exist_ok=True)
-        url = f"{BASE_URL}/{DATABASES[db_name]}.{extension}.gz"
-        os.system(f"wget {url} -O {db_path}.gz")  # noqa: S605  # trusted NCBI URL, dev tooling  # ty: ignore[deprecated]
-        log.info("Unzipping %s...", db_path)
-        subprocess.run(["gunzip", db_path], check=True)  # noqa: S603, S607  # trusted local tool, dev tooling
-    else:
+    if db_path.exists():
         log.info("Database %s already exists at %s.", db_name, db_path)
+        return
+
+    DB_DIR.mkdir(parents=True, exist_ok=True)
+    url = f"{BASE_URL}/{DATABASES[db_name]}.{extension}.gz"
+    gz_path = db_path.with_name(f"{db_path.name}.gz")
+    log.info("Downloading %s...", url)
+    urllib.request.urlretrieve(url, gz_path)  # noqa: S310  # trusted UniProt URL constant
+    log.info("Unzipping %s...", gz_path)
+    with gzip.open(gz_path, "rb") as f_in, db_path.open("wb") as f_out:
+        shutil.copyfileobj(f_in, f_out)
+    gz_path.unlink()
 
 
-def get_latest_version_url() -> tuple[str, str]:
-    """Retrieve the latest BLAST+ tarball URL from the NCBI FTP site.
+def check_blast(program: str = "blastp") -> str:
+    """Locate a BLAST+ executable, requiring it to be installed on PATH.
 
-    Returns:
-        tuple[str, str]: The detected version string and the full tarball download URL.
-
-    Raises:
-        RuntimeError: If no BLAST version can be found on the NCBI page.
-
-    """
-    with urlopen(BLAST_BASE_URL) as response:  # noqa: S310  # trusted NCBI FTP URL constant
-        html = response.read().decode("utf-8")
-    # Look for something like: ncbi-blast-2.16.0+-x64-linux.tar.gz
-    match = re.search(r"ncbi-blast-(\d+\.\d+\.\d+\+)-x64-linux\.tar\.gz", html)
-    if match:
-        version = match.group(1)
-        tar_name = f"ncbi-blast-{version}-x64-linux.tar.gz"
-        return version, BLAST_BASE_URL + tar_name
-    msg = "Could not find the latest BLAST version from NCBI."
-    raise RuntimeError(msg)
-
-
-def is_blast_installed() -> bool:
-    """Check if 'blastp' is available in the system PATH."""
-    try:
-        subprocess.run(["blastp", "-version"], check=True, stdout=subprocess.DEVNULL)  # noqa: S607  # trusted local tool on PATH
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return False
-    else:
-        return True
-
-
-def download_and_extract_blast(version: str, url: str) -> None:
-    """Download and extract the BLAST+ tarball.
+    BLAST+ is an external dependency and is never installed by this library.
 
     Args:
-        version (str): BLAST+ version, used only for logging.
-        url (str): URL of the tarball to download.
-
-    """
-    tarball_name = url.rsplit("/", maxsplit=1)[-1]
-    if not Path(tarball_name).exists():
-        log.info("Downloading BLAST+ %s...", version)
-        subprocess.run(["wget", url], check=True)  # noqa: S603, S607  # trusted NCBI URL, dev tooling
-
-    log.info("Extracting BLAST+...")
-    with tarfile.open(tarball_name, "r:gz") as tar:
-        tar.extractall(BLAST_DIR)  # noqa: S202  # trusted NCBI tarball, dev tooling
-    log.info("BLAST extracted to: %s", BLAST_DIR.resolve())
-
-
-def get_local_blastp_path(version: str) -> Path:
-    """Return the path to the local ``blastp`` binary for the given version."""
-    return BLAST_DIR / f"ncbi-blast-{version}" / "bin" / "blastp"
-
-
-def check_blast() -> str | None:
-    """Ensure BLAST is available, downloading and extracting it locally if needed.
+        program (str): BLAST+ program to locate (e.g. ``blastp``). Default is "blastp".
 
     Returns:
-        str | None: Path to the ``blastp`` binary, or None if the system-wide
-            binary cannot be located.
+        str: Absolute path to the resolved executable.
+
+    Raises:
+        RuntimeError: If ``program`` is not found on PATH, with installation hints.
 
     """
-    if is_blast_installed():
-        log.info("System-wide BLAST is installed.")
-        return shutil.which("blastp")
-    version, url = get_latest_version_url()
-    local_blastp = get_local_blastp_path(version)
-    if not local_blastp.exists():
-        log.info("BLAST %s not found locally. Installing...", version)
-        BLAST_DIR.mkdir(exist_ok=True)
-        download_and_extract_blast(version, url)
-    else:
-        log.info("Using already downloaded BLAST %s.", version)
-    return str(local_blastp)
+    path = shutil.which(program)
+    if path is None:
+        raise RuntimeError(BLAST_INSTALL_HINT)
+    log.info("Using %s at: %s", program, path)
+    return path
 
 
 def make_blast_database(db_name: str, db_type: str = "prot", extension: str = "xml") -> None:
@@ -172,8 +129,10 @@ def make_blast_database(db_name: str, db_type: str = "prot", extension: str = "x
         log.info("BLAST database already exists at %s. No need to create it again.", blast_db_path)
 
 
-def run_blast(sequences: list[str], db_name: str, blast_type: str = "blastp", evalue: float = 0.001) -> None:
-    """Run a BLAST search and write tabular results to ``tmp/blast_results.txt``.
+def run_blast(
+    sequences: list[str], db_name: str, blast_executable: str = "blastp", evalue: float = 0.001
+) -> None:
+    """Run a BLAST search and write CSV results (outfmt 10) to ``tmp/blast_results.txt``.
 
     Writes the input sequences to a temporary FASTA file, runs BLAST, and removes
     the temporary FASTA file afterward.
@@ -181,7 +140,8 @@ def run_blast(sequences: list[str], db_name: str, blast_type: str = "blastp", ev
     Args:
         sequences (list[str]): Query sequences to search.
         db_name (str): Name of the local BLAST database to query.
-        blast_type (str): BLAST program to run. Default is "blastp".
+        blast_executable (str): Path to (or name of) the BLAST program to run, as
+            resolved by :func:`check_blast`. Default is "blastp".
         evalue (float): E-value threshold for reported hits. Default is 0.001.
 
     Raises:
@@ -201,13 +161,13 @@ def run_blast(sequences: list[str], db_name: str, blast_type: str = "blastp", ev
         f.writelines(f">{i}\n{seq}\n" for i, seq in enumerate(sequences))
 
     blast_cmd = [
-        blast_type,
+        blast_executable,
         "-query",
         "tmp/sequences.fasta",
         "-db",
         str(blast_db_path / "db"),
         "-outfmt",
-        "6 qseqid sseqid pident length evalue bitscore qcovs",
+        f"10 {' '.join(BLAST_OUTPUT_COLUMNS)}",
         "-evalue",
         str(evalue),
     ]
@@ -221,10 +181,10 @@ def run_blast(sequences: list[str], db_name: str, blast_type: str = "blastp", ev
 
 
 def parse_blast_results(file_path: str, identity_threshold: float = 90.0) -> list[dict]:
-    """Parse tabular BLAST results, keeping only hits above an identity threshold.
+    """Parse CSV BLAST results (outfmt 10), keeping hits above an identity threshold.
 
     Args:
-        file_path (str): Path to the BLAST tabular output file.
+        file_path (str): Path to the BLAST CSV output file.
         identity_threshold (float): Minimum percent identity to keep a hit. Default is 90.0.
 
     Returns:
@@ -232,27 +192,24 @@ def parse_blast_results(file_path: str, identity_threshold: float = 90.0) -> lis
             alignment length, e-value, bit score, and coverage.
 
     """
-    with Path(file_path).open() as f:
-        results = f.readlines()
-
     parsed_results = []
-    for line in results:
-        fields = line.strip().split("\t")
-        if len(fields) < BLAST_TABULAR_FIELD_COUNT:
-            # Skip blank or malformed lines (e.g. a trailing newline).
-            continue
-        identity = float(fields[2])
-        if identity >= identity_threshold:
-            parsed_results.append(
-                {
-                    "query": fields[0],
-                    "subject": fields[1],
-                    "identity": fields[2],
-                    "alignment_length": fields[3],
-                    "evalue": fields[4],
-                    "bit_score": fields[5],
-                    "coverage": fields[6],
-                }
-            )
+    with Path(file_path).open(newline="") as f:
+        for row in csv.reader(f):
+            if len(row) < len(BLAST_OUTPUT_COLUMNS):
+                # Skip blank or malformed rows (e.g. a trailing newline).
+                continue
+            fields = dict(zip(BLAST_OUTPUT_COLUMNS, row, strict=False))
+            if float(fields["pident"]) >= identity_threshold:
+                parsed_results.append(
+                    {
+                        "query": fields["qseqid"],
+                        "subject": fields["sseqid"],
+                        "identity": fields["pident"],
+                        "alignment_length": fields["length"],
+                        "evalue": fields["evalue"],
+                        "bit_score": fields["bitscore"],
+                        "coverage": fields["qcovs"],
+                    }
+                )
 
     return parsed_results

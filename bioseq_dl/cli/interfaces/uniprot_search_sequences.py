@@ -76,12 +76,11 @@ def run(
 
     download_uniprot_database(database, extension)
 
-    blastp_path = check_blast()
-    log.info("Using blastp at: %s", blastp_path)
+    blast_path = check_blast(blast_type)
 
     make_blast_database(database, extension=extension)
 
-    run_blast(sequences, database, blast_type=blast_type, evalue=evalue)
+    run_blast(sequences, database, blast_path, evalue=evalue)
 
     results = parse_blast_results("tmp/blast_results.txt")
 
