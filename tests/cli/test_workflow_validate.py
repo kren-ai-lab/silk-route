@@ -7,6 +7,7 @@ import textwrap
 from typer.testing import CliRunner
 
 from bioseq_dl.cli.main import app
+from bioseq_dl.cli.workflows import collect_workflow_recipe_errors
 
 runner = CliRunner()
 
@@ -64,3 +65,56 @@ def test_validate_reports_missing_file(tmp_path):
     result = runner.invoke(app, ["workflow", "validate", str(tmp_path / "nope.yml")])
     assert result.exit_code == 1
     assert "does not exist" in result.output
+
+
+def test_validate_reports_all_errors_at_once(tmp_path):
+    # Three independent problems across sections + a credential key.
+    bad = textwrap.dedent(
+        """
+        dataset:
+          name: demo
+          modality: rna
+          mode: not_a_mode
+        query:
+          value: P12345
+        execution:
+          api_key: leaked
+        export:
+          format: xlsx
+        """
+    )
+    result = runner.invoke(app, ["workflow", "validate", _write(tmp_path, bad)])
+    assert result.exit_code == 1
+    assert "validation error(s):" in result.output
+    # dataset modality, export format, and the credential key all reported together.
+    assert "Unsupported dataset.modality" in result.output
+    assert "Unsupported export format" in result.output
+    assert "Credentials must be provided" in result.output
+
+
+# --- collect_workflow_recipe_errors (unit) ----------------------------------
+
+
+def test_collect_returns_empty_for_valid():
+    recipe = {
+        "dataset": {"name": "d", "modality": "protein", "mode": "query_first"},
+        "query": {"value": "P1"},
+        "execution": {},
+        "export": {"format": "csv"},
+    }
+    assert collect_workflow_recipe_errors(recipe) == []
+
+
+def test_collect_accumulates_across_sections():
+    recipe = {
+        "dataset": {"name": "d", "modality": "rna", "mode": "query_first"},
+        "query": {"value": ""},  # blank value
+        "execution": {"max_workers": "five"},  # not an int
+        "export": {"format": "xlsx"},
+    }
+    errors = collect_workflow_recipe_errors(recipe)
+    assert len(errors) >= 4  # one per broken section
+
+
+def test_collect_non_mapping_root():
+    assert collect_workflow_recipe_errors(["not", "a", "map"]) == ["Workflow YAML root must be a mapping."]

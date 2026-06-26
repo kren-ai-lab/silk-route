@@ -6,6 +6,7 @@ import datetime as dt
 import json
 import logging
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -867,6 +868,85 @@ def validate_workflow_recipe(recipe: dict) -> dict:
         }
     )
     return sync_descriptor_from_workflow_values(normalized)
+
+
+def collect_workflow_recipe_errors(recipe: object) -> list[str]:
+    """Return every section-level validation error found in a descriptor.
+
+    Unlike :func:`validate_workflow_recipe` (which stops at the first error),
+    this runs each independent validation step and accumulates the messages so a
+    user can fix them all in one pass. Validation *within* a single section still
+    stops at that section's first error.
+
+    Args:
+        recipe (object): The raw descriptor mapping to validate.
+
+    Returns:
+        list[str]: Human-readable error messages; empty when the descriptor is valid.
+
+    """
+    if not isinstance(recipe, dict):
+        return ["Workflow YAML root must be a mapping."]
+
+    errors: list[str] = []
+
+    def _check(step: Callable[[], object]) -> None:
+        try:
+            step()
+        except (ValueError, TypeError) as exc:
+            errors.append(str(exc))
+
+    _check(lambda: check_forbidden_workflow_recipe_keys(recipe))
+    descriptor = {str(key): value for key, value in recipe.items()}
+    _check(lambda: validate_descriptor_section_names(descriptor))
+
+    missing_sections = sorted(REQUIRED_DESCRIPTOR_SECTIONS - set(descriptor))
+    if missing_sections:
+        errors.append(
+            f"Workflow YAML is missing required top-level section(s): {', '.join(missing_sections)}."
+        )
+
+    # ``dataset`` validation depends on a validated ``export`` (for the name/output_dir
+    # rule), so resolve export first on a best-effort basis.
+    export_section: dict = {}
+
+    def _validate_export() -> None:
+        nonlocal export_section
+        export_section = validate_export_section(require_mapping("export", descriptor["export"]))
+
+    section_steps: list[tuple[str, Callable[[], object]]] = [
+        ("export", _validate_export),
+        (
+            "dataset",
+            lambda: validate_dataset_section(
+                require_mapping("dataset", descriptor["dataset"]), export_section
+            ),
+        ),
+        ("query", lambda: validate_query_section(require_mapping("query", descriptor["query"]))),
+        (
+            "execution",
+            lambda: validate_execution_section(require_mapping("execution", descriptor["execution"])),
+        ),
+        (
+            "resources",
+            lambda: validate_resources_section(require_mapping("resources", descriptor["resources"])),
+        ),
+        (
+            "harmonization",
+            lambda: validate_harmonization_section(
+                require_mapping("harmonization", descriptor["harmonization"])
+            ),
+        ),
+        (
+            "reporting",
+            lambda: validate_reporting_section(require_mapping("reporting", descriptor["reporting"])),
+        ),
+    ]
+    for name, step in section_steps:
+        if name in descriptor:
+            _check(step)
+
+    return errors
 
 
 def merge_workflow_recipe(cli_values: dict, recipe_values: dict) -> dict:
@@ -2107,15 +2187,24 @@ def validate_workflow(
 ) -> None:
     """Validate a workflow YAML descriptor without running it.
 
-    Reports the first validation problem and exits non-zero, or confirms the
-    descriptor is valid and prints the resolved modality/mode/output.
+    Reports every section-level validation problem at once and exits non-zero, or
+    confirms the descriptor is valid and prints the resolved modality/mode/output.
     """
     try:
-        values = validate_workflow_recipe(load_workflow_recipe(config))
+        recipe = load_workflow_recipe(config)
     except (ValueError, TypeError) as exc:
-        typer.echo(f"✗ Invalid workflow descriptor: {exc}", err=True)
+        typer.echo(f"✗ {exc}", err=True)
         raise typer.Exit(code=1) from None
 
+    errors = collect_workflow_recipe_errors(recipe)
+    if errors:
+        typer.echo(f"✗ {config} has {len(errors)} validation error(s):", err=True)
+        for error in errors:
+            typer.echo(f"  - {error}", err=True)
+        raise typer.Exit(code=1) from None
+
+    # No errors collected, so this re-derives the normalized values without raising.
+    values = validate_workflow_recipe(recipe)
     typer.echo(f"✓ {config} is a valid workflow descriptor.")
     typer.echo(f"  modality: {values['modality']} | mode: {values['mode']}")
     if values.get("output"):
