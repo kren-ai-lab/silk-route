@@ -17,6 +17,9 @@ log = get_logger("bioseq_dl.core.utils.blast_search")
 BLAST_BASE_URL = "https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/"
 BLAST_DIR = Path("blast_bin")
 
+# Columns in the tabular output (outfmt 6): qseqid sseqid pident length evalue bitscore qcovs.
+BLAST_TABULAR_FIELD_COUNT = 7
+
 
 def download_uniprot_database(
     db_name: str,
@@ -235,6 +238,9 @@ def parse_blast_results(file_path: str, identity_threshold: float = 90.0) -> lis
     parsed_results = []
     for line in results:
         fields = line.strip().split("\t")
+        if len(fields) < BLAST_TABULAR_FIELD_COUNT:
+            # Skip blank or malformed lines (e.g. a trailing newline).
+            continue
         identity = float(fields[2])
         if identity >= identity_threshold:
             parsed_results.append(
