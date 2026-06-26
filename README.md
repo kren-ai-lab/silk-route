@@ -150,18 +150,38 @@ Commands that export parsed tabular results can write Parquet files when `parque
 
 BioSeqDownloader supports structured YAML descriptors for reproducible workflow runs. These descriptors define dataset, query, execution, harmonization, export, and reporting information. See [`docs/workflow_yaml.md`](docs/workflow_yaml.md) for the full implemented schema, field behavior, forbidden keys, credential policy, and examples.
 
+The `workflow` namespace has two commands:
+
+- `workflow run` — execute a workflow (descriptor and/or CLI options).
+- `workflow validate` — check a YAML descriptor without running it.
+
 Workflow runs can be described with a structured dataset descriptor and executed with:
 
 ```bash
-bioseq-dl workflow --config examples/protein-dataset-construction.yml
+bioseq-dl workflow run --config examples/protein-dataset-construction.yml
 ```
 
 CLI arguments override YAML values, so a descriptor can be reused with a different output directory or export format:
 
 ```bash
-bioseq-dl workflow --config examples/protein-dataset-construction.yml -o result_override
-bioseq-dl workflow --config examples/protein-dataset-construction.yml -e csv
+bioseq-dl workflow run --config examples/protein-dataset-construction.yml -o result_override
+bioseq-dl workflow run --config examples/protein-dataset-construction.yml -e csv
 ```
+
+Before running, validate a descriptor to catch schema problems early. All
+section-level errors are reported at once:
+
+```bash
+bioseq-dl workflow validate examples/protein-dataset-construction.yml
+```
+
+```text
+✗ my-workflow.yml has 2 validation error(s):
+  - Unsupported dataset.modality 'rna'. Supported modalities are: protein, compound, interaction.
+  - Unsupported export format 'xlsx'. Supported formats are: csv, json, xml, parquet.
+```
+
+A valid descriptor exits zero and echoes the resolved modality, mode, and output directory.
 
 YAML descriptors use top-level `dataset`, `query`, `resources`, `execution`, `harmonization`, `export`, and `reporting` sections, plus a small allowlist of descriptive integration sections. `dataset.mode` is the workflow execution mode, and the only valid values are `query_first` and `query_composition`. Only part of the descriptor is executable: `dataset.modality`, `dataset.mode`, `query.value`, selected `query` options, supported `execution` options, and `export` options are mapped to the current workflow. `query.value` is the actual API query. `query.description` and `query.filtering_strategy` are descriptive metadata only.
 
@@ -264,7 +284,8 @@ In YAML, set the execution mode with `dataset.mode`. In the CLI, use `--mode` or
 #### Command Structure
 
 ```bash
-bioseq-dl workflow [OPTIONS]
+bioseq-dl workflow run [OPTIONS]
+bioseq-dl workflow validate CONFIG.yml
 ```
 
 ##### Required Options
@@ -290,7 +311,7 @@ bioseq-dl workflow [OPTIONS]
 Search for proteins with temperature information and export the workflow result:
 
 ```bash
-bioseq-dl workflow \
+bioseq-dl workflow run \
   -o result \
   -q "temperature:*" \
   --modality "protein" \
@@ -320,7 +341,7 @@ result/
 Compare proteins at different temperature optima using labeled queries:
 
 ```bash
-bioseq-dl workflow \
+bioseq-dl workflow run \
   -o workflow_test \
   -q "temperature:99=temp_99,temperature:98=temp_98" \
   --modality "protein" \
@@ -352,7 +373,7 @@ result/
 Classify compounds by bioactivity levels (IC50 ranges):
 
 ```bash
-bioseq-dl workflow \
+bioseq-dl workflow run \
   -o workflow_compound \
   -q "ic50:10-50=active,ic50:50-100=inactive" \
   --modality "compound" \
@@ -393,7 +414,7 @@ If `harmonization.id_column` is set, exported tabular files receive a determinis
 
 **Multi-threading and Performance:**
 ```bash
-bioseq-dl workflow \
+bioseq-dl workflow run \
   -o result \
   -q "temperature:*" \
   -m "protein" \
