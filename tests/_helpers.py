@@ -19,11 +19,7 @@ from bioseq_dl.core.interfaces.base import BaseAPIInterface
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
-# --- Backend-agnostic frame helpers -----------------------------------------
-# These let the characterization tests assert on *observable content* of a
-# tabular result without caring whether the backend is pandas or polars. They
-# duck-type on the methods each library exposes, so the same test stays green
-# before the migration (pandas) and after it (polars).
+# --- Frame helpers ----------------------------------------------------------
 
 
 def is_frame(obj: Any) -> bool:
@@ -32,15 +28,14 @@ def is_frame(obj: Any) -> bool:
 
 
 def frame_to_records(obj: Any) -> list[dict]:
-    """Convert a pandas/polars DataFrame to a list of row dicts.
+    """Convert a pandas/polars DataFrame (or list/dict) to a list of row dicts.
 
     Pandas exposes ``to_dict(orient="records")``; polars exposes ``to_dicts()``.
-    Lists/dicts are passed through (normalized to a list of dicts) so callers can
-    feed any result shape produced by the fetch/parse layer.
+    NaN values are normalized to None.
     """
-    if hasattr(obj, "to_dicts"):  # polars
+    if hasattr(obj, "to_dicts"):
         records = obj.to_dicts()
-    elif hasattr(obj, "to_dict"):  # pandas
+    elif hasattr(obj, "to_dict"):
         records = obj.to_dict(orient="records")
     elif isinstance(obj, dict):
         records = [obj]
@@ -49,8 +44,6 @@ def frame_to_records(obj: Any) -> list[dict]:
     else:
         msg = f"Cannot convert {type(obj)!r} to records"
         raise TypeError(msg)
-    # Normalize pandas NaN (missing) to None so content comparisons match the
-    # polars backend, which uses None for nulls.
     return [{k: _nan_to_none(v) for k, v in row.items()} for row in records]
 
 
@@ -67,14 +60,11 @@ def frame_columns(obj: Any) -> list[str]:
 
 
 def frame_row_count(obj: Any) -> int:
-    """Return the row count of a pandas/polars DataFrame (``shape[0]`` on both)."""
+    """Return the row count of a pandas/polars DataFrame."""
     return int(obj.shape[0])
 
 
-# --- Backend-agnostic file readback ------------------------------------------
-# Read an exported file back through the standard library / pyarrow rather than
-# through pandas or polars, so the export round-trip tests verify the *file
-# contents*, independent of whichever backend wrote it.
+# --- File readback -----------------------------------------------------------
 
 
 def read_exported_file(path: Path) -> list[dict]:

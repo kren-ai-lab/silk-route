@@ -1,14 +1,8 @@
-"""Characterization tests for query builders (pre-Polars migration).
+"""Tests for query builders.
 
-Query builders consume one DataFrame row and return API query params. Today the
-row arrives as a ``pandas.Series``; after the migration it will be a plain dict
-from ``DataFrame.iter_rows(named=True)``. Both support ``.get()`` / ``[]`` /
-``pd.isna``, so these golden tests feed plain dict rows (a valid stand-in for
-both) and pin the value-normalization and per-builder output that must survive.
-
-``to_str_list`` is the shared normalizer most at risk: it special-cases pandas
-NaN and numpy arrays today; the migration must keep its observable output for
-the None / scalar / list / JSON-string cases pinned here.
+Query builders consume one DataFrame row (a ``pandas.Series``) and return API
+query params. Covers ``to_str_list`` value normalization (None / scalar / list /
+JSON-string / numpy array) and the per-builder output for representative cases.
 """
 
 from __future__ import annotations
@@ -26,7 +20,7 @@ from bioseq_dl.core.utils.query_builders import (
 
 
 def row(values: dict) -> pd.Series:
-    """Build a builder input row. Single migration touch-point (Series -> dict)."""
+    """Build a builder input row from a dict of column values."""
     return pd.Series(values)
 
 

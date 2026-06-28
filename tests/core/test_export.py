@@ -13,7 +13,6 @@ from bioseq_dl.core.export import (
     normalize_export_format,
     normalize_parse_format,
     normalize_user_export_format,
-    prepare_dataframe_for_parquet,
 )
 
 
@@ -99,17 +98,9 @@ def test_export_non_dataframe_raises(tmp_path):
 
 
 def test_export_parquet_with_nested_values(tmp_path):
-    # Object columns holding lists/dicts get JSON-encoded to a string dtype.
+    # Polars-first: list columns are written as native nested (List) types.
     df = pd.DataFrame([{"id": "P1", "xrefs": ["a", "b"]}, {"id": "P2", "xrefs": []}])
     path = export_dataframe(df, tmp_path / "out.parquet")
     back = pd.read_parquet(path)
     assert back.loc[0, "id"] == "P1"
-    # nested list serialized to JSON text
-    assert back.loc[0, "xrefs"] == '["a", "b"]'
-
-
-def test_prepare_dataframe_for_parquet_mixed_object_column():
-    df = pd.DataFrame({"mixed": [1, "two", {"k": "v"}]})
-    safe = prepare_dataframe_for_parquet(df)
-    # Mixed-kind object column is coerced to string dtype.
-    assert safe["mixed"].dtype == "string"
+    assert list(back.loc[0, "xrefs"]) == ["a", "b"]

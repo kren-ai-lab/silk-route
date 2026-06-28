@@ -2,22 +2,21 @@
 
 from __future__ import annotations
 
-import datetime as dt
 import json
 from pathlib import Path
+from typing import Any
+from xml.etree.ElementTree import Element, ElementTree, SubElement
 
-import pandas as pd
-from pandas.api.types import (
-    is_bool_dtype,
-    is_datetime64_any_dtype,
-    is_numeric_dtype,
-    is_object_dtype,
-    is_scalar,
-)
+import polars as pl
+import polars.selectors as cs
 
 PathLike = str | Path
 USER_EXPORT_FORMATS = ("csv", "json", "xml", "parquet")
 DATAFRAME_EXPORT_FORMAT_ERROR = "Unsupported export format 'dataframe'. Use 'csv' instead."
+
+# Dtypes that CSV/TSV cannot represent directly; JSON-encoded to a string column
+# before writing.
+_NESTED_SELECTOR = cs.by_dtype(pl.List, pl.Array, pl.Struct, pl.Object)
 
 
 def normalize_user_export_format(output_format: str | None) -> str | None:
@@ -93,189 +92,82 @@ def normalize_parse_format(output_format: str | None) -> str | None:
     return None
 
 
-def is_missing_parquet_value(value: object) -> bool:
-    """Return whether a scalar value should remain missing in Parquet output.
-
-    Args:
-        value (object): Value to test for missingness.
-
-    Returns:
-        bool: True if the value is None or a missing scalar.
-
-    """
+def _json_encode_value(value: Any) -> str | None:
+    """JSON-encode a single nested cell value for a text column; pass None through."""
     if value is None:
-        return True
-
-    try:
-        missing = pd.isna(value)  # type: ignore[no-matching-overload]  # pandas stub: object arg
-    except (TypeError, ValueError):
-        return False
-
-    if is_scalar(missing):
-        try:
-            return bool(missing)
-        except TypeError:
-            return False
-    return False
-
-
-def make_json_safe_parquet_value(value: object) -> object:
-    """Convert container values into JSON-compatible structures.
-
-    Recurses into dicts, lists, tuples, and sets (sets are sorted by string form).
-
-    Args:
-        value (object): Value to convert.
-
-    Returns:
-        object: JSON-safe equivalent of the value.
-
-    """
-    if is_missing_parquet_value(value):
         return None
-    if isinstance(value, dict):
-        return {str(key): make_json_safe_parquet_value(item) for key, item in value.items()}
-    if isinstance(value, set):
-        return [make_json_safe_parquet_value(item) for item in sorted(value, key=str)]
-    if isinstance(value, (list, tuple)):
-        return [make_json_safe_parquet_value(item) for item in value]
-    return value
+    return json.dumps(value, ensure_ascii=False, default=str)
 
 
-def normalize_parquet_value(value: object) -> object:
-    """Normalize a single value for safe Parquet export.
+def _to_polars(df: Any) -> pl.DataFrame:
+    """Coerce a Polars or pandas DataFrame to a Polars DataFrame.
 
-    Missing values become ``pd.NA``; containers are JSON-serialized to a string.
-
-    Args:
-        value (object): Value to normalize.
-
-    Returns:
-        object: Normalized value suitable for a Parquet column.
+    Raises:
+        TypeError: If the input is neither a Polars nor a pandas DataFrame.
 
     """
-    if is_missing_parquet_value(value):
-        return pd.NA
-    if isinstance(value, (list, tuple, set, dict)):
-        json_value = make_json_safe_parquet_value(value)
-        return json.dumps(json_value, ensure_ascii=False, default=str)
-    return value
+    if isinstance(df, pl.DataFrame):
+        return df
+    # Detect pandas by type without importing it at module load.
+    if type(df).__module__.split(".", 1)[0] == "pandas" and type(df).__name__ == "DataFrame":
+        return pl.from_pandas(df)
+    msg = "export_dataframe expects a Polars (or pandas) DataFrame."
+    raise TypeError(msg)
 
 
-def parquet_scalar_kind(value: object) -> str:
-    """Return a coarse scalar kind for object-column Parquet decisions.
-
-    Args:
-        value (object): Scalar value to classify.
-
-    Returns:
-        str: One of ``bool``, ``datetime``, ``str``, ``number``, or the type name.
-
-    """
-    if isinstance(value, bool):
-        return "bool"
-    if isinstance(value, (dt.datetime, dt.date, pd.Timestamp)):
-        return "datetime"
-    if isinstance(value, str):
-        return "str"
-    if isinstance(value, (int, float, complex)):
-        return "number"
-    return type(value).__name__
+def _encode_nested_for_text(df: pl.DataFrame) -> pl.DataFrame:
+    """JSON-encode List/Struct/Array/Object columns to strings; leave scalars as-is."""
+    nested = df.select(_NESTED_SELECTOR).columns
+    if not nested:
+        return df
+    return df.with_columns(
+        pl.col(name).map_elements(_json_encode_value, return_dtype=pl.String) for name in nested
+    )
 
 
-def object_column_has_only_datetime_values(series: pd.Series) -> bool:
-    """Return whether an object column contains only datetime-like values.
-
-    Missing values are ignored; returns False for an all-missing column.
-
-    Args:
-        series (pd.Series): Object-dtype column to inspect.
-
-    Returns:
-        bool: True if every present value is datetime-like.
-
-    """
-    has_value = False
-    for value in series:
-        if is_missing_parquet_value(value):
-            continue
-        if not isinstance(value, (dt.datetime, dt.date, pd.Timestamp)):
-            return False
-        has_value = True
-    return has_value
+def _encode_object_for_parquet(df: pl.DataFrame) -> pl.DataFrame:
+    """JSON-encode ``Object`` columns to strings; keep List/Struct/Array native."""
+    opaque = df.select(cs.by_dtype(pl.Object)).columns
+    if not opaque:
+        return df
+    return df.with_columns(
+        pl.col(name).map_elements(_json_encode_value, return_dtype=pl.String) for name in opaque
+    )
 
 
-def object_column_needs_string_dtype(series: pd.Series) -> bool:
-    """Return whether an object column should be converted to string dtype.
-
-    True when the column holds any container value or mixes scalar kinds.
-
-    Args:
-        series (pd.Series): Object-dtype column to inspect.
-
-    Returns:
-        bool: True if the column needs string dtype for Parquet.
-
-    """
-    kinds = set()
-    for value in series:
-        if is_missing_parquet_value(value):
-            continue
-        if isinstance(value, (list, tuple, set, dict)):
-            return True
-        kinds.add(parquet_scalar_kind(value))
-    return len(kinds) > 1
+def _xml_cell_text(value: Any) -> str:
+    """Render a cell value as XML element text (nested values become JSON)."""
+    if value is None:
+        return ""
+    if isinstance(value, (list, dict)):
+        return json.dumps(value, default=str)
+    return str(value)
 
 
-def prepare_dataframe_for_parquet(df: pd.DataFrame) -> pd.DataFrame:
-    """Return a Parquet-safe copy of a DataFrame.
-
-    Converts datetime-only object columns to datetime, and mixed/container object
-    columns to string dtype; numeric/bool/datetime columns are left untouched.
-
-    Args:
-        df (pd.DataFrame): DataFrame to make Parquet-safe.
-
-    Returns:
-        pd.DataFrame: A copy with object columns normalized for Parquet.
-
-    """
-    safe_df = df.copy()
-
-    for column in safe_df.columns:
-        series = safe_df[column]
-        if is_numeric_dtype(series) or is_bool_dtype(series) or is_datetime64_any_dtype(series):
-            continue
-        if not is_object_dtype(series):
-            continue
-
-        if object_column_has_only_datetime_values(series):
-            try:
-                safe_df[column] = pd.to_datetime(series)
-            except (TypeError, ValueError, OverflowError):
-                normalized = series.map(normalize_parquet_value)
-                safe_df[column] = pd.Series(normalized, index=series.index, dtype="string")
-            continue
-
-        if object_column_needs_string_dtype(series):
-            normalized = series.map(normalize_parquet_value)
-            safe_df[column] = pd.Series(normalized, index=series.index, dtype="string")
-
-    return safe_df
+def _write_xml(df: pl.DataFrame, path: Path) -> None:
+    """Write the frame as ``<data><row><col>value</col>...</row></data>`` XML."""
+    root = Element("data")
+    for record in df.to_dicts():
+        row = SubElement(root, "row")
+        for column, value in record.items():
+            SubElement(row, str(column)).text = _xml_cell_text(value)
+    ElementTree(root).write(path, encoding="utf-8", xml_declaration=True)
 
 
 def export_dataframe(
-    df: pd.DataFrame,
+    df: Any,
     output_path: PathLike,
     output_format: str | None = None,
 ) -> Path:
     """Export a DataFrame to CSV, TSV, JSON, XML, or Parquet.
 
     The format is taken from ``output_format`` or the path suffix; a missing suffix
-    is added from the resolved format and parent directories are created.
+    is added from the resolved format and parent directories are created. Nested
+    columns (lists/structs) are JSON-encoded for the text formats (CSV/TSV) and
+    written natively for Parquet/JSON.
 
     Args:
-        df (pd.DataFrame): DataFrame to export.
+        df (Any): DataFrame to export (Polars or pandas).
         output_path (PathLike): Destination file path.
         output_format (str | None): Explicit format; falls back to the path suffix.
 
@@ -283,13 +175,11 @@ def export_dataframe(
         Path: The path the DataFrame was written to.
 
     Raises:
-        TypeError: If ``df`` is not a pandas DataFrame.
+        TypeError: If ``df`` is not a Polars (or pandas) DataFrame.
         ValueError: If the export format is unsupported.
 
     """
-    if not isinstance(df, pd.DataFrame):
-        msg = "export_dataframe expects a pandas DataFrame."
-        raise TypeError(msg)
+    frame = _to_polars(df)
 
     path = Path(output_path)
     normalized_format = normalize_export_format(output_format or path.suffix)
@@ -302,15 +192,14 @@ def export_dataframe(
     path.parent.mkdir(parents=True, exist_ok=True)
 
     if normalized_format == "csv":
-        df.to_csv(path, index=False)
+        _encode_nested_for_text(frame).write_csv(path)
     elif normalized_format == "tsv":
-        df.to_csv(path, sep="\t", index=False)
+        _encode_nested_for_text(frame).write_csv(path, separator="\t")
     elif normalized_format == "json":
-        df.to_json(path, orient="records", indent=2)
+        frame.write_json(path)
     elif normalized_format == "xml":
-        df.to_xml(path, index=False)
+        _write_xml(frame, path)
     elif normalized_format == "parquet":
-        safe_df = prepare_dataframe_for_parquet(df)
-        safe_df.to_parquet(path, index=False)
+        _encode_object_for_parquet(frame).write_parquet(path)
 
     return path

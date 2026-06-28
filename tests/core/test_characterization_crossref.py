@@ -1,15 +1,11 @@
-"""Characterization tests for CrossRefEnricher frame handling (pre-Polars).
+"""Tests for CrossRefEnricher frame handling.
 
-The enricher builds DataFrames from highly irregular API results (rows with
-differing keys, accidental numeric column names, nested values) and concatenates
-them. That irregular/object-column handling is the single biggest Polars
-migration risk, so these golden tests pin the observable output content:
+The enricher builds DataFrames from irregular API results (rows with differing
+keys, accidental numeric column names, nested values) and concatenates them.
+Covers:
 
 - ``_clean_frame`` coercion of raw row results,
 - ``_process_dataframe`` aggregation/concat across rows with differing schemas.
-
-Assertions use ``frame_to_records`` (NaN normalized to None) so they stay valid
-once the enricher returns polars frames.
 """
 
 from __future__ import annotations

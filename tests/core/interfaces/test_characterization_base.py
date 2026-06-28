@@ -1,16 +1,11 @@
-"""Characterization tests for BaseAPIInterface's tabular behavior (pre-Polars).
+"""Tests for BaseAPIInterface's tabular behavior.
 
-Golden tests pinning the *observable* contract of the fetch/parse/cache engine
-so the Polars migration can prove nothing broke:
+Covers:
 
 - ``_maybe_parse`` format conversion (dataframe / json / xml) content,
-- ``_build_data_info`` metadata shape (counts, names, missing) — NOT backend
-  dtype strings, which legitimately change with the backend,
+- ``_build_data_info`` metadata shape (counts, names, missing),
 - ``fetch_single`` / ``fetch_batch`` returned content and the cache round-trip
   (a second call served from cache yields identical content).
-
-Assertions use the backend-agnostic ``frame_*`` helpers so they remain valid
-once the engine returns polars frames instead of pandas.
 """
 
 from __future__ import annotations
@@ -26,9 +21,7 @@ from tests._helpers import frame_columns, frame_row_count, frame_to_records, is_
 class NestedRecordsInterface(BaseAPIInterface):
     """Offline interface returning records with a nested list field.
 
-    Exercises the engine's handling of irregular/nested columns (the main
-    Polars-migration risk) without a network. Each id ``x`` yields
-    ``{"id": x, "value": "val<x>", "tags": [x, "t"]}``.
+    Each id ``x`` yields ``{"id": x, "value": "val<x>", "tags": [x, "t"]}``.
     """
 
     API_NAME = "Nested"
@@ -92,7 +85,7 @@ def test_maybe_parse_xml_bytes(iface):
     assert b"<a>x</a>" in out
 
 
-# --- _build_data_info: metadata contract (backend-independent) --------------
+# --- _build_data_info: metadata shape ---------------------------------------
 
 
 def test_build_data_info_from_list(iface):
@@ -104,7 +97,7 @@ def test_build_data_info_from_list(iface):
     # n_missing counts nulls per column; "b" has one missing value.
     assert names["b"]["n_missing"] == 1
     assert names["a"]["n_missing"] == 0
-    # dtype is reported as a string (its exact value is backend-specific).
+    # dtype is reported as a string.
     assert all(isinstance(c["dtype"], str) for c in info["columns"])
 
 
@@ -147,11 +140,9 @@ def test_fetch_single_nested_field_survives_cache(iface):
 
 
 def test_fetch_batch_uncached_drops_dataframe_format(iface):
-    # CHARACTERIZATION OF A KNOWN QUIRK: fetch_batch pops ``format`` before
-    # delegating to fetch_single, so for freshly-fetched (uncached) queries the
-    # requested "dataframe" format is NOT applied — each query comes back as its
-    # raw JSON list and the result is a list-of-lists, not a concatenated frame.
-    # Pinned so the migration surfaces (rather than silently alters) this.
+    # fetch_batch pops ``format`` before delegating to fetch_single, so for
+    # freshly-fetched (uncached) queries the "dataframe" format is not applied:
+    # each query returns its raw JSON list and the result is a list-of-lists.
     data, meta = iface.fetch_batch(["A", "B"], method="get", format="dataframe")
     assert not is_frame(data)
     assert data == [

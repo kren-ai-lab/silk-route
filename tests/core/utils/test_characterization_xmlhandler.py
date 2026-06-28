@@ -1,9 +1,7 @@
-"""Characterization tests for elementtree_to_dataframe (pre-Polars migration).
+"""Tests for elementtree_to_dataframe row content.
 
-This converter is a Polars-migration hot spot: a single column can hold a
-scalar string in one row and a ``list``/``list[dict]`` in another (a pandas
-object column). These golden tests pin the row content the converter produces
-today so the migration can prove the per-row shapes survive.
+A single column can hold a scalar string in one row and a ``list``/``list[dict]``
+in another. These tests cover the row shapes the converter produces.
 """
 
 from __future__ import annotations

@@ -1,19 +1,10 @@
-"""Characterization tests for export_dataframe (pre-Polars-migration golden tests).
+"""Tests for export_dataframe: per-format file contents.
 
-These pin the *observable file contents* produced by each export format so the
-Polars migration can prove "nothing broke". Assertions read the written file
-back through the standard library / pyarrow (see ``read_exported_file``), never
-through pandas or polars, so they stay valid regardless of the backend that
-wrote the file.
-
-The only backend-specific part is constructing the input frame; when the
-migration lands, the ``make_frame`` helper is the single line that flips from
-pandas to polars — the assertions below should not change.
+Assertions read the written file back through the standard library / pyarrow
+(see ``read_exported_file``) and check its contents directly.
 """
 
 from __future__ import annotations
-
-import json
 
 import pandas as pd
 
@@ -22,7 +13,7 @@ from tests._helpers import read_exported_file
 
 
 def make_frame(records: list[dict]) -> pd.DataFrame:
-    """Build the input frame. Single migration touch-point (pandas -> polars)."""
+    """Build an input frame from row dicts."""
     return pd.DataFrame(records)
 
 
@@ -59,14 +50,13 @@ def test_json_preserves_nested_lists(tmp_path):
     assert data[1]["xrefs"] == []
 
 
-def test_parquet_nested_list_json_encoded(tmp_path):
-    # Object columns holding lists/dicts are JSON-encoded to a string column.
+def test_parquet_nested_list_native(tmp_path):
+    # List columns are written to Parquet as native nested (List) types.
     path = export_dataframe(make_frame(NESTED), tmp_path / "out.parquet")
     rows = read_exported_file(path)
     assert rows[0]["id"] == "P1"
-    assert rows[0]["xrefs"] == '["a", "b"]'
-    # Empty list also JSON-encoded (not left as a missing value).
-    assert json.loads(rows[1]["xrefs"]) == []
+    assert rows[0]["xrefs"] == ["a", "b"]
+    assert rows[1]["xrefs"] == []
 
 
 def test_parquet_flat_numeric_preserved(tmp_path):
