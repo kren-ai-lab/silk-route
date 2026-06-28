@@ -99,22 +99,6 @@ def _json_encode_value(value: Any) -> str | None:
     return json.dumps(value, ensure_ascii=False, default=str)
 
 
-def _to_polars(df: Any) -> pl.DataFrame:
-    """Coerce a Polars or pandas DataFrame to a Polars DataFrame.
-
-    Raises:
-        TypeError: If the input is neither a Polars nor a pandas DataFrame.
-
-    """
-    if isinstance(df, pl.DataFrame):
-        return df
-    # Detect pandas by type without importing it at module load.
-    if type(df).__module__.split(".", 1)[0] == "pandas" and type(df).__name__ == "DataFrame":
-        return pl.from_pandas(df)
-    msg = "export_dataframe expects a Polars (or pandas) DataFrame."
-    raise TypeError(msg)
-
-
 def _encode_nested_for_text(df: pl.DataFrame) -> pl.DataFrame:
     """JSON-encode List/Struct/Array/Object columns to strings; leave scalars as-is."""
     nested = df.select(_NESTED_SELECTOR).columns
@@ -155,7 +139,7 @@ def _write_xml(df: pl.DataFrame, path: Path) -> None:
 
 
 def export_dataframe(
-    df: Any,
+    df: pl.DataFrame,
     output_path: PathLike,
     output_format: str | None = None,
 ) -> Path:
@@ -167,7 +151,7 @@ def export_dataframe(
     written natively for Parquet/JSON.
 
     Args:
-        df (Any): DataFrame to export (Polars or pandas).
+        df (pl.DataFrame): DataFrame to export.
         output_path (PathLike): Destination file path.
         output_format (str | None): Explicit format; falls back to the path suffix.
 
@@ -175,11 +159,14 @@ def export_dataframe(
         Path: The path the DataFrame was written to.
 
     Raises:
-        TypeError: If ``df`` is not a Polars (or pandas) DataFrame.
+        TypeError: If ``df`` is not a Polars DataFrame.
         ValueError: If the export format is unsupported.
 
     """
-    frame = _to_polars(df)
+    if not isinstance(df, pl.DataFrame):
+        msg = "export_dataframe expects a Polars DataFrame."
+        raise TypeError(msg)
+    frame = df
 
     path = Path(output_path)
     normalized_format = normalize_export_format(output_format or path.suffix)

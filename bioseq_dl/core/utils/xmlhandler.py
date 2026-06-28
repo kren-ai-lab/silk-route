@@ -3,7 +3,7 @@
 import xml.etree.ElementTree as ET
 from typing import Any
 
-import pandas as pd
+import polars as pl
 
 
 def dict_to_element(data: Any, parent: ET.Element, *, list_item_tag: str = "item") -> None:
@@ -101,7 +101,7 @@ def elementtree_to_dataframe(
     tree: ET.ElementTree,
     record_path: str = "./item",
     list_item_tag: str = "item",
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """Convert an ElementTree to a DataFrame.
 
     Each element at ``record_path`` becomes one row: leaf children become scalar
@@ -114,12 +114,12 @@ def elementtree_to_dataframe(
         list_item_tag (str): Tag name used for list items within containers. Default is "item".
 
     Returns:
-        pd.DataFrame: One row per matched record; empty if the tree has no root.
+        pl.DataFrame: One row per matched record; empty if the tree has no root.
 
     """
     root = tree.getroot()
     if root is None:
-        return pd.DataFrame()
+        return pl.DataFrame()
     records = root.findall(record_path)
 
     rows = []
@@ -138,4 +138,4 @@ def elementtree_to_dataframe(
 
         rows.append(row)
 
-    return pd.DataFrame(rows)
+    return pl.DataFrame(rows, strict=False, infer_schema_length=None)

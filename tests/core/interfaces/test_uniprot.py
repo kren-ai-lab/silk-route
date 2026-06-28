@@ -7,7 +7,7 @@ sequence with ``responses``, plus a direct parse-shape test.
 
 from __future__ import annotations
 
-import pandas as pd
+import polars as pl
 import pytest
 from niquests_mock import startswith
 
@@ -131,7 +131,7 @@ def test_download_batch_auto_db_accumulates_all_groups(interface, monkeypatch):
 
     monkeypatch.setattr(interface, "process_id_batch", fake_process)
 
-    df = pd.DataFrame({"id": ["P12345", "1ABC", "???"]})
+    df = pl.DataFrame({"id": ["P12345", "1ABC", "???"]})
     results, metadata = interface.download_batch(df, "id", auto_db=True)
 
     # Both valid groups contributed results (unknown "???" is skipped).

@@ -10,7 +10,7 @@ It is part of the Kren AI Lab ecosystem alongside **Sylphy** (sequence encoders 
 embeddings) and **Roxy** (classical descriptors).
 
 Input: identifiers / queries per database. Output: parsed records as
-`pandas.DataFrame` / JSON / XML, with on-disk caching.
+`polars.DataFrame` / JSON / XML, with on-disk caching.
 
 ## Package Layout
 

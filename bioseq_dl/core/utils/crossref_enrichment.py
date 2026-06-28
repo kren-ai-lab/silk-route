@@ -2,7 +2,7 @@
 
 from typing import Any, Literal
 
-import pandas as pd
+import polars as pl
 
 from bioseq_dl.constants.uniprot import XREF_MAPPING
 from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec, specs_for_database
@@ -60,8 +60,8 @@ def is_empty_enrichment_input(data: object) -> bool:
     """
     if data is None:
         return True
-    if isinstance(data, pd.DataFrame):
-        return data.empty
+    if isinstance(data, pl.DataFrame):
+        return data.is_empty()
     if isinstance(data, (list, dict)):
         return len(data) == 0
     if isinstance(data, bytes):
@@ -86,8 +86,8 @@ def has_enrichment_result_value(value: object) -> bool:
     """
     if value is None:
         return False
-    if isinstance(value, pd.DataFrame):
-        return not value.empty
+    if isinstance(value, pl.DataFrame):
+        return not value.is_empty()
     if isinstance(value, str):
         return value.strip() != ""
     if isinstance(value, bytes):

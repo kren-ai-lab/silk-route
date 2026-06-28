@@ -7,7 +7,7 @@ real pipeline against a mocked UniProt stream endpoint.
 
 from __future__ import annotations
 
-import pandas as pd
+import polars as pl
 import pytest
 from niquests_mock import startswith
 
@@ -60,7 +60,7 @@ def test_query_first_unknown_modality_raises(workflow):
 
 def test_query_composition_labels_and_merges(workflow, monkeypatch):
     def fake_run_protein(query=None, **kwargs):
-        return {"uniprot": pd.DataFrame({"acc": [f"P{query}"]})}, {"modality": "protein"}
+        return {"uniprot": pl.DataFrame({"acc": [f"P{query}"]})}, {"modality": "protein"}
 
     monkeypatch.setattr(workflow, "run_protein", fake_run_protein)
 
@@ -69,7 +69,7 @@ def test_query_composition_labels_and_merges(workflow, monkeypatch):
     )
 
     # Both runs concatenated under uniprot, each row tagged with its label.
-    assert data["uniprot"].to_dict(orient="records") == [
+    assert data["uniprot"].to_dicts() == [
         {"acc": "P1", "_label": "la"},
         {"acc": "P2", "_label": "lb"},
     ]
@@ -96,7 +96,7 @@ def test_query_composition_unknown_modality_raises(workflow):
 def test_chembl_to_uniprot_builds_xref_query(workflow):
     context = {
         "searches": {"uniprot": {"query": None}},
-        "data": {"chembl": pd.DataFrame({"target_chembl_id": ["CHEMBL1", "CHEMBL2"]})},
+        "data": {"chembl": pl.DataFrame({"target_chembl_id": ["CHEMBL1", "CHEMBL2"]})},
     }
     workflow._step_chembl_to_uniprot_query(context)
     assert context["searches"]["uniprot"]["query"] == "(xref:chembl-CHEMBL1 OR xref:chembl-CHEMBL2)"
@@ -106,7 +106,7 @@ def test_chembl_to_uniprot_chunks_large_id_lists(workflow):
     ids = [f"CHEMBL{i}" for i in range(150)]  # > CHEMBL_ID_CHUNK_SIZE (100)
     context = {
         "searches": {"uniprot": {"query": None}},
-        "data": {"chembl": pd.DataFrame({"target_chembl_id": ids})},
+        "data": {"chembl": pl.DataFrame({"target_chembl_id": ids})},
     }
     workflow._step_chembl_to_uniprot_query(context)
     query = context["searches"]["uniprot"]["query"]
@@ -115,7 +115,7 @@ def test_chembl_to_uniprot_chunks_large_id_lists(workflow):
 
 
 def test_chembl_to_uniprot_no_ids_leaves_query_untouched(workflow):
-    context = {"searches": {"uniprot": {"query": None}}, "data": {"chembl": pd.DataFrame()}}
+    context = {"searches": {"uniprot": {"query": None}}, "data": {"chembl": pl.DataFrame()}}
     workflow._step_chembl_to_uniprot_query(context)
     assert context["searches"]["uniprot"]["query"] is None
 
@@ -133,7 +133,7 @@ def test_run_protein_fetches_parses_and_stamps_time(niquests_mock):
     data, metadata = workflow.run_protein(query="kinase", enrich=False)
 
     # UniProt response parsed to a DataFrame and carried under data["uniprot"].
-    assert isinstance(data["uniprot"], pd.DataFrame)
+    assert isinstance(data["uniprot"], pl.DataFrame)
     assert len(data["uniprot"]) == len(results["results"])
     # Provenance/timing stamped, fetch metadata recorded.
     assert "time_taken_seconds" in metadata
@@ -147,5 +147,5 @@ def test_run_protein_empty_query_skips_fetch(niquests_mock):
     # Empty interpreted query short-circuits: no network call is made.
     assert len(niquests_mock.calls) == 0
     # Parsed output degrades to an empty DataFrame rather than raising.
-    assert isinstance(data["uniprot"], pd.DataFrame)
-    assert data["uniprot"].empty
+    assert isinstance(data["uniprot"], pl.DataFrame)
+    assert data["uniprot"].is_empty()

@@ -4,11 +4,12 @@ import json
 from pathlib import Path
 from typing import cast
 
-import pandas as pd
+import polars as pl
 import typer
 
 from bioseq_dl import ChEBIInterface, ChEMBLInterface, PubChemInterface
 from bioseq_dl.cli._shared import output_dir_option
+from bioseq_dl.core.export import export_dataframe
 
 # Pending: Uniprot ID
 from bioseq_dl.logging import get_logger
@@ -42,7 +43,7 @@ def detect_query_type(query: str) -> str:
     return "name"
 
 
-def pubchem_search_query(query: str, exact_match: bool = False) -> tuple[pd.DataFrame, dict]:
+def pubchem_search_query(query: str, exact_match: bool = False) -> tuple[pl.DataFrame, dict]:
     """Fetch compound data from PubChem.
 
     Detects the query type, resolves CIDs for name/InChI/SMILES queries, then fetches the
@@ -53,7 +54,7 @@ def pubchem_search_query(query: str, exact_match: bool = False) -> tuple[pd.Data
         exact_match (bool): Whether to require an exact name match.
 
     Returns:
-        tuple[pd.DataFrame, dict]: The result DataFrame and the merged fetch metadata.
+        tuple[pl.DataFrame, dict]: The result DataFrame and the merged fetch metadata.
 
     """
     metadata = {}
@@ -71,11 +72,11 @@ def pubchem_search_query(query: str, exact_match: bool = False) -> tuple[pd.Data
         cids_df, pug_metadata = instance.fetch_batch(
             queries=query_dict, method="pug/compound", parse=True, format="dataframe"
         )
-        if not isinstance(cids_df, pd.DataFrame) or cids_df.empty:
+        if not isinstance(cids_df, pl.DataFrame) or cids_df.is_empty():
             log.warning("No CIDs found for the given %ss.", query_type.upper())
-            return pd.DataFrame(), metadata
+            return pl.DataFrame(), metadata
 
-        cids = cids_df["cid"].astype(str).tolist()
+        cids = cids_df["cid"].cast(pl.String).to_list()
         log.info("Found CIDs: %s", cids)
         query_dict = [{"cid": cid} for cid in cids]
         export_df, pug_view_metadata = instance.fetch_batch(
@@ -89,20 +90,20 @@ def pubchem_search_query(query: str, exact_match: bool = False) -> tuple[pd.Data
         )
     else:
         log.error("Unsupported query type: %s", query_type)
-        return pd.DataFrame(), metadata
+        return pl.DataFrame(), metadata
 
     if pug_metadata and isinstance(pug_metadata, dict):
         metadata.update(pug_metadata)
     if pug_view_metadata and isinstance(pug_view_metadata, dict):
         metadata.update(pug_view_metadata)
 
-    if isinstance(export_df, pd.DataFrame) and not export_df.empty:
+    if isinstance(export_df, pl.DataFrame) and not export_df.is_empty():
         return export_df, metadata
     log.warning("No PubChem data found for the given query.")
-    return pd.DataFrame(), metadata
+    return pl.DataFrame(), metadata
 
 
-def chembl_search_query(query: str, exact_match: bool = False) -> tuple[pd.DataFrame, dict]:
+def chembl_search_query(query: str, exact_match: bool = False) -> tuple[pl.DataFrame, dict]:
     """Fetch compound data from ChEMBL.
 
     Detects the query type and runs the matching molecule or target search; InChI queries
@@ -113,7 +114,7 @@ def chembl_search_query(query: str, exact_match: bool = False) -> tuple[pd.DataF
         exact_match (bool): Whether to use exact matching instead of substring matching.
 
     Returns:
-        tuple[pd.DataFrame, dict]: The result DataFrame and the fetch metadata.
+        tuple[pl.DataFrame, dict]: The result DataFrame and the fetch metadata.
 
     """
     filter_type = "iexact" if exact_match else "icontains"
@@ -153,18 +154,18 @@ def chembl_search_query(query: str, exact_match: bool = False) -> tuple[pd.DataF
         )
     elif query_type == "inchi":
         log.error("ChEMBL does not support InChI-based searches yet.")
-        return pd.DataFrame(), {}
+        return pl.DataFrame(), {}
     else:
         log.error("Unsupported query type for ChEMBL: %s", query_type)
-        return pd.DataFrame(), {}
+        return pl.DataFrame(), {}
 
-    if isinstance(export_df, pd.DataFrame) and not export_df.empty:
+    if isinstance(export_df, pl.DataFrame) and not export_df.is_empty():
         return export_df, metadata
     log.warning("No ChEMBL data found for the given query.")
-    return pd.DataFrame(), metadata
+    return pl.DataFrame(), metadata
 
 
-def chebi_search_query(query: str) -> tuple[pd.DataFrame, dict]:
+def chebi_search_query(query: str) -> tuple[pl.DataFrame, dict]:
     """Fetch compound data from ChEBI.
 
     Runs an Elasticsearch term search, then fetches the matching compounds by their ChEBI
@@ -174,7 +175,7 @@ def chebi_search_query(query: str) -> tuple[pd.DataFrame, dict]:
         query (str): The search term.
 
     Returns:
-        tuple[pd.DataFrame, dict]: The result DataFrame and the merged fetch metadata.
+        tuple[pl.DataFrame, dict]: The result DataFrame and the merged fetch metadata.
 
     """
     metadata = {}
@@ -188,7 +189,7 @@ def chebi_search_query(query: str) -> tuple[pd.DataFrame, dict]:
         query=search_query, method="es_search", parse=True, format="dataframe"
     )
     # Make query for every found chebi_id
-    chebi_ids = cast("pd.DataFrame", es_df)["chebi_accession"].tolist()
+    chebi_ids = cast("pl.DataFrame", es_df)["chebi_accession"].to_list()
     compounds_query = {"chebi_ids": chebi_ids}
     export_df, compounds_metadata = instance.fetch_single(
         query=compounds_query, method="compounds", parse=True, format="dataframe"
@@ -199,10 +200,10 @@ def chebi_search_query(query: str) -> tuple[pd.DataFrame, dict]:
     if compounds_metadata and isinstance(compounds_metadata, dict):
         metadata.update(compounds_metadata)
 
-    if isinstance(export_df, pd.DataFrame) and not export_df.empty:
+    if isinstance(export_df, pl.DataFrame) and not export_df.is_empty():
         return export_df, metadata
     log.warning("No ChEBI data found for the given query.")
-    return pd.DataFrame(), metadata
+    return pl.DataFrame(), metadata
 
 
 def run_compound(
@@ -246,8 +247,8 @@ def run_compound(
         display_name, search = entry
         log.info("Searching %s for query: %s", display_name, query)
         result, metadata = search()
-        if isinstance(result, pd.DataFrame) and not result.empty:
-            result.to_csv(f"{output}/{db}_results.csv", index=False)
+        if isinstance(result, pl.DataFrame) and not result.is_empty():
+            export_dataframe(result, f"{output}/{db}_results.csv", output_format="csv")
             with (Path(output) / f"{db}_metadata.json").open("w") as f:
                 json.dump(metadata, f, indent=2, default=str)
             log.info("Results saved to %s/%s_results.csv", output, db)

@@ -1,14 +1,12 @@
 """Tests for query builders.
 
-Query builders consume one DataFrame row (a ``pandas.Series``) and return API
-query params. Covers ``to_str_list`` value normalization (None / scalar / list /
-JSON-string / numpy array) and the per-builder output for representative cases.
+Query builders consume one DataFrame row (a ``{column: value}`` dict) and return
+API query params. Covers ``to_str_list`` value normalization (None / scalar /
+list / JSON-string) and the per-builder output for representative cases.
 """
 
 from __future__ import annotations
 
-import numpy as np
-import pandas as pd
 import pytest
 
 from bioseq_dl.core.utils.query_builders import (
@@ -19,9 +17,9 @@ from bioseq_dl.core.utils.query_builders import (
 )
 
 
-def row(values: dict) -> pd.Series:
+def row(values: dict) -> dict:
     """Build a builder input row from a dict of column values."""
-    return pd.Series(values)
+    return values
 
 
 # --- to_str_list: value normalization ---------------------------------------
@@ -43,10 +41,6 @@ def row(values: dict) -> pd.Series:
 )
 def test_to_str_list_normalization(value, expected):
     assert to_str_list(value) == expected
-
-
-def test_to_str_list_numpy_array():
-    assert to_str_list(np.array(["a", "b"])) == ["a", "b"]
 
 
 # --- representative builders ------------------------------------------------
@@ -71,7 +65,7 @@ def test_chebi_compounds_groups_ids_by_five():
 
 
 def test_pubchem_compound_summary_requires_both_fields():
-    # Missing organism_id (None) -> the pd.isna guard yields no queries.
+    # Missing organism_id (None) -> the missing-value guard yields no queries.
     assert build_query_pubchem_compound_summary(row({"gene_primary": "TP53", "organism_id": None}), {}) == []
 
 

@@ -26,7 +26,6 @@ classifiers = [
 ]
 
 dependencies = [
-    "pandas>=3.0,<4.0",
     "polars>=1.0",
     "pyarrow",
     "biopython",

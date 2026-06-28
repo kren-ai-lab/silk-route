@@ -5,7 +5,7 @@ from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
-import pandas as pd
+import polars as pl
 
 from bioseq_dl.constants.databases import ALPHAFOLD
 from bioseq_dl.core.export import export_dataframe
@@ -67,15 +67,14 @@ class AlphafoldInterface(BaseAPIInterface):
         """Yield the individual record dicts contained in a fetch result."""
         if isinstance(result, list):
             yield from result
-        elif isinstance(result, pd.DataFrame):
-            for _, row in result.iterrows():
-                yield row.to_dict()
+        elif isinstance(result, pl.DataFrame):
+            yield from result.iter_rows(named=True)
         elif isinstance(result, dict):
             yield result
 
     def fetch_single(
         self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
-    ) -> tuple[list | dict | pd.DataFrame | bytes | str, dict]:
+    ) -> tuple[list | dict | pl.DataFrame | bytes | str, dict]:
         """Fetch a single prediction and optionally download structure files.
 
         Delegates to the base fetch, then downloads configured structure files for each
@@ -88,7 +87,7 @@ class AlphafoldInterface(BaseAPIInterface):
             **kwargs: Forwarded to the base fetch.
 
         Returns:
-            tuple[list | dict | pd.DataFrame | bytes | str, dict]: Fetched data and metadata.
+            tuple[list | dict | pl.DataFrame | bytes | str, dict]: Fetched data and metadata.
 
         """
         if not isinstance(query, str):
@@ -105,7 +104,7 @@ class AlphafoldInterface(BaseAPIInterface):
 
     def fetch_batch(
         self, queries: Sequence[str | dict], parse: bool = False, *args: Any, **kwargs: Any
-    ) -> tuple[list | pd.DataFrame | bytes | str, dict]:
+    ) -> tuple[list | pl.DataFrame | bytes | str, dict]:
         """Fetch a batch of predictions and optionally download structure files.
 
         Delegates to the base fetch, then downloads configured structure files for each
@@ -119,7 +118,7 @@ class AlphafoldInterface(BaseAPIInterface):
             **kwargs: Forwarded to the base fetch.
 
         Returns:
-            tuple[list | pd.DataFrame | bytes | str, dict]: Fetched data and metadata.
+            tuple[list | pl.DataFrame | bytes | str, dict]: Fetched data and metadata.
 
         """
         if not isinstance(queries, list) or not isinstance(queries[0], str):
@@ -237,7 +236,7 @@ class AlphafoldInterface(BaseAPIInterface):
                 json.dump(data, f, indent=4)
             return str(Path(self.output_dir) / f"{filename}.{extension}")
 
-        df = pd.DataFrame(data)
+        df = pl.DataFrame(data, strict=False, infer_schema_length=None)
         output_path = str(Path(self.output_dir) / f"{filename}.{extension}")
         export_dataframe(df, output_path, output_format=extension)
         return output_path

@@ -6,15 +6,15 @@ Assertions read the written file back through the standard library / pyarrow
 
 from __future__ import annotations
 
-import pandas as pd
+import polars as pl
 
 from bioseq_dl.core.export import export_dataframe
 from tests._helpers import read_exported_file
 
 
-def make_frame(records: list[dict]) -> pd.DataFrame:
+def make_frame(records: list[dict]) -> pl.DataFrame:
     """Build an input frame from row dicts."""
-    return pd.DataFrame(records)
+    return pl.DataFrame(records, strict=False, infer_schema_length=None)
 
 
 FLAT = [{"id": "P1", "score": 1}, {"id": "P2", "score": 2}]

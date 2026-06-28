@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import cast
 
-import pandas as pd
+import polars as pl
 
 from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
 from bioseq_dl.core.metadata import FetchMetadata
@@ -62,7 +62,7 @@ def test_process_dataframe_concats_differing_schemas(monkeypatch):
 
     monkeypatch.setattr(enricher, "_search_and_merge", fake_search_and_merge)
 
-    df = pd.DataFrame({"id": ["P1", "P2"]})
+    df = pl.DataFrame({"id": ["P1", "P2"]})
     data, _ = enricher._process_dataframe(
         df, instance=None, spec=cast("EndpointSpec", None), params={}, fmt="dataframe"
     )
@@ -78,7 +78,7 @@ def test_process_dataframe_empty_results_returns_empty_frame(monkeypatch):
 
     monkeypatch.setattr(enricher, "_search_and_merge", fake_search_and_merge)
 
-    df = pd.DataFrame({"id": ["P1", "P2"]})
+    df = pl.DataFrame({"id": ["P1", "P2"]})
     data, _ = enricher._process_dataframe(
         df, instance=None, spec=cast("EndpointSpec", None), params={}, fmt="dataframe"
     )
@@ -93,7 +93,7 @@ def test_process_dataframe_json_flattens_results(monkeypatch):
 
     monkeypatch.setattr(enricher, "_search_and_merge", fake_search_and_merge)
 
-    df = pd.DataFrame({"id": ["P1", "P2"]})
+    df = pl.DataFrame({"id": ["P1", "P2"]})
     data, _ = enricher._process_dataframe(
         df, instance=None, spec=cast("EndpointSpec", None), params={}, fmt="json"
     )

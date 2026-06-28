@@ -5,12 +5,13 @@ from __future__ import annotations
 import datetime as dt
 import json
 import logging
+import math
 import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-import pandas as pd
+import polars as pl
 import typer
 import yaml
 
@@ -1109,8 +1110,8 @@ def is_empty_export_content(content: object) -> bool:
     """
     if content is None:
         return True
-    if isinstance(content, pd.DataFrame):
-        return content.empty
+    if isinstance(content, pl.DataFrame):
+        return content.is_empty()
     if isinstance(content, str):
         return content.strip() == ""
     if isinstance(content, (bytes, dict, list, tuple, set)):
@@ -1118,28 +1119,25 @@ def is_empty_export_content(content: object) -> bool:
     return False
 
 
-def add_id_column_for_export(df: pd.DataFrame, result_label: str, id_column: str | None) -> pd.DataFrame:
+def add_id_column_for_export(df: pl.DataFrame, result_label: str, id_column: str | None) -> pl.DataFrame:
     """Return a DataFrame copy with deterministic IDs when requested.
 
     Inserts an ID column of ``<result_label>_<n>`` values; the original frame is
     returned unchanged when no ID column is requested or one already exists.
 
     Args:
-        df (pd.DataFrame): The source DataFrame.
+        df (pl.DataFrame): The source DataFrame.
         result_label (str): Label used to prefix generated IDs.
         id_column (str | None): Name of the ID column to insert, if any.
 
     Returns:
-        pd.DataFrame: The original frame or a copy with the ID column inserted.
+        pl.DataFrame: The original frame or a copy with the ID column inserted.
 
     """
     if not id_column or id_column in df.columns:
         return df
-    export_df = df.copy()
-    id_values = [f"{result_label}_{index}" for index in range(1, len(export_df) + 1)]
-    # pandas accepts a list for the insert value at runtime; the stub types it as scalar/array-like only.
-    export_df.insert(0, id_column, id_values)
-    return export_df
+    id_values = [f"{result_label}_{index}" for index in range(1, df.height + 1)]
+    return df.clone().insert_column(0, pl.Series(id_column, id_values))
 
 
 def to_json_compatible(value: object) -> object:
@@ -1156,10 +1154,10 @@ def to_json_compatible(value: object) -> object:
         object: A JSON-serializable representation of the value.
 
     """
-    if isinstance(value, pd.DataFrame):
-        return value.to_dict(orient="records")
-    if isinstance(value, pd.Series):
-        return value.tolist()
+    if isinstance(value, pl.DataFrame):
+        return value.to_dicts()
+    if isinstance(value, pl.Series):
+        return value.to_list()
     if isinstance(value, dict):
         return {str(key): to_json_compatible(item) for key, item in value.items()}
     if isinstance(value, (list, tuple, set)):
@@ -1168,14 +1166,10 @@ def to_json_compatible(value: object) -> object:
         return value.isoformat()
     if isinstance(value, Path):
         return str(value)
+    if isinstance(value, float) and math.isnan(value):
+        return None
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
-    try:
-        missing = pd.isna(value)  # type: ignore[no-matching-overload]  # pandas stub: object arg
-    except (TypeError, ValueError):
-        missing = False
-    if isinstance(missing, bool) and missing:
-        return None
     if hasattr(value, "__name__"):
         return value.__name__
     return str(value)
@@ -1254,8 +1248,8 @@ def build_output_info(
         "path": str(output_path),
         "category": output_category,
     }
-    if isinstance(exported_content, pd.DataFrame):
-        info["rows"] = len(exported_content)
+    if isinstance(exported_content, pl.DataFrame):
+        info["rows"] = exported_content.height
         info["columns"] = len(exported_content.columns)
         info["column_names"] = [str(column) for column in exported_content.columns]
     elif isinstance(content, (list, dict)):
@@ -1297,7 +1291,7 @@ def export_single_result(
     file_stem = f"{export_label}_results" if suffix_results else export_label
     output_category = "result" if suffix_results else "enrichment"
 
-    if isinstance(content, pd.DataFrame) and tabular_format in {"csv", "parquet"}:
+    if isinstance(content, pl.DataFrame) and tabular_format in {"csv", "parquet"}:
         export_df = add_id_column_for_export(content, export_label, id_column)
         output_path = output_dir / f"{file_stem}.{tabular_format}"
         exported_path = export_dataframe(export_df, output_path, output_format=tabular_format)
@@ -1306,7 +1300,7 @@ def export_single_result(
     if export_format == "json":
         output_path = output_dir / f"{file_stem}.json"
         exported_content = content
-        if isinstance(content, pd.DataFrame):
+        if isinstance(content, pl.DataFrame):
             exported_content = add_id_column_for_export(content, export_label, id_column)
         write_json_file(output_path, exported_content)
         return build_output_info(export_label, output_path, content, exported_content, output_category)
@@ -1381,8 +1375,8 @@ def count_unique_sequences(data: object, sequence_column: str | None) -> int | N
     for label, content in data.items():
         if label == "uniprot_enrichment":
             continue
-        if isinstance(content, pd.DataFrame) and sequence_column in content.columns:
-            sequence_values.extend(content[sequence_column].dropna().astype(str).tolist())
+        if isinstance(content, pl.DataFrame) and sequence_column in content.columns:
+            sequence_values.extend(content[sequence_column].drop_nulls().cast(pl.String).to_list())
 
     if not sequence_values:
         return None
@@ -1494,10 +1488,10 @@ def count_query_composition_labels(
         if not label or label not in exported_result_labels:
             continue
         content = data.get(label)
-        if isinstance(content, pd.DataFrame) and QUERY_COMPOSITION_LABEL_COLUMN in content.columns:
-            counts = content[QUERY_COMPOSITION_LABEL_COLUMN].dropna().astype(str).value_counts()
+        if isinstance(content, pl.DataFrame) and QUERY_COMPOSITION_LABEL_COLUMN in content.columns:
+            counts = content[QUERY_COMPOSITION_LABEL_COLUMN].drop_nulls().cast(pl.String).value_counts()
             label_counts = dict(expected_label_counts)
-            label_counts.update({str(label_value): int(count) for label_value, count in counts.items()})
+            label_counts.update({str(label_value): int(count) for label_value, count in counts.iter_rows()})
             return label_counts
 
     return {}

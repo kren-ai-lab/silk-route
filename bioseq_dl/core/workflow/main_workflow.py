@@ -8,7 +8,7 @@ import time
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Literal, cast
 
-import pandas as pd
+import polars as pl
 
 from bioseq_dl import ChEMBLInterface, UniprotInterface
 from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
@@ -88,11 +88,10 @@ def _apply_label(value: Any, label: str) -> Any:
         Any: The labeled value.
 
     """
-    if isinstance(value, pd.DataFrame):
+    if isinstance(value, pl.DataFrame):
         if "_label" in value.columns:
-            value = value.rename(columns={"_label": "_label_original"})
-        value["_label"] = label
-        return value
+            value = value.rename({"_label": "_label_original"})
+        return value.with_columns(pl.lit(label).alias("_label"))
     if isinstance(value, list):
         for row in value:
             if isinstance(row, dict):
@@ -154,7 +153,7 @@ def activity_filter_metadata(activity_filter: dict) -> dict:
     return metadata
 
 
-def filter_chembl_activity_dataframe(df: pd.DataFrame, activity_filter: dict) -> tuple[pd.DataFrame, dict]:
+def filter_chembl_activity_dataframe(df: pl.DataFrame, activity_filter: dict) -> tuple[pl.DataFrame, dict]:
     """Apply a defensive ChEMBL activity filter to a DataFrame without changing column types.
 
     Filters rows by ``standard_type`` and numeric ``standard_value`` (exact value
@@ -162,16 +161,16 @@ def filter_chembl_activity_dataframe(df: pd.DataFrame, activity_filter: dict) ->
     frame with an explanatory ``reason`` in the metadata.
 
     Args:
-        df (pd.DataFrame): Rows to filter.
+        df (pl.DataFrame): Rows to filter.
         activity_filter (dict): ChEMBL activity filter spec.
 
     Returns:
-        tuple[pd.DataFrame, dict]: Filtered frame and filter metadata (row counts).
+        tuple[pl.DataFrame, dict]: Filtered frame and filter metadata (row counts).
 
     """
-    initial_rows = len(df)
-    if df.empty:
-        return df.copy(), {
+    initial_rows = df.height
+    if df.is_empty():
+        return df, {
             "applied": True,
             "initial_rows": initial_rows,
             "filtered_rows": 0,
@@ -179,7 +178,7 @@ def filter_chembl_activity_dataframe(df: pd.DataFrame, activity_filter: dict) ->
         }
 
     if "standard_type" not in df.columns or "standard_value" not in df.columns:
-        return df.iloc[0:0].copy(), {
+        return df.clear(), {
             "applied": True,
             "initial_rows": initial_rows,
             "filtered_rows": 0,
@@ -188,29 +187,29 @@ def filter_chembl_activity_dataframe(df: pd.DataFrame, activity_filter: dict) ->
         }
 
     standard_type = str(activity_filter.get("standard_type", "")).upper()
-    type_mask = df["standard_type"].astype(str).str.upper() == standard_type
-    values = pd.to_numeric(df["standard_value"], errors="coerce")
-    value_mask = values.notna()
+    type_cond = pl.col("standard_type").cast(pl.String).str.to_uppercase() == standard_type
+    values = pl.col("standard_value").cast(pl.Float64, strict=False)
+    value_cond = values.is_not_null()
 
     exact_value = activity_filter.get("standard_value")
     if exact_value is not None:
-        value_mask &= values == exact_value
+        value_cond &= values == exact_value
     else:
         min_value = activity_filter.get("standard_value_min")
         max_value = activity_filter.get("standard_value_max")
         if min_value is not None:
             if activity_filter.get("standard_value_min_inclusive"):
-                value_mask &= values >= min_value
+                value_cond &= values >= min_value
             else:
-                value_mask &= values > min_value
+                value_cond &= values > min_value
         if max_value is not None:
             if activity_filter.get("standard_value_max_inclusive"):
-                value_mask &= values <= max_value
+                value_cond &= values <= max_value
             else:
-                value_mask &= values < max_value
+                value_cond &= values < max_value
 
-    filtered = df.loc[type_mask & value_mask].copy()
-    filtered_rows = len(filtered)
+    filtered = df.filter(type_cond & value_cond)
+    filtered_rows = filtered.height
     return filtered, {
         "applied": True,
         "initial_rows": initial_rows,
@@ -237,20 +236,20 @@ def filter_chembl_activity_result(result: Any, activity_filter: dict | None) -> 
     if not activity_filter:
         return result, {"applied": False}
 
-    if isinstance(result, pd.DataFrame):
+    if isinstance(result, pl.DataFrame):
         return filter_chembl_activity_dataframe(result, activity_filter)
 
     if isinstance(result, list):
-        df = pd.DataFrame(result)
+        df = pl.DataFrame(result, strict=False, infer_schema_length=None)
         filtered, metadata = filter_chembl_activity_dataframe(df, activity_filter)
-        return filtered.to_dict(orient="records"), metadata
+        return filtered.to_dicts(), metadata
 
     if isinstance(result, dict):
-        df = pd.DataFrame([result])
+        df = pl.DataFrame([result], strict=False, infer_schema_length=None)
         filtered, metadata = filter_chembl_activity_dataframe(df, activity_filter)
-        if filtered.empty:
+        if filtered.is_empty():
             return {}, metadata
-        return filtered.iloc[0].to_dict(), metadata
+        return filtered.row(0, named=True), metadata
 
     return result, {
         "applied": False,
@@ -303,8 +302,8 @@ def merge_pair(existing: Any, new: Any) -> Any:
         Any: Merged value (concatenated frame, extended list, or a two-element list).
 
     """
-    if isinstance(existing, pd.DataFrame) and isinstance(new, pd.DataFrame):
-        return pd.concat([existing, new], ignore_index=True)
+    if isinstance(existing, pl.DataFrame) and isinstance(new, pl.DataFrame):
+        return pl.concat([existing, new], how="diagonal_relaxed")
     if isinstance(existing, list) and isinstance(new, list):
         existing.extend(new)
         return existing
@@ -571,7 +570,7 @@ class MainWorkflow:
             )
             parse_elapsed = time.time() - parse_started
             parsed_count = None
-            if isinstance(data, (pd.DataFrame, list)):
+            if isinstance(data, (pl.DataFrame, list)):
                 parsed_count = len(data)
             elif isinstance(data, dict):
                 parsed_count = len(cast("list", data.get("results", [])))
@@ -599,7 +598,7 @@ class MainWorkflow:
             self.log.exception(
                 "_step_parse: parser failed after %.2fs; setting empty DataFrame", parse_elapsed
             )
-            context["data"]["uniprot"] = pd.DataFrame()
+            context["data"]["uniprot"] = pl.DataFrame()
             context.setdefault("metadata", {}).setdefault("uniprot", {}).setdefault(
                 "parsing", {"error": str(e)}
             )
@@ -642,7 +641,7 @@ class MainWorkflow:
         self.log.info("Pipeline: starting CrossRef enrichment with fields=%s", cross_ref_fields)
         enrich_started = time.time()
         enriched, enriched_meta = run_crossref_enrichment(
-            data=input_data if input_data is not None else pd.DataFrame(),
+            data=input_data if input_data is not None else pl.DataFrame(),
             crossref_fields=cross_ref_fields,
             format=cast("Literal['json', 'dataframe', 'xml']", parse_format),
             max_workers=max_workers,
@@ -676,7 +675,7 @@ class MainWorkflow:
         #   we need to check which one to use.
         if not query:
             self.log.debug("Pipeline: empty query for ChEMBL fetch; skipping")
-            context["chembl_result"] = pd.DataFrame()
+            context["chembl_result"] = pl.DataFrame()
             context.setdefault("metadata", {}).setdefault("chembl", {"skipped_empty_query": True})
             return
 
@@ -733,10 +732,10 @@ class MainWorkflow:
         # Build UniProt subquery from ChEMBL results (reuse logic similar to _resolve_chembl_search)
         result = context.get("data", {}).get("chembl")
         ids = []
-        if isinstance(result, pd.DataFrame) and not result.empty:
+        if isinstance(result, pl.DataFrame) and not result.is_empty():
             for col in ("target_chembl_id", "chembl_id", "molecule_chembl_id"):
                 if col in result.columns:
-                    ids = result[col].dropna().unique().tolist()
+                    ids = result[col].drop_nulls().unique(maintain_order=True).to_list()
                     break
         elif isinstance(result, list):
             for item in result:
@@ -1272,11 +1271,11 @@ class MainWorkflow:
         # On the other hand, combined_enrichment contains only the enrichment data combined.
         # For example
         # {  # noqa: ERA001
-        #   "alphafold_prediction": [pd.DataFrame(...)],  # noqa: ERA001
-        #   "pdb_entry": [pd.DataFrame(...)],  # noqa: ERA001
+        #   "alphafold_prediction": [pl.DataFrame(...)],  # noqa: ERA001
+        #   "pdb_entry": [pl.DataFrame(...)],  # noqa: ERA001
         # }  # noqa: ERA001
         # We need to generate the final output merging every part.
-        # RResulting in: { "uniprot": pd.DataFrame(...), "chembl": pd.DataFrame(...), "uniprot_enrichment": {
+        # RResulting in: { "uniprot": pl.DataFrame(...), "chembl": pl.DataFrame(...), "uniprot_enrichment": {
         # ... } }
         # Merge results depending on their type,
         # For dataframes we concat, for lists we extend, for dicts we create a list of dicts, for ET we create
@@ -1338,7 +1337,7 @@ class MainWorkflow:
             endpoint_specs=specs, max_workers=max_workers, total_retries=total_retries
         )
         enriched, enriched_meta = crossref_enricher.enrich(
-            data=input_data if input_data is not None else pd.DataFrame(),
+            data=input_data if input_data is not None else pl.DataFrame(),
             format=cast("Literal['json', 'dataframe', 'xml']", export_format),
         )
 

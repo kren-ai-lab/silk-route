@@ -443,9 +443,9 @@ bioseq-dl workflow run \
 You can also use the Python API to interact with the tool. Here's an example of how to use the UniProt interface:
 ```python
 from bioseq_dl import UniprotInterface
-import pandas as pd
+import polars as pl
 
-df = pd.DataFrame({
+df = pl.DataFrame({
     "id": [1, 2, 3],
     "accession": ["A1L3X0", "A0JNC4", "A2RUC4"]
 })

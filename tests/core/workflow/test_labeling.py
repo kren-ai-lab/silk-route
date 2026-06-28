@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import pandas as pd
+import polars as pl
 
 from bioseq_dl.core.workflow.main_workflow import (
     attach_label_to_part,
@@ -12,45 +12,45 @@ from bioseq_dl.core.workflow.main_workflow import (
 
 
 def test_attach_label_protein_labels_uniprot_only():
-    part = {"uniprot": pd.DataFrame({"a": [1]})}
+    part = {"uniprot": pl.DataFrame({"a": [1]})}
     labeled = attach_label_to_part(part, "L1", "protein")
     assert set(labeled) == {"uniprot"}
-    assert labeled["uniprot"]["_label"].tolist() == ["L1"]
+    assert labeled["uniprot"]["_label"].to_list() == ["L1"]
 
 
 def test_attach_label_compound_labels_chembl_and_uniprot():
-    part = {"chembl": pd.DataFrame({"a": [1]}), "uniprot": pd.DataFrame({"b": [2]})}
+    part = {"chembl": pl.DataFrame({"a": [1]}), "uniprot": pl.DataFrame({"b": [2]})}
     labeled = attach_label_to_part(part, "L1", "compound")
     assert set(labeled) == {"chembl", "uniprot"}
-    assert labeled["chembl"]["_label"].tolist() == ["L1"]
-    assert labeled["uniprot"]["_label"].tolist() == ["L1"]
+    assert labeled["chembl"]["_label"].to_list() == ["L1"]
+    assert labeled["uniprot"]["_label"].to_list() == ["L1"]
 
 
 def test_attach_label_compound_without_uniprot_only_chembl():
-    part = {"chembl": pd.DataFrame({"a": [1]})}
+    part = {"chembl": pl.DataFrame({"a": [1]})}
     assert set(attach_label_to_part(part, "L1", "compound")) == {"chembl"}
 
 
 def test_attach_label_compound_missing_chembl_returns_empty():
     # Regression: compound modality is gated on a present chembl part.
-    assert attach_label_to_part({"uniprot": pd.DataFrame({"a": [1]})}, "L1", "compound") == {}
+    assert attach_label_to_part({"uniprot": pl.DataFrame({"a": [1]})}, "L1", "compound") == {}
 
 
 def test_attach_label_unknown_modality_or_non_dict_returns_empty():
-    assert attach_label_to_part({"uniprot": pd.DataFrame()}, "L1", "bogus") == {}
+    assert attach_label_to_part({"uniprot": pl.DataFrame()}, "L1", "bogus") == {}
     assert attach_label_to_part("not-a-dict", "L1", "protein") == {}  # ty: ignore[invalid-argument-type]  # type: ignore[arg-type]
 
 
 def test_attach_label_existing_label_column_preserved_as_original():
-    part = {"uniprot": pd.DataFrame({"a": [1], "_label": ["old"]})}
+    part = {"uniprot": pl.DataFrame({"a": [1], "_label": ["old"]})}
     labeled = attach_label_to_part(part, "new", "protein")
-    assert labeled["uniprot"]["_label"].tolist() == ["new"]
-    assert labeled["uniprot"]["_label_original"].tolist() == ["old"]
+    assert labeled["uniprot"]["_label"].to_list() == ["new"]
+    assert labeled["uniprot"]["_label_original"].to_list() == ["old"]
 
 
 def test_merge_pair_concats_dataframes():
-    merged = merge_pair(pd.DataFrame({"a": [1]}), pd.DataFrame({"a": [2]}))
-    assert merged["a"].tolist() == [1, 2]
+    merged = merge_pair(pl.DataFrame({"a": [1]}), pl.DataFrame({"a": [2]}))
+    assert merged["a"].to_list() == [1, 2]
 
 
 def test_merge_pair_extends_lists_and_pairs_others():

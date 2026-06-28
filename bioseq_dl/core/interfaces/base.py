@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Literal
 
 import niquests
-import pandas as pd
+import polars as pl
 from dicttoxml import dicttoxml
 from niquests.adapters import HTTPAdapter, Retry
 from niquests.exceptions import RequestException
@@ -29,6 +29,7 @@ from bioseq_dl.core.exceptions import RequestError
 from bioseq_dl.core.interfacesconfig import load_packaged_config, read_config_file
 from bioseq_dl.core.metadata import FetchMetadata, RequestInfo, current_tool
 from bioseq_dl.core.utils.base_auxiliary_methods import get_nested, get_primary_keys, validate_parameters
+from bioseq_dl.core.utils.frames import records_to_frame
 from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.interfaces.base")
@@ -241,10 +242,10 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
             kwargs.setdefault("option", self.DEFAULT_OPTION)
 
     @staticmethod
-    def _build_columns_info(df: pd.DataFrame) -> list[dict]:
+    def _build_columns_info(df: pl.DataFrame) -> list[dict]:
         """Build the per-column ``data_info`` block (name / dtype / n_missing)."""
         return [
-            {"name": col, "dtype": str(df[col].dtype), "n_missing": int(df[col].isna().sum())}
+            {"name": col, "dtype": str(df.schema[col]), "n_missing": int(df[col].null_count())}
             for col in df.columns
         ]
 
@@ -257,21 +258,27 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         metadata stays serializable); ``total_entries`` and the per-column block
         are derived from a DataFrame view of the data.
         """
-        if isinstance(data, pd.DataFrame):
+        if isinstance(data, pl.DataFrame):
             df = data
         elif isinstance(data, list):
-            df = pd.DataFrame(data) if len(data) > 0 else pd.DataFrame()
+            # Only a list of record dicts maps to a columnar frame; a list of
+            # non-dicts (e.g. per-query result lists) has no column schema, so
+            # report the entry count without a per-column block.
+            if data and all(isinstance(item, dict) for item in data):
+                df = records_to_frame(data)
+            else:
+                return {"total_entries": len(data), "data_type": "list", "columns": []}
         elif isinstance(data, dict):
-            df = pd.DataFrame([data]) if len(data) > 0 else pd.DataFrame()
+            df = records_to_frame(data) if data else pl.DataFrame()
         elif data is None:
-            df = pd.DataFrame()
+            df = pl.DataFrame()
         else:
-            df = pd.DataFrame([data])
+            return {"total_entries": 1, "data_type": type(data).__name__, "columns": []}
 
         # The DataFrame view above faithfully represents the row count for every
-        # input shape (list, dict, scalar, None), so derive the count from it.
+        # input shape (list, dict, None), so derive the count from it.
         return {
-            "total_entries": df.shape[0],
+            "total_entries": df.height,
             "data_type": type(data).__name__,
             "columns": cls._build_columns_info(df),
         }
@@ -349,14 +356,14 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         cache_path = self._get_cache_path(identifier)
         return Path(cache_path).exists()
 
-    def _load_file(self, path: str) -> dict | pd.DataFrame:
+    def _load_file(self, path: str) -> dict | pl.DataFrame:
         """Load a file from the cache path, supporting JSON and CSV formats."""
         if path.endswith(".csv"):
-            return pd.read_csv(path)
+            return pl.read_csv(path)
         with Path(path).open() as f:
             return json.load(f)
 
-    def load_cache(self, identifier: str) -> dict | pd.DataFrame | None:
+    def load_cache(self, identifier: str) -> dict | pl.DataFrame | None:
         """Load cached results for a given identifier."""
         # Try directly loading from the cache
         cache_path = self._get_cache_path(identifier)
@@ -365,12 +372,13 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
 
         return None
 
-    def save_cache(self, identifier: str, data: list | dict | pd.DataFrame | str) -> None:
+    def save_cache(self, identifier: str, data: list | dict | pl.DataFrame | str) -> None:
         """Save results to cache."""
         path = self._get_cache_path(identifier)
 
-        if isinstance(data, pd.DataFrame):
-            data.to_csv(path, index=False)
+        if isinstance(data, pl.DataFrame):
+            with Path(path).open("w") as f:
+                json.dump(data.to_dicts(), f)
         elif isinstance(data, str):
             with Path(path).open("w") as f:
                 f.write(data)
@@ -408,7 +416,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
 
     def _maybe_parse(
         self, data: Any, parse: bool, fmt: Literal["dataframe", "json", "xml"], **kwargs: Any
-    ) -> list | dict | pd.DataFrame | bytes | str:
+    ) -> list | dict | pl.DataFrame | bytes | str:
         """Optionally parse raw data and convert it to the requested output format.
 
         When ``parse`` is set, resolves ``fields_to_extract`` (from kwargs, then
@@ -423,7 +431,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                 keys are forwarded to ``parse``.
 
         Returns:
-            list | dict | pd.DataFrame | bytes | str: The (optionally parsed) data in
+            list | dict | pl.DataFrame | bytes | str: The (optionally parsed) data in
             the requested format.
 
         Raises:
@@ -471,12 +479,10 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         # Convert to DataFrame if requested
         if fmt == "dataframe":
             log.debug("Converting result to DataFrame")
-            if isinstance(result, list):
-                return pd.DataFrame(result)
-            if isinstance(result, dict):
-                return pd.DataFrame([result])
+            if isinstance(result, (list, dict)):
+                return records_to_frame(result)
             if result is None or result == []:
-                return pd.DataFrame()
+                return pl.DataFrame()
             log.error("Cannot convert to DataFrame, unsupported type.")
             msg = f"Cannot convert to DataFrame: unsupported type {type(result)}"
             raise ValueError(msg)
@@ -796,7 +802,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
 
     def fetch_single(
         self, query: str | dict | list, parse: bool = False, *args: Any, **kwargs: Any
-    ) -> tuple[list | dict | pd.DataFrame | bytes | str, dict]:
+    ) -> tuple[list | dict | pl.DataFrame | bytes | str, dict]:
         """General-purpose fetch method with optional parsing and cache handling.
 
         Args:
@@ -807,7 +813,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                 ``fields_to_extract``, ``format``, ``method``, ``option``.
 
         Returns:
-            tuple[list | dict | pd.DataFrame | bytes | str, dict]: Fetched (and
+            tuple[list | dict | pl.DataFrame | bytes | str, dict]: Fetched (and
             optionally parsed) data and the fetch metadata.
 
         """
@@ -890,8 +896,8 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
             # Serialize the per-subquery results to the requested output format.
             if fmt == "dataframe":
                 log.debug("Converting results to DataFrames")
-                dfs = [d if isinstance(d, pd.DataFrame) else pd.DataFrame(d) for d in results.values()]
-                export_data: Any = pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
+                dfs = [d if isinstance(d, pl.DataFrame) else records_to_frame(d) for d in results.values()]
+                export_data: Any = pl.concat(dfs, how="diagonal_relaxed") if dfs else pl.DataFrame()
             elif fmt == "xml":
                 log.debug("Converting results to XML format")
                 export_data = dicttoxml(
@@ -943,7 +949,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
 
     def fetch_batch(
         self, queries: Sequence[str | dict], parse: bool = False, *args: Any, **kwargs: Any
-    ) -> tuple[list | pd.DataFrame | bytes | str, dict]:
+    ) -> tuple[list | pl.DataFrame | bytes | str, dict]:
         """Fetch data in parallel for a batch of queries.
 
         Args:
@@ -954,7 +960,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                 ``fields_to_extract``, ``format``, ``method``, ``option``.
 
         Returns:
-            tuple[list | pd.DataFrame | bytes | str, dict]: Fetched (and optionally
+            tuple[list | pl.DataFrame | bytes | str, dict]: Fetched (and optionally
             parsed) data and the fetch metadata.
 
         """
@@ -998,9 +1004,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                     cache_key = self._make_cache_key(identifier, **kwargs)
                     if self.has_results(cache_key):
                         cached = self.load_cache(cache_key)
-                        result = (
-                            cached.to_dict(orient="records") if isinstance(cached, pd.DataFrame) else cached
-                        )
+                        result = cached.to_dicts() if isinstance(cached, pl.DataFrame) else cached
                         cached_subquery_results.append((identifier, result))
                     else:
                         log.debug("No cache found for subquery identifier: %s, will fetch.", identifier)
@@ -1023,7 +1027,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                     log.debug("Cache hit for query at index %s, loading from cache.", i)
                     metadata.cached.add(self._identifier_for(query, spec, **kwargs), query)
                     cached = self.load_cache(cache_key)
-                    result = cached.to_dict(orient="records") if isinstance(cached, pd.DataFrame) else cached
+                    result = cached.to_dicts() if isinstance(cached, pl.DataFrame) else cached
                     results.append(self._maybe_parse(data=result, parse=parse, fmt=fmt, **kwargs))
                 else:
                     log.debug("No cache found for query at index %s, will fetch.", i)
@@ -1062,8 +1066,8 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         metadata.finished_at = datetime.now(UTC).isoformat()
 
         # If it's a list of dataframes, concatenate them
-        if all(isinstance(r, pd.DataFrame) for r in results) and len(results) > 0:
-            batch_data = pd.concat(results, ignore_index=True)
+        if all(isinstance(r, pl.DataFrame) for r in results) and len(results) > 0:
+            batch_data = pl.concat(results, how="diagonal_relaxed")
         else:
             batch_data = results
 

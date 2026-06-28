@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import cast
 
-import pandas as pd
+import polars as pl
 
 from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
 from bioseq_dl.core.metadata import FetchMetadata
@@ -28,7 +28,7 @@ def test_process_dataframe_records_per_row_outcomes(monkeypatch):
 
     monkeypatch.setattr(enricher, "_search_and_merge", fake_search_and_merge)
 
-    df = pd.DataFrame({"id": ["P1", "P2"]})
+    df = pl.DataFrame({"id": ["P1", "P2"]})
     # spec is unused once _search_and_merge is patched.
     _, metadata = enricher._process_dataframe(
         df, instance=None, spec=cast("EndpointSpec", None), params={}, fmt="json"

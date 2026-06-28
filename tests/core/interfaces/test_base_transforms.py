@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, ClassVar
 
-import pandas as pd
+import polars as pl
 import pytest
 
 from bioseq_dl.core.dbconfig import DBConfig
@@ -53,13 +53,13 @@ def iface(tmp_path):
 
 def test_maybe_parse_to_dataframe(iface):
     out = iface._maybe_parse([{"a": 1}, {"a": 2}], parse=False, fmt="dataframe")
-    assert isinstance(out, pd.DataFrame)
+    assert isinstance(out, pl.DataFrame)
     assert list(out["a"]) == [1, 2]
 
 
 def test_maybe_parse_dict_to_dataframe_single_row(iface):
     out = iface._maybe_parse({"a": 1}, parse=False, fmt="dataframe")
-    assert isinstance(out, pd.DataFrame)
+    assert isinstance(out, pl.DataFrame)
     assert out.shape == (1, 1)
 
 

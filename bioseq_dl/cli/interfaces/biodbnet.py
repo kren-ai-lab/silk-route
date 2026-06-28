@@ -1,6 +1,6 @@
 """BioDBNet CLI commands."""
 
-import pandas as pd
+import polars as pl
 import typer
 
 from bioseq_dl import BioDBNetInterface
@@ -38,8 +38,8 @@ def run_db2db(
         parse=True,
         format="dataframe",
     )
-    if isinstance(df, pd.DataFrame):
-        df = df.dropna(axis=1, how="all")
+    if isinstance(df, pl.DataFrame):
+        df = df.select([c for c in df.columns if df[c].null_count() < df.height])
 
     save_or_print(df, output, output_format=output_format)
 
@@ -64,7 +64,7 @@ def run_pathways(
         parse=True,
         format="dataframe",
     )
-    if isinstance(df, pd.DataFrame):
-        df = df.dropna(axis=1, how="all")
+    if isinstance(df, pl.DataFrame):
+        df = df.select([c for c in df.columns if df[c].null_count() < df.height])
 
     save_or_print(df, output, output_format=output_format)
