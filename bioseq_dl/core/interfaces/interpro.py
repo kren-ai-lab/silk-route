@@ -112,7 +112,7 @@ class InterproInterface(BaseAPIInterface):
                 log.error(msg)
                 raise ConfigError(msg)
 
-    def fetch(self, query: str | dict | list, *, method: str = "entry", **kwargs: Any) -> dict | list:
+    def fetch(self, query: str | dict | list, *, method: str = "entry", **kwargs: Any) -> list:
         """Fetch data from InterPro API.
 
         Args:
@@ -132,7 +132,7 @@ class InterproInterface(BaseAPIInterface):
 
         if method not in self.METHODS:
             log.error("Method %s is not supported. Available methods: %s", method, list(self.METHODS.keys()))
-            return {}
+            return []
 
         if not isinstance(query, dict):
             log.error(
@@ -141,7 +141,7 @@ class InterproInterface(BaseAPIInterface):
                 "'filter_db', and 'filter_value' "
                 "keys."
             )
-            return {}
+            return []
 
         # Validate the query parameters
         self.validate_query(method, query)
@@ -166,7 +166,7 @@ class InterproInterface(BaseAPIInterface):
                         filter_types,
                         db_types[f["type"]],
                     )
-                    return {}
+                    return []
 
         if query.get("modifiers"):
             url += "?"

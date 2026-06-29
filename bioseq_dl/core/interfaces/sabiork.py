@@ -76,7 +76,7 @@ class SabiorkInterface(BaseAPIInterface):
             validated_params = validate_parameters(inputs, parameters)
         except ValueError:
             log.exception("Invalid parameters for method '%s'", method)
-            return {}
+            return []
 
         query_string = " AND ".join(
             [f'{k}:"{v}"' if any(c.isspace() for c in v) else f"{k}:{v}" for k, v in validated_params.items()]
@@ -98,7 +98,7 @@ class SabiorkInterface(BaseAPIInterface):
             ]
         else:
             log.error("Method '%s' is not implemented.", method)
-            return {}
+            return []
 
         url = SABIORK.API_URL + method
 
@@ -118,6 +118,6 @@ class SabiorkInterface(BaseAPIInterface):
 
         except niquests.exceptions.RequestException:
             log.exception("Error fetching prediction for %s", query)
-            return {}
+            return []
         else:
             return response.text or ""

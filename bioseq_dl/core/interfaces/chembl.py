@@ -276,7 +276,7 @@ class ChEMBLInterface(BaseAPIInterface):
             params[max_key] = cls._format_filter_number(max_value)
         return params
 
-    def fetch(self, query: str | dict | list, *, method: str = "activity", **kwargs: Any) -> dict | list:
+    def fetch(self, query: str | dict | list, *, method: str = "activity", **kwargs: Any) -> list:
         """Fetch data from the ChEMBL API.
 
         Args:
@@ -294,7 +294,7 @@ class ChEMBLInterface(BaseAPIInterface):
             pages_to_fetch = int(pages_to_fetch)
         except (TypeError, ValueError):
             log.exception("pages_to_fetch must be -1 or a positive integer. Received: %s", pages_to_fetch)
-            return {}
+            return []
         # Bounds (0 / <-1) are enforced by fetch_pages, which every path below routes through.
 
         # Validate method and format
@@ -304,11 +304,11 @@ class ChEMBLInterface(BaseAPIInterface):
                 method,
                 ", ".join(self.METHODS.keys()),
             )
-            return {}
+            return []
 
         if not isinstance(query, (str, dict)):
             log.error("Query must be a string or a dictionary.")
-            return {}
+            return []
 
         _, _, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, **kwargs)
 
@@ -317,7 +317,7 @@ class ChEMBLInterface(BaseAPIInterface):
             validated_params = validate_parameters(inputs, parameters)
         except ValueError:
             log.exception("Invalid parameters for method '%s'", method)
-            return {}
+            return []
 
         if method in ["activity", "binding_site"]:
             # Convert dictionary to a query string
@@ -363,7 +363,7 @@ class ChEMBLInterface(BaseAPIInterface):
                 )
         else:
             log.error("Method %s is not implemented in fetch.", method)
-            return {}
+            return []
 
         return self._fetch_paginated(
             url,
