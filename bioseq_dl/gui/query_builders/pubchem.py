@@ -9,6 +9,19 @@ from bioseq_dl.core.workflow.query_interpreter import strip_surrounding_quotes
 
 MIN_THRESHOLD = 0
 MAX_THRESHOLD = 100
+PUBCHEM_EXECUTABLE_FIELD_BY_RESOURCE = {
+    "compound": {
+        "cid": "cid",
+        "name": "name",
+        "inchikey": "inchikey",
+        "inchi": "inchi",
+    },
+    "structure": {
+        "smiles_identity": "smiles_identity",
+        "smiles_substructure": "smiles_substructure",
+        "similarity_2d": "similarity_2d_cid",
+    },
+}
 
 
 @dataclass(frozen=True)
@@ -31,6 +44,21 @@ def normalize_pubchem_field(field: str) -> str:
     return str(field).strip().lower()
 
 
+def get_pubchem_executable_parameter_name(resource: str, field: str) -> str:
+    """Map one catalog/GUI field to its executable query parameter name."""
+    normalized_resource = normalize_pubchem_resource(resource)
+    normalized_field = normalize_pubchem_field(field)
+    resource_mapping = PUBCHEM_EXECUTABLE_FIELD_BY_RESOURCE.get(normalized_resource, {})
+    if normalized_field not in resource_mapping:
+        supported = ", ".join(resource_mapping) or "none"
+        msg = (
+            f"Unsupported PubChem {normalized_resource} field '{normalized_field}'. "
+            f"Supported fields are: {supported}."
+        )
+        raise ValueError(msg)
+    return resource_mapping[normalized_field]
+
+
 def quote_pubchem_value(value: str) -> str:
     """Quote a PubChem query value."""
     cleaned = strip_surrounding_quotes(str(value))
@@ -45,11 +73,11 @@ def parse_pubchem_builder_threshold(value: int | str | None) -> int:
         raise ValueError(msg)
     normalized = str(value).strip()
     if not normalized.isdigit():
-        msg = "PubChem 2-D similarity threshold must be an integer from 0 to 100."
+        msg = "PubChem similarity threshold must be an integer between 0 and 100."
         raise ValueError(msg)
     threshold = int(normalized)
     if threshold < MIN_THRESHOLD or threshold > MAX_THRESHOLD:
-        msg = "PubChem 2-D similarity threshold must be an integer from 0 to 100."
+        msg = "PubChem similarity threshold must be an integer between 0 and 100."
         raise ValueError(msg)
     return threshold
 
@@ -60,28 +88,34 @@ def validate_pubchem_builder_row(row: PubChemQueryBuilderRow) -> None:
     catalog = get_pubchem_query_builder_field_catalog(resource)
     field = normalize_pubchem_field(row.field)
     if field not in catalog:
-        msg = f"PubChem field '{row.field}' is not supported for resource '{row.resource}'."
+        supported = ", ".join(catalog)
+        msg = f"Unsupported PubChem {resource} field '{row.field}'. Supported fields are: {supported}."
         raise ValueError(msg)
     if not strip_surrounding_quotes(str(row.value)).strip():
         msg = "PubChem query builder value is required."
         raise ValueError(msg)
-    if resource == "compound" and field == "cid" and not str(row.value).strip().isdigit():
+    value = strip_surrounding_quotes(str(row.value)).strip()
+    if resource == "compound" and field == "cid" and (not value.isdigit() or int(value) <= 0):
         msg = "PubChem CID values must be positive integers."
         raise ValueError(msg)
     if resource == "structure" and field == "similarity_2d":
+        if not value.isdigit() or int(value) <= 0:
+            msg = "PubChem 2-D similarity searches require a positive reference CID."
+            raise ValueError(msg)
         parse_pubchem_builder_threshold(row.threshold)
 
 
 def build_pubchem_parameter_fragment(row: PubChemQueryBuilderRow) -> str:
     """Build one PubChem interpreted-query parameter fragment."""
-    field = normalize_pubchem_field(row.field)
+    catalog_field = normalize_pubchem_field(row.field)
+    parameter = get_pubchem_executable_parameter_name(row.resource, catalog_field)
     value = strip_surrounding_quotes(str(row.value)).strip()
-    if field == "cid":
-        return f"cid={value}"
-    if field == "similarity_2d":
+    if catalog_field == "cid":
+        return f"{parameter}={value}"
+    if catalog_field == "similarity_2d":
         threshold = parse_pubchem_builder_threshold(row.threshold)
-        return f"similarity_2d_cid={value} AND threshold={threshold}"
-    return f"{field}={quote_pubchem_value(value)}"
+        return f"{parameter}={value} AND threshold={threshold}"
+    return f"{parameter}={quote_pubchem_value(value)}"
 
 
 def build_pubchem_friendly_query(row: PubChemQueryBuilderRow) -> str:

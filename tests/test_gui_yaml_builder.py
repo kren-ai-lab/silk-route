@@ -568,6 +568,11 @@ def test_selected_chembl_builder_determines_resource() -> None:
             {"field": "smiles_substructure", "value": "c1ccccc1", "threshold": ""},
             'pubchem.structure:smiles_substructure="c1ccccc1"',
         ),
+        (
+            "pubchem_structure",
+            {"field": "similarity_2d", "value": "446157", "threshold": 80},
+            "pubchem.structure:similarity_2d_cid=446157 AND threshold=80",
+        ),
     ],
 )
 def test_advanced_pubchem_builder_modes_generate_interpreted_query_value(

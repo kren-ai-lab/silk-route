@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 
 from bioseq_dl.core.workflow.chebi_query_catalog import (
@@ -10,6 +11,7 @@ from bioseq_dl.core.workflow.chebi_query_catalog import (
     STRUCTURE_SEARCH_MODEL,
     get_chebi_query_builder_resource_catalog,
 )
+from bioseq_dl.core.workflow.query_prefixes import is_source_prefixed_query
 
 CHEBI_QUERY_PATTERN = re.compile(r"^chebi\.(?P<resource>[a-z_]+):(?P<body>.+)$")
 CHEBI_BUILDER_QUERY_PREFIXES = ("chebi.entity:", "chebi.ontology:", "chebi.structure:")
@@ -19,27 +21,33 @@ CHEBI_STAR_MIN = 1
 CHEBI_STAR_MAX = 3
 RANGE_VALUE_COUNT = 2
 
-ENTITY_FIELDS = frozenset(
-    {
-        "chebi_id",
-        "name_contains",
-        "name",
-        "formula",
-        "average_mass_range",
-        "monoisotopic_mass_range",
-        "charge_range",
-        "database_xref",
-        "star",
-    }
+ENTITY_FIELD_NAMES = (
+    "chebi_id",
+    "name_contains",
+    "name",
+    "formula",
+    "average_mass_range",
+    "monoisotopic_mass_range",
+    "charge_range",
+    "database_xref",
+    "star",
 )
-ONTOLOGY_FIELDS = frozenset({"relation", "term"})
-STRUCTURE_FIELDS = frozenset({"connectivity", "substructure", "similarity"})
+ONTOLOGY_FIELD_NAMES = ("relation", "term")
+STRUCTURE_FIELD_NAMES = ("connectivity", "substructure", "similarity")
+ENTITY_FIELDS = frozenset(ENTITY_FIELD_NAMES)
+ONTOLOGY_FIELDS = frozenset(ONTOLOGY_FIELD_NAMES)
+STRUCTURE_FIELDS = frozenset(STRUCTURE_FIELD_NAMES)
 
 
 def is_chebi_prefixed_query(query: str) -> bool:
     """Return whether the query uses a ChEBI builder prefix."""
     normalized = str(query or "").strip().lower()
-    return normalized.startswith(CHEBI_BUILDER_QUERY_PREFIXES)
+    return is_source_prefixed_query(query, "chebi") and normalized.startswith(CHEBI_BUILDER_QUERY_PREFIXES)
+
+
+def format_chebi_supported_fields(fields: tuple[str, ...]) -> str:
+    """Format supported ChEBI executable fields for an error message."""
+    return ", ".join(fields)
 
 
 def get_chebi_prefixed_query_resource(query: str) -> str | None:
@@ -80,10 +88,14 @@ def split_chebi_condition(fragment: str) -> tuple[str, str]:
 def parse_chebi_number(value: str, field: str) -> float:
     """Parse a numeric ChEBI value."""
     try:
-        return float(value)
+        parsed = float(value)
     except ValueError as exc:
         msg = f"ChEBI {field} values must be numeric."
         raise ValueError(msg) from exc
+    if not math.isfinite(parsed):
+        msg = f"ChEBI {field} values must be finite numbers."
+        raise ValueError(msg)
+    return parsed
 
 
 def parse_chebi_numeric_range(value: str, field: str) -> tuple[float, float]:
@@ -156,7 +168,8 @@ def parse_chebi_entity_parameters(fragments: list[str]) -> dict[str, object]:
     for fragment in fragments:
         field, value = split_chebi_condition(fragment)
         if field not in ENTITY_FIELDS:
-            msg = f"Unsupported ChEBI entity field '{field}'."
+            supported = format_chebi_supported_fields(ENTITY_FIELD_NAMES)
+            msg = f"Unsupported ChEBI entity field '{field}'. Supported fields are: {supported}."
             raise ValueError(msg)
         normalized_field, normalized_value = normalize_chebi_entity_parameter(field, value)
         parameters[normalized_field] = normalized_value
@@ -169,7 +182,8 @@ def parse_chebi_ontology_parameters(fragments: list[str]) -> dict[str, object]:
     for fragment in fragments:
         field, value = split_chebi_condition(fragment)
         if field not in ONTOLOGY_FIELDS:
-            msg = f"Unsupported ChEBI ontology field '{field}'."
+            supported = format_chebi_supported_fields(ONTOLOGY_FIELD_NAMES)
+            msg = f"Unsupported ChEBI ontology field '{field}'. Supported fields are: {supported}."
             raise ValueError(msg)
         parameters[field] = value
     if "relation" not in parameters or "term" not in parameters:
@@ -185,7 +199,8 @@ def parse_chebi_structure_parameters(fragments: list[str]) -> dict[str, object]:
         raise ValueError(msg)
     field, value = split_chebi_condition(fragments[0])
     if field not in STRUCTURE_FIELDS:
-        msg = f"Unsupported ChEBI structure field '{field}'."
+        supported = format_chebi_supported_fields(STRUCTURE_FIELD_NAMES)
+        msg = f"Unsupported ChEBI structure field '{field}'. Supported fields are: {supported}."
         raise ValueError(msg)
     return {field: value}
 
@@ -200,7 +215,8 @@ def parse_chebi_query_builder_string(query: str) -> dict[str, object]:
     resources = get_chebi_query_builder_resource_catalog()
     resource_key = match.group("resource")
     if resource_key not in resources:
-        msg = f"Unsupported ChEBI query resource '{resource_key}'."
+        supported = ", ".join(resources)
+        msg = f"Unsupported ChEBI resource '{resource_key}'. Supported resources are: {supported}."
         raise ValueError(msg)
 
     fragments = split_chebi_conditions(match.group("body"))
@@ -218,7 +234,8 @@ def parse_chebi_query_builder_string(query: str) -> dict[str, object]:
         parameters = parse_chebi_structure_parameters(fragments)
         query_model = STRUCTURE_SEARCH_MODEL
     else:
-        msg = f"Unsupported ChEBI query resource '{resource_key}'."
+        supported = ", ".join(resources)
+        msg = f"Unsupported ChEBI resource '{resource_key}'. Supported resources are: {supported}."
         raise ValueError(msg)
 
     return {

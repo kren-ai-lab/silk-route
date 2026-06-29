@@ -297,6 +297,9 @@ structure builder prepares SMILES identity, SMILES substructure, and 2-D
 similarity query strings with an integer threshold. PubChem is modeled here as
 a compound resolver and structure-search source, not as a replacement for
 ChEMBL activity, assay, target, or protein-ligand workflows.
+The catalog/GUI field `similarity_2d` accepts a reference CID; the pure builder
+maps it explicitly to `similarity_2d_cid` and adds the selected `threshold` to
+the executable query.
 
 Advanced ChEBI builders are also available for compound datasets. The entity
 builder prepares ChEBI ID, name/text, formula, mass range, charge range,
@@ -304,11 +307,61 @@ database cross-reference, and curation-star query strings. The ontology builder
 prepares relation-plus-term strings, and the structure builder prepares
 connectivity, substructure, or similarity strings. ChEBI is modeled here as a
 chemical entity, ontology, and structure source.
+ChEBI catalog/GUI fields use descriptive names. In particular,
+`ontology_relation` and `ontology_term` map explicitly to the executable
+`relation` and `term` parameters.
 
-PubChem and ChEBI builders currently prepare `query.value` only. They do not
-call external APIs from the GUI, and generated YAML does not contain credentials
-or builder metadata. Live validation and execution support will be added after
-source-specific retrieval behavior is implemented.
+PubChem and ChEBI builders prepare `query.value` strings and pure request plans.
+Generated YAML contains neither credentials nor builder metadata. Source-specific
+workflow execution will be added after retrieval and mapping behavior is defined.
+
+Example PubChem compound descriptor:
+
+```yaml
+schema_version: "workflow-v1"
+dataset:
+  name: pubchem_compound_example
+  modality: compound
+  mode: query_first
+query:
+  value: pubchem.compound:name="glucose"
+```
+
+Example PubChem structure descriptor:
+
+```yaml
+schema_version: "workflow-v1"
+dataset:
+  name: pubchem_structure_example
+  modality: compound
+  mode: query_first
+query:
+  value: pubchem.structure:smiles_substructure="c1ccccc1"
+```
+
+Example ChEBI entity descriptor:
+
+```yaml
+schema_version: "workflow-v1"
+dataset:
+  name: chebi_entity_example
+  modality: compound
+  mode: query_first
+query:
+  value: chebi.entity:name_contains="caffeine"
+```
+
+Example ChEBI ontology descriptor:
+
+```yaml
+schema_version: "workflow-v1"
+dataset:
+  name: chebi_ontology_example
+  modality: compound
+  mode: query_first
+query:
+  value: chebi.ontology:relation=has_role AND term=metabolite
+```
 
 Advanced query builders are filtered by the selected dataset modality and
 interaction type. Protein datasets currently expose the UniProt builder.
@@ -340,9 +393,9 @@ parameter rows. ChEMBL substructure and similarity are special structure-query
 patterns documented as future builder resources and are not implemented in the
 GUI. PubChem and ChEBI use source-specific catalogs and parser semantics rather
 than the ChEMBL filter model. `examples/API_usage_demo.ipynb` was used as local
-usage context for the supported ChEMBL query patterns. Builders produce
-YAML-ready query text only; live validation and API access happen later in the
-workflow run. Generated YAML stores only the final interpreted `query.value`,
+usage context for the supported ChEMBL query patterns. Builders and parsers
+produce YAML-ready query text and local request plans. Source execution remains
+a later phase. Generated YAML stores only the final interpreted `query.value`,
 not builder metadata.
 
 The `Harmonization` section describes expected output columns and related

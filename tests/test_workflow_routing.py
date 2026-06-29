@@ -18,6 +18,12 @@ from bioseq_dl.core.workflow.main_workflow import (
     MainWorkflow,
     build_compound_source_query_structure,
 )
+from bioseq_dl.core.workflow.query_prefixes import (
+    get_query_source_prefix,
+    is_any_source_prefixed_query,
+    is_source_prefixed_query,
+    is_supported_source_prefixed_query,
+)
 
 
 class RoutingProbeWorkflow(MainWorkflow):
@@ -86,6 +92,29 @@ class CompoundNoMappingWorkflow(RoutingProbeWorkflow):
         """Fail if compound workflows call ChEMBL-to-UniProt mapping."""
         msg = "Compound workflows must not map ChEMBL IDs to UniProt."
         raise AssertionError(msg)
+
+
+@pytest.mark.parametrize(
+    ("query", "source"),
+    [
+        ("chembl.target:gene_symbol__iexact=EGFR", "chembl"),
+        ('pubchem.compound:name="glucose"', "pubchem"),
+        ("chebi.ontology:relation=has_role AND term=metabolite", "chebi"),
+    ],
+)
+def test_shared_query_source_prefix_helpers(query: str, source: str) -> None:
+    assert get_query_source_prefix(query) == source
+    assert is_source_prefixed_query(query, source)
+    assert is_any_source_prefixed_query(query, ("chembl", "pubchem", "chebi"))
+    assert is_supported_source_prefixed_query(query)
+
+
+def test_shared_query_source_prefix_helpers_reject_plain_queries() -> None:
+    query = "reviewed:true"
+
+    assert get_query_source_prefix(query) is None
+    assert not is_any_source_prefixed_query(query, ("chembl", "pubchem", "chebi"))
+    assert not is_supported_source_prefixed_query(query)
 
 
 @pytest.mark.parametrize(

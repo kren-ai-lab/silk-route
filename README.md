@@ -207,9 +207,13 @@ use resource filters that are combined with `AND`; ChEMBL activity uses flat
 parameters. PubChem builders generate compound lookup and structure-search
 queries such as CID, name, InChIKey, SMILES substructure, and 2-D similarity
 lookups. ChEBI builders generate entity, ontology, and structure query strings.
+The PubChem catalog field `similarity_2d` accepts a reference CID and compiles
+to the executable `similarity_2d_cid` parameter plus `threshold`. ChEBI catalog
+fields use descriptive names such as `ontology_relation` and `ontology_term`;
+their executable parameters remain `relation` and `term`.
 For ChEMBL, use the `in` filter type for multiple values in one field. These
-builders produce final interpreted `query.value` strings for the descriptor;
-live source validation and API access happen later in workflow execution.
+builders produce final interpreted `query.value` strings and local request
+plans. PubChem and ChEBI source execution belongs to a later phase.
 Advanced query builders are filtered by the selected dataset modality and
 interaction type. Protein datasets expose the UniProt builder. Compound
 datasets expose compatible ChEMBL molecule/activity builders plus PubChem and
@@ -223,6 +227,49 @@ protein-ligand workflows. PubChem and ChEBI builders prepare chemical
 added after source-specific retrieval and mapping behavior is defined.
 Protein-ligand routing rejects PubChem and ChEBI prefixes until that mapping
 strategy is available, so they cannot be interpreted as ChEMBL queries.
+
+#### PubChem and ChEBI descriptor examples
+
+```yaml
+schema_version: "workflow-v1"
+dataset:
+  name: pubchem_compound_example
+  modality: compound
+  mode: query_first
+query:
+  value: pubchem.compound:name="glucose"
+```
+
+```yaml
+schema_version: "workflow-v1"
+dataset:
+  name: pubchem_structure_example
+  modality: compound
+  mode: query_first
+query:
+  value: pubchem.structure:smiles_substructure="c1ccccc1"
+```
+
+```yaml
+schema_version: "workflow-v1"
+dataset:
+  name: chebi_entity_example
+  modality: compound
+  mode: query_first
+query:
+  value: chebi.entity:name_contains="caffeine"
+```
+
+```yaml
+schema_version: "workflow-v1"
+dataset:
+  name: chebi_ontology_example
+  modality: compound
+  mode: query_first
+query:
+  value: chebi.ontology:relation=has_role AND term=metabolite
+```
+
 The visible `Harmonization` controls describe expected output columns and
 reporting-related behavior. Metadata fields are entered as comma-separated
 values and generated as a YAML list. Descriptive harmonization values describe
@@ -291,7 +338,9 @@ Workflows support:
 - `metadata.json` for detailed technical metadata
 - `run_summary.yml` for a compact execution report
 
-The validated compound workflow is ChEMBL activity retrieval with UniProt target mapping. PubChem remains available through its database interface, but it is not part of the validated YAML compound workflow.
+The currently executable compound workflow uses ChEMBL retrieval. PubChem and
+ChEBI builders prepare compound-oriented query descriptors and request plans;
+source-specific workflow execution will be added in a later phase.
 
 #### Modalities
 

@@ -165,13 +165,16 @@ def get_pubchem_query_resource_catalog() -> dict[str, PubChemQueryResourceCatalo
                 make_pubchem_field(
                     key="similarity_2d",
                     label="2-D similarity",
-                    description="2-D similarity search seeded by a PubChem CID and threshold.",
+                    description="2-D similarity search using a reference PubChem CID and threshold.",
                     placeholder="446157",
                     examples=("446157",),
                     supported_modes=("similarity_2d",),
                     native_input_kind="cid",
                     resolver_kind="cid_similarity_2d",
-                    notes="Threshold is an integer percentage from 0 to 100.",
+                    notes=(
+                        "The GUI field maps to the executable similarity_2d_cid parameter. "
+                        "Threshold is an integer percentage from 0 to 100."
+                    ),
                 ),
             ),
         ),

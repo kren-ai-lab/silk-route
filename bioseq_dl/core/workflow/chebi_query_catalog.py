@@ -177,7 +177,7 @@ def get_chebi_query_resource_catalog() -> dict[str, ChEBIQueryResourceCatalogEnt
                 make_chebi_field(
                     key="ontology_relation",
                     label="Ontology relation",
-                    description="Ontology relation type.",
+                    description="Ontology relation mapped to the executable relation parameter.",
                     placeholder="has_role",
                     examples=("has_role", "is_a"),
                     supported_operators=("exact",),
@@ -186,10 +186,10 @@ def get_chebi_query_resource_catalog() -> dict[str, ChEBIQueryResourceCatalogEnt
                 make_chebi_field(
                     key="ontology_term",
                     label="Ontology term",
-                    description="Ontology term paired with a relation.",
+                    description="Ontology term paired with the selected relation and mapped to term.",
                     placeholder="metabolite",
                     examples=("metabolite", "cofactor"),
-                    supported_operators=("exact", "contains"),
+                    supported_operators=("exact",),
                     resolver_kind="ontology_term",
                 ),
             ),

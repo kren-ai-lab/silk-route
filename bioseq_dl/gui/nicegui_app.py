@@ -924,8 +924,8 @@ class WorkflowYamlBuilderApp:
         """Build PubChem-specific advanced builder controls."""
         with ui.column().classes("w-full gap-3"):
             ui.label(
-                "PubChem builders prepare compound lookup and structure-search query text. "
-                "Live PubChem validation happens later when workflow execution support is added."
+                "PubChem builders help prepare compound lookup and structure-search descriptors. "
+                "Workflow execution for PubChem will be added in a later phase."
             ).classes("text-sm text-gray-700")
             self.build_pubchem_builder_row()
             with ui.row().classes("items-center gap-3"):
@@ -979,8 +979,8 @@ class WorkflowYamlBuilderApp:
         """Build ChEBI-specific advanced builder controls."""
         with ui.column().classes("w-full gap-3"):
             ui.label(
-                "ChEBI builders prepare entity, ontology, and structure query text. "
-                "Live ChEBI validation happens later when workflow execution support is added."
+                "ChEBI builders help prepare entity, ontology, and structure descriptors. "
+                "Workflow execution for ChEBI will be added in a later phase."
             ).classes("text-sm text-gray-700")
             self.build_chebi_builder_rows()
             with ui.row().classes("items-center gap-3"):

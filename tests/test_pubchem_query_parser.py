@@ -55,19 +55,28 @@ def test_parse_pubchem_structure_similarity_search() -> None:
     assert parsed["parameters"] == {"similarity_2d_cid": "446157", "threshold": 80}
 
 
-@pytest.mark.parametrize("query", ["pubchem.structure:similarity_2d_cid=446157 AND threshold=101"])
+@pytest.mark.parametrize(
+    "query",
+    [
+        "pubchem.structure:similarity_2d_cid=446157 AND threshold=101",
+        "pubchem.structure:similarity_2d_cid=446157 AND threshold=-1",
+        "pubchem.structure:similarity_2d_cid=446157 AND threshold=80.5",
+    ],
+)
 def test_pubchem_parser_rejects_invalid_thresholds(query: str) -> None:
-    with pytest.raises(ValueError, match="threshold must be an integer from 0 to 100"):
+    with pytest.raises(ValueError, match="threshold must be an integer between 0 and 100"):
         parse_pubchem_query_builder_string(query)
 
 
 def test_pubchem_parser_rejects_unsupported_resources() -> None:
-    with pytest.raises(ValueError, match="Unsupported PubChem query resource"):
+    expected = "Unsupported PubChem resource 'assay'. Supported resources are: compound, structure."
+    with pytest.raises(ValueError, match=expected):
         parse_pubchem_query_builder_string("pubchem.assay:name=glucose")
 
 
 def test_pubchem_parser_rejects_unsupported_fields() -> None:
-    with pytest.raises(ValueError, match="Unsupported PubChem compound field"):
+    expected = "Unsupported PubChem compound field 'sid'. Supported fields are: cid, name, inchikey, inchi."
+    with pytest.raises(ValueError, match=expected):
         parse_pubchem_query_builder_string("pubchem.compound:sid=123")
 
 

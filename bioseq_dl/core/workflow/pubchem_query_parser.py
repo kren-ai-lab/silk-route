@@ -9,6 +9,7 @@ from bioseq_dl.core.workflow.pubchem_query_catalog import (
     STRUCTURE_SEARCH_MODEL,
     get_pubchem_query_builder_resource_catalog,
 )
+from bioseq_dl.core.workflow.query_prefixes import is_source_prefixed_query
 
 PUBCHEM_QUERY_PATTERN = re.compile(r"^pubchem\.(?P<resource>[a-z_]+):(?P<body>.+)$")
 PUBCHEM_BUILDER_QUERY_PREFIXES = ("pubchem.compound:", "pubchem.structure:")
@@ -16,14 +17,23 @@ MIN_QUOTED_VALUE_LENGTH = 2
 MIN_THRESHOLD = 0
 MAX_THRESHOLD = 100
 
-COMPOUND_FIELDS = frozenset({"cid", "name", "inchikey", "inchi"})
-STRUCTURE_FIELDS = frozenset({"smiles_identity", "smiles_substructure", "similarity_2d_cid"})
+COMPOUND_FIELD_NAMES = ("cid", "name", "inchikey", "inchi")
+STRUCTURE_FIELD_NAMES = ("smiles_identity", "smiles_substructure", "similarity_2d_cid")
+COMPOUND_FIELDS = frozenset(COMPOUND_FIELD_NAMES)
+STRUCTURE_FIELDS = frozenset(STRUCTURE_FIELD_NAMES)
 
 
 def is_pubchem_prefixed_query(query: str) -> bool:
     """Return whether the query uses a PubChem builder prefix."""
     normalized = str(query or "").strip().lower()
-    return normalized.startswith(PUBCHEM_BUILDER_QUERY_PREFIXES)
+    return is_source_prefixed_query(query, "pubchem") and normalized.startswith(
+        PUBCHEM_BUILDER_QUERY_PREFIXES
+    )
+
+
+def format_pubchem_supported_fields(fields: tuple[str, ...]) -> str:
+    """Format supported PubChem executable fields for an error message."""
+    return ", ".join(fields)
 
 
 def get_pubchem_prefixed_query_resource(query: str) -> str | None:
@@ -64,11 +74,11 @@ def split_pubchem_condition(fragment: str) -> tuple[str, str]:
 def parse_pubchem_threshold(value: str) -> int:
     """Parse and validate a PubChem 2-D similarity threshold."""
     if not re.fullmatch(r"\d+", value.strip()):
-        msg = "PubChem similarity_2d threshold must be an integer from 0 to 100."
+        msg = "PubChem similarity threshold must be an integer between 0 and 100."
         raise ValueError(msg)
     threshold = int(value)
     if threshold < MIN_THRESHOLD or threshold > MAX_THRESHOLD:
-        msg = "PubChem similarity_2d threshold must be an integer from 0 to 100."
+        msg = "PubChem similarity threshold must be an integer between 0 and 100."
         raise ValueError(msg)
     return threshold
 
@@ -80,9 +90,10 @@ def parse_pubchem_compound_parameters(fragments: list[str]) -> dict[str, str]:
         raise ValueError(msg)
     field, value = split_pubchem_condition(fragments[0])
     if field not in COMPOUND_FIELDS:
-        msg = f"Unsupported PubChem compound field '{field}'."
+        supported = format_pubchem_supported_fields(COMPOUND_FIELD_NAMES)
+        msg = f"Unsupported PubChem compound field '{field}'. Supported fields are: {supported}."
         raise ValueError(msg)
-    if field == "cid" and not re.fullmatch(r"\d+", value):
+    if field == "cid" and (not re.fullmatch(r"\d+", value) or int(value) <= 0):
         msg = "PubChem CID values must be positive integers."
         raise ValueError(msg)
     return {field: value}
@@ -94,7 +105,8 @@ def parse_pubchem_structure_parameters(fragments: list[str]) -> dict[str, object
     for fragment in fragments:
         field, value = split_pubchem_condition(fragment)
         if field not in STRUCTURE_FIELDS and field != "threshold":
-            msg = f"Unsupported PubChem structure field '{field}'."
+            supported = format_pubchem_supported_fields((*STRUCTURE_FIELD_NAMES, "threshold"))
+            msg = f"Unsupported PubChem structure field '{field}'. Supported fields are: {supported}."
             raise ValueError(msg)
         raw_parameters[field] = value
 
@@ -106,7 +118,8 @@ def parse_pubchem_structure_parameters(fragments: list[str]) -> dict[str, object
         if "threshold" not in raw_parameters:
             msg = "PubChem similarity_2d queries require threshold."
             raise ValueError(msg)
-        if not re.fullmatch(r"\d+", raw_parameters["similarity_2d_cid"]):
+        reference_cid = raw_parameters["similarity_2d_cid"]
+        if not re.fullmatch(r"\d+", reference_cid) or int(reference_cid) <= 0:
             msg = "PubChem similarity_2d_cid values must be positive integers."
             raise ValueError(msg)
         return {
@@ -133,7 +146,8 @@ def parse_pubchem_query_builder_string(query: str) -> dict[str, object]:
     resources = get_pubchem_query_builder_resource_catalog()
     resource_key = match.group("resource")
     if resource_key not in resources:
-        msg = f"Unsupported PubChem query resource '{resource_key}'."
+        supported = ", ".join(resources)
+        msg = f"Unsupported PubChem resource '{resource_key}'. Supported resources are: {supported}."
         raise ValueError(msg)
 
     fragments = split_pubchem_conditions(match.group("body"))
@@ -148,7 +162,8 @@ def parse_pubchem_query_builder_string(query: str) -> dict[str, object]:
         parameters = parse_pubchem_structure_parameters(fragments)
         query_model = STRUCTURE_SEARCH_MODEL
     else:
-        msg = f"Unsupported PubChem query resource '{resource_key}'."
+        supported = ", ".join(resources)
+        msg = f"Unsupported PubChem resource '{resource_key}'. Supported resources are: {supported}."
         raise ValueError(msg)
 
     return {

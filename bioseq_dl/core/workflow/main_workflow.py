@@ -27,7 +27,7 @@ from .query_interpreter import (
     build_default_chembl_interpreter,
     build_default_uniprot_interpreter,
 )
-from .query_prefixes import get_query_source_prefix
+from .query_prefixes import get_query_source_prefix, is_any_source_prefixed_query
 
 if TYPE_CHECKING:
     import logging
@@ -61,6 +61,7 @@ COMPOUND_SOURCE_NOT_EXECUTABLE_ERROR = (
     "{source}-prefixed compound queries are recognized, but workflow execution for {source} "
     "is not implemented yet. The GUI can generate query.value strings for later execution support."
 )
+PLANNED_COMPOUND_QUERY_SOURCES = ("pubchem", "chebi")
 COMPOUND_UNSUPPORTED_CHEMBL_RESOURCE_ERROR = (
     "ChEMBL resource '{resource}' is not valid for compound workflows. "
     "Use chembl.molecule or chembl.activity for compound workflows, or use a "
@@ -271,7 +272,7 @@ def reject_unsupported_protein_source_query(query: str) -> None:
     if is_chembl_prefixed_query(query):
         raise ValueError(PROTEIN_CHEMBL_QUERY_ERROR)
     source = get_query_source_prefix(query)
-    if source in {"pubchem", "chebi"}:
+    if is_any_source_prefixed_query(query, PLANNED_COMPOUND_QUERY_SOURCES):
         msg = PROTEIN_SOURCE_QUERY_ERROR.format(source=source)
         raise ValueError(msg)
 
@@ -281,7 +282,7 @@ def reject_unsupported_ppi_source_query(query: str) -> None:
     if is_chembl_prefixed_query(query):
         raise ValueError(PPI_CHEMBL_QUERY_ERROR)
     source = get_query_source_prefix(query)
-    if source in {"pubchem", "chebi"}:
+    if is_any_source_prefixed_query(query, PLANNED_COMPOUND_QUERY_SOURCES):
         msg = PPI_SOURCE_QUERY_ERROR.format(source=source)
         raise ValueError(msg)
 
@@ -289,7 +290,7 @@ def reject_unsupported_ppi_source_query(query: str) -> None:
 def reject_unsupported_pli_source_query(query: str) -> None:
     """Reject unsupported chemical-source prefixes before ChEMBL routing."""
     source = get_query_source_prefix(query)
-    if source in {"pubchem", "chebi"}:
+    if is_any_source_prefixed_query(query, PLANNED_COMPOUND_QUERY_SOURCES):
         msg = PLI_SOURCE_QUERY_ERROR.format(source=source)
         raise ValueError(msg)
 
@@ -297,7 +298,7 @@ def reject_unsupported_pli_source_query(query: str) -> None:
 def reject_non_executable_compound_source_query(query: str) -> None:
     """Reject recognized compound query prefixes that do not have workflow execution yet."""
     source = get_query_source_prefix(query)
-    if source in {"pubchem", "chebi"}:
+    if is_any_source_prefixed_query(query, PLANNED_COMPOUND_QUERY_SOURCES):
         build_compound_source_query_structure(query)
         msg = COMPOUND_SOURCE_NOT_EXECUTABLE_ERROR.format(source=source)
         raise ValueError(msg)

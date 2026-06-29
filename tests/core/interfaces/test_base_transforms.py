@@ -16,6 +16,9 @@ import pytest
 from bioseq_dl.core.dbconfig import DBConfig
 from bioseq_dl.core.interfaces.base import BaseAPIInterface
 
+FAKE_CACHE_DIR = str(Path("/fake/cache").resolve())
+FAKE_CONFIG_DIR = "/fake/config"
+
 
 class FakeInterface(BaseAPIInterface):
     API_NAME = "Fake"
@@ -177,8 +180,8 @@ def test_resolve_dirs_default_fallback_is_absolute():
 
 def test_resolve_dirs_uses_db_config():
     cache, config = FakeWithDB._resolve_dirs(None, None)
-    assert cache == "/fake/cache"
-    assert config == "/fake/config"
+    assert cache == FAKE_CACHE_DIR
+    assert config == FAKE_CONFIG_DIR
 
 
 def test_resolve_dirs_explicit_cache_dir_made_absolute():
@@ -186,7 +189,7 @@ def test_resolve_dirs_explicit_cache_dir_made_absolute():
     cache, config = FakeWithDB._resolve_dirs("relative/cache", None)
     assert cache == str(Path.cwd() / "relative" / "cache")
     assert Path(cache).is_absolute()
-    assert config == "/fake/config"
+    assert config == FAKE_CONFIG_DIR
 
 
 def test_resolve_dirs_explicit_config_dir_preserved():
