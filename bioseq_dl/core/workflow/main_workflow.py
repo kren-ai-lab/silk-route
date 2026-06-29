@@ -15,16 +15,19 @@ from bioseq_dl.core.export import normalize_parse_format
 from bioseq_dl.core.utils.crossref_enrichment import normalize_crossref_fields, run_crossref_enrichment
 from bioseq_dl.logging import get_logger
 
+from .chebi_query_parser import is_chebi_prefixed_query, parse_chebi_query_builder_string
 from .chembl_query_parser import (
     get_chembl_prefixed_query_resource,
     is_chembl_prefixed_query,
     parse_chembl_query_builder_string,
 )
+from .pubchem_query_parser import is_pubchem_prefixed_query, parse_pubchem_query_builder_string
 from .query_interpreter import (
     UniProtQueryInterpreter,
     build_default_chembl_interpreter,
     build_default_uniprot_interpreter,
 )
+from .query_prefixes import get_query_source_prefix
 
 if TYPE_CHECKING:
     import logging
@@ -41,6 +44,22 @@ PROTEIN_CHEMBL_QUERY_ERROR = (
 PPI_CHEMBL_QUERY_ERROR = (
     "ChEMBL-prefixed queries are not valid for protein-protein interaction workflows. "
     "Use a protein-ligand interaction workflow for ChEMBL target or activity queries."
+)
+PROTEIN_SOURCE_QUERY_ERROR = (
+    "{source}-prefixed queries are not valid for protein workflows. "
+    "Use a compound workflow for chemical-source query builders."
+)
+PPI_SOURCE_QUERY_ERROR = (
+    "{source}-prefixed queries are not valid for protein-protein interaction workflows. "
+    "Use compound workflows for chemical-source query builders."
+)
+PLI_SOURCE_QUERY_ERROR = (
+    "{source}-prefixed queries are not valid for protein-ligand interaction workflows. "
+    "ChEMBL is the supported source for protein-ligand workflow execution."
+)
+COMPOUND_SOURCE_NOT_EXECUTABLE_ERROR = (
+    "{source}-prefixed compound queries are recognized, but workflow execution for {source} "
+    "is not implemented yet. The GUI can generate query.value strings for later execution support."
 )
 COMPOUND_UNSUPPORTED_CHEMBL_RESOURCE_ERROR = (
     "ChEMBL resource '{resource}' is not valid for compound workflows. "
@@ -234,6 +253,54 @@ def build_chembl_query_structure(query: str) -> dict[str, object] | None:
     if not is_chembl_prefixed_query(query):
         return None
     return parse_chembl_query_builder_string(query)
+
+
+def build_compound_source_query_structure(query: str) -> dict[str, object] | None:
+    """Parse a recognized compound-source query string, if present."""
+    if is_chembl_prefixed_query(query):
+        return build_chembl_query_structure(query)
+    if is_pubchem_prefixed_query(query):
+        return parse_pubchem_query_builder_string(query)
+    if is_chebi_prefixed_query(query):
+        return parse_chebi_query_builder_string(query)
+    return None
+
+
+def reject_unsupported_protein_source_query(query: str) -> None:
+    """Reject non-UniProt source-prefixed queries before UniProt interpretation."""
+    if is_chembl_prefixed_query(query):
+        raise ValueError(PROTEIN_CHEMBL_QUERY_ERROR)
+    source = get_query_source_prefix(query)
+    if source in {"pubchem", "chebi"}:
+        msg = PROTEIN_SOURCE_QUERY_ERROR.format(source=source)
+        raise ValueError(msg)
+
+
+def reject_unsupported_ppi_source_query(query: str) -> None:
+    """Reject non-UniProt source-prefixed queries before protein-protein routing."""
+    if is_chembl_prefixed_query(query):
+        raise ValueError(PPI_CHEMBL_QUERY_ERROR)
+    source = get_query_source_prefix(query)
+    if source in {"pubchem", "chebi"}:
+        msg = PPI_SOURCE_QUERY_ERROR.format(source=source)
+        raise ValueError(msg)
+
+
+def reject_unsupported_pli_source_query(query: str) -> None:
+    """Reject unsupported chemical-source prefixes before ChEMBL routing."""
+    source = get_query_source_prefix(query)
+    if source in {"pubchem", "chebi"}:
+        msg = PLI_SOURCE_QUERY_ERROR.format(source=source)
+        raise ValueError(msg)
+
+
+def reject_non_executable_compound_source_query(query: str) -> None:
+    """Reject recognized compound query prefixes that do not have workflow execution yet."""
+    source = get_query_source_prefix(query)
+    if source in {"pubchem", "chebi"}:
+        build_compound_source_query_structure(query)
+        msg = COMPOUND_SOURCE_NOT_EXECUTABLE_ERROR.format(source=source)
+        raise ValueError(msg)
 
 
 def merge_enrichment_data(existing: list[Any], new: Any) -> list[Any]:
@@ -663,8 +730,8 @@ class MainWorkflow:
 
         Returns (data, metadata).
         """
-        if context is None and query is not None and is_chembl_prefixed_query(query):
-            raise ValueError(PROTEIN_CHEMBL_QUERY_ERROR)
+        if context is None and query is not None:
+            reject_unsupported_protein_source_query(query)
 
         uniprot_interpreter = build_default_uniprot_interpreter()
 
@@ -756,6 +823,7 @@ class MainWorkflow:
 
         """
         validate_compound_chembl_query_resource(query)
+        reject_non_executable_compound_source_query(query)
         chembl_interpreter = build_default_chembl_interpreter()
         export_format = export_format or self.default_export_format
         pages_to_fetch = normalize_chembl_pages_to_fetch(chembl_pages_to_fetch)
@@ -857,8 +925,7 @@ class MainWorkflow:
 
         # Fetch interaction candidates
         if interaction_type == "protein-protein":
-            if is_chembl_prefixed_query(query):
-                raise ValueError(PPI_CHEMBL_QUERY_ERROR)
+            reject_unsupported_ppi_source_query(query)
             # Interpret original interaction query
             context["searches"]["uniprot"]["interpreted_query"] = uniprot_interpreter.interpret(
                 query=args.get("query", "")
@@ -873,6 +940,7 @@ class MainWorkflow:
 
             return context.get("data", {}), context.get("metadata", {})
         if interaction_type == "protein-ligand":
+            reject_unsupported_pli_source_query(query)
             query_structure = build_chembl_query_structure(query)
             resolved_search_type = resolve_chembl_search_type_from_query(query, "target")
             if query_structure is not None and resolved_search_type not in {

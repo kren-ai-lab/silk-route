@@ -10,6 +10,7 @@ from bioseq_dl.core.workflow.chembl_query_catalog import (
     OPERATOR_SUFFIXES,
     get_chembl_query_builder_resource_catalog,
 )
+from bioseq_dl.core.workflow.query_prefixes import is_source_prefixed_query
 
 CHEMBL_QUERY_PATTERN = re.compile(r"^chembl\.(?P<resource>[a-z_]+):(?P<body>.+)$")
 CHEMBL_BUILDER_QUERY_PREFIXES = (
@@ -23,8 +24,9 @@ CHEMBL_BUILDER_QUERY_PREFIXES = (
 
 def is_chembl_prefixed_query(query: str) -> bool:
     """Return whether the query uses a ChEMBL builder prefix."""
-    normalized = str(query or "").strip().lower()
-    return normalized.startswith(CHEMBL_BUILDER_QUERY_PREFIXES)
+    return is_source_prefixed_query(query, "chembl") and str(query or "").strip().lower().startswith(
+        CHEMBL_BUILDER_QUERY_PREFIXES
+    )
 
 
 def get_chembl_prefixed_query_resource(query: str) -> str | None:

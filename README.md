@@ -24,7 +24,7 @@ Currently available CLI/API interfaces include:
 | Pathway Commons | Biological pathways |
 | PDB  | Protein Data Bank |
 | Pride  | Proteomics data repository |
-| PubChem | Chemical molecule database; not part of the validated YAML compound workflow |
+| PubChem | Chemical molecule database; compound lookup and structure-search query generation is being introduced for workflow YAML builders |
 | Reactome | Pathway database |
 | RefSeq  | NCBI Reference Sequence Database |
 | Rhea  | Biochemical reactions database |
@@ -184,7 +184,7 @@ from bioseq_dl.workflow_schema_definition import get_workflow_v1_schema_definiti
 The optional NiceGUI interface prepares `workflow-v1` YAML descriptors; workflow
 execution still happens through the CLI. The Query section supports Manual
 query mode, which writes `query.value` directly, and Advanced builder mode,
-which currently offers UniProt and ChEMBL builders and stores only the final
+which currently offers UniProt, ChEMBL, PubChem, and ChEBI builders and stores only the final
 interpreted string in `query.value`. Friendly query previews and builder rows
 are reserved for future GUI reconstruction rather than saved to YAML.
 Human-friendly GUI labels are translated to exact workflow-v1 schema values.
@@ -204,15 +204,25 @@ workflow runs.
 Query builders are registered per database/resource: UniProt uses connectors
 and match modes, while ChEMBL target, assay, cell line, and molecule builders
 use resource filters that are combined with `AND`; ChEMBL activity uses flat
-parameters. For ChEMBL, use the `in` filter type for multiple values in one
-field. These builders produce final interpreted `query.value` strings for the
-descriptor; live ChEMBL access happens later in the workflow run.
+parameters. PubChem builders generate compound lookup and structure-search
+queries such as CID, name, InChIKey, SMILES substructure, and 2-D similarity
+lookups. ChEBI builders generate entity, ontology, and structure query strings.
+For ChEMBL, use the `in` filter type for multiple values in one field. These
+builders produce final interpreted `query.value` strings for the descriptor;
+live source validation and API access happen later in workflow execution.
 Advanced query builders are filtered by the selected dataset modality and
 interaction type. Protein datasets expose the UniProt builder. Compound
-datasets expose compatible ChEMBL molecule and activity builders.
+datasets expose compatible ChEMBL molecule/activity builders plus PubChem and
+ChEBI chemical-source builders.
 Protein-ligand interaction datasets expose compatible ChEMBL target, assay, and
 activity builders. Protein-protein interaction datasets expose the UniProt
 builder. Manual query mode remains available for every dataset setting.
+ChEMBL remains the primary source for curated activity, assay, target, and
+protein-ligand workflows. PubChem and ChEBI builders prepare chemical
+`query.value` strings now; full workflow execution for those prefixes will be
+added after source-specific retrieval and mapping behavior is defined.
+Protein-ligand routing rejects PubChem and ChEBI prefixes until that mapping
+strategy is available, so they cannot be interpreted as ChEMBL queries.
 The visible `Harmonization` controls describe expected output columns and
 reporting-related behavior. Metadata fields are entered as comma-separated
 values and generated as a YAML list. Descriptive harmonization values describe

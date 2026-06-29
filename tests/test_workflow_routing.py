@@ -9,9 +9,14 @@ import pytest
 
 from bioseq_dl.core.workflow.chembl_query_parser import is_chembl_prefixed_query
 from bioseq_dl.core.workflow.main_workflow import (
+    COMPOUND_SOURCE_NOT_EXECUTABLE_ERROR,
+    PLI_SOURCE_QUERY_ERROR,
     PPI_CHEMBL_QUERY_ERROR,
+    PPI_SOURCE_QUERY_ERROR,
     PROTEIN_CHEMBL_QUERY_ERROR,
+    PROTEIN_SOURCE_QUERY_ERROR,
     MainWorkflow,
+    build_compound_source_query_structure,
 )
 
 
@@ -58,9 +63,7 @@ class RoutingProbeWorkflow(MainWorkflow):
     ) -> None:
         """Record ChEMBL-to-UniProt mapping calls."""
         self.calls.append(f"chembl_to_uniprot:{keep_original_query}")
-        context.setdefault("searches", {}).setdefault("uniprot", {})["query"] = (
-            "xref:chembl-CHEMBL279"
-        )
+        context.setdefault("searches", {}).setdefault("uniprot", {})["query"] = "xref:chembl-CHEMBL279"
 
     def _step_fetch_additional_ppi_interaction_sources(
         self,
@@ -96,6 +99,26 @@ def test_protein_rejects_chembl_prefixed_queries_before_uniprot(query: str) -> N
     workflow = RoutingProbeWorkflow()
 
     with pytest.raises(ValueError, match=PROTEIN_CHEMBL_QUERY_ERROR):
+        workflow.run(modality="protein", mode="query_first", query=query)
+
+    assert "fetch_uniprot" not in workflow.calls
+
+
+@pytest.mark.parametrize(
+    ("query", "source"),
+    [
+        ('pubchem.compound:name="glucose"', "pubchem"),
+        ('chebi.entity:name_contains="caffeine"', "chebi"),
+    ],
+)
+def test_protein_rejects_chemical_source_prefixed_queries_before_uniprot(
+    query: str,
+    source: str,
+) -> None:
+    workflow = RoutingProbeWorkflow()
+    expected_error = PROTEIN_SOURCE_QUERY_ERROR.format(source=source)
+
+    with pytest.raises(ValueError, match=expected_error):
         workflow.run(modality="protein", mode="query_first", query=query)
 
     assert "fetch_uniprot" not in workflow.calls
@@ -147,6 +170,33 @@ def test_compound_target_query_is_rejected_without_uniprot() -> None:
     assert "fetch_uniprot" not in workflow.calls
 
 
+@pytest.mark.parametrize(
+    ("query", "source", "expected_resource"),
+    [
+        ('pubchem.compound:name="glucose"', "pubchem", "compound"),
+        ('chebi.entity:name_contains="caffeine"', "chebi", "entity"),
+    ],
+)
+def test_compound_pubchem_and_chebi_prefixes_are_recognized_but_not_executable(
+    query: str,
+    source: str,
+    expected_resource: str,
+) -> None:
+    workflow = CompoundNoMappingWorkflow()
+    expected_error = COMPOUND_SOURCE_NOT_EXECUTABLE_ERROR.format(source=source)
+
+    plan = build_compound_source_query_structure(query)
+    assert plan is not None
+    assert plan["source"] == source
+    assert plan["resource"] == expected_resource
+
+    with pytest.raises(ValueError, match=expected_error):
+        workflow.run(modality="compound", mode="query_first", query=query)
+
+    assert "fetch_uniprot" not in workflow.calls
+    assert not any(call.startswith("fetch_chembl") for call in workflow.calls)
+
+
 def test_compound_workflow_does_not_produce_uniprot_results_by_default() -> None:
     workflow = CompoundNoMappingWorkflow()
 
@@ -175,6 +225,32 @@ def test_protein_ligand_interaction_can_use_chembl_to_uniprot_mapping() -> None:
     assert "uniprot" in data
 
 
+@pytest.mark.parametrize(
+    ("query", "source"),
+    [
+        ('pubchem.compound:name="glucose"', "pubchem"),
+        ("chebi.ontology:relation=has_role AND term=metabolite", "chebi"),
+    ],
+)
+def test_protein_ligand_interaction_rejects_unsupported_chemical_source_query(
+    query: str,
+    source: str,
+) -> None:
+    workflow = RoutingProbeWorkflow()
+    expected_error = PLI_SOURCE_QUERY_ERROR.format(source=source)
+
+    with pytest.raises(ValueError, match=expected_error):
+        workflow.run(
+            modality="interaction",
+            mode="query_first",
+            interaction_type="protein-ligand",
+            query=query,
+        )
+
+    assert not any(call.startswith("fetch_chembl") for call in workflow.calls)
+    assert "fetch_uniprot" not in workflow.calls
+
+
 def test_protein_protein_interaction_preserves_uniprot_oriented_behavior() -> None:
     workflow = RoutingProbeWorkflow()
 
@@ -200,6 +276,31 @@ def test_protein_protein_interaction_rejects_chembl_prefixed_query() -> None:
             mode="query_first",
             interaction_type="protein-protein",
             query="chembl.activity:target_chembl_id=CHEMBL279",
+        )
+
+    assert "fetch_uniprot" not in workflow.calls
+
+
+@pytest.mark.parametrize(
+    ("query", "source"),
+    [
+        ('pubchem.structure:smiles_substructure="c1ccccc1"', "pubchem"),
+        ("chebi.ontology:relation=has_role AND term=metabolite", "chebi"),
+    ],
+)
+def test_protein_protein_interaction_rejects_chemical_source_prefixed_query(
+    query: str,
+    source: str,
+) -> None:
+    workflow = RoutingProbeWorkflow()
+    expected_error = PPI_SOURCE_QUERY_ERROR.format(source=source)
+
+    with pytest.raises(ValueError, match=expected_error):
+        workflow.run(
+            modality="interaction",
+            mode="query_first",
+            interaction_type="protein-protein",
+            query=query,
         )
 
     assert "fetch_uniprot" not in workflow.calls

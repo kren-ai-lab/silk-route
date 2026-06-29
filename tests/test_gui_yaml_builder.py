@@ -364,8 +364,7 @@ def test_advanced_uniprot_builder_mode_generates_interpreted_query_value() -> No
     )
 
     assert descriptor["query"]["value"] == (
-        "organism_id:9606 AND "
-        "(cc_bpcp_temp_dependence:20-30 OR cc_bpcp_temp_dependence:50-60)"
+        "organism_id:9606 AND (cc_bpcp_temp_dependence:20-30 OR cc_bpcp_temp_dependence:50-60)"
     )
 
 
@@ -556,6 +555,84 @@ def test_selected_chembl_builder_determines_resource() -> None:
     assert descriptor["query"]["value"] == "chembl.activity:standard_type=IC50"
 
 
+@pytest.mark.parametrize(
+    ("builder_key", "row", "expected_query_value"),
+    [
+        (
+            "pubchem_compound",
+            {"field": "name", "value": "glucose", "threshold": ""},
+            'pubchem.compound:name="glucose"',
+        ),
+        (
+            "pubchem_structure",
+            {"field": "smiles_substructure", "value": "c1ccccc1", "threshold": ""},
+            'pubchem.structure:smiles_substructure="c1ccccc1"',
+        ),
+    ],
+)
+def test_advanced_pubchem_builder_modes_generate_interpreted_query_value(
+    builder_key: str,
+    row: dict[str, object],
+    expected_query_value: str,
+) -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.input_mode": "Advanced builder",
+            "query.builder.key": builder_key,
+            "query.pubchem_builder.row": row,
+        }
+    )
+
+    assert descriptor["query"]["value"] == expected_query_value
+    assert "builder" not in descriptor["query"]
+
+
+@pytest.mark.parametrize(
+    ("builder_key", "rows", "expected_query_value"),
+    [
+        (
+            "chebi_entity",
+            [{"field": "name", "operator": "contains", "value": "caffeine"}],
+            'chebi.entity:name_contains="caffeine"',
+        ),
+        (
+            "chebi_ontology",
+            [
+                {
+                    "field": "ontology_relation",
+                    "operator": "exact",
+                    "value": "has_role",
+                    "secondary_value": "metabolite",
+                }
+            ],
+            "chebi.ontology:relation=has_role AND term=metabolite",
+        ),
+        (
+            "chebi_structure",
+            [{"field": "substructure", "operator": "substructure", "value": "c1ccccc1"}],
+            'chebi.structure:substructure="c1ccccc1"',
+        ),
+    ],
+)
+def test_advanced_chebi_builder_modes_generate_interpreted_query_value(
+    builder_key: str,
+    rows: list[dict[str, object]],
+    expected_query_value: str,
+) -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.input_mode": "Advanced builder",
+            "query.builder.key": builder_key,
+            "query.chebi_builder.rows": rows,
+        }
+    )
+
+    assert descriptor["query"]["value"] == expected_query_value
+    assert "builder" not in descriptor["query"]
+
+
 def test_future_only_sections_are_not_generated() -> None:
     descriptor = build_workflow_descriptor(minimal_form_values())
 
@@ -603,17 +680,13 @@ def test_no_interaction_label_omits_interaction_type_for_protein_modality() -> N
 
 
 def test_empty_harmonization_id_column_omits_harmonization_section() -> None:
-    descriptor = build_workflow_descriptor(
-        minimal_form_values() | {"harmonization.id_column": ""}
-    )
+    descriptor = build_workflow_descriptor(minimal_form_values() | {"harmonization.id_column": ""})
 
     assert "harmonization" not in descriptor
 
 
 def test_non_empty_harmonization_id_column_includes_harmonization_section() -> None:
-    descriptor = build_workflow_descriptor(
-        minimal_form_values() | {"harmonization.id_column": "_id"}
-    )
+    descriptor = build_workflow_descriptor(minimal_form_values() | {"harmonization.id_column": "_id"})
 
     assert descriptor["harmonization"] == {"id_column": "_id"}
 
@@ -639,11 +712,7 @@ def test_non_empty_harmonization_text_fields_are_included(
 def test_harmonization_metadata_fields_are_parsed_as_csv() -> None:
     descriptor = build_workflow_descriptor(
         minimal_form_values()
-        | {
-            "harmonization.metadata_fields": (
-                "accession, protein_name, , organism_name, sequence"
-            )
-        }
+        | {"harmonization.metadata_fields": ("accession, protein_name, , organism_name, sequence")}
     )
 
     assert descriptor["harmonization"]["metadata_fields"] == [
@@ -655,9 +724,7 @@ def test_harmonization_metadata_fields_are_parsed_as_csv() -> None:
 
 
 def test_empty_harmonization_metadata_fields_are_omitted() -> None:
-    descriptor = build_workflow_descriptor(
-        minimal_form_values() | {"harmonization.metadata_fields": " , , "}
-    )
+    descriptor = build_workflow_descriptor(minimal_form_values() | {"harmonization.metadata_fields": " , , "})
 
     assert "harmonization" not in descriptor
 
@@ -670,9 +737,7 @@ def test_complete_harmonization_block_validates_as_workflow_v1() -> None:
             "harmonization.label_column": "_label",
             "harmonization.sequence_column": "sequence",
             "harmonization.unique_sequence_strategy": "exact",
-            "harmonization.metadata_fields": (
-                "accession, protein_name, organism_name, sequence"
-            ),
+            "harmonization.metadata_fields": ("accession, protein_name, organism_name, sequence"),
         }
     )
 
@@ -728,9 +793,7 @@ def test_no_interaction_label_is_rejected_for_interaction_modality() -> None:
 
     errors = validate_generated_descriptor(descriptor)
 
-    assert errors == [
-        "dataset.interaction_type is required when dataset.modality is 'interaction'."
-    ]
+    assert errors == ["dataset.interaction_type is required when dataset.modality is 'interaction'."]
 
 
 def test_default_output_directory_mode_uses_dataset_name() -> None:
@@ -778,26 +841,20 @@ def test_numeric_execution_integer_floats_are_converted_to_numbers() -> None:
 
 
 def test_optional_uniprot_timeout_empty_string_is_omitted() -> None:
-    descriptor = build_workflow_descriptor(
-        minimal_form_values() | {"execution.uniprot_timeout": "  "}
-    )
+    descriptor = build_workflow_descriptor(minimal_form_values() | {"execution.uniprot_timeout": "  "})
 
     assert "uniprot_timeout" not in descriptor["execution"]
 
 
 def test_optional_uniprot_timeout_string_is_converted_to_number() -> None:
-    descriptor = build_workflow_descriptor(
-        minimal_form_values() | {"execution.uniprot_timeout": " 12.5 "}
-    )
+    descriptor = build_workflow_descriptor(minimal_form_values() | {"execution.uniprot_timeout": " 12.5 "})
 
     assert descriptor["execution"]["uniprot_timeout"] == 12.5
 
 
 def test_invalid_required_integer_string_raises_clear_error() -> None:
     with pytest.raises(ValueError, match=r"execution\.chembl_pages_to_fetch must be an integer"):
-        build_workflow_descriptor(
-            minimal_form_values() | {"execution.chembl_pages_to_fetch": "abc"}
-        )
+        build_workflow_descriptor(minimal_form_values() | {"execution.chembl_pages_to_fetch": "abc"})
 
 
 def test_non_integer_required_float_raises_clear_error() -> None:
@@ -1015,9 +1072,7 @@ def test_loaded_output_dir_selects_custom_output_directory_mode() -> None:
 
 
 def test_missing_output_dir_selects_default_output_directory_mode() -> None:
-    form_values, _warnings = load_workflow_yaml_to_form_values(
-        minimal_workflow_yaml(output_dir=None)
-    )
+    form_values, _warnings = load_workflow_yaml_to_form_values(minimal_workflow_yaml(output_dir=None))
 
     assert form_values["export.output_dir_mode"] == "Use default results folder"
     assert form_values["export.output_dir"] == ""
@@ -1075,12 +1130,7 @@ def test_query_builder_metadata_warns_and_is_not_exposed_as_editable_form_value(
 def test_query_composition_metadata_warns_and_is_not_exposed_as_editable_form_value() -> None:
     yaml_text = minimal_workflow_yaml().replace(
         "  include_isoform: true\n",
-        (
-            "  include_isoform: true\n"
-            "  composition:\n"
-            "    - label: reviewed\n"
-            "      value: reviewed:true\n"
-        ),
+        ("  include_isoform: true\n  composition:\n    - label: reviewed\n      value: reviewed:true\n"),
     )
 
     form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)

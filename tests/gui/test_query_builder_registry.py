@@ -26,6 +26,11 @@ def test_query_builder_registry_contains_uniprot_and_chembl_builders():
         "chembl_cell_line",
         "chembl_molecule",
         "chembl_activity",
+        "pubchem_compound",
+        "pubchem_structure",
+        "chebi_entity",
+        "chebi_ontology",
+        "chebi_structure",
     } <= set(specs)
 
 
@@ -40,6 +45,8 @@ def test_query_builder_registry_labels_and_builder_types():
     assert specs["chembl_target"].database == "chembl"
     assert specs["chembl_target"].builder_type == "resource_filter"
     assert specs["chembl_activity"].builder_type == "flat_parameters"
+    assert specs["pubchem_compound"].database == "pubchem"
+    assert specs["chebi_entity"].database == "chebi"
 
 
 def test_query_builder_registry_rejects_unknown_builder_key():
@@ -66,6 +73,11 @@ def test_compound_modality_returns_compound_chembl_builders():
     assert choices == {
         "chembl_molecule": "ChEMBL molecule filter builder",
         "chembl_activity": "ChEMBL activity parameter builder",
+        "pubchem_compound": "PubChem compound lookup builder",
+        "pubchem_structure": "PubChem structure search builder",
+        "chebi_entity": "ChEBI entity search builder",
+        "chebi_ontology": "ChEBI ontology search builder",
+        "chebi_structure": "ChEBI structure search builder",
     }
 
 
@@ -83,6 +95,21 @@ def test_protein_protein_interaction_returns_uniprot_builder():
     choices = get_compatible_query_builder_choices("interaction", "protein-protein")
 
     assert choices == {"uniprot": "UniProt query builder"}
+
+
+def test_pubchem_and_chebi_builders_are_compound_only():
+    protein_choices = get_compatible_query_builder_choices("protein", None)
+    pli_choices = get_compatible_query_builder_choices("interaction", "protein-ligand")
+
+    for builder_key in (
+        "pubchem_compound",
+        "pubchem_structure",
+        "chebi_entity",
+        "chebi_ontology",
+        "chebi_structure",
+    ):
+        assert builder_key not in protein_choices
+        assert builder_key not in pli_choices
 
 
 def test_interaction_without_interaction_type_returns_no_builders():

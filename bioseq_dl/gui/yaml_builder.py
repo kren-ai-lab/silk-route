@@ -21,12 +21,9 @@ DEFAULT_TOTAL_RETRIES = 3
 DEFAULT_CHEMBL_PAGES_TO_FETCH = -1
 DEFAULT_WORKFLOW_FILENAME = "workflow-v1.yml"
 DEFAULT_OUTPUT_DIRECTORY_NAME_ERROR = (
-    "Dataset name is required because the default output folder is generated as "
-    "results/{dataset.name}."
+    "Dataset name is required because the default output folder is generated as results/{dataset.name}."
 )
-LEGACY_OUTPUT_DIRECTORY_NAME_ERROR = (
-    "dataset.name is required when export.output_dir is not provided."
-)
+LEGACY_OUTPUT_DIRECTORY_NAME_ERROR = "dataset.name is required when export.output_dir is not provided."
 LOADED_QUERY_VALUE_WARNING = (
     "Loaded the saved query text in Manual query mode. Builder rows can be restored "
     "in a later version when GUI builder metadata is saved."
@@ -121,6 +118,15 @@ CHEMBL_BUILDER_RESOURCE_BY_KEY = {
     "chembl_molecule": "molecule",
     "chembl_activity": "activity",
 }
+PUBCHEM_BUILDER_RESOURCE_BY_KEY = {
+    "pubchem_compound": "compound",
+    "pubchem_structure": "structure",
+}
+CHEBI_BUILDER_RESOURCE_BY_KEY = {
+    "chebi_entity": "entity",
+    "chebi_ontology": "ontology",
+    "chebi_structure": "structure",
+}
 
 DEFAULT_FORM_VALUES: dict[str, object] = {
     "dataset.name": "",
@@ -144,6 +150,19 @@ DEFAULT_FORM_VALUES: dict[str, object] = {
             "field": "gene_symbol",
             "filter_type": "icontains",
             "value": "",
+        }
+    ],
+    "query.pubchem_builder.row": {
+        "field": "name",
+        "value": "",
+        "threshold": "",
+    },
+    "query.chebi_builder.rows": [
+        {
+            "field": "name",
+            "operator": "contains",
+            "value": "",
+            "secondary_value": "",
         }
     ],
     "query.fields": "",
@@ -180,6 +199,8 @@ FORM_VALUE_ALIASES: dict[str, tuple[str, ...]] = {
     "query.value": ("query_value",),
     "query.uniprot_builder.rows": ("query_uniprot_builder_rows",),
     "query.chembl_builder.rows": ("query_chembl_builder_rows",),
+    "query.pubchem_builder.row": ("query_pubchem_builder_row",),
+    "query.chebi_builder.rows": ("query_chebi_builder_rows",),
     "query.fields": ("query_fields",),
     "query.crossref_fields": ("query_crossref_fields",),
     "query.include_isoform": ("query_include_isoform",),
@@ -377,9 +398,7 @@ def descriptor_to_form_values(descriptor: Mapping[str, object]) -> dict[str, obj
 
     for key in ("id_column", "label_column", "sequence_column", "unique_sequence_strategy"):
         form_values[f"harmonization.{key}"] = str(harmonization.get(key) or "")
-    form_values["harmonization.metadata_fields"] = csv_text_from_value(
-        harmonization.get("metadata_fields")
-    )
+    form_values["harmonization.metadata_fields"] = csv_text_from_value(harmonization.get("metadata_fields"))
 
     output_dir = str(export.get("output_dir") or "").strip()
     if output_dir:
@@ -413,7 +432,6 @@ def load_workflow_yaml_to_form_values(yaml_text: str) -> tuple[dict[str, object]
     form_values = descriptor_to_form_values(validated_descriptor)
     warnings = collect_load_warnings(validated_descriptor)
     return form_values, warnings
-
 
 
 def normalize_query_input_mode(value: object) -> str:
@@ -473,9 +491,7 @@ def build_uniprot_builder_rows_from_form(form_values: Mapping[str, object]) -> l
             connector = None
         field = get_builder_row_value(raw_row, "field", "")
         values = get_builder_row_value(raw_row, "values", "")
-        match_mode = normalize_uniprot_builder_match_mode(
-            get_builder_row_value(raw_row, "match_mode", "any")
-        )
+        match_mode = normalize_uniprot_builder_match_mode(get_builder_row_value(raw_row, "match_mode", "any"))
         rows.append(
             UniProtQueryBuilderRow(
                 connector=cast("str | None", connector),
@@ -513,6 +529,55 @@ def build_chembl_builder_rows_from_form(form_values: Mapping[str, object]) -> li
     ]
 
 
+def build_pubchem_builder_row_from_form(form_values: Mapping[str, object]) -> object:
+    """Build a pure PubChem query builder row from GUI form values."""
+    from bioseq_dl.gui.query_builders.pubchem import PubChemQueryBuilderRow  # noqa: PLC0415
+
+    builder_key = normalize_query_builder_key(get_form_value(form_values, "query.builder.key"))
+    if builder_key not in PUBCHEM_BUILDER_RESOURCE_BY_KEY:
+        msg = f"Query builder '{builder_key}' is not a PubChem builder."
+        raise ValueError(msg)
+
+    raw_row = get_form_value(form_values, "query.pubchem_builder.row")
+    if not isinstance(raw_row, Mapping):
+        msg = "Advanced PubChem builder row must be a mapping."
+        raise TypeError(msg)
+
+    return PubChemQueryBuilderRow(
+        resource=PUBCHEM_BUILDER_RESOURCE_BY_KEY[builder_key],
+        field=str(get_builder_row_value(raw_row, "field", "")),
+        value=str(get_builder_row_value(raw_row, "value", "")),
+        threshold=get_builder_row_value(raw_row, "threshold", None),
+    )
+
+
+def build_chebi_builder_rows_from_form(form_values: Mapping[str, object]) -> list[object]:
+    """Build pure ChEBI query builder rows from GUI form values."""
+    from bioseq_dl.gui.query_builders.chebi import ChEBIQueryBuilderRow  # noqa: PLC0415
+
+    builder_key = normalize_query_builder_key(get_form_value(form_values, "query.builder.key"))
+    if builder_key not in CHEBI_BUILDER_RESOURCE_BY_KEY:
+        msg = f"Query builder '{builder_key}' is not a ChEBI builder."
+        raise ValueError(msg)
+
+    raw_rows = get_form_value(form_values, "query.chebi_builder.rows")
+    if not isinstance(raw_rows, list):
+        msg = "Advanced ChEBI builder rows must be a list."
+        raise TypeError(msg)
+
+    resource = CHEBI_BUILDER_RESOURCE_BY_KEY[builder_key]
+    return [
+        ChEBIQueryBuilderRow(
+            resource=resource,
+            field=str(get_builder_row_value(raw_row, "field", "")),
+            operator=str(get_builder_row_value(raw_row, "operator", "")),
+            value=str(get_builder_row_value(raw_row, "value", "")),
+            secondary_value=str(get_builder_row_value(raw_row, "secondary_value", "")),
+        )
+        for raw_row in raw_rows
+    ]
+
+
 def resolve_query_value_from_form(form_values: Mapping[str, object]) -> str:
     """Resolve the executable query.value from manual or advanced query form values."""
     mode = normalize_query_input_mode(get_form_value(form_values, "query.input_mode"))
@@ -537,6 +602,21 @@ def resolve_query_value_from_form(form_values: Mapping[str, object]) -> str:
             msg = "Advanced ChEMBL builder requires at least one condition."
             raise ValueError(msg)
         return build_chembl_interpreted_query(rows)
+
+    if builder_key in PUBCHEM_BUILDER_RESOURCE_BY_KEY:
+        from bioseq_dl.gui.query_builders.pubchem import build_pubchem_interpreted_query  # noqa: PLC0415
+
+        row = build_pubchem_builder_row_from_form(form_values)
+        return build_pubchem_interpreted_query(row)
+
+    if builder_key in CHEBI_BUILDER_RESOURCE_BY_KEY:
+        from bioseq_dl.gui.query_builders.chebi import build_chebi_interpreted_query  # noqa: PLC0415
+
+        rows = build_chebi_builder_rows_from_form(form_values)
+        if not rows:
+            msg = "Advanced ChEBI builder requires at least one condition."
+            raise ValueError(msg)
+        return build_chebi_interpreted_query(rows)
 
     msg = f"Unsupported query builder '{builder_key}'."
     raise ValueError(msg)
@@ -788,9 +868,7 @@ def build_harmonization_section(form_values: Mapping[str, object]) -> dict[str, 
             form_values,
             "harmonization.unique_sequence_strategy",
         ),
-        "metadata_fields": parse_csv_list(
-            get_form_value(form_values, "harmonization.metadata_fields")
-        ),
+        "metadata_fields": parse_csv_list(get_form_value(form_values, "harmonization.metadata_fields")),
     }
     return cast("dict[str, object]", remove_empty_values(harmonization))
 
