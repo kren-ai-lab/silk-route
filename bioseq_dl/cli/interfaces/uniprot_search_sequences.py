@@ -18,6 +18,7 @@ from bioseq_dl.core.utils.blast_search import (
     parse_blast_results,
     run_blast,
 )
+from bioseq_dl.core.utils.frames import records_to_frame
 from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.cli.uniprot_search_sequences")
@@ -88,7 +89,7 @@ def run(
     sequences_df = pl.DataFrame({seq_column: sequences}).with_row_index("id")
     sequences_df = sequences_df.with_columns(pl.col("id").cast(pl.Int64))
 
-    df_blast = pl.DataFrame(results, strict=False, infer_schema_length=None)
+    df_blast = records_to_frame(results)
 
     df_blast = df_blast.rename({"query": "id", "subject": "subject_id"})
     df_blast = df_blast.with_columns(pl.col("id").cast(pl.Int64))

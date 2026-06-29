@@ -14,6 +14,7 @@ from bioseq_dl import ChEMBLInterface, UniprotInterface
 from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
 from bioseq_dl.core.export import normalize_parse_format
 from bioseq_dl.core.utils.crossref_enrichment import normalize_crossref_fields, run_crossref_enrichment
+from bioseq_dl.core.utils.frames import records_to_frame
 from bioseq_dl.logging import get_logger
 
 from .query_interpreter import (
@@ -240,12 +241,12 @@ def filter_chembl_activity_result(result: Any, activity_filter: dict | None) -> 
         return filter_chembl_activity_dataframe(result, activity_filter)
 
     if isinstance(result, list):
-        df = pl.DataFrame(result, strict=False, infer_schema_length=None)
+        df = records_to_frame(result)
         filtered, metadata = filter_chembl_activity_dataframe(df, activity_filter)
         return filtered.to_dicts(), metadata
 
     if isinstance(result, dict):
-        df = pl.DataFrame([result], strict=False, infer_schema_length=None)
+        df = records_to_frame(result)
         filtered, metadata = filter_chembl_activity_dataframe(df, activity_filter)
         if filtered.is_empty():
             return {}, metadata

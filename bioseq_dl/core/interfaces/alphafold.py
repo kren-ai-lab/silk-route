@@ -9,6 +9,7 @@ import polars as pl
 
 from bioseq_dl.constants.databases import ALPHAFOLD
 from bioseq_dl.core.export import export_dataframe
+from bioseq_dl.core.utils.frames import records_to_frame
 from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
@@ -236,7 +237,7 @@ class AlphafoldInterface(BaseAPIInterface):
                 json.dump(data, f, indent=4)
             return str(Path(self.output_dir) / f"{filename}.{extension}")
 
-        df = pl.DataFrame(data, strict=False, infer_schema_length=None)
+        df = records_to_frame(data)
         output_path = str(Path(self.output_dir) / f"{filename}.{extension}")
         export_dataframe(df, output_path, output_format=extension)
         return output_path

@@ -22,7 +22,10 @@ def _frame_per_column(records: list[dict]) -> pl.DataFrame:
         try:
             series.append(pl.Series(key, values, strict=False))
         except (TypeError, pl.exceptions.PolarsError):
-            encoded = [None if value is None else json.dumps(value, default=str) for value in values]
+            encoded = [
+                None if value is None else json.dumps(value, ensure_ascii=False, default=str)
+                for value in values
+            ]
             series.append(pl.Series(key, encoded, dtype=pl.String))
     return pl.DataFrame(series)
 

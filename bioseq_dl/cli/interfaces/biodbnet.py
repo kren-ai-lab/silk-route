@@ -7,6 +7,7 @@ from bioseq_dl import BioDBNetInterface
 from bioseq_dl.cli._shared import format_option, output_option, save_or_print
 from bioseq_dl.constants.biodbnet import inputs as biodbnet_inputs
 from bioseq_dl.constants.biodbnet import outputs as biodbnet_outputs
+from bioseq_dl.core.utils.frames import drop_all_null_columns
 
 app = typer.Typer(help="Fetch data from BioDBNet database.")
 
@@ -39,7 +40,7 @@ def run_db2db(
         format="dataframe",
     )
     if isinstance(df, pl.DataFrame):
-        df = df.select([c for c in df.columns if df[c].null_count() < df.height])
+        df = drop_all_null_columns(df)
 
     save_or_print(df, output, output_format=output_format)
 
@@ -65,6 +66,6 @@ def run_pathways(
         format="dataframe",
     )
     if isinstance(df, pl.DataFrame):
-        df = df.select([c for c in df.columns if df[c].null_count() < df.height])
+        df = drop_all_null_columns(df)
 
     save_or_print(df, output, output_format=output_format)

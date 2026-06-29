@@ -5,6 +5,8 @@ from typing import Any
 
 import polars as pl
 
+from bioseq_dl.core.utils.frames import records_to_frame
+
 
 def dict_to_element(data: Any, parent: ET.Element, *, list_item_tag: str = "item") -> None:
     """Convert a dict, list, or scalar value to XML under ``parent``.
@@ -138,4 +140,4 @@ def elementtree_to_dataframe(
 
         rows.append(row)
 
-    return pl.DataFrame(rows, strict=False, infer_schema_length=None)
+    return records_to_frame(rows)
