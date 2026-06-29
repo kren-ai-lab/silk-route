@@ -11,9 +11,10 @@ import random
 import re
 import time
 from abc import ABC
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
+from http import HTTPStatus
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
@@ -1244,6 +1245,63 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         self._apply_default_option(kwargs)
         response = self._do_request(query, method=method, **kwargs)
         return self._unwrap_response(response.json(), method=method, **kwargs)
+
+    def _fetch_paginated(
+        self,
+        first_url: str,
+        *,
+        next_link: Callable[[Any], str | None],
+        extract_records: Callable[[Any], list],
+        pages_to_fetch: int = 1,
+    ) -> list:
+        """Follow JSON-body pagination from ``first_url``, accumulating records.
+
+        Shared by interfaces whose list endpoints page via a ``next`` URL embedded
+        in the JSON body. ``next_link`` returns the next page's URL from a parsed
+        response (or None to stop); ``extract_records`` pulls the row list out of
+        one parsed page. Each request is rate-limited via ``_delay``; a 204, a
+        missing next link, or a request error ends the loop.
+
+        Args:
+            first_url (str): URL of the first page.
+            next_link (Callable[[Any], str | None]): Maps a parsed page to the next
+                URL, or None when exhausted.
+            extract_records (Callable[[Any], list]): Maps a parsed page to its records.
+            pages_to_fetch (int): ``-1`` fetches all pages; a positive N caps at N.
+
+        Returns:
+            list: Records across the fetched pages; empty on error or an invalid
+            ``pages_to_fetch``.
+
+        """
+        if pages_to_fetch == 0 or pages_to_fetch < -1:
+            log.error("pages_to_fetch must be -1 or a positive integer. Received: %s", pages_to_fetch)
+            return []
+
+        records: list = []
+        current_url: str | None = first_url
+        remaining = pages_to_fetch
+        while current_url:
+            try:
+                response = self.session.get(current_url, headers={"Content-Type": "application/json"})
+                self._delay()
+                response.raise_for_status()
+                if response.status_code == HTTPStatus.NO_CONTENT:
+                    log.warning("No content returned for URL %s.", current_url)
+                    break
+                data = response.json()
+            except RequestException:
+                log.exception("Error fetching page %s", current_url)
+                break
+
+            records.extend(extract_records(data))
+
+            if remaining > 0:
+                remaining -= 1
+                if remaining == 0:
+                    break
+            current_url = next_link(data)
+        return records
 
     def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> Any:
         """Parse raw API response into the requested format.

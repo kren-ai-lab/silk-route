@@ -52,16 +52,19 @@ class CachingContract(_Contract):
 
 
 class HttpErrorContract(_Contract):
-    """``fetch`` on a 5xx either raises ``RequestError`` or returns ``{}``."""
+    """``fetch`` on a 5xx either raises ``RequestError`` or returns an empty value."""
 
-    ERROR_RETURNS_EMPTY: ClassVar[bool] = False  # True => returns {}, else raises
+    ERROR_RETURNS_EMPTY: ClassVar[bool] = False  # True => returns ERROR_EMPTY_VALUE, else raises
+    ERROR_EMPTY_VALUE: ClassVar[Any] = {}  # the empty value returned on error when ERROR_RETURNS_EMPTY
 
     def test_fetch_handles_http_error(self, interface, niquests_mock):
         kw = {"text": "boom"} if self.BODY_IS_TEXT else {"json": {"error": "boom"}}
         self._route(niquests_mock).respond(status_code=500, **kw)
 
         if self.ERROR_RETURNS_EMPTY:
-            assert interface.fetch(self.QUERY, method=self.METHOD, **self.CALL_KWARGS) == {}
+            assert (
+                interface.fetch(self.QUERY, method=self.METHOD, **self.CALL_KWARGS) == self.ERROR_EMPTY_VALUE
+            )
         else:
             with pytest.raises(RequestError):
                 interface.fetch(self.QUERY, method=self.METHOD, **self.CALL_KWARGS)
