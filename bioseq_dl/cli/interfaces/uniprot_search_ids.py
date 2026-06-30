@@ -48,6 +48,7 @@ def run(
 
     # Filter by identity if present
     if min_identity is not None and "identity" in df.columns:
+        df = df.with_columns(pl.col("identity").cast(pl.Float64, strict=False))
         df = df.filter(pl.col("identity") >= min_identity)
 
     metadata: dict[str, Any] = {}

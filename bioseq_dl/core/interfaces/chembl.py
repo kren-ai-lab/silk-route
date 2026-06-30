@@ -295,7 +295,7 @@ class ChEMBLInterface(BaseAPIInterface):
         except (TypeError, ValueError):
             log.exception("pages_to_fetch must be -1 or a positive integer. Received: %s", pages_to_fetch)
             return []
-        # Bounds (0 / <-1) are enforced by fetch_pages, which every path below routes through.
+        # Bounds (0 / <-1) are enforced by _fetch_paginated, which every path below routes through.
 
         # Validate method and format
         if method not in self.METHODS:

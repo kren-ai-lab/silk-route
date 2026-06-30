@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 from xml.etree.ElementTree import Element, ElementTree, SubElement
@@ -128,13 +129,31 @@ def _xml_cell_text(value: Any) -> str:
     return str(value)
 
 
+def _xml_tag(column: str) -> str:
+    """Coerce a column name into a valid XML element name.
+
+    Characters illegal in XML names are replaced with ``_``; a name that does not
+    start with a letter or ``_`` is prefixed with ``_``. The original column name
+    is preserved in a ``name`` attribute whenever it differs (see ``_write_xml``).
+    """
+    tag = re.sub(r"[^\w.\-]", "_", column, flags=re.UNICODE)
+    if not tag or not (tag[0].isalpha() or tag[0] == "_"):
+        tag = "_" + tag
+    return tag
+
+
 def _write_xml(df: pl.DataFrame, path: Path) -> None:
     """Write the frame as ``<data><row><col>value</col>...</row></data>`` XML."""
     root = Element("data")
     for record in df.to_dicts():
         row = SubElement(root, "row")
         for column, value in record.items():
-            SubElement(row, str(column)).text = _xml_cell_text(value)
+            name = str(column)
+            tag = _xml_tag(name)
+            element = SubElement(row, tag)
+            if tag != name:
+                element.set("name", name)
+            element.text = _xml_cell_text(value)
     ElementTree(root).write(path, encoding="utf-8", xml_declaration=True)
 
 
@@ -166,7 +185,6 @@ def export_dataframe(
     if not isinstance(df, pl.DataFrame):
         msg = "export_dataframe expects a Polars DataFrame."
         raise TypeError(msg)
-    frame = df
 
     path = Path(output_path)
     normalized_format = normalize_export_format(output_format or path.suffix)
@@ -179,14 +197,14 @@ def export_dataframe(
     path.parent.mkdir(parents=True, exist_ok=True)
 
     if normalized_format == "csv":
-        _encode_nested_for_text(frame).write_csv(path)
+        _encode_nested_for_text(df).write_csv(path)
     elif normalized_format == "tsv":
-        _encode_nested_for_text(frame).write_csv(path, separator="\t")
+        _encode_nested_for_text(df).write_csv(path, separator="\t")
     elif normalized_format == "json":
-        frame.write_json(path)
+        df.write_json(path)
     elif normalized_format == "xml":
-        _write_xml(frame, path)
+        _write_xml(df, path)
     elif normalized_format == "parquet":
-        _encode_object_for_parquet(frame).write_parquet(path)
+        _encode_object_for_parquet(df).write_parquet(path)
 
     return path

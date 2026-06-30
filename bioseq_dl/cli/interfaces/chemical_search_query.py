@@ -76,7 +76,7 @@ def pubchem_search_query(query: str, exact_match: bool = False) -> tuple[pl.Data
             log.warning("No CIDs found for the given %ss.", query_type.upper())
             return pl.DataFrame(), metadata
 
-        cids = cids_df["cid"].cast(pl.String).to_list()
+        cids = cids_df["cid"].cast(pl.Int64, strict=False).cast(pl.String).to_list()
         log.info("Found CIDs: %s", cids)
         query_dict = [{"cid": cid} for cid in cids]
         export_df, pug_view_metadata = instance.fetch_batch(

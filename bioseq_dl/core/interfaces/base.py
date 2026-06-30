@@ -358,9 +358,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         return Path(cache_path).exists()
 
     def _load_file(self, path: str) -> dict | pl.DataFrame:
-        """Load a file from the cache path, supporting JSON and CSV formats."""
-        if path.endswith(".csv"):
-            return pl.read_csv(path)
+        """Load a JSON cache file (cache paths are always ``.json``)."""
         with Path(path).open() as f:
             return json.load(f)
 

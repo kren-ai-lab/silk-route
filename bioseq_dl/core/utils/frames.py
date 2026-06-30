@@ -8,43 +8,48 @@ from typing import Any
 import polars as pl
 
 
+def _encode_json_series(key: str, values: list) -> pl.Series:
+    """JSON-encode a column's values into a String series (nulls preserved)."""
+    encoded = [
+        None if value is None else json.dumps(value, ensure_ascii=False, default=str) for value in values
+    ]
+    return pl.Series(key, encoded, dtype=pl.String)
+
+
 def _frame_per_column(records: list[dict]) -> pl.DataFrame:
     """Build a frame column-by-column, JSON-encoding columns Polars can't unify.
 
-    Columns whose values share a single dtype are kept native; a column Polars
-    cannot represent as one dtype (e.g. nested objects with differing sub-schemas
-    across rows) is encoded to JSON strings.
+    Each column is first built strictly (no coercion). If the strict build fails
+    and the column holds nested values (dicts/lists) with differing shapes across
+    rows, it is JSON-encoded losslessly; otherwise it is rebuilt leniently so plain
+    scalar widening (e.g. int/float) still works.
     """
     keys = list(dict.fromkeys(key for record in records for key in record))
     series = []
     for key in keys:
         values = [record.get(key) for record in records]
         try:
-            series.append(pl.Series(key, values, strict=False))
+            series.append(pl.Series(key, values, strict=True))
         except (TypeError, pl.exceptions.PolarsError):
-            encoded = [
-                None if value is None else json.dumps(value, ensure_ascii=False, default=str)
-                for value in values
-            ]
-            series.append(pl.Series(key, encoded, dtype=pl.String))
+            if any(isinstance(value, (dict, list)) for value in values):
+                series.append(_encode_json_series(key, values))
+            else:
+                series.append(pl.Series(key, values, strict=False))
     return pl.DataFrame(series)
 
 
 def records_to_frame(records: Any) -> pl.DataFrame:
     """Build a DataFrame from record dicts, tolerating irregular nested values.
 
-    A single dict is treated as one row. Falls back to per-column construction
-    when a direct construction fails (e.g. nested objects whose sub-schemas differ
-    across rows, which Polars cannot unify into one Struct dtype).
+    A single dict is treated as one row. Columns are built individually so a value
+    whose shape varies across rows (e.g. a scalar in one record and a nested object
+    in another) is JSON-encoded losslessly instead of being silently coerced.
     """
     if isinstance(records, dict):
         records = [records]
     if not records:
         return pl.DataFrame()
-    try:
-        return pl.DataFrame(records, strict=False, infer_schema_length=None)
-    except (TypeError, pl.exceptions.PolarsError):
-        return _frame_per_column(records)
+    return _frame_per_column(records)
 
 
 def drop_all_null_columns(df: pl.DataFrame) -> pl.DataFrame:

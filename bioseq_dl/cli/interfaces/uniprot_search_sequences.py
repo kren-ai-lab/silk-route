@@ -86,10 +86,20 @@ def run(
     results = parse_blast_results("tmp/blast_results.txt")
 
     # Convert to DataFrame
-    sequences_df = pl.DataFrame({seq_column: sequences}).with_row_index("id")
-    sequences_df = sequences_df.with_columns(pl.col("id").cast(pl.Int64))
+    sequences_df = (
+        pl.DataFrame({seq_column: sequences}).with_row_index("id").with_columns(pl.col("id").cast(pl.Int64))
+    )
 
     df_blast = records_to_frame(results)
+
+    if df_blast.is_empty():
+        log.warning("No BLAST hits found; writing empty results.")
+        Path(output).mkdir(parents=True, exist_ok=True)
+        blast_path = export_dataframe(df_blast, Path(output) / "blast_results.csv")
+        log.info("BLAST results saved to %s", blast_path)
+        Path("tmp/blast_results.txt").unlink()
+        shutil.rmtree("tmp")
+        return
 
     df_blast = df_blast.rename({"query": "id", "subject": "subject_id"})
     df_blast = df_blast.with_columns(pl.col("id").cast(pl.Int64))
@@ -97,15 +107,12 @@ def run(
     df_blast = df_blast.drop("id")
     df_blast = df_blast.rename({seq_column: "sequence"})
 
-    # Filter by identity threshold before exporting or enriching
-    if "identity" in df_blast.columns:
-        df_blast = df_blast.with_columns(pl.col("identity").cast(pl.Float64, strict=False))
-        df_blast = df_blast.filter(pl.col("identity") >= min_identity)
-
-    # Filter by coverage threshold before exporting or enriching
-    if "coverage" in df_blast.columns:
-        df_blast = df_blast.with_columns(pl.col("coverage").cast(pl.Float64, strict=False))
-        df_blast = df_blast.filter(pl.col("coverage") >= min_coverage)
+    # Cast then filter numeric thresholds before exporting or enriching
+    for col, threshold in (("identity", min_identity), ("coverage", min_coverage)):
+        if col in df_blast.columns:
+            df_blast = df_blast.with_columns(pl.col(col).cast(pl.Float64, strict=False)).filter(
+                pl.col(col) >= threshold
+            )
 
     # Separate subject into source, accession, entry_name
     parts = pl.col("subject_id").str.split("|")
