@@ -68,6 +68,9 @@ Example descriptors:
 | `examples/workflows/protein_query_first_with_gui_metadata.yml` | Protein query with preserved GUI metadata | Yes | Yes | Yes | Demonstrates `query.builder`; `query.value` remains executable. |
 | `examples/workflows/protein_query_composition_labels.yml` | Labeled protein query-composition workflow | Yes | Yes | Yes | Demonstrates preserved `query.composition`; labels still execute from `query.value`. |
 | `examples/workflows/compound_chembl_ic50_ranges.yml` | Small ChEMBL IC50 range workflow | Yes | Yes | Yes | Uses `execution.chembl_pages_to_fetch: 1`. |
+| `examples/workflows/compound_pubchem_name.yml` | PubChem compound name lookup | Yes | Yes | Yes | Exports normalized PubChem properties. |
+| `examples/workflows/compound_pubchem_substructure.yml` | PubChem SMILES substructure search | Yes | Yes | Yes | Uses a conservative first-pass result cap. |
+| `examples/workflows/compound_chebi_name.yml` | ChEBI entity name search | Yes | Yes | Yes | Exports normalized ChEBI entity records. |
 | `examples/workflows/interaction_ppi_uniprot.yml` | Protein-protein interaction workflow descriptor | Yes | Yes | Yes | Keeps interaction settings limited to currently validated fields. |
 | `examples/workflows/interaction_pli_chembl.yml` | Protein-ligand interaction workflow descriptor | Yes | Yes | Yes | Uses a small ChEMBL query and page cap. |
 | `examples/workflows/invalid/missing_schema_version.yml` | Invalid missing-schema example | No | No | No | Expected to fail because `schema_version` is required. |
@@ -168,9 +171,10 @@ chemical-source query-builder prefixes such as `pubchem.compound:` and
 `chebi.entity:` before UniProt routing. Compound workflows are
 compound/chemical-oriented: compatible `chembl.molecule:` and
 `chembl.activity:` queries run through ChEMBL and keep ChEMBL outputs rather
-than automatically constructing UniProt target queries. PubChem and ChEBI
-prefixes are recognized as chemical-source query plans, but workflow execution
-for those prefixes is not implemented yet. Protein-ligand workflows accept
+than automatically constructing UniProt target queries. PubChem compound and
+structure prefixes execute through PubChem. ChEBI entity ID and name/text
+queries execute through ChEBI; the remaining ChEBI plans fail clearly before
+network access. Protein-ligand workflows accept
 ChEMBL query prefixes and reject PubChem or ChEBI prefixes before ChEMBL
 routing. Protein-ligand
 relationship construction belongs to `dataset.modality: interaction` with
@@ -312,8 +316,25 @@ ChEBI catalog/GUI fields use descriptive names. In particular,
 `relation` and `term` parameters.
 
 PubChem and ChEBI builders prepare `query.value` strings and pure request plans.
-Generated YAML contains neither credentials nor builder metadata. Source-specific
-workflow execution will be added after retrieval and mapping behavior is defined.
+Generated YAML contains neither credentials nor builder metadata. Execution
+remains CLI-driven: PubChem compound and structure plans are executable, while
+ChEBI execution currently covers entity ID and name/text searches.
+
+Executable now:
+
+- `pubchem.compound` with CID, name, InChI, or InChIKey lookup;
+- `pubchem.structure` with SMILES identity, SMILES substructure, or 2-D CID similarity;
+- `chebi.entity` with `chebi_id`, exact name, or `name_contains`.
+
+Prepared but not executable yet:
+
+- ChEBI formula, mass range, charge range, database cross-reference, and star filters;
+- `chebi.ontology` relation/term plans;
+- `chebi.structure` connectivity, substructure, and similarity plans.
+
+CSV runs write `pubchem_results.csv` or `chebi_results.csv`. When enabled,
+`metadata.json` and `run_summary.yml` include the query source, resource, model,
+request plan, record count, and output-file information.
 
 Example PubChem compound descriptor:
 
@@ -325,6 +346,15 @@ dataset:
   mode: query_first
 query:
   value: pubchem.compound:name="glucose"
+execution:
+  max_workers: 2
+  total_retries: 1
+  debug: false
+export:
+  output_dir: results/pubchem_glucose
+  format: csv
+  include_metadata: true
+  include_summary: true
 ```
 
 Example PubChem structure descriptor:
@@ -337,6 +367,15 @@ dataset:
   mode: query_first
 query:
   value: pubchem.structure:smiles_substructure="c1ccccc1"
+execution:
+  max_workers: 2
+  total_retries: 1
+  debug: false
+export:
+  output_dir: results/pubchem_substructure
+  format: csv
+  include_metadata: true
+  include_summary: true
 ```
 
 Example ChEBI entity descriptor:
@@ -349,9 +388,18 @@ dataset:
   mode: query_first
 query:
   value: chebi.entity:name_contains="caffeine"
+execution:
+  max_workers: 2
+  total_retries: 1
+  debug: false
+export:
+  output_dir: results/chebi_caffeine
+  format: csv
+  include_metadata: true
+  include_summary: true
 ```
 
-Example ChEBI ontology descriptor:
+Prepared ChEBI ontology descriptor (not executable yet):
 
 ```yaml
 schema_version: "workflow-v1"
@@ -394,9 +442,10 @@ patterns documented as future builder resources and are not implemented in the
 GUI. PubChem and ChEBI use source-specific catalogs and parser semantics rather
 than the ChEMBL filter model. `examples/API_usage_demo.ipynb` was used as local
 usage context for the supported ChEMBL query patterns. Builders and parsers
-produce YAML-ready query text and local request plans. Source execution remains
-a later phase. Generated YAML stores only the final interpreted `query.value`,
-not builder metadata.
+produce YAML-ready query text and local request plans. The compound workflow
+turns supported plans into source-specific interface calls and normalized
+records. Generated YAML stores only the final interpreted `query.value`, not
+builder metadata, and the GUI never performs API calls.
 
 The `Harmonization` section describes expected output columns and related
 reporting behavior. `ID column`, `Label column`, `Sequence column`, and `Unique
@@ -570,7 +619,8 @@ Credentials must be provided through environment variables or `.env` files, not 
 
 Workflow runs can produce:
 
-- Data result files, such as `uniprot_results.csv`, `uniprot_results.parquet`, or `chembl_results.csv`.
+- Data result files, such as `uniprot_results.csv`, `chembl_results.csv`,
+  `pubchem_results.csv`, or `chebi_results.csv`.
 - Enrichment files, named from enrichment result labels when enrichment data exists.
 - A metadata manifest, default `metadata.json`, when `export.include_metadata` is true.
 - A compact run summary, default `run_summary.yml`, when `export.include_summary` is true.
@@ -585,6 +635,11 @@ The metadata manifest includes:
 - execution status and timing;
 - output file metadata;
 - reporting metrics.
+
+Executable PubChem and ChEBI compound runs also record the query source prefix,
+query resource, query model, request plan, and normalized record count in the
+workflow metadata. The run summary copies the source and request plan into its
+query section.
 
 The run summary includes:
 
@@ -712,7 +767,8 @@ Important current limitations:
 - `resources.integration` is descriptive only.
 - `execution.merge_results` is metadata only.
 - Domain-specific extension sections are descriptive only.
-- The validated compound workflow uses ChEMBL activity retrieval with UniProt target mapping. PubChem and ChEBI query builders generate YAML-ready `query.value` strings, but full workflow execution for those prefixes is pending.
+- Compound workflows execute ChEMBL and PubChem queries plus ChEBI entity ID/name searches.
+  ChEBI advanced filters, ontology searches, and structure searches remain pending.
 - `harmonization.metadata_fields`, `label_column`, and `unique_sequence_strategy` describe expected structure; output filtering, renaming, merging, and deduplication come from supported workflow logic.
 - `query.fields` is sent to UniProt as the fetch `fields` parameter, but parsing currently uses the workflow parser's field map rather than this value as an output-column filter.
 - Output filenames are derived from result labels, not `export.result_files`.

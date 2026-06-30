@@ -1,0 +1,26 @@
+schema_version: "workflow-v1"
+
+dataset:
+  name: pubchem_compound_example
+  description: Small PubChem compound lookup example.
+  modality: compound
+  mode: query_first
+  primary_data_source: pubchem
+
+query:
+  value: 'pubchem.compound:name="glucose"'
+  description: Resolve glucose and export normalized PubChem compound properties.
+
+execution:
+  enrich: false
+  max_workers: 2
+  total_retries: 1
+  debug: false
+
+export:
+  output_dir: "examples/results/pubchem_compound_example"
+  format: csv
+  include_metadata: true
+  include_summary: true
+  manifest_file: "metadata.json"
+  summary_file: "run_summary.yml"

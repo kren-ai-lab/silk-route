@@ -18,6 +18,10 @@ from bioseq_dl.logging import get_logger
 from .base import BaseAPIInterface
 
 log = get_logger("bioseq_dl.interfaces.pubchem")
+WORKFLOW_COMPOUND_PROPERTIES_METHOD = "workflow/compound-properties"
+WORKFLOW_COMPOUND_PROPERTIES = (
+    "CID,MolecularFormula,MolecularWeight,ConnectivitySMILES,SMILES,InChI,InChIKey,IUPACName,Title"
+)
 
 # PubChem has 2 main API access points: PUG-REST and PUG-View.
 # PUG-REST is used for short requests with simple inputs and outputs.
@@ -107,6 +111,19 @@ class PubChemInterface(BaseAPIInterface):
                 "group_queries": [None],
                 "separator": None,
             }
+        },
+        WORKFLOW_COMPOUND_PROPERTIES_METHOD: {
+            "http_method": "GET",
+            "path_param": None,
+            "parameters": {
+                "namespace": (str, None, True),
+                "identifier": (str, None, True),
+                "search_mode": (str, "lookup", False),
+                "threshold": (int, None, False),
+                "max_records": (int, 100, False),
+            },
+            "group_queries": [None],
+            "separator": None,
         },
     }
 
@@ -271,8 +288,74 @@ class PubChemInterface(BaseAPIInterface):
             name_type = validated_params.pop("name_type")
         return http_method, inputs, validated_params, option, name_type
 
+    def _fetch_workflow_compound_properties(self, query: object) -> dict | list:
+        """Fetch normalized property-table inputs for an executable workflow plan."""
+        if not isinstance(query, dict):
+            msg = "PubChem workflow compound property queries must be mappings."
+            raise TypeError(msg)
+        namespace = str(query.get("namespace") or "")
+        identifier = str(query.get("identifier") or "")
+        search_mode = str(query.get("search_mode") or "lookup")
+        if not namespace or not identifier:
+            msg = "PubChem workflow compound property queries require namespace and identifier."
+            raise ValueError(msg)
+
+        search_prefixes = {
+            "identity": "fastidentity",
+            "substructure": "fastsubstructure",
+            "similarity_2d": "fastsimilarity_2d",
+        }
+        prefix = search_prefixes.get(search_mode)
+        if search_mode != "lookup" and prefix is None:
+            supported = ", ".join(("lookup", *search_prefixes))
+            msg = (
+                f"Unsupported PubChem workflow search mode '{search_mode}'. Supported modes are: {supported}."
+            )
+            raise ValueError(msg)
+
+        request_method = "GET"
+        request_data = None
+        encoded_identifier = urllib.parse.quote(identifier, safe="")
+        if search_mode == "lookup":
+            if namespace == "inchi":
+                path = f"inchi/property/{WORKFLOW_COMPOUND_PROPERTIES}/JSON"
+                request_method = "POST"
+                request_data = {"inchi": identifier}
+            else:
+                path = f"{namespace}/{encoded_identifier}/property/{WORKFLOW_COMPOUND_PROPERTIES}/JSON"
+        else:
+            path = f"{prefix}/{namespace}/{encoded_identifier}/property/{WORKFLOW_COMPOUND_PROPERTIES}/JSON"
+
+        request_params: dict[str, object] = {}
+        if search_mode in search_prefixes:
+            request_params["MaxRecords"] = int(query.get("max_records") or 100)
+        if search_mode == "similarity_2d":
+            threshold = query.get("threshold")
+            request_params["Threshold"] = 90 if threshold is None else int(threshold)
+
+        url = f"{PUBCHEM.API_URL}pug/compound/{path}"
+        request = Request(
+            method=request_method,
+            url=url,
+            params=request_params or None,
+            data=request_data,
+        )
+        prepared = self.session.prepare_request(request)
+        log.debug("Prepared PubChem workflow request: %s", prepared.url)
+        try:
+            response = self.session.send(prepared)
+            self._delay()
+            response.raise_for_status()
+            payload = response.json()
+        except RequestException:
+            log.exception("Error fetching PubChem workflow properties for %s", identifier)
+            return {}
+        return self._unwrap_pug_envelope(payload, "pug/compound", "property", query)
+
     def fetch(self, query: str | dict | list, *, method: str = "DEFAULT", **kwargs: Any) -> dict | list | str:
         """Fetch compound or protein data from PubChem."""
+        if method == WORKFLOW_COMPOUND_PROPERTIES_METHOD:
+            return self._fetch_workflow_compound_properties(query)
         resolved = self._resolve_request(query, method, kwargs)
         if resolved is None:
             return {}
@@ -413,6 +496,8 @@ class PubChemInterface(BaseAPIInterface):
         self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
     ) -> tuple[list | dict | pd.DataFrame | bytes | str, dict]:
         """Fetch a batch of PubChem records."""
+        if kwargs.get("method") == WORKFLOW_COMPOUND_PROPERTIES_METHOD:
+            return super().fetch_single(query, parse, *args, **kwargs)
         option = kwargs.pop("option", "default")
         return super().fetch_single(query, parse, *args, option=option, **kwargs)
 

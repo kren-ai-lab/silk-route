@@ -24,7 +24,7 @@ Currently available CLI/API interfaces include:
 | Pathway Commons | Biological pathways |
 | PDB  | Protein Data Bank |
 | Pride  | Proteomics data repository |
-| PubChem | Chemical molecule database; compound lookup and structure-search query generation is being introduced for workflow YAML builders |
+| PubChem | Chemical molecule database with compound lookup and structure-search workflow support |
 | Reactome | Pathway database |
 | RefSeq  | NCBI Reference Sequence Database |
 | Rhea  | Biochemical reactions database |
@@ -213,7 +213,8 @@ fields use descriptive names such as `ontology_relation` and `ontology_term`;
 their executable parameters remain `relation` and `term`.
 For ChEMBL, use the `in` filter type for multiple values in one field. These
 builders produce final interpreted `query.value` strings and local request
-plans. PubChem and ChEBI source execution belongs to a later phase.
+plans. Compound workflows execute PubChem compound and structure plans plus
+ChEBI ID and name searches from the CLI.
 Advanced query builders are filtered by the selected dataset modality and
 interaction type. Protein datasets expose the UniProt builder. Compound
 datasets expose compatible ChEMBL molecule/activity builders plus PubChem and
@@ -222,9 +223,11 @@ Protein-ligand interaction datasets expose compatible ChEMBL target, assay, and
 activity builders. Protein-protein interaction datasets expose the UniProt
 builder. Manual query mode remains available for every dataset setting.
 ChEMBL remains the primary source for curated activity, assay, target, and
-protein-ligand workflows. PubChem and ChEBI builders prepare chemical
-`query.value` strings now; full workflow execution for those prefixes will be
-added after source-specific retrieval and mapping behavior is defined.
+protein-ligand workflows. PubChem compound lookups and SMILES
+identity/substructure or CID similarity searches are executable for compound
+workflows. ChEBI compound workflows currently execute ChEBI ID and name/text
+searches. ChEBI formula, range, cross-reference, ontology, and structure plans
+remain prepared but are not executable yet.
 Protein-ligand routing rejects PubChem and ChEBI prefixes until that mapping
 strategy is available, so they cannot be interpreted as ChEMBL queries.
 
@@ -338,9 +341,12 @@ Workflows support:
 - `metadata.json` for detailed technical metadata
 - `run_summary.yml` for a compact execution report
 
-The currently executable compound workflow uses ChEMBL retrieval. PubChem and
-ChEBI builders prepare compound-oriented query descriptors and request plans;
-source-specific workflow execution will be added in a later phase.
+Executable compound workflows use source-aware routing: `chembl.*` keeps the
+existing ChEMBL path, `pubchem.*` produces `pubchem_results.<format>`, and the
+supported `chebi.entity` forms produce `chebi_results.<format>`. With CSV export
+and reporting enabled, source runs also write `metadata.json` and
+`run_summary.yml`. Metadata records the source prefix, resource, query model,
+request plan, record count, and output files.
 
 #### Modalities
 

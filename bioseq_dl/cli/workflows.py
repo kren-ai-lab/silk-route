@@ -51,6 +51,7 @@ PRIMARY_RESULT_LABELS = {
     "interaction": "data",
 }
 
+
 def build_default_workflow_values() -> dict:
     """Return fresh workflow defaults for CLI-only and descriptor-backed runs."""
     return {
@@ -93,10 +94,12 @@ def collect_descriptor_sections(values: dict) -> dict:
     descriptor = {}
     if values.get("schema_version"):
         descriptor["schema_version"] = values["schema_version"]
-    descriptor.update({
-        "dataset": values.get("dataset", {}),
-        "query": values.get("query_descriptor", {}),
-    })
+    descriptor.update(
+        {
+            "dataset": values.get("dataset", {}),
+            "query": values.get("query_descriptor", {}),
+        }
+    )
     if values.get("resources"):
         descriptor["resources"] = values["resources"]
     descriptor["execution"] = values.get("execution", {})
@@ -813,6 +816,7 @@ def build_summary_document(
     summary_path: Path,
     status: str = "success",
     error: str | None = None,
+    workflow_metadata: dict | None = None,
 ) -> dict:
     """Build the compact YAML run summary."""
     query_descriptor = dict(workflow_values.get("query_descriptor") or {})
@@ -828,6 +832,15 @@ def build_summary_document(
     ):
         if key in query_descriptor and query_descriptor[key] is not None:
             query_summary[key] = query_descriptor[key]
+    source_metadata = workflow_metadata or {}
+    for metadata_key, summary_key in (
+        ("query_source", "source"),
+        ("query_resource", "resource"),
+        ("query_model", "model"),
+        ("request_plan", "request_plan"),
+    ):
+        if source_metadata.get(metadata_key) is not None:
+            query_summary[summary_key] = source_metadata[metadata_key]
 
     execution_summary = {
         "status": status,
@@ -847,6 +860,8 @@ def build_summary_document(
         execution_summary["uniprot_timeout"] = workflow_values.get("uniprot_timeout")
     if workflow_values.get("debug"):
         execution_summary["debug"] = workflow_values.get("debug")
+    if source_metadata.get("number_of_records") is not None:
+        execution_summary["number_of_records"] = source_metadata["number_of_records"]
 
     export_summary = {
         "output_dir": workflow_values.get("output"),
@@ -921,6 +936,7 @@ def write_failure_reports(
             summary_path=summary_path,
             status="failed",
             error=error_message,
+            workflow_metadata=workflow_metadata,
         )
         write_yaml_file(summary_path, summary_document)
 
@@ -1171,6 +1187,7 @@ def run_workflow(
             summary_path=summary_path,
             status=execution_status,
             error=execution_error,
+            workflow_metadata=workflow_metadata,
         )
         write_yaml_file(summary_path, summary_document)
 

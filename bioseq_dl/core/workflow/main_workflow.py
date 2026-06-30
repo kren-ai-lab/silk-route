@@ -9,17 +9,23 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 
 import pandas as pd
 
-from bioseq_dl import ChEMBLInterface, UniprotInterface
+from bioseq_dl import ChEBIInterface, ChEMBLInterface, PubChemInterface, UniprotInterface
 from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
 from bioseq_dl.core.export import normalize_parse_format
 from bioseq_dl.core.utils.crossref_enrichment import normalize_crossref_fields, run_crossref_enrichment
 from bioseq_dl.logging import get_logger
 
+from .chebi_execution import build_chebi_fetch_spec, normalize_chebi_records
 from .chebi_query_parser import is_chebi_prefixed_query, parse_chebi_query_builder_string
 from .chembl_query_parser import (
     get_chembl_prefixed_query_resource,
     is_chembl_prefixed_query,
     parse_chembl_query_builder_string,
+)
+from .pubchem_execution import (
+    PUBCHEM_WORKFLOW_METHOD,
+    build_pubchem_fetch_query,
+    normalize_pubchem_records,
 )
 from .pubchem_query_parser import is_pubchem_prefixed_query, parse_pubchem_query_builder_string
 from .query_interpreter import (
@@ -57,10 +63,6 @@ PLI_SOURCE_QUERY_ERROR = (
     "{source}-prefixed queries are not valid for protein-ligand interaction workflows. "
     "ChEMBL is the supported source for protein-ligand workflow execution."
 )
-COMPOUND_SOURCE_NOT_EXECUTABLE_ERROR = (
-    "{source}-prefixed compound queries are recognized, but workflow execution for {source} "
-    "is not implemented yet. The GUI can generate query.value strings for later execution support."
-)
 PLANNED_COMPOUND_QUERY_SOURCES = ("pubchem", "chebi")
 COMPOUND_UNSUPPORTED_CHEMBL_RESOURCE_ERROR = (
     "ChEMBL resource '{resource}' is not valid for compound workflows. "
@@ -92,9 +94,14 @@ def attach_label_to_part(part_data: dict, label: str, modality: str) -> dict:
         if modality == "protein" and part_data.get("uniprot") is not None:
             key = "uniprot"
             data_to_label = part_data.get("uniprot")
-        elif modality == "compound" and part_data.get("chembl") is not None:
-            key = "chembl"
-            data_to_label = part_data.get("chembl")
+        elif modality == "compound":
+            key = next(
+                (source for source in ("chembl", "pubchem", "chebi") if part_data.get(source) is not None),
+                None,
+            )
+            if key is None:
+                return {}
+            data_to_label = part_data.get(key)
         elif modality == "interaction" and part_data.get("data") is not None:
             key = "data"
             data_to_label = part_data.get("data")
@@ -295,13 +302,29 @@ def reject_unsupported_pli_source_query(query: str) -> None:
         raise ValueError(msg)
 
 
-def reject_non_executable_compound_source_query(query: str) -> None:
-    """Reject recognized compound query prefixes that do not have workflow execution yet."""
-    source = get_query_source_prefix(query)
-    if is_any_source_prefixed_query(query, PLANNED_COMPOUND_QUERY_SOURCES):
-        build_compound_source_query_structure(query)
-        msg = COMPOUND_SOURCE_NOT_EXECUTABLE_ERROR.format(source=source)
-        raise ValueError(msg)
+def update_compound_source_metadata(
+    context: dict[str, Any],
+    source: str,
+    request_plan: dict[str, Any],
+    record_count: int,
+    fetch_metadata: object,
+) -> None:
+    """Record common source execution metadata for a compound workflow."""
+    metadata = context.setdefault("metadata", {})
+    metadata.update(
+        {
+            "query_source": source,
+            "query_resource": request_plan.get("resource"),
+            "query_model": request_plan.get("query_model"),
+            "request_plan": request_plan,
+            "number_of_records": record_count,
+        }
+    )
+    metadata[source] = {
+        "fetch": fetch_metadata if isinstance(fetch_metadata, dict) else {},
+        "request_plan": request_plan,
+        "number_of_records": record_count,
+    }
 
 
 def merge_enrichment_data(existing: list[Any], new: Any) -> list[Any]:
@@ -347,6 +370,8 @@ class MainWorkflow:
         self,
         interpreter: UniProtQueryInterpreter | None = None,
         uniprot_interface: UniprotInterface | None = None,
+        pubchem_interface: PubChemInterface | None = None,
+        chebi_interface: ChEBIInterface | None = None,
         enricher: CrossRefEnricher | None = None,
         default_export_format: str = "csv",
         logger: logging.Logger | None = None,
@@ -355,6 +380,8 @@ class MainWorkflow:
         # Instantiate sensible defaults if not provided
         self.interpreter = interpreter or build_default_uniprot_interpreter()
         self.uniprot = uniprot_interface or UniprotInterface()
+        self.pubchem = pubchem_interface
+        self.chebi = chebi_interface
         self.enricher = enricher or CrossRefEnricher(endpoint_specs=[])
         self.default_export_format = default_export_format
         self.log = logger or log
@@ -658,6 +685,67 @@ class MainWorkflow:
         context["metadata"].setdefault("chembl", meta)
         self.log.debug("Pipeline ChEMBL fetch metadata: %s", meta)
 
+    def _step_fetch_pubchem(self, context: dict[str, Any]) -> None:
+        """Execute a parsed PubChem request plan and normalize its records."""
+        search = context.get("searches", {}).get("pubchem", {})
+        request_plan = search.get("request_plan")
+        if not isinstance(request_plan, dict):
+            msg = "PubChem compound workflow execution requires a request plan."
+            raise TypeError(msg)
+        fetch_query = build_pubchem_fetch_query(request_plan)
+        instance = self.pubchem or PubChemInterface(total_retries=int(search.get("total_retries", 3)))
+        self.pubchem = instance
+        raw_result, fetch_metadata = instance.fetch_single(
+            fetch_query,
+            method=PUBCHEM_WORKFLOW_METHOD,
+            parse=False,
+            format="json",
+            workflow_request_plan=request_plan,
+        )
+        result = normalize_pubchem_records(raw_result, request_plan)
+        if result.empty:
+            msg = "No PubChem records were returned for the query."
+            raise ValueError(msg)
+        context.setdefault("data", {})["pubchem"] = result
+        update_compound_source_metadata(
+            context,
+            "pubchem",
+            request_plan,
+            len(result),
+            fetch_metadata,
+        )
+
+    def _step_fetch_chebi(self, context: dict[str, Any]) -> None:
+        """Execute a parsed ChEBI request plan and normalize its records."""
+        search = context.get("searches", {}).get("chebi", {})
+        request_plan = search.get("request_plan")
+        if not isinstance(request_plan, dict):
+            msg = "ChEBI compound workflow execution requires a request plan."
+            raise TypeError(msg)
+        fetch_spec = build_chebi_fetch_spec(request_plan)
+        instance = self.chebi or ChEBIInterface(total_retries=int(search.get("total_retries", 3)))
+        self.chebi = instance
+        raw_result, fetch_metadata = instance.fetch_single(
+            fetch_spec["query"],
+            method=fetch_spec["method"],
+            parse=False,
+            format="json",
+            workflow_request_plan=request_plan,
+            **fetch_spec["kwargs"],
+        )
+        result = normalize_chebi_records(raw_result, request_plan)
+        if result.empty:
+            msg = "No ChEBI records were returned for the query."
+            raise ValueError(msg)
+        context.setdefault("data", {})["chebi"] = result
+        update_compound_source_metadata(
+            context,
+            "chebi",
+            request_plan,
+            len(result),
+            fetch_metadata,
+        )
+
     def _step_chembl_to_uniprot_query(
         self, context: dict[str, Any], keep_original_query: bool = True
     ) -> None:
@@ -808,7 +896,7 @@ class MainWorkflow:
         context: dict[str, Any] | None = None,
         **_kwargs: Any,
     ) -> tuple[dict, dict]:
-        """Run the compound modality through compound/activity-oriented ChEMBL searches.
+        """Run source-specific compound queries through their supported interfaces.
 
         Compound workflows keep ChEMBL compound or activity outputs and do not
         automatically map ChEMBL targets back to UniProt. Protein-ligand
@@ -824,10 +912,41 @@ class MainWorkflow:
 
         """
         validate_compound_chembl_query_resource(query)
-        reject_non_executable_compound_source_query(query)
         chembl_interpreter = build_default_chembl_interpreter()
         export_format = export_format or self.default_export_format
         pages_to_fetch = normalize_chembl_pages_to_fetch(chembl_pages_to_fetch)
+        query_structure = build_compound_source_query_structure(query)
+        query_source = str(query_structure.get("source")) if query_structure else "chembl"
+        total_retries = int(_kwargs.get("total_retries", 3))
+
+        if query_source in PLANNED_COMPOUND_QUERY_SOURCES:
+            source_args = {
+                "query": query,
+                "request_plan": query_structure,
+                "export_format": export_format,
+                "modality": "compound",
+                "total_retries": total_retries,
+            }
+            if context is None:
+                context = {
+                    "searches": {query_source: source_args},
+                    "data": {},
+                    "metadata": {
+                        "mode": "query_first",
+                        "modality": "compound",
+                        "origin": "query",
+                    },
+                }
+            else:
+                context.setdefault("searches", {})[query_source] = source_args
+                context.setdefault("data", {})
+                context.setdefault("metadata", {})
+            if query_source == "pubchem":
+                self._step_fetch_pubchem(context)
+            else:
+                self._step_fetch_chebi(context)
+            return context.get("data", {}), context.get("metadata", {})
+
         query_structure = build_chembl_query_structure(query)
         resolved_search_type = resolve_chembl_search_type_from_query(query, search_type)
 

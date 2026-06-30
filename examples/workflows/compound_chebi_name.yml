@@ -1,0 +1,26 @@
+schema_version: "workflow-v1"
+
+dataset:
+  name: chebi_entity_example
+  description: Small ChEBI entity text-search example.
+  modality: compound
+  mode: query_first
+  primary_data_source: chebi
+
+query:
+  value: 'chebi.entity:name_contains="caffeine"'
+  description: Search ChEBI for caffeine and export normalized entity records.
+
+execution:
+  enrich: false
+  max_workers: 2
+  total_retries: 1
+  debug: false
+
+export:
+  output_dir: "examples/results/chebi_entity_example"
+  format: csv
+  include_metadata: true
+  include_summary: true
+  manifest_file: "metadata.json"
+  summary_file: "run_summary.yml"

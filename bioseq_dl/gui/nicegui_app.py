@@ -925,7 +925,7 @@ class WorkflowYamlBuilderApp:
         with ui.column().classes("w-full gap-3"):
             ui.label(
                 "PubChem builders help prepare compound lookup and structure-search descriptors. "
-                "Workflow execution for PubChem will be added in a later phase."
+                "Compound workflows execute these descriptors from the CLI."
             ).classes("text-sm text-gray-700")
             self.build_pubchem_builder_row()
             with ui.row().classes("items-center gap-3"):
@@ -980,7 +980,7 @@ class WorkflowYamlBuilderApp:
         with ui.column().classes("w-full gap-3"):
             ui.label(
                 "ChEBI builders help prepare entity, ontology, and structure descriptors. "
-                "Workflow execution for ChEBI will be added in a later phase."
+                "The CLI currently executes ChEBI ID and name searches."
             ).classes("text-sm text-gray-700")
             self.build_chebi_builder_rows()
             with ui.row().classes("items-center gap-3"):

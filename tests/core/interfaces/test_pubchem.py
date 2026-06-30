@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 import responses
 
-from bioseq_dl.core.interfaces.pubchem import PubChemInterface
+from bioseq_dl.core.interfaces.pubchem import (
+    WORKFLOW_COMPOUND_PROPERTIES_METHOD,
+    PubChemInterface,
+)
 from tests._helpers import load_fixture
 
 # Note the double slash: API_URL ends with "/" and the pug_view branch prepends "/pug_view".
@@ -49,3 +54,29 @@ def test_fetch_single_round_trips_through_cache(interface, mocked_responses):
 
     assert len(mocked_responses.calls) == 1
     assert first == second
+
+
+def test_workflow_substructure_fetch_uses_official_fast_search_path(interface, mocked_responses):
+    body = {"PropertyTable": {"Properties": [{"CID": 241, "Title": "Benzene"}]}}
+    mocked_responses.add(
+        responses.GET,
+        re.compile(r"https://pubchem\.ncbi\.nlm\.nih\.gov/rest/pug/compound/fastsubstructure/.*"),
+        json=body,
+        status=200,
+    )
+
+    result, _metadata = interface.fetch_single(
+        {
+            "namespace": "smiles",
+            "identifier": "c1ccccc1",
+            "search_mode": "substructure",
+            "max_records": 25,
+        },
+        method=WORKFLOW_COMPOUND_PROPERTIES_METHOD,
+    )
+
+    assert result == [{"CID": 241, "Title": "Benzene"}]
+    request = mocked_responses.calls[0].request
+    assert "/fastsubstructure/smiles/" in request.url
+    assert "MaxRecords=25" in request.url
+    assert "/property/CID,MolecularFormula,MolecularWeight" in request.url
