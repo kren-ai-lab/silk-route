@@ -6,7 +6,7 @@ filter metadata shaping, elapsed-time math and the small result-merge helpers.
 
 from __future__ import annotations
 
-import pandas as pd
+import polars as pl
 import pytest
 
 from bioseq_dl.core.workflow.main_workflow import (
@@ -46,7 +46,7 @@ def test_normalize_pages_bool_is_type_error(value):
 
 @pytest.fixture
 def activity_df():
-    return pd.DataFrame(
+    return pl.DataFrame(
         [
             {"standard_type": "IC50", "standard_value": 50},
             {"standard_type": "IC50", "standard_value": 5000},
@@ -59,7 +59,7 @@ def test_filter_exact_value(activity_df):
     filtered, meta = filter_chembl_activity_dataframe(
         activity_df, {"standard_type": "IC50", "standard_value": 50}
     )
-    assert filtered["standard_value"].tolist() == [50]
+    assert filtered["standard_value"].to_list() == [50]
     assert meta["filtered_rows"] == 1
 
 
@@ -67,7 +67,7 @@ def test_filter_min_exclusive(activity_df):
     filtered, _ = filter_chembl_activity_dataframe(
         activity_df, {"standard_type": "IC50", "standard_value_min": 100}
     )
-    assert filtered["standard_value"].tolist() == [5000]
+    assert filtered["standard_value"].to_list() == [5000]
 
 
 def test_filter_min_inclusive(activity_df):
@@ -75,14 +75,14 @@ def test_filter_min_inclusive(activity_df):
         activity_df,
         {"standard_type": "IC50", "standard_value_min": 50, "standard_value_min_inclusive": True},
     )
-    assert filtered["standard_value"].tolist() == [50, 5000]
+    assert filtered["standard_value"].to_list() == [50, 5000]
 
 
 def test_filter_max_exclusive(activity_df):
     filtered, meta = filter_chembl_activity_dataframe(
         activity_df, {"standard_type": "IC50", "standard_value_max": 100}
     )
-    assert filtered["standard_value"].tolist() == [50]
+    assert filtered["standard_value"].to_list() == [50]
     assert meta["removed_rows"] == 2
 
 
@@ -90,18 +90,18 @@ def test_filter_type_is_case_insensitive(activity_df):
     filtered, _ = filter_chembl_activity_dataframe(
         activity_df, {"standard_type": "ic50", "standard_value": 50}
     )
-    assert filtered["standard_value"].tolist() == [50]
+    assert filtered["standard_value"].to_list() == [50]
 
 
 def test_filter_empty_dataframe():
-    filtered, meta = filter_chembl_activity_dataframe(pd.DataFrame(), {"standard_type": "IC50"})
-    assert filtered.empty
+    filtered, meta = filter_chembl_activity_dataframe(pl.DataFrame(), {"standard_type": "IC50"})
+    assert filtered.is_empty()
     assert meta == {"applied": True, "initial_rows": 0, "filtered_rows": 0, "removed_rows": 0}
 
 
 def test_filter_missing_columns_drops_everything():
-    filtered, meta = filter_chembl_activity_dataframe(pd.DataFrame([{"a": 1}]), {"standard_type": "IC50"})
-    assert filtered.empty
+    filtered, meta = filter_chembl_activity_dataframe(pl.DataFrame([{"a": 1}]), {"standard_type": "IC50"})
+    assert filtered.is_empty()
     assert meta["reason"] == "missing_standard_type_or_standard_value"
     assert meta["removed_rows"] == 1
 
@@ -217,7 +217,7 @@ def test_apply_label_list_of_dicts_setdefault():
 
 
 def test_apply_label_dataframe_preserves_existing_as_original():
-    df = pd.DataFrame({"a": [1], "_label": ["old"]})
+    df = pl.DataFrame({"a": [1], "_label": ["old"]})
     out = _apply_label(df, "new")
-    assert out["_label"].tolist() == ["new"]
-    assert out["_label_original"].tolist() == ["old"]
+    assert out["_label"].to_list() == ["new"]
+    assert out["_label_original"].to_list() == ["old"]

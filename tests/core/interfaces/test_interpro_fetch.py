@@ -46,3 +46,4 @@ class TestInterproContract(CachingContract, HttpErrorContract):
     METHOD = "entry"
     FIXTURE = ("interpro", "entry")
     ERROR_RETURNS_EMPTY = True
+    ERROR_EMPTY_VALUE: list = []  # paginated fetch accumulates into a list

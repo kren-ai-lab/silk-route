@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-import pandas as pd
+import polars as pl
 import pytest
 
 from bioseq_dl.core.export import (
@@ -13,7 +13,6 @@ from bioseq_dl.core.export import (
     normalize_export_format,
     normalize_parse_format,
     normalize_user_export_format,
-    prepare_dataframe_for_parquet,
 )
 
 
@@ -60,25 +59,25 @@ def test_normalize_parse_format(value, expected):
 
 @pytest.fixture
 def df():
-    return pd.DataFrame([{"a": 1, "b": "x"}, {"a": 2, "b": "y"}])
+    return pl.DataFrame([{"a": 1, "b": "x"}, {"a": 2, "b": "y"}])
 
 
 def test_export_csv_roundtrip(df, tmp_path):
     path = export_dataframe(df, tmp_path / "out.csv")
     assert path.exists()
-    assert pd.read_csv(path).equals(df)
+    assert pl.read_csv(path).equals(df)
 
 
 def test_export_tsv(df, tmp_path):
     path = export_dataframe(df, tmp_path / "out.tsv")
-    back = pd.read_csv(path, sep="\t")
+    back = pl.read_csv(path, separator="\t")
     assert back.equals(df)
 
 
 def test_export_json(df, tmp_path):
     path = export_dataframe(df, tmp_path / "out.json")
-    back = pd.read_json(path)
-    assert list(back["a"]) == [1, 2]
+    back = pl.read_json(path)
+    assert back["a"].to_list() == [1, 2]
 
 
 def test_export_infers_suffix_from_format(df, tmp_path):
@@ -99,17 +98,9 @@ def test_export_non_dataframe_raises(tmp_path):
 
 
 def test_export_parquet_with_nested_values(tmp_path):
-    # Object columns holding lists/dicts get JSON-encoded to a string dtype.
-    df = pd.DataFrame([{"id": "P1", "xrefs": ["a", "b"]}, {"id": "P2", "xrefs": []}])
+    # List columns are written as native nested (List) types.
+    df = pl.DataFrame([{"id": "P1", "xrefs": ["a", "b"]}, {"id": "P2", "xrefs": []}], strict=False)
     path = export_dataframe(df, tmp_path / "out.parquet")
-    back = pd.read_parquet(path)
-    assert back.loc[0, "id"] == "P1"
-    # nested list serialized to JSON text
-    assert back.loc[0, "xrefs"] == '["a", "b"]'
-
-
-def test_prepare_dataframe_for_parquet_mixed_object_column():
-    df = pd.DataFrame({"mixed": [1, "two", {"k": "v"}]})
-    safe = prepare_dataframe_for_parquet(df)
-    # Mixed-kind object column is coerced to string dtype.
-    assert safe["mixed"].dtype == "string"
+    back = pl.read_parquet(path)
+    assert back["id"][0] == "P1"
+    assert back["xrefs"][0].to_list() == ["a", "b"]

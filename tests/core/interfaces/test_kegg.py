@@ -50,3 +50,4 @@ class TestKeggContract(CachingContract, HttpErrorContract):
     FIXTURE = ("kegg", "get")
     BODY_IS_TEXT = True
     ERROR_RETURNS_EMPTY = True
+    ERROR_EMPTY_VALUE: list = []  # fetch returns a list of records

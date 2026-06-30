@@ -70,7 +70,7 @@ class KEGGInterface(BaseAPIInterface):
         """Return keys used to match subqueries across KEGG results."""
         return super().get_subquery_match_keys().union({"entries"})
 
-    def fetch(self, query: str | dict | list, *, method: str = "get", **kwargs: Any) -> dict | list | str:
+    def fetch(self, query: str | dict | list, *, method: str = "get", **kwargs: Any) -> list:
         """Fetch data from the KEGG API.
 
         Args:
@@ -88,7 +88,7 @@ class KEGGInterface(BaseAPIInterface):
         """
         if not method:
             log.error("Method must be specified. Supported methods are: %s", ", ".join(self.METHODS.keys()))
-            return {}
+            return []
 
         _, _, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, **kwargs)
 
@@ -96,7 +96,7 @@ class KEGGInterface(BaseAPIInterface):
             validated_params = validate_parameters(inputs, parameters)
         except ValueError:
             log.exception("Invalid parameters for method '%s'", method)
-            return {}
+            return []
 
         if method == "pathways":
             url = f"{KEGG.API_URL}/link"
@@ -120,7 +120,7 @@ class KEGGInterface(BaseAPIInterface):
                         method,
                         ", ".join(METHOD_OPTIONS.get(method, [])),
                     )
-                    return {}
+                    return []
                 url += f"/{validated_params['option']}"
 
         try:
@@ -130,7 +130,7 @@ class KEGGInterface(BaseAPIInterface):
             response.raise_for_status()
             if not response or not hasattr(response, "text"):
                 log.warning("No response or invalid response for query %s with method %s.", query, method)
-                return {}
+                return []
 
             text = response.text or ""
             if method == "get":
@@ -156,9 +156,9 @@ class KEGGInterface(BaseAPIInterface):
 
         except niquests.exceptions.RequestException:
             log.exception("Error fetching data for %s with method %s", query, method)
-            return {}
+            return []
         else:
-            return r if r is not None else {}
+            return r if r is not None else []
 
     def parse(self, data: Any, fields_to_extract: list | dict | None = None, **kwargs: Any) -> dict | list:
         r"""Parse the response from the KEGG API.

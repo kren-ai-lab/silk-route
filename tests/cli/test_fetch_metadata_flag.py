@@ -6,7 +6,7 @@ Confirms the fetch-app callback flows through the shared click context into
 
 from __future__ import annotations
 
-import pandas as pd
+import polars as pl
 import pytest
 from typer.testing import CliRunner
 
@@ -20,7 +20,7 @@ class _FakeKEGG:
         pass
 
     def fetch_single(self, *args, **kwargs):
-        df = pd.DataFrame({"id": ["hsa:1"], "value": [42]})
+        df = pl.DataFrame({"id": ["hsa:1"], "value": [42]})
         return df, {"api_name": "kegg", "tool": {"name": "bioseq_dl", "version": "0.1.0"}}
 
 

@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 import niquests
-import pandas as pd
+import polars as pl
 from niquests import Request
 
 from bioseq_dl.constants.databases import PDB
@@ -112,7 +112,7 @@ class PDBInterface(BaseAPIInterface):
 
     def fetch_single(
         self, query: str | dict | list[str], parse: bool = False, *args: Any, **kwargs: Any
-    ) -> tuple[list | dict | pd.DataFrame | bytes | str, dict]:
+    ) -> tuple[list | dict | pl.DataFrame | bytes | str, dict]:
         """Fetch a single PDB entry and optionally download the structure file.
 
         Downloads the structure file when ``download_structures`` is set and the query is a
@@ -125,7 +125,7 @@ class PDBInterface(BaseAPIInterface):
             **kwargs: Forwarded to the base fetch.
 
         Returns:
-            tuple[list | dict | pd.DataFrame | bytes | str, dict]: Fetched data and metadata.
+            tuple[list | dict | pl.DataFrame | bytes | str, dict]: Fetched data and metadata.
 
         """
         if self.download_structures and query and isinstance(query, str):
@@ -134,7 +134,7 @@ class PDBInterface(BaseAPIInterface):
 
     def fetch_batch(
         self, queries: Sequence[str | dict], parse: bool = False, *args: Any, **kwargs: Any
-    ) -> tuple[list | pd.DataFrame | bytes | str, dict]:
+    ) -> tuple[list | pl.DataFrame | bytes | str, dict]:
         """Fetch a batch of PDB entries and optionally download structure files.
 
         Delegates to the base fetch, then downloads the structure file for each string id
@@ -147,7 +147,7 @@ class PDBInterface(BaseAPIInterface):
             **kwargs: Forwarded to the base fetch.
 
         Returns:
-            tuple[list | pd.DataFrame | bytes | str, dict]: Fetched data and metadata.
+            tuple[list | pl.DataFrame | bytes | str, dict]: Fetched data and metadata.
 
         """
         results = super().fetch_batch(queries, parse, *args, **kwargs)

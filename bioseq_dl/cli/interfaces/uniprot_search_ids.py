@@ -2,7 +2,7 @@
 
 from typing import Any
 
-import pandas as pd
+import polars as pl
 import typer
 
 from bioseq_dl import UniprotInterface
@@ -44,11 +44,12 @@ def run(
     """Run UniProt search from a list of accession IDs."""
     export_format = validate_export_format(export_format)
 
-    df = pd.read_csv(input_file)
+    df = pl.read_csv(input_file)
 
     # Filter by identity if present
     if min_identity is not None and "identity" in df.columns:
-        df = df[df["identity"] >= min_identity]
+        df = df.with_columns(pl.col("identity").cast(pl.Float64, strict=False))
+        df = df.filter(pl.col("identity") >= min_identity)
 
     metadata: dict[str, Any] = {}
     log.info("Downloading additional UniProt data...")

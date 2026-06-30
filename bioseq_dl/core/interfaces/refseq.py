@@ -121,7 +121,7 @@ class RefSeqInterface(BaseAPIInterface):
 
         if method not in databases:
             log.error("Database '%s' is not supported. Supported databases: %s", method, ", ".join(databases))
-            return {}
+            return []
 
         ids = query.get("id") if isinstance(query, dict) else query
 

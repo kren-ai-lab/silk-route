@@ -13,7 +13,7 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
 
-import pandas as pd
+import polars as pl
 import typer
 
 from bioseq_dl.core.export import (
@@ -161,7 +161,7 @@ def save_or_print(
     if write_metadata is None:
         write_metadata = _metadata_enabled()
 
-    if isinstance(data, pd.DataFrame):
+    if isinstance(data, pl.DataFrame):
         if output:
             fmt = output_format or (Path(output).suffix.lstrip(".") or "csv")
             try:
@@ -216,7 +216,7 @@ def _save_tabular(
         logger (logging.Logger): Logger for progress and warnings.
 
     """
-    if not (isinstance(export_data, pd.DataFrame) and not export_data.empty):
+    if not (isinstance(export_data, pl.DataFrame) and not export_data.is_empty()):
         logger.warning("No results to save in %s format.", export_format.upper())
         return
     tabular_format = normalize_export_format(export_format)

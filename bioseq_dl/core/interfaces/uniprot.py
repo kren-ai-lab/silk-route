@@ -11,12 +11,13 @@ from typing import Any, Literal
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import niquests
-import pandas as pd
+import polars as pl
 
 from bioseq_dl.constants.databases import DATABASES, UNIPROT
 from bioseq_dl.core.exceptions import RequestError
 from bioseq_dl.core.interfaces.base import BaseAPIInterface
 from bioseq_dl.core.metadata import FetchMetadata, RequestInfo, current_tool
+from bioseq_dl.core.utils.frames import drop_all_null_columns, records_to_frame
 from bioseq_dl.core.utils.uniprot_auxiliary_methods import (
     extract_active_sites,
     extract_database_terms,
@@ -426,7 +427,7 @@ class UniprotInterface(BaseAPIInterface):
 
     def download_batch(
         self,
-        dataset: pd.DataFrame,
+        dataset: pl.DataFrame,
         column_ids: str,
         auto_db: bool = False,
         from_db: str = "UniProtKB_AC-ID",
@@ -436,7 +437,7 @@ class UniprotInterface(BaseAPIInterface):
         """Download data from UniProt in batches based on a DataFrame of IDs.
 
         Args:
-            dataset (pd.DataFrame): DataFrame containing the IDs.
+            dataset (pl.DataFrame): DataFrame containing the IDs.
             column_ids (str): Column name in the DataFrame with the IDs.
             auto_db (bool): Whether to automatically detect the database type.
             from_db (str): Database to convert from (used if auto_db is False).
@@ -447,7 +448,7 @@ class UniprotInterface(BaseAPIInterface):
             tuple[list[dict], dict]: The downloaded records and aggregated fetch metadata.
 
         """
-        ids = dataset[column_ids].dropna().unique().tolist()
+        ids = dataset[column_ids].drop_nulls().unique(maintain_order=True).to_list()
 
         results: list[dict] = []
 
@@ -500,9 +501,9 @@ class UniprotInterface(BaseAPIInterface):
         # Augment with the input-query provenance specific to the batch download.
         meta.extra.update(
             {
-                "query_values": dataset[column_ids].tolist(),
-                "total_rows": len(dataset),
-                "columns": dataset.columns.tolist(),
+                "query_values": dataset[column_ids].to_list(),
+                "total_rows": dataset.height,
+                "columns": list(dataset.columns),
                 "id_column": column_ids,
                 "auto_db": auto_db,
             }
@@ -832,7 +833,7 @@ class UniprotInterface(BaseAPIInterface):
         results: dict | list[dict],
         extract_fields: list[str] | None,
         format: Literal["json", "dataframe", "xml"] = "json",  # noqa: A002
-    ) -> tuple[(pd.DataFrame | list[dict] | bytes | str | ET.ElementTree), dict | list[dict]]:
+    ) -> tuple[(pl.DataFrame | list[dict] | bytes | str | ET.ElementTree), dict | list[dict]]:
         """Parse UniProt JSON results into a DataFrame.
 
         Args:
@@ -841,7 +842,7 @@ class UniprotInterface(BaseAPIInterface):
             format (Literal["json", "dataframe", "xml"]): The output format.
 
         Returns:
-            tuple[pd.DataFrame | list[dict] | bytes | str | ET.ElementTree, dict | list[dict]]:
+            tuple[pl.DataFrame | list[dict] | bytes | str | ET.ElementTree, dict | list[dict]]:
                 The parsed results in the requested format and the parse metadata.
 
         """
@@ -867,7 +868,7 @@ class UniprotInterface(BaseAPIInterface):
 
         meta_out = self._aggregate_parse_metadata(parsed, failed_records, extract_fields)
         if format == "dataframe":
-            return pd.DataFrame(parsed).dropna(axis=1, how="all"), meta_out
+            return drop_all_null_columns(records_to_frame(parsed)), meta_out
         if format == "xml":
             return dict_to_elementtree(parsed, root_tag="results"), meta_out
         return parsed, meta_out

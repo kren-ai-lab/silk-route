@@ -10,7 +10,7 @@ It is part of the Kren AI Lab ecosystem alongside **Sylphy** (sequence encoders 
 embeddings) and **Roxy** (classical descriptors).
 
 Input: identifiers / queries per database. Output: parsed records as
-`pandas.DataFrame` / JSON / XML, with on-disk caching.
+`polars.DataFrame` / JSON / XML, with on-disk caching.
 
 ## Package Layout
 
@@ -61,6 +61,10 @@ uv run bioseq-dl --help
 - No import side effects: the top-level public API is lazy (`__getattr__`); importing
   `bioseq_dl` must not pull heavy deps (e.g. `zeep` for BRENDA).
 - Use `logging` (`get_logger`), never `print`.
+- A `fetch` override returns the empty of its own success type (a list endpoint
+  returns `[]`, an object endpoint `{}`); never `None`. The error-vs-empty reason
+  is recorded in `metadata.failed` (`request_error` / `empty_result`), not the
+  return value. (`chebi`/`pubchem` are genuinely method-polymorphic and return `{}`.)
 - Tests run offline: HTTP is mocked (`responses`) behind `conftest` fixtures.
 - Tests mirror the source layout.
 

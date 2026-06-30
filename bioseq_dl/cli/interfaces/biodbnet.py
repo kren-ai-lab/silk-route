@@ -1,12 +1,13 @@
 """BioDBNet CLI commands."""
 
-import pandas as pd
+import polars as pl
 import typer
 
 from bioseq_dl import BioDBNetInterface
 from bioseq_dl.cli._shared import format_option, output_option, save_or_print
 from bioseq_dl.constants.biodbnet import inputs as biodbnet_inputs
 from bioseq_dl.constants.biodbnet import outputs as biodbnet_outputs
+from bioseq_dl.core.utils.frames import drop_all_null_columns
 
 app = typer.Typer(help="Fetch data from BioDBNet database.")
 
@@ -38,8 +39,8 @@ def run_db2db(
         parse=True,
         format="dataframe",
     )
-    if isinstance(df, pd.DataFrame):
-        df = df.dropna(axis=1, how="all")
+    if isinstance(df, pl.DataFrame):
+        df = drop_all_null_columns(df)
 
     save_or_print(df, output, output_format=output_format)
 
@@ -64,7 +65,7 @@ def run_pathways(
         parse=True,
         format="dataframe",
     )
-    if isinstance(df, pd.DataFrame):
-        df = df.dropna(axis=1, how="all")
+    if isinstance(df, pl.DataFrame):
+        df = drop_all_null_columns(df)
 
     save_or_print(df, output, output_format=output_format)

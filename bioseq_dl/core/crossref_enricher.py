@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, cast
 from xml.etree.ElementTree import Element, ElementTree, fromstring
 
-import pandas as pd
+import polars as pl
 
 from bioseq_dl.core.metadata import FetchMetadata
+from bioseq_dl.core.utils.frames import records_to_frame
 from bioseq_dl.core.utils.query_builders import INTERFACE_CLASSES, get_query_builder
 
 if TYPE_CHECKING:
@@ -115,11 +117,11 @@ class CrossRefEnricher:
         self.max_workers = max_workers
         self.total_retries = total_retries
 
-    def _check_required_columns(self, df: pd.DataFrame, spec: EndpointSpec) -> None:
+    def _check_required_columns(self, df: pl.DataFrame, spec: EndpointSpec) -> None:
         """Validate that a spec's required columns are present in the DataFrame.
 
         Args:
-            df (pd.DataFrame): Input data to validate.
+            df (pl.DataFrame): Input data to validate.
             spec (EndpointSpec): Endpoint whose ``required_columns`` are checked.
 
         Raises:
@@ -172,26 +174,26 @@ class CrossRefEnricher:
 
     def _search_and_merge(
         self,
-        row: pd.Series,
+        row: dict[str, Any],
         instance: Any,
         spec: EndpointSpec,
         params: dict[str, Any],
         fmt: Literal["dataframe", "json", "xml"] = "dataframe",
-    ) -> tuple[pd.DataFrame | list[dict[str, Any]], dict]:
+    ) -> tuple[pl.DataFrame | list[dict[str, Any]], dict]:
         """Build a query from a row and fetch its cross-reference result.
 
         Uses the registered query-builder for the spec, then calls ``fetch_single``
         for a single query or ``fetch_batch`` for multiple.
 
         Args:
-            row (pd.Series): Input row supplying query values.
+            row (dict[str, Any]): Input row supplying query values.
             instance (Any): Interface instance used to fetch.
             spec (EndpointSpec): Endpoint being queried.
             params (dict[str, Any]): Base params passed to the query-builder.
             fmt (Literal["dataframe", "json", "xml"]): Output format requested.
 
         Returns:
-            tuple[pd.DataFrame | list[dict[str, Any]], dict]: Fetched result and fetch metadata.
+            tuple[pl.DataFrame | list[dict[str, Any]], dict]: Fetched result and fetch metadata.
 
         """
         metadata = {}
@@ -220,7 +222,7 @@ class CrossRefEnricher:
             result, metadata = instance.fetch_batch(queries=query_params, **method_params)
         # Handle unexpected query_params format
         elif fmt == "dataframe":
-            result = pd.DataFrame()
+            result = pl.DataFrame()
         else:
             result = []
 
@@ -232,32 +234,32 @@ class CrossRefEnricher:
         return FetchMetadata.from_dict(meta1).merge(FetchMetadata.from_dict(meta2)).to_dict()
 
     @staticmethod
-    def _clean_frame(result: Any) -> pd.DataFrame | None:
+    def _clean_frame(result: Any) -> pl.DataFrame | None:
         """Coerce a raw row-result to a cleaned DataFrame, or ``None`` to skip it.
 
-        Accepts a DataFrame, list-of-dicts, or single dict; drops duplicate
-        columns and accidental numeric-only column names.
+        Accepts a DataFrame, list-of-dicts, or single dict; drops accidental
+        numeric-only column names.
 
         Args:
             result (Any): Raw per-row fetch result to coerce.
 
         Returns:
-            pd.DataFrame | None: Cleaned DataFrame, or None for empty or uncoercible results.
+            pl.DataFrame | None: Cleaned DataFrame, or None for empty or uncoercible results.
 
         """
-        if isinstance(result, pd.DataFrame):
+        if isinstance(result, pl.DataFrame):
             df_result = result
         elif isinstance(result, list):
             if not result:
                 return None
             try:
-                df_result = pd.DataFrame(result)
+                df_result = records_to_frame(result)
             except Exception:  # skip records that will not coerce to a DataFrame
                 log.exception("Dropping cross-ref result that will not coerce to a DataFrame: %r", result)
                 return None
         elif isinstance(result, dict):
             try:
-                df_result = pd.DataFrame([result])
+                df_result = records_to_frame(result)
             except Exception:  # skip records that will not coerce to a DataFrame
                 log.exception("Dropping cross-ref result that will not coerce to a DataFrame: %r", result)
                 return None
@@ -265,37 +267,36 @@ class CrossRefEnricher:
             log.debug("Skipping unsupported cross-ref result type: %s", type(result).__name__)
             return None
 
-        if df_result.empty:
+        if df_result.is_empty():
             return None
-        df_result = df_result.loc[:, ~pd.Index(df_result.columns).duplicated()]
         # Drop accidental numeric-only column names like '1','2','3',...
         cols_to_keep = [c for c in df_result.columns if not str(c).isdigit()]
         if not cols_to_keep:
             return None
-        return df_result.loc[:, cols_to_keep].reset_index(drop=True)
+        return df_result.select(cols_to_keep)
 
     def _process_dataframe(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         instance: Any,
         spec: EndpointSpec,
         params: dict[str, Any],
         fmt: Literal["dataframe", "json", "xml"] = "dataframe",
-    ) -> tuple[pd.DataFrame | list | ElementTree[Element[str] | None], dict]:
+    ) -> tuple[pl.DataFrame | list | ElementTree[Element[str] | None], dict]:
         """Apply search-then-merge for every row and combine all row-expansions.
 
         Aggregates per-row results into the requested format and records per-row
         outcomes under the metadata ``extra`` block.
 
         Args:
-            df (pd.DataFrame): Input rows to enrich.
+            df (pl.DataFrame): Input rows to enrich.
             instance (Any): Interface instance used to fetch.
             spec (EndpointSpec): Endpoint being queried.
             params (dict[str, Any]): Base params passed to the query-builder.
             fmt (Literal["dataframe", "json", "xml"]): Output format requested.
 
         Returns:
-            tuple[pd.DataFrame | list | ElementTree[Element[str] | None], dict]: Combined
+            tuple[pl.DataFrame | list | ElementTree[Element[str] | None], dict]: Combined
                 result in the requested format and merged fetch metadata.
 
         Raises:
@@ -309,7 +310,7 @@ class CrossRefEnricher:
         # came back empty or failed (invisible in the merged aggregate alone).
         per_row: list[dict[str, Any]] = []
 
-        for idx, row in df.iterrows():
+        for idx, row in enumerate(df.iter_rows(named=True)):
             result, metadata = self._search_and_merge(row, instance, spec, params, fmt)
             all_results.append(result)
             all_metadata = self._merge_metadata(all_metadata, metadata)
@@ -317,7 +318,7 @@ class CrossRefEnricher:
             data_info = metadata.get("data_info", {}) if isinstance(metadata, dict) else {}
             per_row.append(
                 {
-                    "row": int(idx) if isinstance(idx, (int, float)) else str(idx),
+                    "row": idx,
                     "found": data_info.get("total_entries", 0),
                     "failed_ids": failed.get("ids", []),
                     "failed_reasons": failed.get("reasons", []),
@@ -334,8 +335,8 @@ class CrossRefEnricher:
                 cleaned for result in dfs if (cleaned := self._clean_frame(result)) is not None
             ]
             if not cleaned_results:
-                return pd.DataFrame(), all_metadata
-            return pd.concat(cleaned_results, ignore_index=True, sort=False), all_metadata
+                return pl.DataFrame(), all_metadata
+            return pl.concat(cleaned_results, how="diagonal_relaxed"), all_metadata
         if fmt == "json":
             cleaned_results = []
             for raw in all_results:
@@ -382,16 +383,18 @@ class CrossRefEnricher:
 
         """
         # For an easier handling, convert input data to DataFrame if needed
-        if isinstance(data, (list, dict)):
-            df = pd.DataFrame(data)
-        elif isinstance(data, pd.DataFrame):
+        if isinstance(data, list):
+            df = records_to_frame(data)
+        elif isinstance(data, dict):
+            df = pl.DataFrame(data, strict=False, infer_schema_length=None)
+        elif isinstance(data, pl.DataFrame):
             df = data
         elif isinstance(data, ElementTree):
             df = elementtree_to_dataframe(tree=data)
         elif isinstance(data, str):
-            df = pd.read_json(data)
+            df = records_to_frame(json.loads(data))
         else:
-            msg = "Input data must be a pandas DataFrame, list of dicts, or dict."
+            msg = "Input data must be a Polars DataFrame, list of dicts, or dict."
             raise TypeError(msg)
 
         results = {}

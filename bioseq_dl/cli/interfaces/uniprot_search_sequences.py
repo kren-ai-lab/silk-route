@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-import pandas as pd
+import polars as pl
 import typer
 
 from bioseq_dl import UniprotInterface
@@ -18,6 +18,7 @@ from bioseq_dl.core.utils.blast_search import (
     parse_blast_results,
     run_blast,
 )
+from bioseq_dl.core.utils.frames import records_to_frame
 from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.cli.uniprot_search_sequences")
@@ -66,13 +67,13 @@ def run(
     """Run UniProt BLAST-based sequence search."""
     export_format = validate_export_format(export_format)
 
-    df = pd.read_csv(input_file)
+    df = pl.read_csv(input_file)
 
     if seq_column not in df.columns:
         msg = f"Column '{seq_column}' not found in input file."
         raise ValueError(msg)
 
-    sequences = df[seq_column].dropna().unique().tolist()
+    sequences = df[seq_column].drop_nulls().unique(maintain_order=True).to_list()
 
     download_uniprot_database(database, extension)
 
@@ -85,32 +86,41 @@ def run(
     results = parse_blast_results("tmp/blast_results.txt")
 
     # Convert to DataFrame
-    sequences_df = pd.DataFrame(sequences, columns=[seq_column])  # pandas stub overload
-    sequences_df["id"] = sequences_df.index
+    sequences_df = (
+        pl.DataFrame({seq_column: sequences}).with_row_index("id").with_columns(pl.col("id").cast(pl.Int64))
+    )
 
-    df_blast = pd.DataFrame(results)
+    df_blast = records_to_frame(results)
 
-    df_blast = df_blast.rename(columns={"query": "id", "subject": "subject_id"})
-    df_blast["id"] = df_blast["id"].astype(int)
-    df_blast = df_blast.merge(sequences_df, on="id", how="left")
-    df_blast = df_blast.drop(columns=["id"])
-    df_blast = df_blast.rename(columns={seq_column: "sequence"})
+    if df_blast.is_empty():
+        log.warning("No BLAST hits found; writing empty results.")
+        Path(output).mkdir(parents=True, exist_ok=True)
+        blast_path = export_dataframe(df_blast, Path(output) / "blast_results.csv")
+        log.info("BLAST results saved to %s", blast_path)
+        Path("tmp/blast_results.txt").unlink()
+        shutil.rmtree("tmp")
+        return
 
-    # Filter by identity threshold before exporting or enriching
-    if "identity" in df_blast.columns:
-        df_blast["identity"] = pd.to_numeric(df_blast["identity"], errors="coerce")
-        df_blast = df_blast[df_blast["identity"] >= min_identity]
+    df_blast = df_blast.rename({"query": "id", "subject": "subject_id"})
+    df_blast = df_blast.with_columns(pl.col("id").cast(pl.Int64))
+    df_blast = df_blast.join(sequences_df, on="id", how="left")
+    df_blast = df_blast.drop("id")
+    df_blast = df_blast.rename({seq_column: "sequence"})
 
-    # Filter by coverage threshold before exporting or enriching
-    if "coverage" in df_blast.columns:
-        df_blast["coverage"] = pd.to_numeric(df_blast["coverage"], errors="coerce")
-        df_blast = df_blast[df_blast["coverage"] >= min_coverage]
+    # Cast then filter numeric thresholds before exporting or enriching
+    for col, threshold in (("identity", min_identity), ("coverage", min_coverage)):
+        if col in df_blast.columns:
+            df_blast = df_blast.with_columns(pl.col(col).cast(pl.Float64, strict=False)).filter(
+                pl.col(col) >= threshold
+            )
 
     # Separate subject into source, accession, entry_name
-    df_blast["source"] = df_blast["subject_id"].apply(lambda x: x.split("|")[0])
-    df_blast["accession"] = df_blast["subject_id"].apply(lambda x: x.split("|")[1])
-    df_blast["entry_name"] = df_blast["subject_id"].apply(lambda x: x.split("|")[2])
-    df_blast = df_blast.drop(columns=["subject_id"])
+    parts = pl.col("subject_id").str.split("|")
+    df_blast = df_blast.with_columns(
+        parts.list.get(0).alias("source"),
+        parts.list.get(1).alias("accession"),
+        parts.list.get(2).alias("entry_name"),
+    ).drop("subject_id")
 
     # Create folder for output if it does not exist
     Path(output).mkdir(parents=True, exist_ok=True)

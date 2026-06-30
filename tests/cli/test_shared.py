@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 
-import pandas as pd
+import polars as pl
 import pytest
 
 from bioseq_dl.cli._shared import fetch_auto, save_or_print, unwrap
@@ -45,12 +45,12 @@ def test_fetch_auto_multiple_queries_calls_fetch_batch():
 
 
 def test_unwrap_data_metadata_tuple():
-    df = pd.DataFrame({"a": [1]})
+    df = pl.DataFrame({"a": [1]})
     assert unwrap((df, {"meta": 1})) is df
 
 
 def test_unwrap_passes_through_non_tuple():
-    df = pd.DataFrame({"a": [1]})
+    df = pl.DataFrame({"a": [1]})
     assert unwrap(df) is df
 
 
@@ -61,14 +61,14 @@ def test_unwrap_keeps_plain_two_tuple_without_metadata():
 
 
 def test_save_dataframe_tuple_to_csv(tmp_path):
-    df = pd.DataFrame({"id": ["X"], "value": [42]})
+    df = pl.DataFrame({"id": ["X"], "value": [42]})
     out = tmp_path / "out.csv"
 
     save_or_print((df, {"api_name": "test"}), str(out))
 
     assert out.exists()
-    loaded = pd.read_csv(out)
-    assert loaded.to_dict(orient="records") == [{"id": "X", "value": 42}]
+    loaded = pl.read_csv(out)
+    assert loaded.to_dicts() == [{"id": "X", "value": 42}]
 
 
 def test_save_list_tuple_to_json(tmp_path):
@@ -81,7 +81,7 @@ def test_save_list_tuple_to_json(tmp_path):
 
 
 def test_save_writes_metadata_sidecar(tmp_path):
-    df = pd.DataFrame({"id": ["X"]})
+    df = pl.DataFrame({"id": ["X"]})
     out = tmp_path / "out.csv"
 
     save_or_print((df, {"api_name": "test", "tool": {"name": "bioseq_dl"}}), str(out))
@@ -94,7 +94,7 @@ def test_save_writes_metadata_sidecar(tmp_path):
 def test_sidecar_tracks_actual_saved_file(tmp_path):
     # When the format adds/normalizes the extension, the sidecar sits next to the
     # real output file (noext.json), not the requested path.
-    df = pd.DataFrame({"id": ["X"]})
+    df = pl.DataFrame({"id": ["X"]})
     out = tmp_path / "noext"
 
     save_or_print((df, {"api_name": "test"}), str(out), output_format="json")
@@ -103,7 +103,7 @@ def test_sidecar_tracks_actual_saved_file(tmp_path):
 
 
 def test_no_sidecar_when_metadata_empty(tmp_path):
-    df = pd.DataFrame({"id": ["X"]})
+    df = pl.DataFrame({"id": ["X"]})
     out = tmp_path / "out.csv"
 
     save_or_print((df, {}), str(out))
@@ -112,7 +112,7 @@ def test_no_sidecar_when_metadata_empty(tmp_path):
 
 
 def test_no_sidecar_when_printing_preview(tmp_path, capsys):
-    df = pd.DataFrame({"id": ["X"]})
+    df = pl.DataFrame({"id": ["X"]})
 
     save_or_print((df, {"api_name": "test"}), None)
 
@@ -121,7 +121,7 @@ def test_no_sidecar_when_printing_preview(tmp_path, capsys):
 
 
 def test_no_sidecar_when_write_metadata_false(tmp_path):
-    df = pd.DataFrame({"id": ["X"]})
+    df = pl.DataFrame({"id": ["X"]})
     out = tmp_path / "out.csv"
 
     save_or_print((df, {"api_name": "test"}), str(out), write_metadata=False)
@@ -138,7 +138,7 @@ def test_metadata_enabled_defaults_true_without_context():
 
 
 def test_save_dataframe_infers_format_from_extension(tmp_path):
-    df = pd.DataFrame({"id": ["X"], "value": [42]})
+    df = pl.DataFrame({"id": ["X"], "value": [42]})
     out = tmp_path / "out.json"
 
     save_or_print((df, {}), str(out))
@@ -147,7 +147,7 @@ def test_save_dataframe_infers_format_from_extension(tmp_path):
 
 
 def test_save_dataframe_explicit_format_adds_suffix(tmp_path):
-    df = pd.DataFrame({"id": ["X"]})
+    df = pl.DataFrame({"id": ["X"]})
     out = tmp_path / "noext"
 
     save_or_print((df, {}), str(out), output_format="json")
@@ -156,7 +156,7 @@ def test_save_dataframe_explicit_format_adds_suffix(tmp_path):
 
 
 def test_save_dataframe_defaults_to_csv_without_extension(tmp_path):
-    df = pd.DataFrame({"id": ["X"]})
+    df = pl.DataFrame({"id": ["X"]})
     out = tmp_path / "plain"
 
     save_or_print((df, {}), str(out))
@@ -167,14 +167,14 @@ def test_save_dataframe_defaults_to_csv_without_extension(tmp_path):
 def test_save_dataframe_unsupported_format_exits_cleanly(tmp_path):
     import typer
 
-    df = pd.DataFrame({"id": ["X"]})
+    df = pl.DataFrame({"id": ["X"]})
     with pytest.raises(typer.Exit) as exc:
         save_or_print((df, {}), str(tmp_path / "out.txt"))
     assert exc.value.exit_code == 1
 
 
 def test_print_preview_does_not_raise(capsys):
-    df = pd.DataFrame({"a": range(10)})
+    df = pl.DataFrame({"a": list(range(10))})
     # No output path -> should print a preview without raising.
     save_or_print((df, {}), None)
     assert capsys.readouterr().out  # something was printed

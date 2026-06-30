@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import datetime as dt
 
-import pandas as pd
+import polars as pl
 import pytest
 
 from bioseq_dl.cli.workflows import (
@@ -294,8 +294,8 @@ def test_is_valid_export_label(label, expected):
     ("content", "expected"),
     [
         (None, True),
-        (pd.DataFrame(), True),
-        (pd.DataFrame({"a": [1]}), False),
+        (pl.DataFrame(), True),
+        (pl.DataFrame({"a": [1]}), False),
         ("  ", True),
         ([], True),
         ([1], False),
@@ -307,14 +307,14 @@ def test_is_empty_export_content(content, expected):
 
 
 def test_add_id_column_inserts_when_requested():
-    df = pd.DataFrame({"a": [10, 20]})
+    df = pl.DataFrame({"a": [10, 20]})
     out = add_id_column_for_export(df, "uniprot", "id")
-    assert out["id"].tolist() == ["uniprot_1", "uniprot_2"]
+    assert out["id"].to_list() == ["uniprot_1", "uniprot_2"]
     assert "id" not in df.columns  # original untouched
 
 
 def test_add_id_column_skips_when_no_column_or_already_present():
-    df = pd.DataFrame({"id": [1], "a": [2]})
+    df = pl.DataFrame({"id": [1], "a": [2]})
     assert add_id_column_for_export(df, "x", None) is df
     assert add_id_column_for_export(df, "x", "id") is df
 
@@ -323,10 +323,10 @@ def test_to_json_compatible_handles_frames_dates_paths():
     from pathlib import Path
 
     value = {
-        "df": pd.DataFrame({"a": [1]}),
+        "df": pl.DataFrame({"a": [1]}),
         "when": dt.date(2026, 6, 26),
         "path": Path("/data/x"),
-        "series": pd.Series([1, 2]),
+        "series": pl.Series([1, 2]),
     }
     out = to_json_compatible(value)
     assert out["df"] == [{"a": 1}]
@@ -335,10 +335,8 @@ def test_to_json_compatible_handles_frames_dates_paths():
     assert out["series"] == [1, 2]
 
 
-def test_to_json_compatible_missing_value_becomes_none():
-    # A plain float("nan") is returned as-is (it is a float); the pd.isna branch
-    # only catches non-standard missing markers like pd.NaT / pd.NA.
-    assert to_json_compatible(pd.NA) is None
+def test_to_json_compatible_nan_becomes_none():
+    assert to_json_compatible(float("nan")) is None
 
 
 # --- query-composition label parsing ----------------------------------------
@@ -372,7 +370,7 @@ def test_expected_labels_non_string_query():
 
 
 def test_count_query_composition_labels_counts_label_column():
-    df = pd.DataFrame({"acc": ["a", "b", "c"], "_label": ["human", "mouse", "human"]})
+    df = pl.DataFrame({"acc": ["a", "b", "c"], "_label": ["human", "mouse", "human"]})
     values = {"mode": "query_composition", "modality": "protein", "query": "x=human, y=mouse"}
     output_infos = [{"category": "result", "label": "uniprot", "column_names": ["_label"]}]
     counts = count_query_composition_labels(values, {"uniprot": df}, output_infos)
@@ -381,7 +379,7 @@ def test_count_query_composition_labels_counts_label_column():
 
 def test_count_query_composition_labels_not_applicable_in_query_first():
     values = {"mode": "query_first", "modality": "protein"}
-    assert count_query_composition_labels(values, {"uniprot": pd.DataFrame()}, []) == {}
+    assert count_query_composition_labels(values, {"uniprot": pl.DataFrame()}, []) == {}
 
 
 # --- execution status -------------------------------------------------------
