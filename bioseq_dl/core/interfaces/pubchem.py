@@ -20,7 +20,13 @@ from .base import BaseAPIInterface
 log = get_logger("bioseq_dl.interfaces.pubchem")
 WORKFLOW_COMPOUND_PROPERTIES_METHOD = "workflow/compound-properties"
 WORKFLOW_COMPOUND_PROPERTIES = (
-    "CID,MolecularFormula,MolecularWeight,ConnectivitySMILES,SMILES,InChI,InChIKey,IUPACName,Title"
+    "MolecularFormula,"
+    "MolecularWeight,"
+    "CanonicalSMILES,"
+    "IsomericSMILES,"
+    "InChI,"
+    "InChIKey,"
+    "IUPACName"
 )
 
 # PubChem has 2 main API access points: PUG-REST and PUG-View.
@@ -363,6 +369,7 @@ class PubChemInterface(BaseAPIInterface):
                 "identifier": query.get("identifier"),
                 "search_mode": query.get("search_mode", "lookup"),
                 "max_records": query.get("max_records", 100),
+                "properties": WORKFLOW_COMPOUND_PROPERTIES,
             }
             if query.get("threshold") is not None:
                 identifier["threshold"] = query["threshold"]

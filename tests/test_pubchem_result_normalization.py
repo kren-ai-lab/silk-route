@@ -17,11 +17,12 @@ def test_pubchem_normalization_produces_stable_compound_fields() -> None:
             "Properties": [
                 {
                     "CID": 2244,
-                    "Title": "Aspirin",
                     "MolecularFormula": "C9H8O4",
                     "MolecularWeight": "180.16",
-                    "ConnectivitySMILES": "CC(=O)OC1=CC=CC=C1C(=O)O",
-                    "SMILES": "CC(=O)Oc1ccccc1C(=O)O",
+                    "CanonicalSMILES": "CC(=O)OC1=CC=CC=C1C(=O)O",
+                    "ConnectivitySMILES": "legacy-canonical-smiles",
+                    "IsomericSMILES": "CC(=O)Oc1ccccc1C(=O)O",
+                    "SMILES": "legacy-isomeric-smiles",
                     "InChI": "InChI=1S/C9H8O4",
                     "InChIKey": "BSYNRYMUTXBXSQ-UHFFFAOYSA-N",
                     "IUPACName": "2-acetyloxybenzoic acid",
@@ -35,7 +36,9 @@ def test_pubchem_normalization_produces_stable_compound_fields() -> None:
     assert result.loc[0, "source"] == "pubchem"
     assert result.loc[0, "compound_id"] == "PUBCHEM:2244"
     assert result.loc[0, "pubchem_cid"] == 2244
+    assert result.loc[0, "name"] == "2-acetyloxybenzoic acid"
     assert result.loc[0, "canonical_smiles"] == "CC(=O)OC1=CC=CC=C1C(=O)O"
+    assert result.loc[0, "isomeric_smiles"] == "CC(=O)Oc1ccccc1C(=O)O"
     assert result.loc[0, "query_resource"] == "compound"
     assert result.loc[0, "query_model"] == "compound_lookup"
 

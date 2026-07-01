@@ -105,11 +105,11 @@ def normalize_pubchem_record(record: dict[str, Any], request_plan: dict[str, Any
         "molecular_weight": first_pubchem_value(record, "MolecularWeight", "molecular_weight"),
         "canonical_smiles": first_pubchem_value(
             record,
-            "ConnectivitySMILES",
             "CanonicalSMILES",
+            "ConnectivitySMILES",
             "canonical_smiles",
         ),
-        "isomeric_smiles": first_pubchem_value(record, "SMILES", "IsomericSMILES", "isomeric_smiles"),
+        "isomeric_smiles": first_pubchem_value(record, "IsomericSMILES", "SMILES", "isomeric_smiles"),
         "inchi": first_pubchem_value(record, "InChI", "inchi"),
         "inchikey": first_pubchem_value(record, "InChIKey", "inchikey"),
         "iupac_name": first_pubchem_value(record, "IUPACName", "iupac_name"),

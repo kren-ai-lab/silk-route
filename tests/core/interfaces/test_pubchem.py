@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from urllib.parse import parse_qs
 
@@ -78,6 +79,30 @@ def test_workflow_fetch_single_builds_cid_lookup_url_and_returns_metadata(interf
     assert metadata["data_info"]["total_entries"] == 1
 
 
+def test_workflow_property_url_uses_supported_properties(interface, mocked_responses):
+    body = load_fixture("pubchem", "workflow_compound_properties")
+    expected_url = f"{WORKFLOW_BASE_URL}/cid/2244/property/{WORKFLOW_COMPOUND_PROPERTIES}/JSON"
+    mocked_responses.add(responses.GET, expected_url, json=body, status=200)
+
+    interface.fetch_single(
+        {"namespace": "cid", "identifier": "2244", "search_mode": "lookup"},
+        method=WORKFLOW_COMPOUND_PROPERTIES_METHOD,
+    )
+
+    property_path = mocked_responses.calls[0].request.url.split("/property/", maxsplit=1)[1]
+    property_tokens = property_path.removesuffix("/JSON").split(",")
+    assert property_tokens == [
+        "MolecularFormula",
+        "MolecularWeight",
+        "CanonicalSMILES",
+        "IsomericSMILES",
+        "InChI",
+        "InChIKey",
+        "IUPACName",
+    ]
+    assert not {"CID", "Title", "ConnectivitySMILES", "SMILES"}.intersection(property_tokens)
+
+
 def test_workflow_fetch_single_builds_name_lookup_url(interface, mocked_responses):
     body = load_fixture("pubchem", "workflow_compound_properties")
     expected_url = f"{WORKFLOW_BASE_URL}/name/glucose/property/{WORKFLOW_COMPOUND_PROPERTIES}/JSON"
@@ -150,7 +175,7 @@ def test_workflow_identity_fetch_uses_official_fast_search_path(interface, mocke
     assert result == body["PropertyTable"]["Properties"]
     assert "/fastidentity/smiles/" in request.url
     assert "MaxRecords=10" in request.url
-    assert "/property/CID,MolecularFormula,MolecularWeight" in request.url
+    assert f"/property/{WORKFLOW_COMPOUND_PROPERTIES}/JSON" in request.url
 
 
 def test_workflow_substructure_fetch_uses_official_fast_search_path(interface, mocked_responses):
@@ -176,7 +201,7 @@ def test_workflow_substructure_fetch_uses_official_fast_search_path(interface, m
     request = mocked_responses.calls[0].request
     assert "/fastsubstructure/smiles/" in request.url
     assert "MaxRecords=25" in request.url
-    assert "/property/CID,MolecularFormula,MolecularWeight" in request.url
+    assert f"/property/{WORKFLOW_COMPOUND_PROPERTIES}/JSON" in request.url
 
 
 def test_workflow_similarity_fetch_uses_threshold_query_param(interface, mocked_responses):
@@ -296,3 +321,19 @@ def test_workflow_request_plan_is_ignored_for_cache_identity(interface, mocked_r
     assert first == second
     assert len(mocked_responses.calls) == 1
     assert second_metadata["cached_ids"]
+
+
+def test_workflow_property_list_is_part_of_cache_identity(interface):
+    query = {
+        "namespace": "cid",
+        "identifier": "2244",
+        "search_mode": "lookup",
+        "max_records": 100,
+    }
+
+    identifier = interface._make_identifier(
+        query,
+        interface.METHODS[WORKFLOW_COMPOUND_PROPERTIES_METHOD],
+    )
+
+    assert json.loads(identifier)["properties"] == WORKFLOW_COMPOUND_PROPERTIES
