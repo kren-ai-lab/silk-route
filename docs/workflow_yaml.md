@@ -316,9 +316,11 @@ ChEBI catalog/GUI fields use descriptive names. In particular,
 `relation` and `term` parameters.
 
 PubChem and ChEBI builders prepare `query.value` strings and pure request plans.
-Generated YAML contains neither credentials nor builder metadata. Execution
-remains CLI-driven: PubChem compound and structure plans are executable, while
-ChEBI execution currently covers entity ID and name/text searches.
+Generated YAML contains neither credentials nor builder metadata. The GUI only
+prepares YAML; it does not execute workflows or call PubChem/ChEBI APIs.
+Execution remains CLI-driven: PubChem compound and selected structure plans are
+executable, while ChEBI execution currently covers entity ID and name/text
+searches.
 
 Executable now:
 

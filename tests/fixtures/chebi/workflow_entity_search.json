@@ -1,0 +1,13 @@
+{
+  "results": [
+    {
+      "id": 27732,
+      "chebi_accession": "CHEBI:27732",
+      "name": "caffeine",
+      "chemical_data": {
+        "formula": "C8H10N4O2",
+        "mass": 194.19
+      }
+    }
+  ]
+}

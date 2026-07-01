@@ -352,6 +352,20 @@ class PubChemInterface(BaseAPIInterface):
             return {}
         return self._unwrap_pug_envelope(payload, "pug/compound", "property", query)
 
+    def _make_identifier(self, query: str | dict | list, spec: dict) -> str:
+        """Build cache identifiers for PubChem requests."""
+        if spec == self.METHODS[WORKFLOW_COMPOUND_PROPERTIES_METHOD] and isinstance(query, dict):
+            identifier = {
+                "namespace": query.get("namespace"),
+                "identifier": query.get("identifier"),
+                "search_mode": query.get("search_mode", "lookup"),
+                "max_records": query.get("max_records", 100),
+            }
+            if query.get("threshold") is not None:
+                identifier["threshold"] = query["threshold"]
+            return json.dumps(identifier, sort_keys=True)
+        return super()._make_identifier(query, spec)
+
     def fetch(self, query: str | dict | list, *, method: str = "DEFAULT", **kwargs: Any) -> dict | list | str:
         """Fetch compound or protein data from PubChem."""
         if method == WORKFLOW_COMPOUND_PROPERTIES_METHOD:

@@ -213,8 +213,9 @@ fields use descriptive names such as `ontology_relation` and `ontology_term`;
 their executable parameters remain `relation` and `term`.
 For ChEMBL, use the `in` filter type for multiple values in one field. These
 builders produce final interpreted `query.value` strings and local request
-plans. Compound workflows execute PubChem compound and structure plans plus
-ChEBI ID and name searches from the CLI.
+plans. The GUI only prepares YAML and does not execute workflows or call
+PubChem/ChEBI APIs. Compound workflows execute PubChem compound and selected
+structure plans plus ChEBI ID and name/text searches from the CLI.
 Advanced query builders are filtered by the selected dataset modality and
 interaction type. Protein datasets expose the UniProt builder. Compound
 datasets expose compatible ChEMBL molecule/activity builders plus PubChem and

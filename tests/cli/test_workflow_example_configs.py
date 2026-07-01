@@ -5,9 +5,21 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
 import pytest
+import yaml
+from typer.testing import CliRunner
 
-from bioseq_dl.cli.workflows import WORKFLOW_SCHEMA_VERSION, load_workflow_recipe, validate_workflow_recipe
+import bioseq_dl.cli.workflows as workflows_cli
+from bioseq_dl.cli.workflows import (
+    WORKFLOW_SCHEMA_VERSION,
+    load_workflow_recipe,
+    validate_workflow_recipe,
+)
+from bioseq_dl.cli.workflows import (
+    app as workflow_app,
+)
+from bioseq_dl.core.workflow.main_workflow import build_compound_source_query_structure
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_DIR = REPO_ROOT / "examples" / "workflows"
@@ -36,6 +48,72 @@ MISLEADING_EXPORT_PLACEHOLDERS = {"result_files"}
 REQUIRED_EXECUTABLE_SECTIONS = {"schema_version", "dataset", "query", "export"}
 LOCAL_PATH_PATTERNS = ("C:\\", "/Users/", "/home/")
 CREDENTIAL_LIKE_STRINGS = ("API_KEY", "TOKEN", "SECRET", "PASSWORD", "PRIVATE_KEY")
+COMPOUND_SOURCE_EXAMPLE_EXPECTATIONS = {
+    "compound_pubchem_name.yml": ("pubchem", "pubchem_results.csv"),
+    "compound_pubchem_substructure.yml": ("pubchem", "pubchem_results.csv"),
+    "compound_chebi_name.yml": ("chebi", "chebi_results.csv"),
+}
+
+
+class FakeExampleWorkflow:
+    """Workflow test double that returns source-aware compound results without API calls."""
+
+    def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+        """Initialize the fake workflow."""
+
+    def run(
+        self,
+        *,
+        mode: str,
+        modality: str,
+        query: str,
+        **_kwargs: Any,
+    ) -> tuple[dict[str, pd.DataFrame], dict[str, Any]]:
+        """Return deterministic source-aware data and metadata for example CLI tests."""
+        request_plan = build_compound_source_query_structure(query)
+        if request_plan is None:
+            msg = f"Unexpected non-source query in example test: {query}"
+            raise AssertionError(msg)
+        source = str(request_plan["source"])
+        data = {
+            source: pd.DataFrame(
+                [
+                    {
+                        "source": source,
+                        "compound_id": "PUBCHEM:5793" if source == "pubchem" else "CHEBI:27732",
+                        "name": "glucose" if source == "pubchem" else "caffeine",
+                    }
+                ]
+            )
+        }
+        metadata = {
+            "mode": mode,
+            "modality": modality,
+            "origin": "query",
+            "query_source": source,
+            "query_resource": request_plan.get("resource"),
+            "query_model": request_plan.get("query_model"),
+            "request_plan": request_plan,
+            "number_of_records": 1,
+            source: {
+                "fetch": {
+                    "api_name": "PubChem" if source == "pubchem" else "ChEBI",
+                    "method": "workflow/compound-properties" if source == "pubchem" else "es_search",
+                    "fetched_length": 1,
+                    "data_info": {"total_entries": 1, "data_type": "list", "columns": []},
+                },
+                "request_plan": request_plan,
+                "number_of_records": 1,
+            },
+        }
+        return data, metadata
+
+
+class FakeUniprotInterface:
+    """Placeholder to keep CLI example tests fully offline."""
+
+    def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+        """Initialize the fake UniProt interface."""
 
 
 def iter_valid_example_paths() -> list[Path]:
@@ -64,6 +142,45 @@ def collect_mapping_keys(value: Any) -> set[str]:
         for item in value:
             keys.update(collect_mapping_keys(item))
     return keys
+
+
+@pytest.mark.parametrize(
+    ("filename", "expected"),
+    sorted(COMPOUND_SOURCE_EXAMPLE_EXPECTATIONS.items()),
+)
+def test_compound_source_workflow_examples_execute_through_cli_without_api_calls(
+    filename: str,
+    expected: tuple[str, str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source, expected_output_file = expected
+    config_path = WORKFLOW_DIR / filename
+    output_dir = tmp_path / config_path.stem
+    recipe = load_workflow_recipe(config_path)
+    normalized = validate_workflow_recipe(recipe)
+    monkeypatch.setattr(workflows_cli, "MainWorkflow", FakeExampleWorkflow)
+    monkeypatch.setattr(workflows_cli, "UniprotInterface", FakeUniprotInterface)
+
+    result = CliRunner().invoke(
+        workflow_app,
+        ["--config", str(config_path), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert normalized["schema_version"] == WORKFLOW_SCHEMA_VERSION
+    assert (output_dir / expected_output_file).exists()
+    assert (output_dir / "metadata.json").exists()
+    assert (output_dir / "run_summary.yml").exists()
+
+    metadata = workflows_cli.load_workflow_recipe(output_dir / "metadata.json")
+    summary = yaml.safe_load((output_dir / "run_summary.yml").read_text(encoding="utf-8"))
+    assert metadata["workflow_metadata"]["query_source"] == source
+    assert metadata["workflow_metadata"]["request_plan"]["source"] == source
+    assert metadata["output_files"][0]["file"] == expected_output_file
+    assert summary["query"]["source"] == source
+    assert summary["query"]["request_plan"]["source"] == source
+    assert summary["outputs"][Path(expected_output_file).stem]["file"] == expected_output_file
 
 
 @pytest.mark.parametrize("config_path", iter_valid_example_paths(), ids=lambda path: path.name)

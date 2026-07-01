@@ -148,6 +148,19 @@ class ChEBIInterface(BaseAPIInterface):
         else:
             return response
 
+    def _make_identifier(self, query: str | dict | list, spec: dict) -> str:
+        """Build cache identifiers for ChEBI requests."""
+        if spec == self.METHODS["es_search"] and isinstance(query, dict):
+            return json.dumps(
+                {
+                    "term": query.get("term"),
+                    "page": query.get("page", 1),
+                    "size": query.get("size", 15),
+                },
+                sort_keys=True,
+            )
+        return super()._make_identifier(query, spec)
+
     def parse(self, data: list | dict, fields_to_extract: list | dict | None, **_kwargs: Any) -> list | dict:
         """Parse ChEBI response data."""
         if not data:
