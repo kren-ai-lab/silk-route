@@ -388,7 +388,6 @@ class PubChemInterface(BaseAPIInterface):
 
         prepared = self.session.prepare_request(response)
         log.debug("Prepared request: %s", prepared.url)
-        log.info("Prepared request: %s", prepared.url)
 
         try:
             response = self.session.send(prepared)
