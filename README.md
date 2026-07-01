@@ -213,9 +213,9 @@ fields use descriptive names such as `ontology_relation` and `ontology_term`;
 their executable parameters remain `relation` and `term`.
 For ChEMBL, use the `in` filter type for multiple values in one field. These
 builders produce final interpreted `query.value` strings and local request
-plans. The GUI only prepares YAML and does not execute workflows or call
-PubChem/ChEBI APIs. Compound workflows execute PubChem compound and selected
-structure plans plus ChEBI ID and name/text searches from the CLI.
+plans. The GUI prepares YAML, while execution stays in the CLI. Compound
+workflows execute PubChem compound and selected structure plans plus ChEBI ID
+and name/text searches.
 Advanced query builders are filtered by the selected dataset modality and
 interaction type. Protein datasets expose the UniProt builder. Compound
 datasets expose compatible ChEMBL molecule/activity builders plus PubChem and
@@ -223,14 +223,26 @@ ChEBI chemical-source builders.
 Protein-ligand interaction datasets expose compatible ChEMBL target, assay, and
 activity builders. Protein-protein interaction datasets expose the UniProt
 builder. Manual query mode remains available for every dataset setting.
-ChEMBL remains the primary source for curated activity, assay, target, and
-protein-ligand workflows. PubChem compound lookups and SMILES
-identity/substructure or CID similarity searches are executable for compound
-workflows. ChEBI compound workflows currently execute ChEBI ID and name/text
-searches. ChEBI formula, range, cross-reference, ontology, and structure plans
-remain prepared but are not executable yet.
-Protein-ligand routing rejects PubChem and ChEBI prefixes until that mapping
-strategy is available, so they cannot be interpreted as ChEMBL queries.
+ChEMBL remains the supported source for curated activity, assay, target, and
+protein-ligand workflows. PubChem and ChEBI builders appear under
+`modality: compound`; protein and interaction workflows reject PubChem/ChEBI
+prefixes before reaching UniProt or ChEMBL execution. The current executable
+chemical-source scope is:
+
+- `pubchem.compound:cid=...`
+- `pubchem.compound:name=...`
+- `pubchem.compound:inchi=...`
+- `pubchem.compound:inchikey=...`
+- `pubchem.structure:smiles_identity=...`
+- `pubchem.structure:smiles_substructure=...`
+- `pubchem.structure:similarity_2d_cid=... AND threshold=...`
+- `chebi.entity:chebi_id=...`
+- `chebi.entity:name=...`
+- `chebi.entity:name_contains=...`
+
+ChEBI formula/range/cross-reference queries, ontology queries, and structure
+queries are prepared by the builders for YAML planning, but execution remains a
+future step.
 
 #### PubChem and ChEBI descriptor examples
 

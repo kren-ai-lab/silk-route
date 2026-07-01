@@ -316,23 +316,31 @@ ChEBI catalog/GUI fields use descriptive names. In particular,
 `relation` and `term` parameters.
 
 PubChem and ChEBI builders prepare `query.value` strings and pure request plans.
-Generated YAML contains neither credentials nor builder metadata. The GUI only
-prepares YAML; it does not execute workflows or call PubChem/ChEBI APIs.
-Execution remains CLI-driven: PubChem compound and selected structure plans are
-executable, while ChEBI execution currently covers entity ID and name/text
-searches.
+Generated YAML contains neither credentials nor builder metadata. The GUI
+prepares YAML; workflow execution and PubChem/ChEBI API calls stay in the CLI.
+PubChem and ChEBI builders are available for `modality: compound`; protein and
+interaction workflows reject PubChem/ChEBI prefixes before source execution.
+ChEMBL remains the supported source for protein-ligand activity and target
+workflows.
 
 Executable now:
 
-- `pubchem.compound` with CID, name, InChI, or InChIKey lookup;
-- `pubchem.structure` with SMILES identity, SMILES substructure, or 2-D CID similarity;
-- `chebi.entity` with `chebi_id`, exact name, or `name_contains`.
+- `pubchem.compound:cid=...`
+- `pubchem.compound:name=...`
+- `pubchem.compound:inchi=...`
+- `pubchem.compound:inchikey=...`
+- `pubchem.structure:smiles_identity=...`
+- `pubchem.structure:smiles_substructure=...`
+- `pubchem.structure:similarity_2d_cid=... AND threshold=...`
+- `chebi.entity:chebi_id=...`
+- `chebi.entity:name=...`
+- `chebi.entity:name_contains=...`
 
 Prepared but not executable yet:
 
-- ChEBI formula, mass range, charge range, database cross-reference, and star filters;
-- `chebi.ontology` relation/term plans;
-- `chebi.structure` connectivity, substructure, and similarity plans.
+- ChEBI formula/range/cross-reference queries;
+- ChEBI ontology queries;
+- ChEBI structure queries.
 
 CSV runs write `pubchem_results.csv` or `chebi_results.csv`. When enabled,
 `metadata.json` and `run_summary.yml` include the query source, resource, model,

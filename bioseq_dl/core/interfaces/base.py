@@ -77,6 +77,7 @@ class BaseAPIInterface(ABC):
         "outfmt",
         "format",
         "download",
+        "workflow_request_plan",
     }
     subquery_match_keys: ClassVar[set[str]] = set()
 

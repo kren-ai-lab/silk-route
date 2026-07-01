@@ -176,10 +176,21 @@ def test_compound_source_workflow_examples_execute_through_cli_without_api_calls
     metadata = workflows_cli.load_workflow_recipe(output_dir / "metadata.json")
     summary = yaml.safe_load((output_dir / "run_summary.yml").read_text(encoding="utf-8"))
     assert metadata["workflow_metadata"]["query_source"] == source
+    assert metadata["workflow_metadata"]["query_resource"] in {"compound", "structure", "entity"}
+    assert metadata["workflow_metadata"]["query_model"] in {
+        "compound_lookup",
+        "structure_search",
+        "advanced_search",
+    }
+    assert metadata["workflow_metadata"]["number_of_records"] == 1
     assert metadata["workflow_metadata"]["request_plan"]["source"] == source
     assert metadata["output_files"][0]["file"] == expected_output_file
+    assert metadata["output_files"][0]["category"] == "result"
     assert summary["query"]["source"] == source
+    assert summary["query"]["resource"] == metadata["workflow_metadata"]["query_resource"]
+    assert summary["query"]["model"] == metadata["workflow_metadata"]["query_model"]
     assert summary["query"]["request_plan"]["source"] == source
+    assert summary["execution"]["number_of_records"] == 1
     assert summary["outputs"][Path(expected_output_file).stem]["file"] == expected_output_file
 
 

@@ -108,6 +108,49 @@ def test_workflow_fetch_single_builds_inchi_lookup_post(interface, mocked_respon
     assert request.method == "POST"
     assert request.url == expected_url
     assert parse_qs(str(request.body)) == {"inchi": [inchi]}
+    assert request.headers["Content-Type"] == "application/x-www-form-urlencoded"
+
+
+def test_workflow_fetch_single_builds_inchikey_lookup_url(interface, mocked_responses):
+    body = load_fixture("pubchem", "workflow_compound_properties")
+    inchikey = "WQZGKKKJIJFFOK-GASJEMHNSA-N"
+    expected_url = f"{WORKFLOW_BASE_URL}/inchikey/{inchikey}/property/{WORKFLOW_COMPOUND_PROPERTIES}/JSON"
+    mocked_responses.add(responses.GET, expected_url, json=body, status=200)
+
+    result, _metadata = interface.fetch_single(
+        {"namespace": "inchikey", "identifier": inchikey, "search_mode": "lookup"},
+        method=WORKFLOW_COMPOUND_PROPERTIES_METHOD,
+    )
+
+    assert result == body["PropertyTable"]["Properties"]
+    assert mocked_responses.calls[0].request.url == expected_url
+
+
+def test_workflow_identity_fetch_uses_official_fast_search_path(interface, mocked_responses):
+    body = load_fixture("pubchem", "workflow_structure_search")
+    smiles = "CC(=O)Oc1ccccc1C(=O)O"
+    mocked_responses.add(
+        responses.GET,
+        re.compile(r"https://pubchem\.ncbi\.nlm\.nih\.gov/rest/pug/compound/fastidentity/.*"),
+        json=body,
+        status=200,
+    )
+
+    result, _metadata = interface.fetch_single(
+        {
+            "namespace": "smiles",
+            "identifier": smiles,
+            "search_mode": "identity",
+            "max_records": 10,
+        },
+        method=WORKFLOW_COMPOUND_PROPERTIES_METHOD,
+    )
+
+    request = mocked_responses.calls[0].request
+    assert result == body["PropertyTable"]["Properties"]
+    assert "/fastidentity/smiles/" in request.url
+    assert "MaxRecords=10" in request.url
+    assert "/property/CID,MolecularFormula,MolecularWeight" in request.url
 
 
 def test_workflow_substructure_fetch_uses_official_fast_search_path(interface, mocked_responses):
@@ -183,6 +226,21 @@ def test_workflow_fetch_single_uses_cache_on_second_call(interface, mocked_respo
     assert second_metadata["cached_ids"]
 
 
+def test_workflow_fetch_single_allows_empty_property_records(interface, mocked_responses):
+    body = {"PropertyTable": {"Properties": []}}
+    expected_url = f"{WORKFLOW_BASE_URL}/name/missing/property/{WORKFLOW_COMPOUND_PROPERTIES}/JSON"
+    mocked_responses.add(responses.GET, expected_url, json=body, status=200)
+
+    result, metadata = interface.fetch_single(
+        {"namespace": "name", "identifier": "missing", "search_mode": "lookup"},
+        method=WORKFLOW_COMPOUND_PROPERTIES_METHOD,
+    )
+
+    assert result == []
+    assert metadata["failed_ids"]
+    assert metadata["data_info"]["total_entries"] == 0
+
+
 def test_workflow_similarity_threshold_is_part_of_cache_identity(interface, mocked_responses):
     body = load_fixture("pubchem", "workflow_compound_properties")
     mocked_responses.add(
@@ -211,3 +269,30 @@ def test_workflow_similarity_threshold_is_part_of_cache_identity(interface, mock
         )
 
     assert len(mocked_responses.calls) == 2
+
+
+def test_workflow_request_plan_is_ignored_for_cache_identity(interface, mocked_responses):
+    body = load_fixture("pubchem", "workflow_compound_properties")
+    expected_url = f"{WORKFLOW_BASE_URL}/name/glucose/property/{WORKFLOW_COMPOUND_PROPERTIES}/JSON"
+    query = {
+        "namespace": "name",
+        "identifier": "glucose",
+        "search_mode": "lookup",
+        "max_records": 100,
+    }
+    mocked_responses.add(responses.GET, expected_url, json=body, status=200)
+
+    first, _first_metadata = interface.fetch_single(
+        query,
+        method=WORKFLOW_COMPOUND_PROPERTIES_METHOD,
+        workflow_request_plan={"source": "pubchem", "parameters": {"name": "glucose"}},
+    )
+    second, second_metadata = interface.fetch_single(
+        query,
+        method=WORKFLOW_COMPOUND_PROPERTIES_METHOD,
+        workflow_request_plan={"source": "pubchem", "parameters": {"name": "glucose"}, "note": "duplicate"},
+    )
+
+    assert first == second
+    assert len(mocked_responses.calls) == 1
+    assert second_metadata["cached_ids"]

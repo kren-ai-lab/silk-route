@@ -315,12 +315,14 @@ class PubChemInterface(BaseAPIInterface):
 
         request_method = "GET"
         request_data = None
+        request_headers = None
         encoded_identifier = urllib.parse.quote(identifier, safe="")
         if search_mode == "lookup":
             if namespace == "inchi":
                 path = f"inchi/property/{WORKFLOW_COMPOUND_PROPERTIES}/JSON"
                 request_method = "POST"
                 request_data = {"inchi": identifier}
+                request_headers = {"Content-Type": "application/x-www-form-urlencoded"}
             else:
                 path = f"{namespace}/{encoded_identifier}/property/{WORKFLOW_COMPOUND_PROPERTIES}/JSON"
         else:
@@ -339,6 +341,7 @@ class PubChemInterface(BaseAPIInterface):
             url=url,
             params=request_params or None,
             data=request_data,
+            headers=request_headers,
         )
         prepared = self.session.prepare_request(request)
         log.debug("Prepared PubChem workflow request: %s", prepared.url)

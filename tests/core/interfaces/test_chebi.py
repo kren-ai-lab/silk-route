@@ -106,6 +106,20 @@ def test_fetch_single_es_search_uses_cache_on_second_call(interface, mocked_resp
     assert second_metadata["cached_ids"]
 
 
+def test_fetch_single_es_search_allows_empty_results(interface, mocked_responses):
+    body = {"results": []}
+    mocked_responses.add(responses.GET, WORKFLOW_SEARCH_URL, json=body, status=200)
+
+    result, metadata = interface.fetch_single(
+        {"term": "missing", "page": 1, "size": 100},
+        method="es_search",
+    )
+
+    assert result == []
+    assert metadata["failed_ids"]
+    assert metadata["data_info"]["total_entries"] == 0
+
+
 def test_fetch_single_es_search_page_size_are_part_of_cache_identity(interface, mocked_responses):
     body = load_fixture("chebi", "workflow_entity_search")
     mocked_responses.add(responses.GET, WORKFLOW_SEARCH_URL, json=body, status=200)
