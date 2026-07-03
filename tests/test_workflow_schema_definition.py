@@ -115,6 +115,26 @@ def test_workflow_validator_accepts_complete_harmonization_section() -> None:
     assert validated["harmonization"] == descriptor["harmonization"]
 
 
+def test_workflow_validator_accepts_optional_query_builder_metadata() -> None:
+    from bioseq_dl.workflow_schema_definition import validate_workflow_v1_descriptor
+
+    descriptor = minimal_workflow_descriptor()
+    descriptor["query"]["builder"] = {
+        "schema_version": "query-builder-v1",
+        "source": "chembl",
+        "builder_key": "chembl_activity",
+        "builder_type": "flat_parameters",
+        "rows": [
+            {"field": "target_chembl_id", "operator": "exact", "value": "CHEMBL203"}
+        ],
+    }
+
+    validated = validate_workflow_v1_descriptor(descriptor)
+
+    assert validated["query"]["value"] == "reviewed:true"
+    assert validated["query"]["builder"] == descriptor["query"]["builder"]
+
+
 @pytest.mark.parametrize(
     "field_name",
     ["id_column", "label_column", "sequence_column", "unique_sequence_strategy"],

@@ -94,16 +94,19 @@ def descriptor_with_all_core_sections() -> dict:
 
 
 def build_preserved_metadata_descriptor() -> dict:
-    """Return a descriptor with GUI-oriented query metadata."""
+    """Return a descriptor with neutral query-builder metadata."""
     descriptor = descriptor_with_all_core_sections()
     descriptor["query"]["builder"] = {
-        "source": "gui",
-        "filters": [
+        "schema_version": "query-builder-v1",
+        "source": "uniprot",
+        "builder_key": "uniprot",
+        "builder_type": "field_boolean",
+        "rows": [
             {
-                "field": "reviewed",
-                "operator": "equals",
-                "value": True,
-                "nested": {"arbitrary": ["metadata", 1, None]},
+                "connector": None,
+                "field": "organism",
+                "match_mode": "any",
+                "values": ["Homo sapiens"],
             }
         ],
     }
@@ -236,6 +239,28 @@ def test_query_builder_allows_arbitrary_nested_metadata() -> None:
     values = validate_workflow_recipe(descriptor)
 
     assert values["query_descriptor"]["builder"] == descriptor["query"]["builder"]
+
+
+def test_query_builder_metadata_does_not_change_executable_query() -> None:
+    descriptor = base_workflow_descriptor()
+    descriptor["query"]["builder"] = {
+        "schema_version": "query-builder-v1",
+        "source": "uniprot",
+        "builder_key": "uniprot",
+        "builder_type": "field_boolean",
+        "rows": [
+            {
+                "connector": None,
+                "field": "organism",
+                "match_mode": "any",
+                "values": ["Homo sapiens"],
+            }
+        ],
+    }
+
+    values = validate_workflow_recipe(descriptor)
+
+    assert values["query"] == "reviewed:true"
 
 
 def test_query_composition_must_be_list() -> None:

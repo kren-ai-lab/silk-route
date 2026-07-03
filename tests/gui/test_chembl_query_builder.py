@@ -12,6 +12,10 @@ from bioseq_dl.gui.query_builders.chembl import (
     build_chembl_friendly_query,
     build_chembl_interpreted_query,
 )
+from bioseq_dl.gui.query_builders.metadata import (
+    QUERY_BUILDER_SCHEMA_VERSION,
+    build_chembl_query_builder_metadata,
+)
 
 
 def test_chembl_target_filters_build_interpreted_query():
@@ -122,6 +126,26 @@ def test_chembl_builder_output_is_suitable_for_query_value():
     )
 
 
+def test_chembl_builder_metadata_preserves_visual_rows():
+    rows = [
+        ChEMBLFilterQueryBuilderRow("activity", "target_chembl_id", "exact", "CHEMBL203"),
+        ChEMBLFilterQueryBuilderRow("activity", "pchembl_value", "gte", "7"),
+    ]
+
+    metadata = build_chembl_query_builder_metadata("chembl_activity", rows)
+
+    assert metadata == {
+        "schema_version": QUERY_BUILDER_SCHEMA_VERSION,
+        "source": "chembl",
+        "builder_key": "chembl_activity",
+        "builder_type": "flat_parameters",
+        "rows": [
+            {"field": "target_chembl_id", "operator": "exact", "value": "CHEMBL203"},
+            {"field": "pchembl_value", "operator": "gte", "value": "7"},
+        ],
+    }
+
+
 def test_chembl_builder_import_does_not_import_nicegui():
     import_script = """
 import sys
@@ -137,4 +161,3 @@ if "nicegui" in sys.modules:
         capture_output=True,
         text=True,
     )
-

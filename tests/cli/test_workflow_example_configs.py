@@ -143,7 +143,7 @@ def test_workflow_yaml_docs_separate_current_preserved_and_future_fields() -> No
     ) in docs
     assert "`query.value` is the only executable query field." in docs
     assert "`query.builder` and" in docs
-    assert "`query.composition` are preserved GUI-oriented metadata" in docs
+    assert "`query.composition` are preserved neutral visual-editor metadata" in docs
     assert "If `query.composition` is present, it must match the executable `query.value`." in docs
 
 

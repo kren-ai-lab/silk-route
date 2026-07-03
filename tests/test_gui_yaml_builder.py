@@ -6,6 +6,7 @@ import asyncio
 import importlib
 import subprocess
 import sys
+from unittest.mock import Mock
 
 import pytest
 import yaml
@@ -14,7 +15,7 @@ from bioseq_dl.gui.yaml_builder import (
     DEFAULT_OUTPUT_DIRECTORY_NAME_ERROR,
     LOADED_QUERY_VALUE_WARNING,
     PROTEIN_CHEMBL_QUERY_WARNING,
-    QUERY_BUILDER_NOT_EDITABLE_WARNING,
+    QUERY_BUILDER_RESTORE_ERROR_WARNING,
     QUERY_COMPOSITION_NOT_EDITABLE_WARNING,
     build_workflow_descriptor,
     build_workflow_filename,
@@ -369,7 +370,7 @@ def test_advanced_uniprot_builder_mode_generates_interpreted_query_value() -> No
     )
 
 
-def test_advanced_uniprot_builder_mode_omits_builder_metadata() -> None:
+def test_advanced_uniprot_builder_mode_includes_builder_metadata() -> None:
     descriptor = build_workflow_descriptor(
         minimal_form_values()
         | {
@@ -386,12 +387,23 @@ def test_advanced_uniprot_builder_mode_omits_builder_metadata() -> None:
         }
     )
 
-    assert descriptor["query"] == {
-        "value": "organism_id:9606",
-        "include_isoform": False,
+    assert descriptor["query"]["value"] == "organism_id:9606"
+    assert descriptor["query"]["include_isoform"] is False
+    assert descriptor["query"]["builder"] == {
+        "schema_version": "query-builder-v1",
+        "source": "uniprot",
+        "builder_key": "uniprot",
+        "builder_type": "field_boolean",
+        "rows": [
+            {
+                "connector": None,
+                "field": "organism",
+                "match_mode": "any",
+                "values": ["Homo sapiens"],
+            }
+        ],
     }
     assert "query.uniprot_builder.rows" not in descriptor
-    assert "builder" not in descriptor["query"]
     assert "composition" not in descriptor["query"]
     assert "friendly_query" not in descriptor["query"]
 
@@ -457,7 +469,7 @@ def test_advanced_uniprot_builder_descriptor_validates_as_workflow_v1() -> None:
     assert validate_generated_descriptor(descriptor) == []
     assert "resources" not in descriptor
     assert "reporting" not in descriptor
-    assert "builder" not in descriptor["query"]
+    assert descriptor["query"]["builder"]["schema_version"] == "query-builder-v1"
     assert "composition" not in descriptor["query"]
 
 
@@ -519,7 +531,9 @@ def test_advanced_chembl_builder_modes_generate_interpreted_query_value(
 
     assert descriptor["query"]["value"] == expected_query_value
     assert validate_generated_descriptor(descriptor) == []
-    assert "builder" not in descriptor["query"]
+    assert descriptor["query"]["builder"]["schema_version"] == "query-builder-v1"
+    assert descriptor["query"]["builder"]["source"] == "chembl"
+    assert descriptor["query"]["builder"]["builder_key"] == builder_key
     assert "composition" not in descriptor["query"]
     assert "friendly_query" not in descriptor["query"]
     assert "query.chembl_builder.rows" not in descriptor
@@ -1059,7 +1073,7 @@ def test_invalid_schema_version_is_rejected_on_load() -> None:
         load_workflow_yaml_to_form_values(yaml_text)
 
 
-def test_query_builder_metadata_warns_and_is_not_exposed_as_editable_form_value() -> None:
+def test_invalid_query_builder_metadata_falls_back_to_manual_mode() -> None:
     yaml_text = minimal_workflow_yaml().replace(
         "  include_isoform: true\n",
         "  include_isoform: true\n  builder:\n    name: uniprot\n",
@@ -1067,7 +1081,8 @@ def test_query_builder_metadata_warns_and_is_not_exposed_as_editable_form_value(
 
     form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
 
-    assert QUERY_BUILDER_NOT_EDITABLE_WARNING in warnings
+    assert QUERY_BUILDER_RESTORE_ERROR_WARNING in warnings
+    assert form_values["query.input_mode"] == "Manual query"
     assert "query.builder" not in form_values
     assert "query.composition" not in form_values
 
@@ -1273,9 +1288,66 @@ def test_update_interaction_type_visibility_shows_interaction_value() -> None:
     assert app.interaction_type_select.update_count == 1
 
 
+def test_apply_loaded_chembl_builder_preserves_rows_and_refreshes_panel() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "dataset.modality": "compound",
+            "query.input_mode": "advanced_builder",
+            "query.builder.key": "chembl_activity",
+            "query.chembl_builder.rows": [
+                {
+                    "field": "target_chembl_id",
+                    "filter_type": "exact",
+                    "value": "CHEMBL203",
+                },
+                {
+                    "field": "pchembl_value",
+                    "filter_type": "gte",
+                    "value": "7",
+                },
+            ],
+        }
+    )
+    loaded_form_values, warnings = load_workflow_yaml_to_form_values(
+        render_workflow_yaml(descriptor)
+    )
+    app = module.WorkflowYamlBuilderApp()
+    app.build_uniprot_builder_rows = Mock()
+    app.build_chembl_builder_rows = Mock()
+
+    app.apply_loaded_form_values(loaded_form_values)
+
+    assert warnings == []
+    assert app.form_values["query.input_mode"] == "Advanced builder"
+    assert app.form_values["query.builder.key"] == "ChEMBL activity parameter builder"
+    assert [row["value"] for row in app.chembl_builder_rows] == ["CHEMBL203", "7"]
+    app.build_chembl_builder_rows.refresh.assert_called_once_with()
+
+
 def test_nicegui_app_imports_when_nicegui_is_installed() -> None:
     pytest.importorskip("nicegui")
 
     module = importlib.import_module("bioseq_dl.gui.nicegui_app")
 
     assert callable(module.main)
+
+
+def test_nicegui_main_uses_root_factory_without_reload(monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    create_app = Mock()
+    run = Mock()
+    monkeypatch.setattr(module, "create_app", create_app)
+    monkeypatch.setattr(module.ui, "run", run)
+
+    module.main()
+
+    create_app.assert_not_called()
+    run.assert_called_once_with(
+        root=create_app,
+        title="BioSeqDownloader Workflow YAML Builder",
+        reload=False,
+    )

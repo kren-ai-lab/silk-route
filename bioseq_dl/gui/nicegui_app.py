@@ -181,6 +181,22 @@ def build_uniprot_builder_form_rows(ui_rows: list[dict[str, object]]) -> list[di
     return form_rows
 
 
+def build_uniprot_builder_ui_rows(form_rows: object) -> list[dict[str, object]]:
+    """Convert restored UniProt form rows to visible NiceGUI row values."""
+    if not isinstance(form_rows, list):
+        return [make_uniprot_builder_ui_row()]
+    return [
+        {
+            "connector": str(row.get("connector") or "") if index > 0 else "",
+            "field": get_uniprot_builder_field_label(row.get("field", "")),
+            "values": str(row.get("values") or ""),
+            "match_mode": get_uniprot_match_mode_label(row.get("match_mode", "any")),
+        }
+        for index, row in enumerate(form_rows)
+        if isinstance(row, dict)
+    ] or [make_uniprot_builder_ui_row()]
+
+
 def get_chembl_builder_resource(builder_label_or_key: object) -> str:
     """Return the ChEMBL resource for a selected builder key or label."""
     builder_key = get_query_builder_key(builder_label_or_key)
@@ -270,6 +286,27 @@ def build_chembl_builder_form_rows(
         }
         for row in ui_rows
     ]
+
+
+def build_chembl_builder_ui_rows(
+    builder_label_or_key: object,
+    form_rows: object,
+) -> list[dict[str, object]]:
+    """Convert restored ChEMBL form rows to visible NiceGUI row values."""
+    if not isinstance(form_rows, list):
+        return [make_chembl_builder_ui_row(builder_label_or_key)]
+    return [
+        {
+            "field": get_chembl_builder_field_label(
+                builder_label_or_key,
+                row.get("field", ""),
+            ),
+            "filter_type": str(row.get("filter_type") or ""),
+            "value": str(row.get("value") or ""),
+        }
+        for row in form_rows
+        if isinstance(row, dict)
+    ] or [make_chembl_builder_ui_row(builder_label_or_key)]
 
 
 def get_dataset_modality_value(form_values: dict[str, object]) -> str:
@@ -437,7 +474,8 @@ class WorkflowYamlBuilderApp:
         with ui.expansion("Query", value=True).classes("w-full"):
             ui.label(
                 "Choose manual query entry or build an interpreted query. "
-                "Generated YAML always stores only query.value."
+                "query.value remains executable; advanced builders also store neutral "
+                "query.builder metadata."
             ).classes("text-sm text-gray-700")
             (
                 ui.select(list(QUERY_INPUT_MODE_LABEL_TO_VALUE), label="Query input mode")
@@ -728,7 +766,12 @@ class WorkflowYamlBuilderApp:
         """Return whether the selected builder is compatible with current dataset settings."""
         return self.form_values.get("query.builder.key") in self.get_compatible_query_builder_labels()
 
-    def refresh_query_builder_options(self, *, refresh_rows: bool = True) -> None:
+    def refresh_query_builder_options(
+        self,
+        *,
+        refresh_rows: bool = True,
+        reset_chembl_rows: bool = True,
+    ) -> None:
         """Refresh query-builder choices for the selected dataset settings."""
         labels = self.get_compatible_query_builder_labels()
         if self.query_builder_select is not None:
@@ -741,9 +784,10 @@ class WorkflowYamlBuilderApp:
             if self.builder_availability_message is not None:
                 self.builder_availability_message.text = ""
             if is_chembl_builder_key(self.form_values["query.builder.key"]):
-                self.chembl_builder_rows = [
-                    make_chembl_builder_ui_row(self.form_values["query.builder.key"])
-                ]
+                if reset_chembl_rows:
+                    self.chembl_builder_rows = [
+                        make_chembl_builder_ui_row(self.form_values["query.builder.key"])
+                    ]
                 if refresh_rows:
                     self.build_chembl_builder_rows.refresh()
             if refresh_rows:
@@ -1081,17 +1125,31 @@ class WorkflowYamlBuilderApp:
     def apply_loaded_form_values(self, loaded_form_values: dict[str, object]) -> None:
         """Apply loaded descriptor values to GUI state."""
         self.form_values.update(loaded_form_values)
-        self.form_values["query.input_mode"] = get_labeled_option_default(
-            "manual",
-            QUERY_INPUT_MODE_LABEL_TO_VALUE,
-        )
+        restored_mode = normalize_query_input_mode(self.form_values["query.input_mode"])
         self.form_values["query.builder.key"] = get_query_builder_label(
             self.form_values.get("query.builder.key", "uniprot")
         )
-        self.uniprot_builder_rows = [make_uniprot_builder_ui_row()]
-        self.chembl_builder_rows = [make_chembl_builder_ui_row(get_query_builder_label("chembl_target"))]
+        builder_label = self.form_values["query.builder.key"]
+        if restored_mode == "advanced_builder" and is_uniprot_builder_key(builder_label):
+            self.uniprot_builder_rows = build_uniprot_builder_ui_rows(
+                self.form_values.get("query.uniprot_builder.rows")
+            )
+            self.chembl_builder_rows = [
+                make_chembl_builder_ui_row(get_query_builder_label("chembl_target"))
+            ]
+        elif restored_mode == "advanced_builder" and is_chembl_builder_key(builder_label):
+            self.uniprot_builder_rows = [make_uniprot_builder_ui_row()]
+            self.chembl_builder_rows = build_chembl_builder_ui_rows(
+                builder_label,
+                self.form_values.get("query.chembl_builder.rows"),
+            )
+        else:
+            self.uniprot_builder_rows = [make_uniprot_builder_ui_row()]
+            self.chembl_builder_rows = [
+                make_chembl_builder_ui_row(get_query_builder_label("chembl_target"))
+            ]
         self.update_interaction_type_visibility()
-        self.refresh_query_builder_options()
+        self.refresh_query_builder_options(reset_chembl_rows=False)
 
     def regenerate_loaded_yaml_preview(self, warnings: list[str]) -> list[str]:
         """Regenerate YAML preview from loaded editable form values."""
@@ -1154,9 +1212,12 @@ def create_app() -> WorkflowYamlBuilderApp:
 
 def main() -> None:
     """Run the BioSeqDownloader workflow YAML builder GUI."""
-    create_app()
-    ui.run(title="BioSeqDownloader Workflow YAML Builder")
+    ui.run(
+        root=create_app,
+        title="BioSeqDownloader Workflow YAML Builder",
+        reload=False,
+    )
 
 
-if __name__ in {"__main__", "__mp_main__"}:
+if __name__ == "__main__":
     main()

@@ -222,7 +222,7 @@ _WORKFLOW_V1_SCHEMA_DEFINITION: dict[str, object] = {
         "default": None,
         "allowed_values": None,
         "role": "preserved_metadata",
-        "description": "GUI-oriented metadata kept for future builder reconstruction.",
+        "description": "Neutral visual-editor metadata for query-builder reconstruction.",
         "gui_visible": False,
     },
     "query.composition": {
