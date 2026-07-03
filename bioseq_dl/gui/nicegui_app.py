@@ -1549,9 +1549,12 @@ def create_app() -> WorkflowYamlBuilderApp:
 
 def main() -> None:
     """Run the BioSeqDownloader workflow YAML builder GUI."""
-    create_app()
-    ui.run(title="BioSeqDownloader Workflow YAML Builder")
+    ui.run(
+        root=create_app,
+        title="BioSeqDownloader Workflow YAML Builder",
+        reload=False,
+    )
 
 
-if __name__ in {"__main__", "__mp_main__"}:
+if __name__ == "__main__":
     main()

@@ -6,6 +6,7 @@ import asyncio
 import importlib
 import subprocess
 import sys
+from unittest.mock import Mock
 
 import pytest
 import yaml
@@ -1334,3 +1335,21 @@ def test_nicegui_app_imports_when_nicegui_is_installed() -> None:
     module = importlib.import_module("bioseq_dl.gui.nicegui_app")
 
     assert callable(module.main)
+
+
+def test_nicegui_main_uses_root_factory_without_reload(monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    create_app = Mock()
+    run = Mock()
+    monkeypatch.setattr(module, "create_app", create_app)
+    monkeypatch.setattr(module.ui, "run", run)
+
+    module.main()
+
+    create_app.assert_not_called()
+    run.assert_called_once_with(
+        root=create_app,
+        title="BioSeqDownloader Workflow YAML Builder",
+        reload=False,
+    )
