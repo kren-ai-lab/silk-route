@@ -122,6 +122,35 @@ def test_chembl_builder_metadata_round_trip_restores_advanced_rows() -> None:
     assert warnings == []
 
 
+def test_chembl_interaction_metadata_restores_target_builder_rows() -> None:
+    descriptor = build_workflow_descriptor(
+        base_form_values()
+        | {
+            "dataset.modality": "interaction",
+            "dataset.interaction_type": "protein-ligand",
+            "query.input_mode": "advanced_builder",
+            "query.builder.key": "chembl_target",
+            "query.chembl_builder.rows": [
+                {"field": "gene_symbol", "filter_type": "iexact", "value": "EGFR"},
+                {"field": "pref_name", "filter_type": "iexact", "value": "epidermal"},
+            ],
+        }
+    )
+
+    form_values, warnings = load_workflow_yaml_to_form_values(
+        render_workflow_yaml(descriptor)
+    )
+
+    assert warnings == []
+    assert form_values["query.input_mode"] == "Advanced builder"
+    assert form_values["query.builder.key"] == "chembl_target"
+    assert form_values["query.chembl_builder.rows"] == [
+        {"field": "gene_symbol", "filter_type": "iexact", "value": "EGFR"},
+        {"field": "pref_name", "filter_type": "iexact", "value": "epidermal"},
+    ]
+    assert build_workflow_descriptor(form_values) == descriptor
+
+
 def test_missing_builder_metadata_loads_manual_query_with_soft_note() -> None:
     descriptor = build_workflow_descriptor(base_form_values())
 

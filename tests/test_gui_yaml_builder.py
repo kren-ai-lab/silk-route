@@ -11,6 +11,12 @@ from unittest.mock import Mock
 import pytest
 import yaml
 
+from bioseq_dl.gui.query_builder_state import (
+    build_chembl_builder_form_rows,
+    build_chembl_builder_ui_rows,
+    build_uniprot_builder_form_rows,
+    build_uniprot_builder_ui_rows,
+)
 from bioseq_dl.gui.yaml_builder import (
     DEFAULT_OUTPUT_DIRECTORY_NAME_ERROR,
     LOADED_QUERY_VALUE_WARNING,
@@ -125,6 +131,14 @@ class FakeInteractionTypeSelect:
     def update(self) -> None:
         """Capture update calls."""
         self.update_count += 1
+
+
+class FakeValueChangeEvent:
+    """Small test double for a NiceGUI value-change event."""
+
+    def __init__(self, value: object) -> None:
+        """Store the changed control value."""
+        self.value = value
 
 
 def minimal_form_values() -> dict[str, object]:
@@ -1288,7 +1302,7 @@ def test_update_interaction_type_visibility_shows_interaction_value() -> None:
     assert app.interaction_type_select.update_count == 1
 
 
-def test_apply_loaded_chembl_builder_preserves_rows_and_refreshes_panel() -> None:
+def test_apply_loaded_chembl_builder_preserves_rows_and_rebuilds_query_section() -> None:
     pytest.importorskip("nicegui")
     module = importlib.import_module("bioseq_dl.gui.nicegui_app")
     descriptor = build_workflow_descriptor(
@@ -1315,8 +1329,7 @@ def test_apply_loaded_chembl_builder_preserves_rows_and_refreshes_panel() -> Non
         render_workflow_yaml(descriptor)
     )
     app = module.WorkflowYamlBuilderApp()
-    app.build_uniprot_builder_rows = Mock()
-    app.build_chembl_builder_rows = Mock()
+    app.build_query_controls = Mock()
 
     app.apply_loaded_form_values(loaded_form_values)
 
@@ -1324,7 +1337,192 @@ def test_apply_loaded_chembl_builder_preserves_rows_and_refreshes_panel() -> Non
     assert app.form_values["query.input_mode"] == "Advanced builder"
     assert app.form_values["query.builder.key"] == "ChEMBL activity parameter builder"
     assert [row["value"] for row in app.chembl_builder_rows] == ["CHEMBL203", "7"]
-    app.build_chembl_builder_rows.refresh.assert_called_once_with()
+    app.build_query_controls.refresh.assert_called_once_with()
+
+
+def test_loaded_chembl_builder_state_rebuilds_query_without_patching_widgets() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "dataset.modality": "interaction",
+            "dataset.interaction_type": "protein-ligand",
+            "query.input_mode": "advanced_builder",
+            "query.builder.key": "chembl_target",
+            "query.chembl_builder.rows": [
+                {"field": "gene_symbol", "filter_type": "iexact", "value": "EGFR"},
+                {"field": "pref_name", "filter_type": "iexact", "value": "epidermal"},
+            ],
+        }
+    )
+    loaded_form_values, warnings = load_workflow_yaml_to_form_values(
+        render_workflow_yaml(descriptor)
+    )
+    app = module.WorkflowYamlBuilderApp()
+    app.build_query_controls = Mock()
+
+    app.apply_loaded_form_values(loaded_form_values)
+
+    assert warnings == []
+    assert app.form_values["query.input_mode"] == "Advanced builder"
+    assert app.form_values["query.builder.key"] == "ChEMBL target filter builder"
+    assert [row["value"] for row in app.chembl_builder_rows] == ["EGFR", "epidermal"]
+    app.build_query_controls.refresh.assert_called_once_with()
+
+
+def test_compatible_builder_refresh_without_reset_preserves_chembl_rows() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    app = module.WorkflowYamlBuilderApp()
+    app.form_values["dataset.modality"] = "Interaction"
+    app.form_values["dataset.interaction_type"] = "Protein-ligand interaction"
+    app.form_values["query.builder.key"] = "ChEMBL target filter builder"
+    app.active_query_builder_label = "ChEMBL target filter builder"
+    app.chembl_builder_rows = build_chembl_builder_ui_rows(
+        "chembl_target",
+        [
+            {"field": "gene_symbol", "filter_type": "iexact", "value": "EGFR"},
+            {"field": "pref_name", "filter_type": "iexact", "value": "epidermal"},
+        ],
+    )
+
+    app.refresh_query_builder_options(refresh_rows=False, reset_chembl_rows=False)
+
+    assert [row["value"] for row in app.chembl_builder_rows] == ["EGFR", "epidermal"]
+    assert len(app.form_values["query.chembl_builder.rows"]) == 2
+
+
+def test_loaded_compatible_builder_survives_delayed_dataset_and_builder_events() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "dataset.modality": "interaction",
+            "dataset.interaction_type": "protein-ligand",
+            "query.input_mode": "advanced_builder",
+            "query.builder.key": "chembl_target",
+            "query.chembl_builder.rows": [
+                {"field": "gene_symbol", "filter_type": "iexact", "value": "EGFR"},
+                {"field": "pref_name", "filter_type": "iexact", "value": "epidermal"},
+            ],
+        }
+    )
+    loaded_form_values, warnings = load_workflow_yaml_to_form_values(
+        render_workflow_yaml(descriptor)
+    )
+    app = module.WorkflowYamlBuilderApp()
+    app.build_chembl_builder_rows = Mock()
+    app.build_uniprot_builder_rows = Mock()
+
+    app.apply_loaded_form_values_to_state(loaded_form_values)
+    app.refresh_query_builder_options(refresh_rows=False)
+    app.handle_query_builder_change()
+
+    assert warnings == []
+    assert app.form_values["query.builder.key"] == "ChEMBL target filter builder"
+    assert [row["value"] for row in app.chembl_builder_rows] == ["EGFR", "epidermal"]
+    assert len(app.form_values["query.chembl_builder.rows"]) == 2
+
+
+def test_chembl_form_rows_convert_to_complete_gui_rows() -> None:
+    form_rows = [
+        {"field": "gene_symbol", "filter_type": "iexact", "value": "EGFR"},
+        {"field": "pref_name", "filter_type": "iexact", "value": "epidermal"},
+    ]
+
+    ui_rows = build_chembl_builder_ui_rows("chembl_target", form_rows)
+
+    assert len(ui_rows) == 2
+    assert [row["filter_type"] for row in ui_rows] == ["iexact", "iexact"]
+    assert [row["value"] for row in ui_rows] == ["EGFR", "epidermal"]
+    assert build_chembl_builder_form_rows("chembl_target", ui_rows) == form_rows
+
+
+def test_uniprot_form_rows_convert_to_complete_gui_rows() -> None:
+    form_rows = [
+        {
+            "connector": None,
+            "field": "organism",
+            "match_mode": "any",
+            "values": "Homo sapiens",
+        },
+        {
+            "connector": "AND",
+            "field": "keywords",
+            "match_mode": "all",
+            "values": "Antimicrobial,Metal-binding",
+        },
+    ]
+
+    ui_rows = build_uniprot_builder_ui_rows(form_rows)
+
+    assert len(ui_rows) == 2
+    assert [row["connector"] for row in ui_rows] == ["", "AND"]
+    assert [row["values"] for row in ui_rows] == [
+        "Homo sapiens",
+        "Antimicrobial,Metal-binding",
+    ]
+    assert build_uniprot_builder_form_rows(ui_rows) == form_rows
+
+
+def test_chembl_row_event_updates_restored_state_and_form_values() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    app = module.WorkflowYamlBuilderApp()
+    app.form_values["query.builder.key"] = "ChEMBL target filter builder"
+    app.chembl_builder_rows = build_chembl_builder_ui_rows(
+        "chembl_target",
+        [
+            {"field": "gene_symbol", "filter_type": "iexact", "value": "EGFR"},
+            {"field": "pref_name", "filter_type": "iexact", "value": "epidermal"},
+        ],
+    )
+    app.build_chembl_builder_rows = Mock()
+    app.update_builder_previews = Mock()
+
+    app.set_chembl_builder_row_value(1, "value", FakeValueChangeEvent("EGFR receptor"))
+
+    assert app.chembl_builder_rows[1]["value"] == "EGFR receptor"
+    assert app.form_values["query.chembl_builder.rows"][1]["value"] == "EGFR receptor"
+    app.build_chembl_builder_rows.refresh.assert_not_called()
+    app.update_builder_previews.assert_called_once_with()
+
+
+def test_uniprot_row_event_updates_restored_state_and_form_values() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    app = module.WorkflowYamlBuilderApp()
+    app.uniprot_builder_rows = build_uniprot_builder_ui_rows(
+        [
+            {
+                "connector": None,
+                "field": "organism",
+                "match_mode": "any",
+                "values": "Homo sapiens",
+            },
+            {
+                "connector": "AND",
+                "field": "keywords",
+                "match_mode": "all",
+                "values": "Antimicrobial,Metal-binding",
+            },
+        ]
+    )
+    app.build_uniprot_builder_rows = Mock()
+    app.update_builder_previews = Mock()
+
+    app.set_uniprot_builder_row_value(
+        1,
+        "values",
+        FakeValueChangeEvent("Antimicrobial"),
+    )
+
+    assert app.uniprot_builder_rows[1]["values"] == "Antimicrobial"
+    assert app.form_values["query.uniprot_builder.rows"][1]["values"] == "Antimicrobial"
+    app.build_uniprot_builder_rows.refresh.assert_not_called()
+    app.update_builder_previews.assert_called_once_with()
 
 
 def test_nicegui_app_imports_when_nicegui_is_installed() -> None:
