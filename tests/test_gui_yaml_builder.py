@@ -6,6 +6,7 @@ import asyncio
 import importlib
 import subprocess
 import sys
+from copy import deepcopy
 from unittest.mock import Mock
 
 import pytest
@@ -22,7 +23,7 @@ from bioseq_dl.gui.yaml_builder import (
     LOADED_QUERY_VALUE_WARNING,
     PROTEIN_CHEMBL_QUERY_WARNING,
     QUERY_BUILDER_RESTORE_ERROR_WARNING,
-    QUERY_COMPOSITION_NOT_EDITABLE_WARNING,
+    QUERY_COMPOSITION_VALUE_PARSED_NOTE,
     build_workflow_descriptor,
     build_workflow_filename,
     descriptor_to_form_values,
@@ -304,7 +305,13 @@ def test_human_readable_modality_labels_map_to_schema_values(label: str, expecte
     ],
 )
 def test_human_readable_workflow_mode_labels_map_to_schema_values(label: str, expected: str) -> None:
-    descriptor = build_workflow_descriptor(minimal_form_values() | {"dataset.mode": label})
+    form_values = minimal_form_values() | {"dataset.mode": label}
+    if expected == "query_composition":
+        form_values["query.composition.entries"] = [
+            {"label": "reviewed", "value": "reviewed:true", "description": ""}
+        ]
+
+    descriptor = build_workflow_descriptor(form_values)
 
     assert descriptor["dataset"]["mode"] == expected
 
@@ -1101,21 +1108,42 @@ def test_invalid_query_builder_metadata_falls_back_to_manual_mode() -> None:
     assert "query.composition" not in form_values
 
 
-def test_query_composition_metadata_warns_and_is_not_exposed_as_editable_form_value() -> None:
-    yaml_text = minimal_workflow_yaml().replace(
+def test_query_composition_metadata_loads_as_editable_form_values() -> None:
+    yaml_text = minimal_workflow_yaml().replace("mode: query_first", "mode: query_composition").replace(
         "  include_isoform: true\n",
         (
+            "  value: reviewed:true=reviewed\n"
             "  include_isoform: true\n"
             "  composition:\n"
             "    - label: reviewed\n"
             "      value: reviewed:true\n"
         ),
+    ).replace('  value: "reviewed:true"\n', "", 1)
+
+    form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert warnings == []
+    entry = form_values["query.composition.entries"][0]
+    assert entry["label"] == "reviewed"
+    assert entry["value"] == "reviewed:true"
+    assert entry["description"] == ""
+    assert entry["query_input_mode"] == "Manual query"
+
+
+def test_query_composition_value_without_metadata_loads_with_note() -> None:
+    yaml_text = minimal_workflow_yaml().replace("mode: query_first", "mode: query_composition").replace(
+        'value: "reviewed:true"',
+        'value: "reviewed:true=reviewed"',
     )
 
     form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
 
-    assert QUERY_COMPOSITION_NOT_EDITABLE_WARNING in warnings
-    assert "query.composition" not in form_values
+    assert QUERY_COMPOSITION_VALUE_PARSED_NOTE in warnings
+    entry = form_values["query.composition.entries"][0]
+    assert entry["label"] == "reviewed"
+    assert entry["value"] == "reviewed:true"
+    assert entry["description"] == ""
+    assert entry["query_input_mode"] == "Manual query"
 
 
 def test_builder_does_not_require_nicegui_to_be_installed() -> None:
@@ -1549,3 +1577,94 @@ def test_nicegui_main_uses_root_factory_without_reload(monkeypatch: pytest.Monke
         title="BioSeqDownloader Workflow YAML Builder",
         reload=False,
     )
+
+
+def test_composition_mode_initializes_only_selected_entry_local_rows() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    app = module.WorkflowYamlBuilderApp()
+    app.form_values["dataset.modality"] = "Protein"
+    app.form_values["dataset.mode"] = "Query Composition"
+    app.form_values["query.composition.entries"] = [
+        {
+            "label": "antimicrobial",
+            "value": "keywords:Antimicrobial",
+            "description": "",
+            "query_input_mode": "Manual query",
+            "query_builder_key": "uniprot",
+            "uniprot_builder_rows": [],
+            "chembl_builder_rows": [],
+        },
+        {
+            "label": "antiviral",
+            "value": "keywords:Antiviral",
+            "description": "",
+            "query_input_mode": "Manual query",
+            "query_builder_key": "uniprot",
+            "uniprot_builder_rows": [],
+            "chembl_builder_rows": [],
+        },
+    ]
+    global_rows_before = deepcopy(app.uniprot_builder_rows)
+    second_entry_before = deepcopy(app.form_values["query.composition.entries"][1])
+    app.build_query_composition_rows = Mock()
+
+    app.handle_query_composition_entry_mode_change(
+        0,
+        FakeValueChangeEvent("Advanced builder"),
+    )
+
+    first_entry = app.form_values["query.composition.entries"][0]
+    assert first_entry["query_input_mode"] == "Advanced builder"
+    assert first_entry["query_builder_key"] == "uniprot"
+    assert first_entry["uniprot_builder_rows"] == [
+        {"connector": None, "field": "organism", "values": "", "match_mode": "any"}
+    ]
+    assert app.form_values["query.composition.entries"][1] == second_entry_before
+    assert app.uniprot_builder_rows == global_rows_before
+
+
+def test_composition_builder_change_resets_only_selected_entry() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    app = module.WorkflowYamlBuilderApp()
+    app.form_values["dataset.modality"] = "Interaction"
+    app.form_values["dataset.interaction_type"] = "Protein-ligand interaction"
+    app.form_values["dataset.mode"] = "Query Composition"
+    app.form_values["query.composition.entries"] = [
+        {
+            "label": "egfr",
+            "value": "",
+            "description": "",
+            "query_input_mode": "Advanced builder",
+            "query_builder_key": "chembl_activity",
+            "uniprot_builder_rows": [],
+            "chembl_builder_rows": [
+                {"field": "target_chembl_id", "filter_type": "exact", "value": "CHEMBL203"}
+            ],
+        },
+        {
+            "label": "other",
+            "value": "chembl.target:gene_symbol__iexact=ALK",
+            "description": "",
+            "query_input_mode": "Manual query",
+            "query_builder_key": "chembl_target",
+            "uniprot_builder_rows": [],
+            "chembl_builder_rows": [],
+        },
+    ]
+    second_entry_before = deepcopy(app.form_values["query.composition.entries"][1])
+    global_rows_before = deepcopy(app.chembl_builder_rows)
+    app.build_query_composition_rows = Mock()
+
+    app.handle_query_composition_entry_builder_change(
+        0,
+        FakeValueChangeEvent("ChEMBL target filter builder"),
+    )
+
+    first_entry = app.form_values["query.composition.entries"][0]
+    assert first_entry["query_builder_key"] == "chembl_target"
+    assert len(first_entry["chembl_builder_rows"]) == 1
+    assert first_entry["chembl_builder_rows"][0]["field"] == "gene_symbol"
+    assert app.form_values["query.composition.entries"][1] == second_entry_before
+    assert app.chembl_builder_rows == global_rows_before

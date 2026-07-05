@@ -29,6 +29,9 @@ Valid `dataset.mode` values are:
 - `query_first`
 - `query_composition`
 
+`query_first` describes one query. `query_composition` describes multiple
+labeled queries; each query is retrieved separately and assigned its label.
+
 The CLI equivalent is `--mode` (or `-d`) with the same values.
 
 ## CLI Override Priority
@@ -212,15 +215,33 @@ GUI builder rows compile to a final interpreted query and store that executable
 string in `query.value`. The pure builder utilities prepare query text only;
 live validation and data retrieval happen in the workflow run.
 
-The optional NiceGUI interface prepares `workflow-v1` YAML descriptors; workflow
-execution still happens through the CLI. The GUI keeps credentials out of YAML
-and treats live API access as part of the later workflow run. The Query section
-has two modes: Manual query writes the typed text directly to `query.value`,
-while Advanced builder lets users choose a database-specific builder. The
-interpreted query preview is the value written to `query.value`. The friendly
-query preview is display-only. Advanced mode also writes neutral
+The optional NiceGUI interface prepares `workflow-v1` YAML descriptors only. It
+does not execute workflows, call external APIs, or download biological data.
+The GUI keeps credentials out of YAML and treats live API access as part of the
+later workflow run. For `query_first`, Manual query writes typed text directly
+to `query.value`, while Advanced builder lets users choose a database-specific
+builder. The interpreted query preview is the value written to `query.value`.
+The friendly query preview is display-only. Advanced mode also writes neutral
 `query.builder` metadata so visual editors can restore its source-specific rows
-later; Manual query mode omits it. `query.composition` remains reserved metadata.
+later; Manual query mode omits it.
+
+For `query_composition`, the GUI includes a labeled query editor. Each entry has
+a label, optional description, and either a manual query value or a compatible
+UniProt or ChEMBL advanced builder. The GUI joins entries as comma-separated
+`query=label` pairs in `query.value` and writes matching `query.composition`
+metadata, including independent builder metadata for advanced entries:
+
+```yaml
+query:
+  value: "keywords:antiviral protein=antiviral,go:dna repair=dna_repair"
+  composition:
+    - label: antiviral
+      value: "keywords:antiviral protein"
+      description: Antiviral protein keyword query.
+    - label: dna_repair
+      value: "go:dna repair"
+      description: DNA repair Gene Ontology query.
+```
 Install it with the optional GUI extra and run:
 
 ```bash
@@ -235,10 +256,11 @@ python -m bioseq_dl.gui.nicegui_app
 ```
 
 The GUI writes `schema_version: "workflow-v1"` automatically. `query.value` is
-the only executable query field. Advanced mode emits optional `query.builder`
-metadata with `schema_version: query-builder-v1`, while Manual query mode does
-not. Workflows ignore `query.builder` during execution. Generated YAML can be
-copied from the preview or saved as a `.yml` file through the browser.
+the only executable query field. Advanced `query_first` mode emits optional
+top-level `query.builder` metadata. Advanced labeled entries emit independent
+builder metadata inside `query.composition[]`; manual modes omit it. Workflows
+ignore visual builder metadata during execution. Generated YAML can be copied
+from the preview or saved as a `.yml` file through the browser.
 
 The GUI can load an existing `workflow-v1` YAML file and populate supported form
 fields. Loading validates the descriptor, fills the editable Dataset, Query,
@@ -248,9 +270,11 @@ include `query.builder` metadata. If that metadata is valid, compatible with the
 loaded dataset settings, and regenerates the same `query.value`, the GUI restores
 the selected advanced builder and its rows. If `query.builder` is missing,
 invalid, incompatible, or no longer matches `query.value`, the GUI loads the
-saved query text in Manual query mode. Workflow execution continues to use only
-`query.value`. Metadata such as `query.composition`, `resources`, or `reporting`
-may also validate as workflow-v1 descriptor metadata and is shown as read-only.
+saved query text in Manual query mode. For `query_composition`, valid metadata
+restores the labeled rows; when metadata is absent, the GUI reconstructs rows
+from valid `query.value` pairs. Workflow execution continues to use only
+`query.value`. Metadata such as `resources` or `reporting` may also validate as
+workflow-v1 descriptor metadata and is shown as read-only.
 
 GUI controls use human-friendly labels while generated YAML keeps exact
 `workflow-v1` values. `Query First` writes `query_first`, `Query Composition`
@@ -370,7 +394,7 @@ deduplication are handled by the workflow logic that supports those operations.
 | --- | --- | --- | --- | --- | --- | --- |
 | `value` | non-empty string | Required | none | Executable | Normalized to `workflow_values["query"]` | For `query_first`, this is the query string. For `query_composition`, use comma-separated labeled pairs such as `temperature:99=temp_99,temperature:98=temp_98`. |
 | `builder` | mapping | Optional | omitted | Neutral visual-editor metadata | Preserved in descriptor metadata and summary | Advanced builders emit `query-builder-v1` metadata with `source`, `builder_key`, `builder_type`, and source-specific `rows`. |
-| `composition` | list of mappings | Optional | omitted | Neutral visual-editor metadata | Preserved in descriptor metadata and summary | `query.value` remains the executable query. Each item must include non-empty string `label` and `value`; optional `description` may be a string or null. |
+| `composition` | list of mappings | Optional | omitted | Neutral visual-editor metadata | Preserved in descriptor metadata and summary | `query.value` remains executable. Each item requires non-empty `label` and `value`, with optional `description` and per-entry `builder` mapping. |
 | `description` | string or null | Optional | `null` | Descriptive | Preserved in metadata and summary | Used as descriptor context. |
 | `filtering_strategy` | string or null | Optional | `null` | Descriptive | Preserved in metadata and summary | Filtering must be encoded in `query.value`; `query.filters` is not supported. |
 | `fields` | null, string, or list of strings | Optional | `null` | Executable | Normalized to `workflow_values["fields"]` and passed to the UniProt fetch as the API `fields` parameter | It controls requested UniProt fields. Parser columns still come from the workflow parser's field map. |
@@ -378,8 +402,9 @@ deduplication are handled by the workflow logic that supports those operations.
 | `include_isoform` | boolean | Optional | `false` | Executable | Normalized to `workflow_values["include_isoform"]` and passed to UniProt fetches | Applies to UniProt requests. |
 
 `query.value` is the only executable query field. `query.builder` and
-`query.composition` are preserved neutral visual-editor metadata for future
-reconstruction; execution continues to use `query.value`.
+`query.composition` are preserved neutral visual-editor metadata used to
+reconstruct the corresponding GUI controls; execution continues to use
+`query.value`.
 
 When `dataset.mode` is `query_composition` and `query.composition` is present,
 the preserved composition metadata must match the executable comma-separated
@@ -387,6 +412,10 @@ the preserved composition metadata must match the executable comma-separated
 `query.value: "gene:TP53=tp53,gene:BRCA1=brca1"` must be described by
 composition items containing the exact `(value, label)` pairs
 `("gene:TP53", "tp53")` and `("gene:BRCA1", "brca1")`.
+When composition metadata is omitted, the GUI can reconstruct editor rows from
+valid `query.value` pairs. Because commas separate entries and the current
+format has no escaping mechanism, this GUI version rejects commas inside an
+individual composition query value.
 
 ### `resources`
 

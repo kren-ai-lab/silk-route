@@ -135,6 +135,70 @@ def test_workflow_validator_accepts_optional_query_builder_metadata() -> None:
     assert validated["query"]["builder"] == descriptor["query"]["builder"]
 
 
+def test_query_composition_parser_splits_on_last_equals_sign() -> None:
+    from bioseq_dl.workflow_schema_definition import parse_query_composition_value
+
+    pairs = parse_query_composition_value(
+        "chembl.target:gene_symbol__iexact=EGFR=egfr"
+    )
+
+    assert pairs == [("chembl.target:gene_symbol__iexact=EGFR", "egfr")]
+
+
+def test_query_composition_parser_preserves_multiple_simple_pairs() -> None:
+    from bioseq_dl.workflow_schema_definition import parse_query_composition_value
+
+    pairs = parse_query_composition_value(
+        "temperature:20=temp_low,temperature:80=temp_high"
+    )
+
+    assert pairs == [
+        ("temperature:20", "temp_low"),
+        ("temperature:80", "temp_high"),
+    ]
+
+
+def test_query_composition_accepts_optional_entry_builder_mapping() -> None:
+    from bioseq_dl.workflow_schema_definition import validate_workflow_v1_descriptor
+
+    descriptor = minimal_workflow_descriptor()
+    descriptor["dataset"]["mode"] = "query_composition"
+    descriptor["query"] = {
+        "value": "keyword:Antiviral=antiviral",
+        "composition": [
+            {
+                "label": "antiviral",
+                "value": "keyword:Antiviral",
+                "builder": {"schema_version": "query-builder-v1"},
+            }
+        ],
+    }
+
+    validated = validate_workflow_v1_descriptor(descriptor)
+
+    assert validated["query"]["composition"] == descriptor["query"]["composition"]
+
+
+def test_query_composition_rejects_non_mapping_entry_builder() -> None:
+    from bioseq_dl.workflow_schema_definition import validate_workflow_v1_descriptor
+
+    descriptor = minimal_workflow_descriptor()
+    descriptor["dataset"]["mode"] = "query_composition"
+    descriptor["query"] = {
+        "value": "keyword:Antiviral=antiviral",
+        "composition": [
+            {
+                "label": "antiviral",
+                "value": "keyword:Antiviral",
+                "builder": ["not", "a", "mapping"],
+            }
+        ],
+    }
+
+    with pytest.raises(TypeError, match=r"query\.composition\[0\]\.builder.*mapping"):
+        validate_workflow_v1_descriptor(descriptor)
+
+
 @pytest.mark.parametrize(
     "field_name",
     ["id_column", "label_column", "sequence_column", "unique_sequence_strategy"],

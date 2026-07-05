@@ -11,6 +11,7 @@ from bioseq_dl.cli.workflows import (
     WORKFLOW_SCHEMA_VERSION,
     build_metadata_document,
     build_summary_document,
+    split_pair,
     validate_workflow_recipe,
 )
 
@@ -333,6 +334,26 @@ def test_query_composition_matching_query_value_passes_validation() -> None:
     values = validate_workflow_recipe(descriptor)
 
     assert values["query_descriptor"]["composition"] == descriptor["query"]["composition"]
+
+
+def test_query_composition_with_equals_in_query_value_passes_validation() -> None:
+    descriptor = base_workflow_descriptor()
+    descriptor["dataset"]["mode"] = "query_composition"
+    descriptor["query"]["value"] = "chembl.target:gene_symbol__iexact=EGFR=egfr"
+    descriptor["query"]["composition"] = [
+        {"label": "egfr", "value": "chembl.target:gene_symbol__iexact=EGFR"},
+    ]
+
+    values = validate_workflow_recipe(descriptor)
+
+    assert values["query_descriptor"]["composition"] == descriptor["query"]["composition"]
+
+
+def test_cli_composition_pair_splits_on_last_equals_sign() -> None:
+    assert split_pair("chembl.target:gene_symbol__iexact=EGFR=egfr") == (
+        "chembl.target:gene_symbol__iexact=EGFR",
+        "egfr",
+    )
 
 
 def test_query_composition_crossed_pairs_fail_validation() -> None:
