@@ -206,8 +206,14 @@ longer matches `query.value`, the saved query text opens in Manual query mode.
 Metadata such as `resources` and `reporting` may also validate as workflow-v1
 descriptor metadata and is shown as read-only. Valid `query.composition`
 metadata is restored into the labeled query editor.
-`query.fields` and `query.crossref_fields` remain separate optional inputs and
-are not advanced-builder search conditions.
+Enrichment is optional. The GUI hides enrichment details until `Enable
+enrichment` is selected, then offers multiple sources and an advanced
+cross-reference field input. Selected sources are stored as lowercase keys in
+`query.crossref_fields`; endpoint availability still depends on the workflow
+and packaged endpoint configuration. PubChem and ChEBI remain available as
+query sources/builders, while their enrichment behavior depends on usable
+cross-reference fields and configured endpoints. `query.fields` remains
+separate from advanced-builder search conditions.
 In the Advanced UniProt builder, Connector combines a row with the previous row
 using `AND` or `OR`, while Match mode combines comma-separated values inside
 one row as `Any`, `All`, or `Not`. Values containing spaces can be quoted. The
@@ -229,6 +235,9 @@ plans. The GUI prepares YAML, while execution stays in the CLI. Compound
 workflows execute PubChem compound and selected structure plans plus ChEBI ID
 and name/text searches.
 Workflows execute only `query.value` and ignore `query.builder`.
+`ChEMBL workflow pages to fetch` is kept under collapsed source-specific
+execution options. It controls ChEMBL pagination and is not an enrichment
+source selector.
 Advanced query builders are filtered by the selected dataset modality and
 interaction type. Protein datasets expose the UniProt builder. Compound
 datasets expose compatible ChEMBL molecule/activity builders plus PubChem and

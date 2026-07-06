@@ -102,6 +102,7 @@ def test_query_composition_descriptor_contains_executable_value_and_metadata() -
             "description": "DNA repair Gene Ontology query.",
         },
     ]
+    assert descriptor["execution"]["enrich"] is False
     assert "builder" not in descriptor["query"]
 
 

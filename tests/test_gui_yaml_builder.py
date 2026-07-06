@@ -26,9 +26,13 @@ from bioseq_dl.gui.yaml_builder import (
     QUERY_COMPOSITION_VALUE_PARSED_NOTE,
     build_workflow_descriptor,
     build_workflow_filename,
+    crossref_fields_from_enrichment_sources,
     descriptor_to_form_values,
+    enrichment_sources_from_crossref_fields,
+    get_enrichment_source_options,
     load_workflow_yaml_text,
     load_workflow_yaml_to_form_values,
+    normalize_enrichment_sources,
     parse_csv_list,
     render_workflow_yaml,
     resolve_query_value_from_form,
@@ -251,6 +255,68 @@ def test_build_workflow_descriptor_removes_empty_optional_fields() -> None:
 
 def test_parse_csv_list_removes_empty_values() -> None:
     assert parse_csv_list("accession, id,, protein_name") == ["accession", "id", "protein_name"]
+
+
+def test_default_form_disables_enrichment_and_selects_no_sources() -> None:
+    form_values = workflow_yaml_form_defaults()
+
+    assert form_values["execution.enrich"] is False
+    assert form_values["execution.enrichment_sources"] == []
+
+
+def test_enrichment_source_options_map_labels_to_executable_keys() -> None:
+    options = get_enrichment_source_options()
+
+    assert options == {
+        "AlphaFold": "alphafold",
+        "BioGRID": "biogrid",
+        "ChEMBL": "chembl",
+        "ChEBI": "chebi",
+        "GO": "go",
+        "InterPro": "interpro",
+        "KEGG": "kegg",
+        "PDB": "pdb",
+        "PubChem": "pubchem",
+        "Reactome": "reactome",
+        "RefSeq": "refseq",
+        "Rhea": "rhea",
+        "STRING": "string",
+        "SABIO-RK": "sabio-rk",
+    }
+    assert normalize_enrichment_sources(["ChEMBL", "PDB", "STRING"]) == [
+        "chembl",
+        "pdb",
+        "string",
+    ]
+
+
+def test_selected_enrichment_sources_generate_crossref_fields() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "execution.enrich": True,
+            "execution.enrichment_sources": ["chembl", "pdb", "string"],
+            "query.crossref_fields": "",
+        }
+    )
+
+    assert descriptor["execution"]["enrich"] is True
+    assert "enrichment_sources" not in descriptor["execution"]
+    assert descriptor["query"]["crossref_fields"] == ["chembl", "pdb", "string"]
+
+
+def test_enrichment_source_crossrefs_preserve_unknown_manual_fields() -> None:
+    crossref_text = crossref_fields_from_enrichment_sources(
+        ["pdb", "string"],
+        existing_crossref_fields="custom_source, chembl",
+    )
+
+    assert crossref_text == "pdb, string, custom_source, chembl"
+    assert enrichment_sources_from_crossref_fields(crossref_text) == [
+        "pdb",
+        "string",
+        "chembl",
+    ]
 
 
 def test_build_workflow_descriptor_parses_comma_separated_fields() -> None:
@@ -1060,6 +1126,8 @@ def test_descriptor_to_form_values_loads_supported_fields() -> None:
     assert form_values["query.value"] == "reviewed:true"
     assert form_values["query.input_mode"] == "Manual query"
     assert form_values["query.include_isoform"] is True
+    assert form_values["execution.enrich"] is False
+    assert form_values["execution.enrichment_sources"] == ["pdb", "string"]
     assert form_values["execution.max_workers"] == 4
     assert form_values["execution.total_retries"] == 2
     assert form_values["execution.chembl_pages_to_fetch"] == 1
@@ -1080,6 +1148,30 @@ def test_loaded_list_fields_become_comma_separated_text() -> None:
     assert form_values["query.fields"] == "accession, sequence"
     assert form_values["query.crossref_fields"] == "xref_pdb, xref_string"
     assert form_values["harmonization.metadata_fields"] == "accession, protein_name"
+
+
+def test_loading_enriched_yaml_restores_known_enrichment_sources() -> None:
+    yaml_text = minimal_workflow_yaml().replace(
+        "    - xref_pdb\n    - xref_string",
+        "    - chembl\n    - pdb\n    - string",
+    ).replace("  enrich: false", "  enrich: true")
+
+    form_values, _warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert form_values["execution.enrich"] is True
+    assert form_values["execution.enrichment_sources"] == ["chembl", "pdb", "string"]
+
+
+def test_loading_unknown_crossref_fields_preserves_text_without_selecting_them() -> None:
+    yaml_text = minimal_workflow_yaml().replace(
+        "    - xref_pdb\n    - xref_string",
+        "    - pdb\n    - custom_source",
+    ).replace("  enrich: false", "  enrich: true")
+
+    form_values, _warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert form_values["query.crossref_fields"] == "pdb, custom_source"
+    assert form_values["execution.enrichment_sources"] == ["pdb"]
 
 
 def test_missing_optional_list_fields_become_empty_strings() -> None:
@@ -1388,6 +1480,51 @@ def test_update_interaction_type_visibility_shows_interaction_value() -> None:
     assert app.form_values["dataset.interaction_type"] == "Protein-protein interaction"
     assert app.interaction_type_select.visible is True
     assert app.interaction_type_select.update_count == 1
+
+
+def test_enrichment_toggle_refreshes_only_enrichment_controls() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    app = module.WorkflowYamlBuilderApp()
+    app.build_enrichment_controls = Mock()
+
+    app.handle_enrichment_toggle(FakeValueChangeEvent(True))
+
+    assert app.form_values["execution.enrich"] is True
+    app.build_enrichment_controls.refresh.assert_called_once_with()
+
+
+def test_enrichment_source_change_updates_crossref_fields_and_preserves_unknowns() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    app = module.WorkflowYamlBuilderApp()
+    app.form_values["query.crossref_fields"] = "chembl, custom_source"
+    app.crossref_fields_input = Mock()
+
+    app.handle_enrichment_sources_change(
+        FakeValueChangeEvent(["pdb", "string"]),
+    )
+
+    assert app.form_values["execution.enrichment_sources"] == ["pdb", "string"]
+    assert app.form_values["query.crossref_fields"] == "pdb, string, custom_source"
+    assert app.crossref_fields_input.value == "pdb, string, custom_source"
+    app.crossref_fields_input.update.assert_called_once_with()
+
+
+def test_manual_crossref_change_updates_known_source_selection() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    app = module.WorkflowYamlBuilderApp()
+    app.enrichment_sources_select = Mock()
+
+    app.handle_crossref_fields_change(
+        FakeValueChangeEvent("chembl, pdb, custom_source"),
+    )
+
+    assert app.form_values["query.crossref_fields"] == "chembl, pdb, custom_source"
+    assert app.form_values["execution.enrichment_sources"] == ["chembl", "pdb"]
+    assert app.enrichment_sources_select.value == ["chembl", "pdb"]
+    app.enrichment_sources_select.update.assert_called_once_with()
 
 
 def test_apply_loaded_chembl_builder_preserves_rows_and_rebuilds_query_section() -> None:

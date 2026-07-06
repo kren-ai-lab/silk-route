@@ -10,6 +10,7 @@ from typing import cast
 
 import yaml
 
+from bioseq_dl.constants.uniprot import XREF_MAPPING
 from bioseq_dl.workflow_schema_definition import (
     WORKFLOW_SCHEMA_VERSION,
     get_workflow_v1_schema_definition,
@@ -140,6 +141,22 @@ CHEBI_BUILDER_RESOURCE_BY_KEY = {
     "chebi_ontology": "ontology",
     "chebi_structure": "structure",
 }
+ENRICHMENT_SOURCE_XREF_LABELS = (
+    ("AlphaFold", "AlphaFold"),
+    ("BioGRID", "BioGRID"),
+    ("ChEMBL", "ChEMBL"),
+    ("ChEBI", "ChEBI"),
+    ("GO", "GO"),
+    ("InterPro", "InterPro"),
+    ("KEGG", "KEGG"),
+    ("PDB", "PDB"),
+    ("PubChem", "PubChem"),
+    ("Reactome", "Reactome"),
+    ("RefSeq", "RefSeq"),
+    ("Rhea", "Rhea"),
+    ("STRING", "StringDB"),
+    ("SABIO-RK", "SABIO-RK"),
+)
 
 DEFAULT_FORM_VALUES: dict[str, object] = {
     "dataset.name": "",
@@ -193,6 +210,7 @@ DEFAULT_FORM_VALUES: dict[str, object] = {
     "query.crossref_fields": "",
     "query.include_isoform": False,
     "execution.enrich": False,
+    "execution.enrichment_sources": [],
     "execution.max_workers": DEFAULT_MAX_WORKERS,
     "execution.total_retries": DEFAULT_TOTAL_RETRIES,
     "execution.chembl_pages_to_fetch": DEFAULT_CHEMBL_PAGES_TO_FETCH,
@@ -230,6 +248,7 @@ FORM_VALUE_ALIASES: dict[str, tuple[str, ...]] = {
     "query.crossref_fields": ("query_crossref_fields",),
     "query.include_isoform": ("query_include_isoform",),
     "execution.enrich": ("execution_enrich",),
+    "execution.enrichment_sources": ("execution_enrichment_sources",),
     "execution.max_workers": ("execution_max_workers",),
     "execution.total_retries": ("execution_total_retries",),
     "execution.chembl_pages_to_fetch": ("execution_chembl_pages_to_fetch",),
@@ -658,6 +677,9 @@ def descriptor_to_form_values(descriptor: Mapping[str, object]) -> dict[str, obj
     form_values["query.value"] = str(query.get("value") or "")
     form_values["query.fields"] = csv_text_from_value(query.get("fields"))
     form_values["query.crossref_fields"] = csv_text_from_value(query.get("crossref_fields"))
+    form_values["execution.enrichment_sources"] = enrichment_sources_from_crossref_fields(
+        query.get("crossref_fields")
+    )
     form_values["query.include_isoform"] = parse_bool(query.get("include_isoform", False))
 
     for key in (
@@ -1042,6 +1064,69 @@ def parse_csv_list(value: object) -> list[str]:
     return [item.strip() for item in normalized.split(",") if item.strip()]
 
 
+def get_enrichment_source_options() -> dict[str, str]:
+    """Return GUI labels mapped to executable enrichment source keys."""
+    return {
+        display_label: XREF_MAPPING[xref_label][1]
+        for display_label, xref_label in ENRICHMENT_SOURCE_XREF_LABELS
+    }
+
+
+def normalize_enrichment_sources(value: object) -> list[str]:
+    """Normalize GUI enrichment source selections to executable source keys."""
+    raw_values = (
+        [str(item).strip() for item in value if str(item).strip()]
+        if isinstance(value, (list, tuple, set))
+        else parse_csv_list(value)
+    )
+    options = get_enrichment_source_options()
+    label_to_key = {label.casefold(): key for label, key in options.items()}
+    key_lookup = {key.casefold(): key for key in options.values()}
+    normalized = []
+    for raw_value in raw_values:
+        lookup_value = raw_value.casefold()
+        source_key = label_to_key.get(lookup_value) or key_lookup.get(lookup_value)
+        if source_key and source_key not in normalized:
+            normalized.append(source_key)
+    return normalized
+
+
+def enrichment_sources_from_crossref_fields(value: object) -> list[str]:
+    """Infer known GUI enrichment sources from cross-reference fields."""
+    options = get_enrichment_source_options()
+    source_keys = {key.casefold(): key for key in options.values()}
+    uniprot_fields = {
+        str(uniprot_field).casefold(): db_key
+        for uniprot_field, db_key in XREF_MAPPING.values()
+        if uniprot_field and db_key in options.values()
+    }
+    sources = []
+    for field in parse_csv_list(value):
+        lookup_value = field.casefold()
+        source_key = source_keys.get(lookup_value) or uniprot_fields.get(lookup_value)
+        if source_key and source_key not in sources:
+            sources.append(source_key)
+    return sources
+
+
+def crossref_fields_from_enrichment_sources(
+    sources: object,
+    *,
+    existing_crossref_fields: object = None,
+    preserve_known_existing: bool = True,
+) -> str:
+    """Return cross-reference field text synchronized with GUI source selections."""
+    selected_sources = normalize_enrichment_sources(sources)
+    fields = list(selected_sources)
+    for field in parse_csv_list(existing_crossref_fields):
+        if field in fields:
+            continue
+        if not preserve_known_existing and enrichment_sources_from_crossref_fields([field]):
+            continue
+        fields.append(field)
+    return ", ".join(fields)
+
+
 def build_workflow_filename(dataset_name: object) -> str:
     """Return a safe workflow-v1 download filename for a dataset name."""
     if dataset_name is None:
@@ -1248,7 +1333,13 @@ def build_query_section(form_values: Mapping[str, object]) -> dict[str, object]:
         }
 
     add_optional_list(query, "fields", get_form_value(form_values, "query.fields"))
-    add_optional_list(query, "crossref_fields", get_form_value(form_values, "query.crossref_fields"))
+    crossref_fields = get_form_value(form_values, "query.crossref_fields")
+    if has_form_value(form_values, "execution.enrichment_sources"):
+        crossref_fields = crossref_fields_from_enrichment_sources(
+            get_form_value(form_values, "execution.enrichment_sources"),
+            existing_crossref_fields=crossref_fields,
+        )
+    add_optional_list(query, "crossref_fields", crossref_fields)
     cleaned_query = cast("dict[str, object]", remove_empty_values(query))
     if workflow_mode == "query_composition":
         cleaned_query["composition"] = composition_metadata

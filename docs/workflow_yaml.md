@@ -293,15 +293,22 @@ writes `query_composition`, and modality labels write `protein`, `compound`, or
 `interaction`. `No interaction` omits `dataset.interaction_type` for protein and
 compound datasets; it is invalid when the selected modality is `Interaction`.
 
-`Return fields` and `Cross-reference fields` accept optional comma-separated
-values. They remain separate from Advanced UniProt builder fields: return fields
-control optional requested/output fields, while builder fields control the
-executable search query. The builder prepares the query text only; UniProt
-validation and network access happen later when the workflow runs. The default
-output-directory mode writes `results/{dataset.name}`. The custom mode accepts
-only relative paths, normalizes backslashes to forward slashes, and rejects
-absolute paths or `..` traversal. This path is used later when the workflow
-runs.
+`Return fields` accepts optional comma-separated values and remains separate
+from Advanced UniProt builder fields. Enrichment is disabled by default; its
+source selector and advanced cross-reference input appear only after `Enable
+enrichment` is selected. Selected GUI sources are written as lowercase keys in
+`query.crossref_fields`. Multiple sources are available, but actual enrichment
+depends on usable cross-reference data and enabled packaged endpoints. PubChem
+and ChEBI remain query sources/builders; their enrichment availability follows
+the same endpoint constraints. The builder prepares query text only; network
+access happens later when the CLI runs the workflow.
+
+`ChEMBL workflow pages to fetch` is located under collapsed source-specific
+execution options. It controls ChEMBL pagination and is not a general
+enrichment setting. The default output-directory mode writes
+`results/{dataset.name}`. The custom mode accepts only relative paths,
+normalizes backslashes to forward slashes, and rejects absolute paths or `..`
+traversal. This path is used later when the workflow runs.
 
 Advanced UniProt builder rows use two separate controls for query logic.
 Connector combines the current row with the previous row; use `AND` when both
