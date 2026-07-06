@@ -7,6 +7,10 @@ import sys
 
 import pytest
 
+from bioseq_dl.gui.query_builders.metadata import (
+    QUERY_BUILDER_SCHEMA_VERSION,
+    build_uniprot_query_builder_metadata,
+)
 from bioseq_dl.gui.query_builders.uniprot import (
     UniProtQueryBuilderRow,
     build_uniprot_friendly_query,
@@ -116,6 +120,36 @@ def test_interpreted_query_is_returned_from_builder_rows():
         build_uniprot_interpreted_query(rows)
         == "organism_id:9606 AND (cc_bpcp_temp_dependence:20-30 OR cc_bpcp_temp_dependence:50-60)"
     )
+
+
+def test_uniprot_builder_metadata_preserves_visual_rows():
+    rows = [
+        UniProtQueryBuilderRow(None, "organism", "Homo sapiens", "any"),
+        UniProtQueryBuilderRow("AND", "keywords", "Antimicrobial,Metal-binding", "all"),
+    ]
+
+    metadata = build_uniprot_query_builder_metadata(rows)
+
+    assert metadata == {
+        "schema_version": QUERY_BUILDER_SCHEMA_VERSION,
+        "source": "uniprot",
+        "builder_key": "uniprot",
+        "builder_type": "field_boolean",
+        "rows": [
+            {
+                "connector": None,
+                "field": "organism",
+                "match_mode": "any",
+                "values": ["Homo sapiens"],
+            },
+            {
+                "connector": "AND",
+                "field": "keywords",
+                "match_mode": "all",
+                "values": ["Antimicrobial", "Metal-binding"],
+            },
+        ],
+    }
 
 
 def test_databases_field_builds_interpreted_query_and_db_alias_is_rejected():

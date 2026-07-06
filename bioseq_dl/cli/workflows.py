@@ -942,9 +942,9 @@ def write_failure_reports(
 
 
 def split_pair(s: str) -> tuple[str, str]:
-    """Run the multi-step download workflow from the CLI."""
+    """Parse one query_composition pair into query text and label."""
     if "=" in s:
-        q, label = s.split("=", 1)
+        q, label = s.rsplit("=", 1)
     elif "|" in s:
         q, label = s.split("|", 1)
     else:

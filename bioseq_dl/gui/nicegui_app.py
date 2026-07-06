@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from functools import partial
-from typing import Any
+from typing import Any, cast
 
 import yaml
 from nicegui import ui
@@ -12,6 +12,7 @@ from bioseq_dl.core.workflow.chebi_query_catalog import get_chebi_query_builder_
 from bioseq_dl.core.workflow.chembl_query_catalog import get_chembl_query_builder_field_catalog
 from bioseq_dl.core.workflow.pubchem_query_catalog import get_pubchem_query_builder_field_catalog
 from bioseq_dl.core.workflow.query_field_catalog import get_uniprot_query_builder_field_catalog
+from bioseq_dl.gui.query_builder_state import build_gui_query_builder_state_from_loaded_form
 from bioseq_dl.gui.query_builders.chebi import (
     build_chebi_friendly_query,
     build_chebi_interpreted_query,
@@ -41,21 +42,25 @@ from bioseq_dl.gui.yaml_builder import (
     MODALITY_LABEL_TO_VALUE,
     OUTPUT_DIRECTORY_MODE_LABEL_TO_VALUE,
     PUBCHEM_BUILDER_RESOURCE_BY_KEY,
+    QUERY_COMPOSITION_PARSE_ERROR_NOTE,
     QUERY_INPUT_MODE_LABEL_TO_VALUE,
     UNIPROT_MATCH_MODE_LABEL_TO_VALUE,
     WORKFLOW_MODE_LABEL_TO_VALUE,
     build_chebi_builder_rows_from_form,
     build_chembl_builder_rows_from_form,
     build_pubchem_builder_row_from_form,
+    build_query_composition_value,
     build_uniprot_builder_rows_from_form,
     build_workflow_descriptor,
     build_workflow_filename,
     get_labeled_option_default,
     load_workflow_yaml_to_form_values,
+    make_query_composition_entry,
     normalize_labeled_value,
     normalize_query_builder_key,
     normalize_query_input_mode,
     render_workflow_yaml,
+    resolve_query_composition_entry_value,
     validate_generated_descriptor,
     workflow_yaml_gui_form_defaults,
 )
@@ -122,11 +127,6 @@ async def read_upload_event_text(event: Any) -> str:
 def is_manual_query_mode(value: object) -> bool:
     """Return whether a GUI query mode value means manual query entry."""
     return normalize_query_input_mode(value) == "manual"
-
-
-def is_uniprot_builder_query_mode(value: object) -> bool:
-    """Return whether a GUI query mode value means advanced UniProt builder entry."""
-    return normalize_query_input_mode(value) == "advanced_builder"
 
 
 def is_advanced_builder_query_mode(value: object) -> bool:
@@ -491,8 +491,6 @@ def build_chebi_builder_form_rows(
         }
         for row in ui_rows
     ]
-
-
 def get_dataset_modality_value(form_values: dict[str, object]) -> str:
     """Return the selected dataset modality as a workflow-v1 value."""
     return str(
@@ -517,19 +515,55 @@ def should_show_interaction_type_selector(form_values: dict[str, object]) -> boo
     return get_dataset_modality_value(form_values) == "interaction"
 
 
+def is_query_composition_workflow_mode(value: object) -> bool:
+    """Return whether a GUI workflow mode value means query composition."""
+    return (
+        normalize_labeled_value(value, WORKFLOW_MODE_LABEL_TO_VALUE)
+        == "query_composition"
+    )
+
+
+def make_query_composition_uniprot_form_row(
+    connector: str | None = None,
+) -> dict[str, object]:
+    """Return one form-compatible entry-local UniProt builder row."""
+    ui_row = make_uniprot_builder_ui_row(connector=connector)
+    return {
+        "connector": connector,
+        "field": get_uniprot_builder_field_value(ui_row["field"]),
+        "values": ui_row["values"],
+        "match_mode": normalize_labeled_value(
+            ui_row["match_mode"],
+            UNIPROT_MATCH_MODE_LABEL_TO_VALUE,
+        ),
+    }
+
+
+def make_query_composition_chembl_form_row(builder_key: object) -> dict[str, object]:
+    """Return one form-compatible entry-local ChEMBL builder row."""
+    builder_label = get_query_builder_label(builder_key)
+    ui_row = make_chembl_builder_ui_row(builder_label)
+    return build_chembl_builder_form_rows(builder_label, [ui_row])[0]
+
+
 class WorkflowYamlBuilderApp:
     """Render and manage the BioSeqDownloader workflow YAML builder."""
 
     def __init__(self) -> None:
         """Initialize app state for form binding and status output."""
         self.form_values = workflow_yaml_gui_form_defaults()
-        self.form_values["query.builder.key"] = get_query_builder_label(self.form_values["query.builder.key"])
+        self.form_values["query.builder.key"] = get_query_builder_label(
+            self.form_values["query.builder.key"]
+        )
+        self.active_query_builder_label = str(self.form_values["query.builder.key"])
         self.uniprot_builder_rows = [make_uniprot_builder_ui_row()]
         self.chembl_builder_rows = [make_chembl_builder_ui_row(get_query_builder_label("chembl_target"))]
         self.pubchem_builder_row = make_pubchem_builder_ui_row(get_query_builder_label("pubchem_compound"))
         self.chebi_builder_rows = [make_chebi_builder_ui_row(get_query_builder_label("chebi_entity"))]
         self.friendly_query_preview: Any = None
         self.interpreted_query_preview: Any = None
+        self.query_composition_preview: Any = None
+        self.query_composition_entry_previews: dict[int, Any] = {}
         self.query_builder_select: Any = None
         self.interaction_type_select: Any = None
         self.workflow_upload: Any = None
@@ -540,6 +574,7 @@ class WorkflowYamlBuilderApp:
         self.builder_availability_message: Any = None
         self.yaml_output: Any = None
         self.status: Any = None
+        self.is_loading_form_values = False
 
     def build(self) -> None:
         """Build the NiceGUI page."""
@@ -563,7 +598,8 @@ class WorkflowYamlBuilderApp:
         with ui.expansion("Load existing workflow YAML", value=False).classes("w-full"):
             ui.label(
                 "Upload a workflow-v1 .yml or .yaml file to populate supported form fields. "
-                "When a file is loaded, the saved query text is shown in Manual query mode."
+                "Compatible query.builder metadata restores query_first Advanced builder "
+                "mode, and query.composition metadata restores labeled query entries."
             ).classes("text-sm text-gray-700")
             ui.label(
                 "Upload one .yml or .yaml file. Uploading another file replaces the current loaded workflow."
@@ -626,9 +662,10 @@ class WorkflowYamlBuilderApp:
                 (
                     ui.select(list(WORKFLOW_MODE_LABEL_TO_VALUE), label="Workflow mode")
                     .bind_value(self.form_values, "dataset.mode")
+                    .on_value_change(self.handle_workflow_mode_change)
                     .tooltip(
-                        "Controls how query.value is interpreted. Query First uses one main query; "
-                        "Query Composition groups multiple query fragments with labels."
+                        "Query First uses one query. Query Composition defines multiple labeled "
+                        "queries, each retrieved separately."
                     )
                 )
                 self.interaction_type_select = (
@@ -648,111 +685,684 @@ class WorkflowYamlBuilderApp:
                 .tooltip("Optional human-readable description stored in the YAML descriptor.")
             )
 
+    @ui.refreshable
     def build_query_controls(self) -> None:
         """Build query form controls."""
         with ui.expansion("Query", value=True).classes("w-full"):
-            ui.label(
-                "Choose manual query entry or build an interpreted query. "
-                "Generated YAML always stores only query.value."
-            ).classes("text-sm text-gray-700")
+            if is_query_composition_workflow_mode(self.form_values["dataset.mode"]):
+                self.build_query_composition_controls()
+            else:
+                self.build_query_first_controls()
+            self.build_shared_query_controls()
+
+    def build_query_first_controls(self) -> None:
+        """Build the existing single-query editor and advanced builders."""
+        ui.label(
+            "Choose manual query entry or build an interpreted query. "
+            "query.value remains executable; advanced builders also store neutral "
+            "query.builder metadata."
+        ).classes("text-sm text-gray-700")
+        (
+            ui.select(list(QUERY_INPUT_MODE_LABEL_TO_VALUE), label="Query input mode")
+            .bind_value(self.form_values, "query.input_mode")
+            .on_value_change(self.handle_query_input_mode_change)
+            .tooltip("Manual mode writes query.value directly. Advanced builder mode builds it.")
+        )
+        with ui.column().classes("w-full gap-2") as manual_query_panel:
             (
-                ui.select(list(QUERY_INPUT_MODE_LABEL_TO_VALUE), label="Query input mode")
-                .bind_value(self.form_values, "query.input_mode")
-                .on_value_change(self.update_builder_previews)
-                .tooltip("Manual mode writes query.value directly. Advanced builder mode builds it.")
+                ui.textarea("Executable query value")
+                .bind_value(self.form_values, "query.value")
+                .classes("w-full")
+                .tooltip("The executable query string stored as query.value.")
             )
-            with ui.column().classes("w-full gap-2") as manual_query_panel:
+        manual_query_panel.bind_visibility_from(
+            self.form_values,
+            "query.input_mode",
+            backward=is_manual_query_mode,
+        )
+
+        with ui.column().classes("w-full gap-3") as builder_panel:
+            ui.label(
+                "Available builders depend on the selected dataset modality and "
+                "interaction type."
+            ).classes("text-sm text-gray-700")
+            compatible_builder_labels = self.get_compatible_query_builder_labels()
+            availability_message = (
+                ""
+                if compatible_builder_labels
+                else (
+                    "No advanced builder matches these dataset settings. Use Manual query "
+                    "or adjust the modality and interaction type."
+                )
+            )
+            self.builder_availability_message = ui.label(availability_message).classes(
+                "text-sm text-orange-700"
+            )
+            self.query_builder_select = (
+                ui.select(compatible_builder_labels, label="Query builder")
+                .bind_value(self.form_values, "query.builder.key")
+                .on_value_change(self.handle_query_builder_change)
+                .tooltip("Choose the database-specific query builder.")
+            )
+            with ui.column().classes("w-full gap-3") as uniprot_builder_panel:
+                self.build_uniprot_builder_controls()
+            uniprot_builder_panel.bind_visibility_from(
+                self.form_values,
+                "query.builder.key",
+                backward=is_uniprot_builder_key,
+            )
+            with ui.column().classes("w-full gap-3") as chembl_builder_panel:
+                self.build_chembl_builder_controls()
+            chembl_builder_panel.bind_visibility_from(
+                self.form_values,
+                "query.builder.key",
+                backward=is_chembl_builder_key,
+            )
+            with ui.column().classes("w-full gap-3") as pubchem_builder_panel:
+                self.build_pubchem_builder_controls()
+            pubchem_builder_panel.bind_visibility_from(
+                self.form_values,
+                "query.builder.key",
+                backward=is_pubchem_builder_key,
+            )
+            with ui.column().classes("w-full gap-3") as chebi_builder_panel:
+                self.build_chebi_builder_controls()
+            chebi_builder_panel.bind_visibility_from(
+                self.form_values,
+                "query.builder.key",
+                backward=is_chebi_builder_key,
+            )
+            self.friendly_query_preview = (
+                ui.textarea("Friendly query preview")
+                .classes("w-full font-mono")
+                .props("readonly rows=3")
+            )
+            self.interpreted_query_preview = (
+                ui.textarea("Interpreted query.value preview")
+                .classes("w-full font-mono")
+                .props("readonly rows=3")
+            )
+        builder_panel.bind_visibility_from(
+            self.form_values,
+            "query.input_mode",
+            backward=is_advanced_builder_query_mode,
+        )
+        self.update_builder_previews()
+
+    def build_query_composition_controls(self) -> None:
+        """Build the labeled query-composition editor."""
+        ui.label(
+            "Build multiple labeled queries. Each query is retrieved separately and assigned "
+            "the label shown here."
+        ).classes("text-sm text-gray-700")
+        self.build_query_composition_rows()
+        ui.button("Add labeled query", on_click=self.add_query_composition_entry)
+        self.query_composition_preview = (
+            ui.textarea("Executable query.value preview")
+            .classes("w-full font-mono")
+            .props("readonly rows=3")
+        )
+        self.update_query_composition_preview()
+
+    @ui.refreshable
+    def build_query_composition_rows(self) -> None:
+        """Build editable controls for each labeled composition query."""
+        self.query_composition_entry_previews = {}
+        for index, entry in enumerate(self.get_query_composition_entries()):
+            self.ensure_query_composition_entry_builder_state(entry)
+            with ui.column().classes("w-full gap-2 border rounded-md p-3"):
+                with ui.row().classes("w-full items-center justify-between"):
+                    ui.label(f"Labeled query {index + 1}").classes("font-semibold")
+                    (
+                        ui.button(icon="delete", on_click=partial(
+                            self.remove_query_composition_entry,
+                            index,
+                        ))
+                        .props("flat round")
+                        .tooltip("Remove this labeled query.")
+                    )
+                with ui.grid(columns=2).classes("w-full gap-3"):
+                    (
+                        ui.input("Label", value=str(entry.get("label") or ""))
+                        .on_value_change(partial(
+                            self.set_query_composition_entry_value,
+                            index,
+                            "label",
+                        ))
+                        .classes("w-full")
+                    )
+                    (
+                        ui.input("Description", value=str(entry.get("description") or ""))
+                        .on_value_change(partial(
+                            self.set_query_composition_entry_value,
+                            index,
+                            "description",
+                        ))
+                        .classes("w-full")
+                    )
+                mode_label = get_labeled_option_default(
+                    normalize_query_input_mode(entry.get("query_input_mode", "manual")),
+                    QUERY_INPUT_MODE_LABEL_TO_VALUE,
+                )
                 (
-                    ui.textarea("Executable query value")
-                    .bind_value(self.form_values, "query.value")
+                    ui.select(
+                        list(QUERY_INPUT_MODE_LABEL_TO_VALUE),
+                        label="Query input mode",
+                        value=mode_label,
+                    )
+                    .on_value_change(partial(
+                        self.handle_query_composition_entry_mode_change,
+                        index,
+                    ))
                     .classes("w-full")
-                    .tooltip("The executable query string stored as query.value.")
                 )
-            manual_query_panel.bind_visibility_from(
-                self.form_values,
-                "query.input_mode",
-                backward=is_manual_query_mode,
+                if is_manual_query_mode(mode_label):
+                    (
+                        ui.textarea("Query value", value=str(entry.get("value") or ""))
+                        .on_value_change(partial(
+                            self.set_query_composition_entry_value,
+                            index,
+                            "value",
+                        ))
+                        .classes("w-full")
+                    )
+                else:
+                    self.build_query_composition_entry_builder_controls(index, entry)
+
+    def build_query_composition_entry_builder_controls(
+        self,
+        entry_index: int,
+        entry: dict[str, object],
+    ) -> None:
+        """Build advanced builder controls for one labeled query entry."""
+        ui.label(
+            "This builder prepares the query for this labeled entry only."
+        ).classes("text-sm text-gray-700")
+        choices = self.get_query_composition_builder_choices()
+        builder_key = normalize_query_builder_key(entry.get("query_builder_key", "uniprot"))
+        (
+            ui.select(
+                list(choices.values()),
+                label="Query builder",
+                value=get_query_builder_label(builder_key),
+            )
+            .on_value_change(partial(
+                self.handle_query_composition_entry_builder_change,
+                entry_index,
+            ))
+            .classes("w-full")
+        )
+        if builder_key == "uniprot":
+            self.build_query_composition_entry_uniprot_rows(entry_index, entry)
+        elif is_chembl_builder_key(builder_key):
+            self.build_query_composition_entry_chembl_rows(entry_index, entry)
+        preview = self.get_query_composition_entry_preview(entry)
+        self.query_composition_entry_previews[entry_index] = (
+            ui.textarea("Entry query.value preview", value=preview)
+            .classes("w-full font-mono")
+            .props("readonly rows=2")
+        )
+
+    def build_query_composition_entry_uniprot_rows(
+        self,
+        entry_index: int,
+        entry: dict[str, object],
+    ) -> None:
+        """Build entry-local UniProt builder row controls."""
+        rows = cast("list[dict[str, object]]", entry["uniprot_builder_rows"])
+        for row_index, row in enumerate(rows):
+            field_label = get_uniprot_builder_field_label(row.get("field", ""))
+            field_help = get_uniprot_builder_field_help(row.get("field", ""))
+            placeholder = get_uniprot_builder_field_placeholder(row.get("field", ""))
+            with ui.row().classes("w-full items-end gap-3"):
+                if row_index == 0:
+                    ui.label("First condition").classes("w-32 pb-3 text-sm text-gray-600")
+                else:
+                    (
+                        ui.select(
+                            ["AND", "OR"],
+                            label="Connector",
+                            value=row.get("connector"),
+                        )
+                        .on_value_change(partial(
+                            self.set_query_composition_entry_uniprot_row_value,
+                            entry_index,
+                            row_index,
+                            "connector",
+                        ))
+                        .classes("w-28")
+                    )
+                (
+                    ui.select(
+                        list(UNIPROT_BUILDER_FIELD_LABEL_TO_VALUE),
+                        label="Field",
+                        value=field_label,
+                    )
+                    .on_value_change(partial(
+                        self.set_query_composition_entry_uniprot_row_value,
+                        entry_index,
+                        row_index,
+                        "field",
+                        refresh_rows=True,
+                    ))
+                    .classes("min-w-56")
+                    .tooltip(field_help)
+                )
+                (
+                    ui.input(
+                        "Values",
+                        value=str(row.get("values") or ""),
+                        placeholder=placeholder,
+                    )
+                    .on_value_change(partial(
+                        self.set_query_composition_entry_uniprot_row_value,
+                        entry_index,
+                        row_index,
+                        "values",
+                    ))
+                    .classes("grow")
+                )
+                (
+                    ui.select(
+                        list(UNIPROT_MATCH_MODE_LABEL_TO_VALUE),
+                        label="Match mode",
+                        value=get_uniprot_match_mode_label(row.get("match_mode", "any")),
+                    )
+                    .on_value_change(partial(
+                        self.set_query_composition_entry_uniprot_row_value,
+                        entry_index,
+                        row_index,
+                        "match_mode",
+                    ))
+                    .classes("w-32")
+                )
+                if row_index > 0:
+                    (
+                        ui.button(
+                            icon="delete",
+                            on_click=partial(
+                                self.remove_query_composition_entry_uniprot_row,
+                                entry_index,
+                                row_index,
+                            ),
+                        )
+                        .props("flat round")
+                        .tooltip("Remove this condition.")
+                    )
+            ui.label(field_help).classes("text-xs text-gray-600")
+        ui.button(
+            "Add condition",
+            on_click=partial(self.add_query_composition_entry_uniprot_row, entry_index),
+        )
+
+    def build_query_composition_entry_chembl_rows(
+        self,
+        entry_index: int,
+        entry: dict[str, object],
+    ) -> None:
+        """Build entry-local ChEMBL builder row controls."""
+        builder_key = normalize_query_builder_key(entry.get("query_builder_key"))
+        rows = cast("list[dict[str, object]]", entry["chembl_builder_rows"])
+        for row_index, row in enumerate(rows):
+            field = row.get("field", "")
+            field_label = get_chembl_builder_field_label(builder_key, field)
+            field_help = get_chembl_field_help(builder_key, field)
+            field_entry = get_chembl_field_entry(builder_key, field)
+            filter_options = get_chembl_filter_type_options(builder_key, field)
+            if row.get("filter_type") not in filter_options:
+                row["filter_type"] = filter_options[0]
+            with ui.row().classes("w-full items-end gap-3"):
+                (
+                    ui.select(
+                        get_chembl_field_options(builder_key),
+                        label="Field",
+                        value=field_label,
+                    )
+                    .on_value_change(partial(
+                        self.set_query_composition_entry_chembl_row_value,
+                        entry_index,
+                        row_index,
+                        "field",
+                        refresh_rows=True,
+                    ))
+                    .classes("min-w-72")
+                    .tooltip(field_help)
+                )
+                (
+                    ui.select(
+                        filter_options,
+                        label="Filter type",
+                        value=row.get("filter_type"),
+                    )
+                    .on_value_change(partial(
+                        self.set_query_composition_entry_chembl_row_value,
+                        entry_index,
+                        row_index,
+                        "filter_type",
+                    ))
+                    .classes("w-40")
+                )
+                (
+                    ui.input(
+                        "Value",
+                        value=str(row.get("value") or ""),
+                        placeholder=str(field_entry.placeholder),
+                    )
+                    .on_value_change(partial(
+                        self.set_query_composition_entry_chembl_row_value,
+                        entry_index,
+                        row_index,
+                        "value",
+                    ))
+                    .classes("grow")
+                )
+                if row_index > 0:
+                    (
+                        ui.button(
+                            icon="delete",
+                            on_click=partial(
+                                self.remove_query_composition_entry_chembl_row,
+                                entry_index,
+                                row_index,
+                            ),
+                        )
+                        .props("flat round")
+                        .tooltip("Remove this condition.")
+                    )
+            ui.label(field_help).classes("text-xs text-gray-600")
+        ui.button(
+            "Add condition",
+            on_click=partial(self.add_query_composition_entry_chembl_row, entry_index),
+        )
+
+    def build_shared_query_controls(self) -> None:
+        """Build query options shared by both workflow modes."""
+        with ui.grid(columns=2).classes("w-full gap-3"):
+            (
+                ui.input("Return fields")
+                .props('clearable placeholder="accession, protein_name, organism_name, sequence"')
+                .bind_value(self.form_values, "query.fields")
+                .tooltip(
+                    "Optional output/request fields. Enter comma-separated values."
+                )
+            )
+            (
+                ui.input("Cross-reference fields")
+                .props('clearable placeholder="xref_alphafolddb, xref_pdb, xref_string"')
+                .bind_value(self.form_values, "query.crossref_fields")
+                .tooltip(
+                    "Optional database cross-references used by supported enrichment logic. "
+                    "Enter comma-separated values."
+                )
+            )
+            (
+                ui.checkbox("Include UniProt isoforms")
+                .bind_value(self.form_values, "query.include_isoform")
+                .tooltip(
+                    "Whether UniProt isoforms should be included when supported by the workflow."
+                )
             )
 
-            with ui.column().classes("w-full gap-3") as builder_panel:
-                ui.label(
-                    "Available builders depend on the selected dataset modality and interaction type."
-                ).classes("text-sm text-gray-700")
-                self.builder_availability_message = ui.label("").classes("text-sm text-orange-700")
-                self.query_builder_select = (
-                    ui.select(self.get_compatible_query_builder_labels(), label="Query builder")
-                    .bind_value(self.form_values, "query.builder.key")
-                    .on_value_change(self.handle_query_builder_change)
-                    .tooltip("Choose the database-specific query builder.")
-                )
-                with ui.column().classes("w-full gap-3") as uniprot_builder_panel:
-                    self.build_uniprot_builder_controls()
-                uniprot_builder_panel.bind_visibility_from(
-                    self.form_values,
-                    "query.builder.key",
-                    backward=is_uniprot_builder_key,
-                )
-                with ui.column().classes("w-full gap-3") as chembl_builder_panel:
-                    self.build_chembl_builder_controls()
-                chembl_builder_panel.bind_visibility_from(
-                    self.form_values,
-                    "query.builder.key",
-                    backward=is_chembl_builder_key,
-                )
-                with ui.column().classes("w-full gap-3") as pubchem_builder_panel:
-                    self.build_pubchem_builder_controls()
-                pubchem_builder_panel.bind_visibility_from(
-                    self.form_values,
-                    "query.builder.key",
-                    backward=is_pubchem_builder_key,
-                )
-                with ui.column().classes("w-full gap-3") as chebi_builder_panel:
-                    self.build_chebi_builder_controls()
-                chebi_builder_panel.bind_visibility_from(
-                    self.form_values,
-                    "query.builder.key",
-                    backward=is_chebi_builder_key,
-                )
-                self.friendly_query_preview = (
-                    ui.textarea("Friendly query preview").classes("w-full font-mono").props("readonly rows=3")
-                )
-                self.interpreted_query_preview = (
-                    ui.textarea("Interpreted query.value preview")
-                    .classes("w-full font-mono")
-                    .props("readonly rows=3")
-                )
-                self.refresh_query_builder_options(refresh_rows=False)
-            builder_panel.bind_visibility_from(
-                self.form_values,
-                "query.input_mode",
-                backward=is_advanced_builder_query_mode,
-            )
+    def get_query_composition_entries(self) -> list[dict[str, object]]:
+        """Return mutable composition entries from the form state."""
+        entries = self.form_values.get("query.composition.entries")
+        if not isinstance(entries, list):
+            entries = []
+            self.form_values["query.composition.entries"] = entries
+        return cast("list[dict[str, object]]", entries)
 
-            with ui.grid(columns=2).classes("w-full gap-3"):
-                (
-                    ui.input("Return fields")
-                    .props('clearable placeholder="accession, protein_name, organism_name, sequence"')
-                    .bind_value(self.form_values, "query.fields")
-                    .tooltip(
-                        "Optional output/request fields. This is separate from advanced builder "
-                        "search fields. Enter comma-separated values."
-                    )
-                )
-                (
-                    ui.input("Cross-reference fields")
-                    .props('clearable placeholder="xref_alphafolddb, xref_pdb, xref_string"')
-                    .bind_value(self.form_values, "query.crossref_fields")
-                    .tooltip(
-                        "Optional database cross-references used by supported enrichment logic. "
-                        "This is separate from advanced builder search fields. Enter "
-                        "comma-separated values."
-                    )
-                )
-                (
-                    ui.checkbox("Include UniProt isoforms")
-                    .bind_value(self.form_values, "query.include_isoform")
-                    .tooltip("Whether UniProt isoforms should be included when supported by the workflow.")
-                )
+    def get_query_composition_entry(self, entry_index: int) -> dict[str, object] | None:
+        """Return one composition entry when its index is valid."""
+        entries = self.get_query_composition_entries()
+        if entry_index < 0 or entry_index >= len(entries):
+            return None
+        return entries[entry_index]
+
+    def refresh_query_composition_editor(self) -> None:
+        """Refresh composition rows and their global executable preview."""
+        self.build_query_composition_rows.refresh()
+        self.update_query_composition_preview()
+
+    def get_query_composition_builder_choices(self) -> dict[str, str]:
+        """Return builders compatible with the current composition dataset."""
+        choices = get_compatible_query_builder_choices(
+            get_dataset_modality_value(self.form_values),
+            get_dataset_interaction_type_value(self.form_values),
+        )
+        return {
+            key: label
+            for key, label in choices.items()
+            if key == "uniprot" or is_chembl_builder_key(key)
+        }
+
+    def ensure_query_composition_entry_builder_state(
+        self,
+        entry: dict[str, object],
+    ) -> None:
+        """Initialize compatible local builder state for one advanced entry."""
+        if normalize_query_input_mode(entry.get("query_input_mode", "manual")) == "manual":
+            return
+        choices = self.get_query_composition_builder_choices()
+        if not choices:
+            entry["query_input_mode"] = "Manual query"
+            return
+        builder_key = normalize_query_builder_key(entry.get("query_builder_key", "uniprot"))
+        if builder_key not in choices:
+            builder_key = next(iter(choices))
+            entry["query_builder_key"] = builder_key
+            entry["uniprot_builder_rows"] = []
+            entry["chembl_builder_rows"] = []
+        if builder_key == "uniprot":
+            rows = entry.get("uniprot_builder_rows")
+            if not isinstance(rows, list) or not rows:
+                entry["uniprot_builder_rows"] = [
+                    make_query_composition_uniprot_form_row()
+                ]
+        elif is_chembl_builder_key(builder_key):
+            rows = entry.get("chembl_builder_rows")
+            if not isinstance(rows, list) or not rows:
+                entry["chembl_builder_rows"] = [
+                    make_query_composition_chembl_form_row(builder_key)
+                ]
+
+    def handle_query_composition_entry_mode_change(
+        self,
+        entry_index: int,
+        event: object,
+    ) -> None:
+        """Switch one composition entry between manual and advanced modes."""
+        entry = self.get_query_composition_entry(entry_index)
+        if entry is None:
+            return
+        entry["query_input_mode"] = getattr(event, "value", "Manual query")
+        self.ensure_query_composition_entry_builder_state(entry)
+        self.refresh_query_composition_editor()
+
+    def handle_query_composition_entry_builder_change(
+        self,
+        entry_index: int,
+        event: object,
+    ) -> None:
+        """Change and reset only one composition entry's selected builder."""
+        entry = self.get_query_composition_entry(entry_index)
+        if entry is None:
+            return
+        builder_key = normalize_query_builder_key(getattr(event, "value", ""))
+        entry["query_builder_key"] = builder_key
+        entry["uniprot_builder_rows"] = []
+        entry["chembl_builder_rows"] = []
+        self.ensure_query_composition_entry_builder_state(entry)
+        self.refresh_query_composition_editor()
+
+    def get_query_composition_entry_preview(self, entry: dict[str, object]) -> str:
+        """Return one entry's interpreted query or a user-facing error."""
+        try:
+            return resolve_query_composition_entry_value(
+                entry,
+                modality=get_dataset_modality_value(self.form_values),
+                interaction_type=get_dataset_interaction_type_value(self.form_values),
+            )
+        except (TypeError, ValueError) as exc:
+            return f"Builder error: {exc}"
+
+    def update_query_composition_entry_preview(self, entry_index: int) -> None:
+        """Update one visible entry query preview when available."""
+        preview_element = self.query_composition_entry_previews.get(entry_index)
+        entry = self.get_query_composition_entry(entry_index)
+        if preview_element is None or entry is None:
+            return
+        preview_element.value = self.get_query_composition_entry_preview(entry)
+
+    def add_query_composition_entry(self) -> None:
+        """Add one empty labeled query entry."""
+        self.get_query_composition_entries().append(make_query_composition_entry())
+        self.refresh_query_composition_editor()
+
+    def remove_query_composition_entry(self, index: int) -> None:
+        """Remove one labeled query entry."""
+        entries = self.get_query_composition_entries()
+        if index < 0 or index >= len(entries):
+            return
+        entries.pop(index)
+        self.refresh_query_composition_editor()
+
+    def set_query_composition_entry_value(
+        self,
+        index: int,
+        key: str,
+        event: object,
+    ) -> None:
+        """Update one composition entry from a NiceGUI value event."""
+        entries = self.get_query_composition_entries()
+        if index < 0 or index >= len(entries):
+            return
+        entries[index][key] = getattr(event, "value", "")
+        self.update_query_composition_entry_preview(index)
+        self.update_query_composition_preview()
+
+    def add_query_composition_entry_uniprot_row(self, entry_index: int) -> None:
+        """Add a UniProt condition to one composition entry."""
+        entry = self.get_query_composition_entry(entry_index)
+        if entry is None:
+            return
+        rows = cast("list[dict[str, object]]", entry["uniprot_builder_rows"])
+        rows.append(make_query_composition_uniprot_form_row(connector="AND"))
+        self.refresh_query_composition_editor()
+
+    def remove_query_composition_entry_uniprot_row(
+        self,
+        entry_index: int,
+        row_index: int,
+    ) -> None:
+        """Remove a UniProt condition from one composition entry."""
+        entry = self.get_query_composition_entry(entry_index)
+        if entry is None:
+            return
+        rows = cast("list[dict[str, object]]", entry["uniprot_builder_rows"])
+        if row_index <= 0 or row_index >= len(rows):
+            return
+        rows.pop(row_index)
+        self.refresh_query_composition_editor()
+
+    def set_query_composition_entry_uniprot_row_value(
+        self,
+        entry_index: int,
+        row_index: int,
+        key: str,
+        event: object,
+        *,
+        refresh_rows: bool = False,
+    ) -> None:
+        """Update one form-compatible entry-local UniProt row value."""
+        entry = self.get_query_composition_entry(entry_index)
+        if entry is None:
+            return
+        rows = cast("list[dict[str, object]]", entry["uniprot_builder_rows"])
+        if row_index < 0 or row_index >= len(rows):
+            return
+        value = getattr(event, "value", "")
+        if key == "field":
+            value = get_uniprot_builder_field_value(value)
+        elif key == "match_mode":
+            value = normalize_labeled_value(value, UNIPROT_MATCH_MODE_LABEL_TO_VALUE)
+        elif key == "connector" and row_index == 0:
+            value = None
+        rows[row_index][key] = value
+        if refresh_rows:
+            self.refresh_query_composition_editor()
+            return
+        self.update_query_composition_entry_preview(entry_index)
+        self.update_query_composition_preview()
+
+    def add_query_composition_entry_chembl_row(self, entry_index: int) -> None:
+        """Add a ChEMBL condition to one composition entry."""
+        entry = self.get_query_composition_entry(entry_index)
+        if entry is None:
+            return
+        builder_key = normalize_query_builder_key(entry.get("query_builder_key"))
+        rows = cast("list[dict[str, object]]", entry["chembl_builder_rows"])
+        rows.append(make_query_composition_chembl_form_row(builder_key))
+        self.refresh_query_composition_editor()
+
+    def remove_query_composition_entry_chembl_row(
+        self,
+        entry_index: int,
+        row_index: int,
+    ) -> None:
+        """Remove a ChEMBL condition from one composition entry."""
+        entry = self.get_query_composition_entry(entry_index)
+        if entry is None:
+            return
+        rows = cast("list[dict[str, object]]", entry["chembl_builder_rows"])
+        if row_index <= 0 or row_index >= len(rows):
+            return
+        rows.pop(row_index)
+        self.refresh_query_composition_editor()
+
+    def set_query_composition_entry_chembl_row_value(
+        self,
+        entry_index: int,
+        row_index: int,
+        key: str,
+        event: object,
+        *,
+        refresh_rows: bool = False,
+    ) -> None:
+        """Update one form-compatible entry-local ChEMBL row value."""
+        entry = self.get_query_composition_entry(entry_index)
+        if entry is None:
+            return
+        builder_key = normalize_query_builder_key(entry.get("query_builder_key"))
+        rows = cast("list[dict[str, object]]", entry["chembl_builder_rows"])
+        if row_index < 0 or row_index >= len(rows):
+            return
+        value = getattr(event, "value", "")
+        if key == "field":
+            value = get_chembl_builder_field_value(builder_key, value)
+        rows[row_index][key] = value
+        if key == "field":
+            filter_options = get_chembl_filter_type_options(builder_key, value)
+            if rows[row_index].get("filter_type") not in filter_options:
+                rows[row_index]["filter_type"] = filter_options[0]
+        if refresh_rows:
+            self.refresh_query_composition_editor()
+            return
+        self.update_query_composition_entry_preview(entry_index)
+        self.update_query_composition_preview()
+
+    def update_query_composition_preview(self, *_args: object) -> None:
+        """Update the executable query.value composition preview."""
+        if self.query_composition_preview is None:
+            return
+        try:
+            preview = build_query_composition_value(
+                self.get_query_composition_entries(),
+                modality=get_dataset_modality_value(self.form_values),
+                interaction_type=get_dataset_interaction_type_value(self.form_values),
+            )
+        except (TypeError, ValueError) as exc:
+            preview = f"Composition error: {exc}"
+        self.query_composition_preview.value = preview
 
     def build_uniprot_builder_controls(self) -> None:
         """Build UniProt-specific advanced builder controls."""
@@ -791,31 +1401,68 @@ class WorkflowYamlBuilderApp:
                     ui.input("First condition").props('readonly placeholder=""').classes("w-32")
                 else:
                     (
-                        ui.select(["AND", "OR"], label="Connector")
-                        .bind_value(row, "connector")
-                        .on_value_change(self.update_builder_previews)
+                        ui.select(
+                            ["AND", "OR"],
+                            label="Connector",
+                            value=row.get("connector"),
+                        )
+                        .on_value_change(
+                            partial(
+                                self.set_uniprot_builder_row_value,
+                                index,
+                                "connector",
+                            )
+                        )
                         .classes("w-28")
                         .tooltip("Connector controls how this row is combined with the previous row.")
                     )
                 (
-                    ui.select(list(UNIPROT_BUILDER_FIELD_LABEL_TO_VALUE), label="Field")
-                    .bind_value(row, "field")
-                    .on_value_change(partial(self.handle_uniprot_builder_field_change, index))
+                    ui.select(
+                        list(UNIPROT_BUILDER_FIELD_LABEL_TO_VALUE),
+                        label="Field",
+                        value=row.get("field"),
+                    )
+                    .on_value_change(
+                        partial(
+                            self.set_uniprot_builder_row_value,
+                            index,
+                            "field",
+                            refresh_rows=True,
+                        )
+                    )
                     .classes("min-w-56")
                     .tooltip(field_help)
                 )
                 (
-                    ui.input("Values", placeholder=values_placeholder)
+                    ui.input(
+                        "Values",
+                        value=str(row.get("values") or ""),
+                        placeholder=values_placeholder,
+                    )
                     .props("clearable")
-                    .bind_value(row, "values")
-                    .on_value_change(self.update_builder_previews)
+                    .on_value_change(
+                        partial(
+                            self.set_uniprot_builder_row_value,
+                            index,
+                            "values",
+                        )
+                    )
                     .classes("grow")
                     .tooltip("Enter one or more comma-separated values for the selected field.")
                 )
                 (
-                    ui.select(list(UNIPROT_MATCH_MODE_LABEL_TO_VALUE), label="Match mode")
-                    .bind_value(row, "match_mode")
-                    .on_value_change(self.update_builder_previews)
+                    ui.select(
+                        list(UNIPROT_MATCH_MODE_LABEL_TO_VALUE),
+                        label="Match mode",
+                        value=row.get("match_mode"),
+                    )
+                    .on_value_change(
+                        partial(
+                            self.set_uniprot_builder_row_value,
+                            index,
+                            "match_mode",
+                        )
+                    )
                     .classes("w-32")
                     .tooltip("Match mode controls how comma-separated values inside this row are combined.")
                 )
@@ -839,10 +1486,21 @@ class WorkflowYamlBuilderApp:
         self.build_uniprot_builder_rows.refresh()
         self.update_builder_previews()
 
-    def handle_uniprot_builder_field_change(self, _index: int, *_args: object) -> None:
-        """Refresh field-specific help after a builder field changes."""
+    def set_uniprot_builder_row_value(
+        self,
+        index: int,
+        key: str,
+        event: object,
+        *,
+        refresh_rows: bool = False,
+    ) -> None:
+        """Update one UniProt builder row field from a NiceGUI event."""
+        if index < 0 or index >= len(self.uniprot_builder_rows):
+            return
+        self.uniprot_builder_rows[index][key] = getattr(event, "value", None)
         self.sync_builder_rows_to_form()
-        self.build_uniprot_builder_rows.refresh()
+        if refresh_rows:
+            self.build_uniprot_builder_rows.refresh()
         self.update_builder_previews()
 
     def build_chembl_builder_controls(self) -> None:
@@ -873,24 +1531,52 @@ class WorkflowYamlBuilderApp:
                 row["filter_type"] = filter_type_options[0]
             with ui.row().classes("w-full items-end gap-3"):
                 (
-                    ui.select(get_chembl_field_options(builder_label), label="Field")
-                    .bind_value(row, "field")
-                    .on_value_change(partial(self.handle_chembl_builder_field_change, index))
+                    ui.select(
+                        get_chembl_field_options(builder_label),
+                        label="Field",
+                        value=row.get("field"),
+                    )
+                    .on_value_change(
+                        partial(
+                            self.set_chembl_builder_row_value,
+                            index,
+                            "field",
+                            refresh_rows=True,
+                        )
+                    )
                     .classes("min-w-72")
                     .tooltip(field_help)
                 )
                 (
-                    ui.select(filter_type_options, label="Filter type")
-                    .bind_value(row, "filter_type")
-                    .on_value_change(self.update_builder_previews)
+                    ui.select(
+                        filter_type_options,
+                        label="Filter type",
+                        value=row.get("filter_type"),
+                    )
+                    .on_value_change(
+                        partial(
+                            self.set_chembl_builder_row_value,
+                            index,
+                            "filter_type",
+                        )
+                    )
                     .classes("w-40")
                     .tooltip("Filter type controls the ChEMBL field suffix/operator.")
                 )
                 (
-                    ui.input("Value", placeholder=values_placeholder)
+                    ui.input(
+                        "Value",
+                        value=str(row.get("value") or ""),
+                        placeholder=values_placeholder,
+                    )
                     .props("clearable")
-                    .bind_value(row, "value")
-                    .on_value_change(self.update_builder_previews)
+                    .on_value_change(
+                        partial(
+                            self.set_chembl_builder_row_value,
+                            index,
+                            "value",
+                        )
+                    )
                     .classes("grow")
                     .tooltip("Enter the value for this ChEMBL filter.")
                 )
@@ -914,10 +1600,29 @@ class WorkflowYamlBuilderApp:
         self.build_chembl_builder_rows.refresh()
         self.update_builder_previews()
 
-    def handle_chembl_builder_field_change(self, _index: int, *_args: object) -> None:
-        """Refresh ChEMBL field-specific filter options and help."""
+    def set_chembl_builder_row_value(
+        self,
+        index: int,
+        key: str,
+        event: object,
+        *,
+        refresh_rows: bool = False,
+    ) -> None:
+        """Update one ChEMBL builder row field from a NiceGUI event."""
+        if index < 0 or index >= len(self.chembl_builder_rows):
+            return
+        row = self.chembl_builder_rows[index]
+        row[key] = getattr(event, "value", None)
+        if key == "field":
+            filter_type_options = get_chembl_filter_type_options(
+                self.form_values["query.builder.key"],
+                row["field"],
+            )
+            if row.get("filter_type") not in filter_type_options:
+                row["filter_type"] = filter_type_options[0]
         self.sync_builder_rows_to_form()
-        self.build_chembl_builder_rows.refresh()
+        if refresh_rows:
+            self.build_chembl_builder_rows.refresh()
         self.update_builder_previews()
 
     def build_pubchem_builder_controls(self) -> None:
@@ -1070,7 +1775,12 @@ class WorkflowYamlBuilderApp:
 
     def handle_query_builder_change(self, *_args: object) -> None:
         """Refresh builder-specific controls after the selected builder changes."""
+        if self.is_loading_form_values:
+            return
         builder_label = self.form_values["query.builder.key"]
+        if builder_label == self.active_query_builder_label:
+            return
+        self.active_query_builder_label = str(builder_label)
         if is_chembl_builder_key(builder_label):
             self.chembl_builder_rows = [make_chembl_builder_ui_row(builder_label)]
             self.build_chembl_builder_rows.refresh()
@@ -1083,6 +1793,18 @@ class WorkflowYamlBuilderApp:
         self.sync_builder_rows_to_form()
         self.update_builder_previews()
 
+    def handle_query_input_mode_change(self, *_args: object) -> None:
+        """Update builder previews after a user changes the query input mode."""
+        if self.is_loading_form_values:
+            return
+        self.update_builder_previews()
+
+    def handle_workflow_mode_change(self, *_args: object) -> None:
+        """Rebuild query controls after the workflow mode changes."""
+        if self.is_loading_form_values:
+            return
+        self.build_query_controls.refresh()
+
     def get_compatible_query_builder_labels(self) -> list[str]:
         """Return visible labels for builders compatible with current dataset settings."""
         choices = get_compatible_query_builder_choices(
@@ -1091,18 +1813,19 @@ class WorkflowYamlBuilderApp:
         )
         return list(choices.values())
 
-    def get_first_compatible_query_builder_label(self) -> str | None:
-        """Return the first compatible builder label, if any."""
-        labels = self.get_compatible_query_builder_labels()
-        return labels[0] if labels else None
-
     def is_current_query_builder_compatible(self) -> bool:
         """Return whether the selected builder is compatible with current dataset settings."""
         return self.form_values.get("query.builder.key") in self.get_compatible_query_builder_labels()
 
-    def refresh_query_builder_options(self, *, refresh_rows: bool = True) -> None:
+    def refresh_query_builder_options(
+        self,
+        *,
+        refresh_rows: bool = True,
+        reset_chembl_rows: bool = True,
+    ) -> None:
         """Refresh query-builder choices for the selected dataset settings."""
         labels = self.get_compatible_query_builder_labels()
+        builder_changed = False
         if self.query_builder_select is not None:
             self.query_builder_select.options = labels
             self.query_builder_select.update()
@@ -1110,10 +1833,15 @@ class WorkflowYamlBuilderApp:
         if labels:
             if not self.is_current_query_builder_compatible():
                 self.form_values["query.builder.key"] = labels[0]
+                self.active_query_builder_label = labels[0]
+                builder_changed = True
             if self.builder_availability_message is not None:
                 self.builder_availability_message.text = ""
             if is_chembl_builder_key(self.form_values["query.builder.key"]):
-                self.chembl_builder_rows = [make_chembl_builder_ui_row(self.form_values["query.builder.key"])]
+                if reset_chembl_rows and builder_changed:
+                    self.chembl_builder_rows = [
+                        make_chembl_builder_ui_row(self.form_values["query.builder.key"])
+                    ]
                 if refresh_rows:
                     self.build_chembl_builder_rows.refresh()
             if is_pubchem_builder_key(self.form_values["query.builder.key"]):
@@ -1143,7 +1871,14 @@ class WorkflowYamlBuilderApp:
 
     def handle_dataset_builder_context_change(self, *_args: object) -> None:
         """Refresh builder choices after dataset modality or interaction type changes."""
+        if self.is_loading_form_values:
+            return
         self.update_interaction_type_visibility()
+        if is_query_composition_workflow_mode(self.form_values["dataset.mode"]):
+            for entry in self.get_query_composition_entries():
+                self.ensure_query_composition_entry_builder_state(entry)
+            self.refresh_query_composition_editor()
+            return
         self.refresh_query_builder_options()
 
     def update_interaction_type_visibility(self, *, update_select: bool = True) -> None:
@@ -1428,7 +2163,11 @@ class WorkflowYamlBuilderApp:
                 self.show_errors([message])
                 return
             self.apply_loaded_form_values(loaded_form_values)
-            errors = self.regenerate_loaded_yaml_preview(warnings)
+            if QUERY_COMPOSITION_PARSE_ERROR_NOTE in warnings:
+                self.retain_loaded_yaml_for_composition_review(yaml_text, warnings)
+                errors = []
+            else:
+                errors = self.regenerate_loaded_yaml_preview(warnings)
             if errors:
                 self.set_workflow_upload_error(filename, "\n".join(errors))
                 return
@@ -1472,21 +2211,39 @@ class WorkflowYamlBuilderApp:
             clear()
 
     def apply_loaded_form_values(self, loaded_form_values: dict[str, object]) -> None:
-        """Apply loaded descriptor values to GUI state."""
+        """Apply loaded descriptor values and synchronize visible widgets."""
+        self.apply_loaded_form_values_to_state(loaded_form_values)
+        self.sync_loaded_form_values_to_widgets()
+
+    def apply_loaded_form_values_to_state(
+        self,
+        loaded_form_values: dict[str, object],
+    ) -> None:
+        """Apply loaded form values to internal GUI state without touching widgets."""
         self.form_values.update(loaded_form_values)
-        self.form_values["query.input_mode"] = get_labeled_option_default(
-            "manual",
-            QUERY_INPUT_MODE_LABEL_TO_VALUE,
+        state = build_gui_query_builder_state_from_loaded_form(self.form_values)
+        self.form_values["query.input_mode"] = state["query_input_mode"]
+        self.form_values["query.builder.key"] = state["builder_label"]
+        self.active_query_builder_label = str(state["builder_label"])
+        self.uniprot_builder_rows = cast(
+            "list[dict[str, object]]",
+            state["uniprot_rows"],
         )
-        self.form_values["query.builder.key"] = get_query_builder_label(
-            self.form_values.get("query.builder.key", "uniprot")
+        self.chembl_builder_rows = cast(
+            "list[dict[str, object]]",
+            state["chembl_rows"],
         )
-        self.uniprot_builder_rows = [make_uniprot_builder_ui_row()]
-        self.chembl_builder_rows = [make_chembl_builder_ui_row(get_query_builder_label("chembl_target"))]
         self.pubchem_builder_row = make_pubchem_builder_ui_row(get_query_builder_label("pubchem_compound"))
         self.chebi_builder_rows = [make_chebi_builder_ui_row(get_query_builder_label("chebi_entity"))]
-        self.update_interaction_type_visibility()
-        self.refresh_query_builder_options()
+
+    def sync_loaded_form_values_to_widgets(self) -> None:
+        """Refresh non-query widgets and rebuild the Query section from loaded state."""
+        self.is_loading_form_values = True
+        try:
+            self.update_interaction_type_visibility()
+            self.build_query_controls.refresh()
+        finally:
+            self.is_loading_form_values = False
 
     def regenerate_loaded_yaml_preview(self, warnings: list[str]) -> list[str]:
         """Regenerate YAML preview from loaded editable form values."""
@@ -1503,6 +2260,15 @@ class WorkflowYamlBuilderApp:
             return errors
         self.show_load_result(warnings)
         return []
+
+    def retain_loaded_yaml_for_composition_review(
+        self,
+        yaml_text: str,
+        warnings: list[str],
+    ) -> None:
+        """Keep unparsed composition YAML visible while the user repairs its entries."""
+        self.yaml_output.value = yaml_text
+        self.show_load_result(warnings)
 
     def show_load_result(self, warnings: list[str]) -> None:
         """Show YAML loading success with non-editable metadata warnings."""

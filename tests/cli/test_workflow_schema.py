@@ -11,6 +11,7 @@ from bioseq_dl.cli.workflows import (
     WORKFLOW_SCHEMA_VERSION,
     build_metadata_document,
     build_summary_document,
+    split_pair,
     validate_workflow_recipe,
 )
 
@@ -94,16 +95,19 @@ def descriptor_with_all_core_sections() -> dict:
 
 
 def build_preserved_metadata_descriptor() -> dict:
-    """Return a descriptor with GUI-oriented query metadata."""
+    """Return a descriptor with neutral query-builder metadata."""
     descriptor = descriptor_with_all_core_sections()
     descriptor["query"]["builder"] = {
-        "source": "gui",
-        "filters": [
+        "schema_version": "query-builder-v1",
+        "source": "uniprot",
+        "builder_key": "uniprot",
+        "builder_type": "field_boolean",
+        "rows": [
             {
-                "field": "reviewed",
-                "operator": "equals",
-                "value": True,
-                "nested": {"arbitrary": ["metadata", 1, None]},
+                "connector": None,
+                "field": "organism",
+                "match_mode": "any",
+                "values": ["Homo sapiens"],
             }
         ],
     }
@@ -238,6 +242,28 @@ def test_query_builder_allows_arbitrary_nested_metadata() -> None:
     assert values["query_descriptor"]["builder"] == descriptor["query"]["builder"]
 
 
+def test_query_builder_metadata_does_not_change_executable_query() -> None:
+    descriptor = base_workflow_descriptor()
+    descriptor["query"]["builder"] = {
+        "schema_version": "query-builder-v1",
+        "source": "uniprot",
+        "builder_key": "uniprot",
+        "builder_type": "field_boolean",
+        "rows": [
+            {
+                "connector": None,
+                "field": "organism",
+                "match_mode": "any",
+                "values": ["Homo sapiens"],
+            }
+        ],
+    }
+
+    values = validate_workflow_recipe(descriptor)
+
+    assert values["query"] == "reviewed:true"
+
+
 def test_query_composition_must_be_list() -> None:
     descriptor = base_workflow_descriptor()
     descriptor["query"]["composition"] = {"label": "reviewed", "value": "reviewed:true"}
@@ -308,6 +334,26 @@ def test_query_composition_matching_query_value_passes_validation() -> None:
     values = validate_workflow_recipe(descriptor)
 
     assert values["query_descriptor"]["composition"] == descriptor["query"]["composition"]
+
+
+def test_query_composition_with_equals_in_query_value_passes_validation() -> None:
+    descriptor = base_workflow_descriptor()
+    descriptor["dataset"]["mode"] = "query_composition"
+    descriptor["query"]["value"] = "chembl.target:gene_symbol__iexact=EGFR=egfr"
+    descriptor["query"]["composition"] = [
+        {"label": "egfr", "value": "chembl.target:gene_symbol__iexact=EGFR"},
+    ]
+
+    values = validate_workflow_recipe(descriptor)
+
+    assert values["query_descriptor"]["composition"] == descriptor["query"]["composition"]
+
+
+def test_cli_composition_pair_splits_on_last_equals_sign() -> None:
+    assert split_pair("chembl.target:gene_symbol__iexact=EGFR=egfr") == (
+        "chembl.target:gene_symbol__iexact=EGFR",
+        "egfr",
+    )
 
 
 def test_query_composition_crossed_pairs_fail_validation() -> None:

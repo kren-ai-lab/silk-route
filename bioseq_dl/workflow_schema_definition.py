@@ -222,7 +222,7 @@ _WORKFLOW_V1_SCHEMA_DEFINITION: dict[str, object] = {
         "default": None,
         "allowed_values": None,
         "role": "preserved_metadata",
-        "description": "GUI-oriented metadata kept for future builder reconstruction.",
+        "description": "Neutral visual-editor metadata for query-builder reconstruction.",
         "gui_visible": False,
     },
     "query.composition": {
@@ -638,6 +638,10 @@ def validate_query_composition(value: object) -> None:
         if "description" in item and description is not None and not isinstance(description, str):
             msg = f"Workflow YAML key 'query.composition[{index}].description' must be a string or null."
             raise ValueError(msg)
+        builder = item.get("builder")
+        if "builder" in item and not isinstance(builder, dict):
+            msg = f"Workflow YAML key 'query.composition[{index}].builder' must be a mapping."
+            raise TypeError(msg)
 
 
 def parse_query_composition_value(query_value: str) -> list[tuple[str, str]]:
@@ -650,7 +654,7 @@ def parse_query_composition_value(query_value: str) -> list[tuple[str, str]]:
         if "=" not in query_part:
             msg = "query.composition does not match executable query.value."
             raise ValueError(msg)
-        query_text, label = query_part.split("=", 1)
+        query_text, label = query_part.rsplit("=", 1)
         query_text = query_text.strip()
         label = label.strip()
         if not query_text or not label:

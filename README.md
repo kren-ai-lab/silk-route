@@ -163,7 +163,7 @@ bioseq-dl workflow run --config examples/workflows/protein_query_first_minimal.y
 bioseq-dl workflow run --config examples/workflows/protein_query_first_minimal.yml -e csv
 ```
 
-YAML descriptors use top-level `schema_version`, `dataset`, `query`, `resources`, `execution`, `harmonization`, `export`, and `reporting` sections, plus a small allowlist of descriptive integration sections. `dataset.mode` is the workflow execution mode, and the only valid values are `query_first` and `query_composition`. Only part of the descriptor is executable: `dataset.modality`, `dataset.mode`, `query.value`, selected `query` options, supported `execution` options, and `export` options are mapped to the current workflow. `query.value` is the actual API query. `query.builder`, `query.composition`, `query.description`, and `query.filtering_strategy` are descriptive metadata only. If `query.composition` is present, it must match the executable `query.value`.
+YAML descriptors use top-level `schema_version`, `dataset`, `query`, `resources`, `execution`, `harmonization`, `export`, and `reporting` sections, plus a small allowlist of descriptive integration sections. `dataset.mode` is the workflow execution mode, and the only valid values are `query_first` and `query_composition`. `query_first` describes one query. `query_composition` describes multiple labeled queries; each query is retrieved separately and assigned its label. Only part of the descriptor is executable: `dataset.modality`, `dataset.mode`, `query.value`, selected `query` options, supported `execution` options, and `export` options are mapped to the current workflow. `query.value` is the actual API query. `query.builder`, `query.composition`, `query.description`, and `query.filtering_strategy` are descriptive metadata only. If `query.composition` is present, it must match the executable `query.value`.
 
 `resources`, allowed domain-specific integration sections, and most harmonization/reporting fields are preserved in `metadata.json` and `run_summary.yml` unless the current workflow already supports that behavior. `execution.merge_results` is descriptor metadata for now. Credentials must be provided through `.env` or environment variables, not YAML.
 
@@ -181,19 +181,31 @@ tools can inspect the lightweight schema definition with:
 from bioseq_dl.workflow_schema_definition import get_workflow_v1_schema_definition
 ```
 
-The optional NiceGUI interface prepares `workflow-v1` YAML descriptors; workflow
-execution still happens through the CLI. The Query section supports Manual
-query mode, which writes `query.value` directly, and Advanced builder mode,
-which currently offers UniProt, ChEMBL, PubChem, and ChEBI builders and stores only the final
-interpreted string in `query.value`. Friendly query previews and builder rows
-are reserved for future GUI reconstruction rather than saved to YAML.
+The optional NiceGUI interface prepares `workflow-v1` YAML descriptors only; it
+does not execute workflows, call external APIs, or download biological data.
+For `query_first`, the Query section supports Manual query mode, which writes
+`query.value` directly, and Advanced builder mode, which offers UniProt,
+ChEMBL, PubChem, and ChEBI builders. UniProt and ChEMBL builders store neutral
+row metadata in the optional `query.builder` mapping; PubChem and ChEBI store
+their final interpreted string in `query.value`. Manual query mode omits
+`query.builder`.
+For `query_composition`, the GUI provides a labeled query editor. Each entry has
+a label, optional description, and either a manual query value or a compatible
+UniProt or ChEMBL advanced builder. The GUI joins entries as comma-separated
+`query=label` pairs in executable `query.value` and writes matching
+`query.composition` metadata, including independent builder metadata for
+advanced entries.
 Human-friendly GUI labels are translated to exact workflow-v1 schema values.
 The GUI can also load an existing `workflow-v1` YAML file and populate the
-supported form fields. When loading a YAML file, the saved query text opens in
-Manual query mode. Reconstructing visual builder rows is planned for a later
-version with `query.builder` metadata. Metadata such as `query.builder`,
-`query.composition`, `resources`, and `reporting` may validate as workflow-v1
-descriptor metadata and is shown as read-only in this GUI version.
+supported form fields. YAML files generated from Advanced builder mode include
+optional `query.builder` metadata with a neutral source, registry key, builder
+type, and source-specific rows. When this metadata is valid, compatible with
+the dataset, and regenerates the same `query.value`, the GUI restores Advanced
+builder mode and its visual rows. If the metadata is missing, invalid, or no
+longer matches `query.value`, the saved query text opens in Manual query mode.
+Metadata such as `resources` and `reporting` may also validate as workflow-v1
+descriptor metadata and is shown as read-only. Valid `query.composition`
+metadata is restored into the labeled query editor.
 `query.fields` and `query.crossref_fields` remain separate optional inputs and
 are not advanced-builder search conditions.
 In the Advanced UniProt builder, Connector combines a row with the previous row
@@ -216,6 +228,7 @@ builders produce final interpreted `query.value` strings and local request
 plans. The GUI prepares YAML, while execution stays in the CLI. Compound
 workflows execute PubChem compound and selected structure plans plus ChEBI ID
 and name/text searches.
+Workflows execute only `query.value` and ignore `query.builder`.
 Advanced query builders are filtered by the selected dataset modality and
 interaction type. Protein datasets expose the UniProt builder. Compound
 datasets expose compatible ChEMBL molecule/activity builders plus PubChem and

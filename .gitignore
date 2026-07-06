@@ -2,6 +2,8 @@
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
+.ruff_cache/
 .ipynb_checkpoints/
 
 # Distribution / packaging
@@ -57,7 +59,6 @@ src/.pdb_cache/
 *.log
 *.backup
 *.parquet
-.env
 
 !examples/data/*.csv
 
