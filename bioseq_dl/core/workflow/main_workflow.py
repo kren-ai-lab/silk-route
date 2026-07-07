@@ -134,8 +134,9 @@ def activity_filter_metadata(activity_filter: dict) -> dict:
         "standard_type": activity_filter.get("standard_type"),
         "standard_value_min": activity_filter.get("standard_value_min"),
         "standard_value_max": activity_filter.get("standard_value_max"),
-        "standard_units": activity_filter.get("standard_units"),
     }
+    if "standard_units" in activity_filter:
+        metadata["standard_units"] = activity_filter["standard_units"]
     if activity_filter.get("standard_value") is not None:
         metadata["standard_value"] = activity_filter.get("standard_value")
     return metadata
@@ -163,6 +164,28 @@ def filter_chembl_activity_dataframe(df: pd.DataFrame, activity_filter: dict) ->
 
     standard_type = str(activity_filter.get("standard_type", "")).upper()
     type_mask = df["standard_type"].astype(str).str.upper() == standard_type
+    standard_units = activity_filter.get("standard_units")
+    if standard_units is not None and "standard_units" not in df.columns:
+        return df.iloc[0:0].copy(), {
+            "applied": True,
+            "initial_rows": initial_rows,
+            "filtered_rows": 0,
+            "removed_rows": initial_rows,
+            "reason": "missing_standard_units",
+        }
+
+    units_mask = pd.Series(data=True, index=df.index)
+    if standard_units is not None:
+        normalized_units = (
+            df["standard_units"]
+            .astype(str)
+            .str.strip()
+            .str.replace("Âµ", "u", regex=False)
+            .str.replace("Î¼", "u", regex=False)
+            .str.replace("µ", "u", regex=False)
+            .str.replace("μ", "u", regex=False)
+        )
+        units_mask = normalized_units == standard_units
     values = pd.to_numeric(df["standard_value"], errors="coerce")
     value_mask = values.notna()
 
@@ -183,7 +206,7 @@ def filter_chembl_activity_dataframe(df: pd.DataFrame, activity_filter: dict) ->
             else:
                 value_mask &= values < max_value
 
-    filtered = df.loc[type_mask & value_mask].copy()
+    filtered = df.loc[type_mask & units_mask & value_mask].copy()
     filtered_rows = len(filtered)
     return filtered, {
         "applied": True,
@@ -672,11 +695,10 @@ class MainWorkflow:
             result, post_filter_meta = filter_chembl_activity_result(result, activity_filter)
             if isinstance(meta, dict):
                 meta["activity_filter"] = activity_filter_metadata(activity_filter)
-                meta["activity_filter"]["standard_units"] = None
                 meta["api_filter"] = {
                     "applied": True,
                     "endpoint": "activity",
-                    "standard_units_constrained": False,
+                    "standard_units_constrained": "standard_units" in activity_filter,
                     "pagination_capped": pages_to_fetch != -1,
                 }
                 meta["post_fetch_filter"] = post_filter_meta

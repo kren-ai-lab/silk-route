@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Any
 
+from bioseq_dl.core.utils.chembl_activity import normalize_standard_units
 from bioseq_dl.core.workflow.chembl_query_parser import parse_chembl_query_builder_string
 from bioseq_dl.core.workflow.query_field_catalog import get_uniprot_query_field_catalog
 
@@ -523,10 +524,21 @@ class ChEMBLQueryInterpreter(BaseQueryInterpreter):
             if self._is_number(value):
                 return "", f"standard_type=IC50 AND standard_value={value.strip()}"
 
+        if cfg.resolver_kind == "standard_units_transform":
+            return "", f"standard_units={normalize_standard_units(value)}"
+
         return prefix, value
 
     def interpret(self, query: str) -> str:
         """Interpret a query string into a ChEMBL-compatible query string."""
+        if re.search(
+            r"\bstandard_units\s*[:=]\s*(?=$|\b(?:AND|OR)\b|\))",
+            query,
+            flags=re.IGNORECASE,
+        ):
+            msg = "standard_units must be a non-empty value."
+            raise ValueError(msg)
+        query = re.sub(r"\bstandard_units\s*=", "standard_units:", query, flags=re.IGNORECASE)
         # Replace field aliases
         processed_query = self._expand_field_aliases(query)
         # Remove ignored fields
@@ -552,6 +564,12 @@ def build_default_chembl_interpreter() -> ChEMBLQueryInterpreter:
             value_map={},
             supports_range=True,
             resolver_kind="ic50_transform",
+        ),
+        "standard_units": MultiModeFieldConfig(
+            field="standard_units",
+            value_map={},
+            supports_range=False,
+            resolver_kind="standard_units_transform",
         ),
         "activity": MultiModeFieldConfig(
             field="activity",

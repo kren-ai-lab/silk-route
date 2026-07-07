@@ -349,6 +349,29 @@ def test_query_composition_with_equals_in_query_value_passes_validation() -> Non
     assert values["query_descriptor"]["composition"] == descriptor["query"]["composition"]
 
 
+def test_query_composition_with_ic50_standard_units_passes_validation() -> None:
+    descriptor = base_workflow_descriptor()
+    descriptor["dataset"]["mode"] = "query_composition"
+    descriptor["query"]["value"] = (
+        "ic50:0-10 AND standard_units:nM=very_high_potency,"
+        "ic50:10-100 AND standard_units:nM=high_potency"
+    )
+    descriptor["query"]["composition"] = [
+        {
+            "label": "very_high_potency",
+            "value": "ic50:0-10 AND standard_units:nM",
+        },
+        {
+            "label": "high_potency",
+            "value": "ic50:10-100 AND standard_units:nM",
+        },
+    ]
+
+    values = validate_workflow_recipe(descriptor)
+
+    assert values["query_descriptor"]["composition"] == descriptor["query"]["composition"]
+
+
 def test_cli_composition_pair_splits_on_last_equals_sign() -> None:
     assert split_pair("chembl.target:gene_symbol__iexact=EGFR=egfr") == (
         "chembl.target:gene_symbol__iexact=EGFR",

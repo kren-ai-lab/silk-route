@@ -145,6 +145,20 @@ def test_query_composition_parser_splits_on_last_equals_sign() -> None:
     assert pairs == [("chembl.target:gene_symbol__iexact=EGFR", "egfr")]
 
 
+def test_query_composition_parser_preserves_ic50_standard_units() -> None:
+    from bioseq_dl.workflow_schema_definition import parse_query_composition_value
+
+    pairs = parse_query_composition_value(
+        "ic50:0-10 AND standard_units:nM=very_high_potency,"
+        "ic50:10-100 AND standard_units:nM=high_potency"
+    )
+
+    assert pairs == [
+        ("ic50:0-10 AND standard_units:nM", "very_high_potency"),
+        ("ic50:10-100 AND standard_units:nM", "high_potency"),
+    ]
+
+
 def test_query_composition_parser_preserves_multiple_simple_pairs() -> None:
     from bioseq_dl.workflow_schema_definition import parse_query_composition_value
 

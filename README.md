@@ -169,7 +169,7 @@ YAML descriptors use top-level `schema_version`, `dataset`, `query`, `resources`
 
 ChEMBL workflow fetches retrieve all available pages by default. In YAML, `execution.chembl_pages_to_fetch: -1` means all pages; a positive value caps the number of pages. ChEMBL `limit` remains records per page, not total records and not a page count. Large ChEMBL queries can take longer when all pages are fetched; use a positive page cap for quick validation runs.
 
-For IC50 queries, the ChEMBL workflow enforces `standard_type = IC50` and numeric `standard_value` constraints for requested ranges. `standard_units` is preserved when returned by ChEMBL; unit normalization to nM belongs to a later workflow enhancement.
+For IC50 queries, the ChEMBL workflow enforces `standard_type = IC50` and numeric `standard_value` constraints for requested ranges. Add an optional unit constraint with syntax such as `ic50:0-10 AND standard_units:nM`; the numeric range is interpreted in that ChEMBL `standard_units` value, and no unit conversion is applied. Labeled composition remains valid, for example `ic50:0-10 AND standard_units:nM=very_high_potency`.
 
 Allowed top-level descriptor sections are: `schema_version`, `dataset`, `query`, `resources`, `execution`, `harmonization`, `export`, `reporting`, `interaction_retrieval`, `activity_retrieval`, `chemical_metadata_integration`, `protein_target_integration`, `temperature_enrichment`, and `cross_source_integration`.
 
@@ -503,7 +503,7 @@ bioseq-dl workflow run \
 1. Performs ChEMBL activity retrieval with UniProt target mapping for activity records in different IC50 ranges
 2. Creates two labeled datasets: `active` (`standard_value` 10-50) and `inactive` (`standard_value` 50-100)
 3. Enforces `standard_type = IC50` and numeric `standard_value` filtering after retrieval
-4. Preserves `standard_units` when ChEMBL returns it, without constraining units to nM
+4. Optionally constrains `standard_units` when it is included in the query; no unit conversion is applied
 5. Writes ChEMBL activity results and available UniProt target-mapping output
 
 **Output files:**
