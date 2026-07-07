@@ -83,9 +83,10 @@ class AlphafoldInterface(BaseAPIInterface):
                 for res in result:
                     self.download_structures(res)
             elif isinstance(result, pd.DataFrame):
-                for _, row in result.iterrows():
-                    row_dict = row.to_dict()
-                    self.download_structures(row_dict)
+                result = pd.DataFrame(
+                    self.download_structures(row.to_dict())
+                    for _, row in result.iterrows()
+                )
             elif isinstance(result, dict):
                 self.download_structures(result)
 
@@ -111,7 +112,7 @@ class AlphafoldInterface(BaseAPIInterface):
                         row_dict = row.to_dict()
                         new_results.append(self.download_structures(row_dict))
                 elif isinstance(result, dict):
-                    new_results = [self.download_structures(result)]
+                    new_results.append(self.download_structures(result))
 
         if new_results:
             return new_results, metadata
@@ -198,23 +199,25 @@ class AlphafoldInterface(BaseAPIInterface):
                 continue
             file_name = structure_url.split("/")[-1]
             file_path = Path(self.output_dir) / file_name
+            file_key = f"{ext}_file"
 
-            # Delete the URL from parsed data
-            del parsed[url_key]
-
-            # Check if the file already exists
             if file_path.exists():
+                parsed[file_key] = str(file_path)
+                parsed.pop(url_key, None)
                 log.info("Structure %s already exists. Skipping download.", file_name)
                 continue
 
             try:
                 response = self.session.get(structure_url)
+                response.raise_for_status()
                 with file_path.open("wb") as f:
                     log.info("Downloading structure %s...", file_name)
                     f.write(response.content)
-
-            except Exception:
+            except (OSError, RequestException):
                 log.exception("Error downloading structure %s", file_name)
+            else:
+                parsed[file_key] = str(file_path)
+                parsed.pop(url_key, None)
 
         return parsed if parsed is not None else {}
 

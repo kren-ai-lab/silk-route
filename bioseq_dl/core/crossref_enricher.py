@@ -18,6 +18,13 @@ from bioseq_dl.logging import get_logger
 log = get_logger("bioseq_dl.interfaces.crossref_enricher")
 
 
+def get_crossref_interface_kwargs(database_name: str) -> dict[str, Any]:
+    """Return interface initialization defaults for cross-reference enrichment."""
+    if database_name == "alphafold":
+        return {"structures": ["pdb"]}
+    return {}
+
+
 @dataclass
 class EndpointSpec:
     """Declarative specification for a single endpoint.
@@ -85,13 +92,16 @@ class CrossRefEnricher:
         return params
 
     def _build_interface(self, database_name: str) -> BaseAPIInterface:
-        """Create the correct interface instance with configured max_workers and total_retries."""
+        """Create an interface with configured cross-reference defaults."""
         if database_name not in INTERFACE_CLASSES:
             msg = f"Unsupported database: {database_name}"
             raise ValueError(msg)
 
+        interface_kwargs = get_crossref_interface_kwargs(database_name)
         return INTERFACE_CLASSES[database_name](
-            max_workers=self.max_workers, total_retries=self.total_retries
+            max_workers=self.max_workers,
+            total_retries=self.total_retries,
+            **interface_kwargs,
         )
 
     def _query_builder_key(self, spec: EndpointSpec) -> str:
