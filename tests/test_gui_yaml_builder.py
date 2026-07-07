@@ -34,6 +34,7 @@ from bioseq_dl.gui.yaml_builder import (
     load_workflow_yaml_to_form_values,
     normalize_enrichment_sources,
     parse_csv_list,
+    query_fields_from_enrichment_sources,
     render_workflow_yaml,
     resolve_query_value_from_form,
     validate_generated_descriptor,
@@ -282,6 +283,9 @@ def test_enrichment_source_options_map_labels_to_executable_keys() -> None:
         "Rhea": "rhea",
         "STRING": "string",
         "SABIO-RK": "sabio-rk",
+        "PathwayCommons Neighborhood": "pathwaycommons_neighborhood",
+        "PathwayCommons Top Pathways": "pathwaycommons_top_pathways",
+        "PathwayCommons Fetch": "pathwaycommons_fetch",
     }
     assert normalize_enrichment_sources(["ChEMBL", "PDB", "STRING"]) == [
         "chembl",
@@ -303,6 +307,41 @@ def test_selected_enrichment_sources_generate_crossref_fields() -> None:
     assert descriptor["execution"]["enrich"] is True
     assert "enrichment_sources" not in descriptor["execution"]
     assert descriptor["query"]["crossref_fields"] == ["chembl", "pdb", "string"]
+
+
+@pytest.mark.parametrize(
+    ("source", "required_fields"),
+    [
+        ("pathwaycommons_neighborhood", ["accession", "organism_id"]),
+        ("pathwaycommons_top_pathways", ["gene_primary", "organism_id"]),
+        ("pathwaycommons_fetch", ["xref_reactome"]),
+    ],
+)
+def test_pathwaycommons_sources_generate_crossrefs_and_required_fields(
+    source: str,
+    required_fields: list[str],
+) -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "execution.enrich": True,
+            "execution.enrichment_sources": [source],
+            "query.fields": "accession" if source == "pathwaycommons_neighborhood" else "",
+            "query.crossref_fields": "",
+        }
+    )
+
+    assert descriptor["query"]["crossref_fields"] == [source]
+    assert descriptor["query"]["fields"] == required_fields
+
+
+def test_pathwaycommons_required_query_fields_do_not_duplicate_existing_fields() -> None:
+    fields = query_fields_from_enrichment_sources(
+        ["pathwaycommons_neighborhood", "pathwaycommons_top_pathways"],
+        existing_query_fields="accession, organism_id",
+    )
+
+    assert fields == "accession, organism_id, gene_primary"
 
 
 def test_enrichment_source_crossrefs_preserve_unknown_manual_fields() -> None:
@@ -1535,6 +1574,8 @@ def test_enrichment_source_change_updates_crossref_fields_and_preserves_unknowns
     module = importlib.import_module("bioseq_dl.gui.nicegui_app")
     app = module.WorkflowYamlBuilderApp()
     app.form_values["query.crossref_fields"] = "chembl, custom_source"
+    app.form_values["query.fields"] = "protein_name"
+    app.query_fields_input = Mock()
     app.crossref_fields_input = Mock()
 
     app.handle_enrichment_sources_change(
@@ -1545,6 +1586,22 @@ def test_enrichment_source_change_updates_crossref_fields_and_preserves_unknowns
     assert app.form_values["query.crossref_fields"] == "pdb, string, custom_source"
     assert app.crossref_fields_input.value == "pdb, string, custom_source"
     app.crossref_fields_input.update.assert_called_once_with()
+
+
+def test_pathwaycommons_source_change_updates_required_query_fields() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    app = module.WorkflowYamlBuilderApp()
+    app.form_values["query.fields"] = "accession"
+    app.query_fields_input = Mock()
+
+    app.handle_enrichment_sources_change(
+        FakeValueChangeEvent(["pathwaycommons_neighborhood"]),
+    )
+
+    assert app.form_values["query.fields"] == "accession, organism_id"
+    assert app.query_fields_input.value == "accession, organism_id"
+    app.query_fields_input.update.assert_called_once_with()
 
 
 def test_manual_crossref_change_updates_known_source_selection() -> None:

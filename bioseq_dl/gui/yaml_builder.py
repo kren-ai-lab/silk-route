@@ -149,22 +149,31 @@ DEFAULT_CHEMBL_IC50_FORM_ROW = {
     "value": "",
     "standard_units": "nM",
 }
-ENRICHMENT_SOURCE_XREF_LABELS = (
-    ("AlphaFold", "AlphaFold"),
-    ("BioGRID", "BioGRID"),
-    ("ChEMBL", "ChEMBL"),
-    ("ChEBI", "ChEBI"),
-    ("GO", "GO"),
-    ("InterPro", "InterPro"),
-    ("KEGG", "KEGG"),
-    ("PDB", "PDB"),
-    ("PubChem", "PubChem"),
-    ("Reactome", "Reactome"),
-    ("RefSeq", "RefSeq"),
-    ("Rhea", "Rhea"),
-    ("STRING", "StringDB"),
-    ("SABIO-RK", "SABIO-RK"),
-)
+ENRICHMENT_SOURCE_OPTIONS: dict[str, tuple[str, tuple[str, ...]]] = {
+    "AlphaFold": (XREF_MAPPING["AlphaFold"][1], ()),
+    "BioGRID": (XREF_MAPPING["BioGRID"][1], ()),
+    "ChEMBL": (XREF_MAPPING["ChEMBL"][1], ()),
+    "ChEBI": (XREF_MAPPING["ChEBI"][1], ()),
+    "GO": (XREF_MAPPING["GO"][1], ()),
+    "InterPro": (XREF_MAPPING["InterPro"][1], ()),
+    "KEGG": (XREF_MAPPING["KEGG"][1], ()),
+    "PDB": (XREF_MAPPING["PDB"][1], ()),
+    "PubChem": (XREF_MAPPING["PubChem"][1], ()),
+    "Reactome": (XREF_MAPPING["Reactome"][1], ()),
+    "RefSeq": (XREF_MAPPING["RefSeq"][1], ()),
+    "Rhea": (XREF_MAPPING["Rhea"][1], ()),
+    "STRING": (XREF_MAPPING["StringDB"][1], ()),
+    "SABIO-RK": (XREF_MAPPING["SABIO-RK"][1], ()),
+    "PathwayCommons Neighborhood": (
+        "pathwaycommons_neighborhood",
+        ("accession", "organism_id"),
+    ),
+    "PathwayCommons Top Pathways": (
+        "pathwaycommons_top_pathways",
+        ("gene_primary", "organism_id"),
+    ),
+    "PathwayCommons Fetch": ("pathwaycommons_fetch", ("xref_reactome",)),
+}
 
 DEFAULT_FORM_VALUES: dict[str, object] = {
     "dataset.name": "",
@@ -1140,10 +1149,7 @@ def parse_csv_list(value: object) -> list[str]:
 
 def get_enrichment_source_options() -> dict[str, str]:
     """Return GUI labels mapped to executable enrichment source keys."""
-    return {
-        display_label: XREF_MAPPING[xref_label][1]
-        for display_label, xref_label in ENRICHMENT_SOURCE_XREF_LABELS
-    }
+    return {label: source_key for label, (source_key, _) in ENRICHMENT_SOURCE_OPTIONS.items()}
 
 
 def normalize_enrichment_sources(value: object) -> list[str]:
@@ -1198,6 +1204,23 @@ def crossref_fields_from_enrichment_sources(
         if not preserve_known_existing and enrichment_sources_from_crossref_fields([field]):
             continue
         fields.append(field)
+    return ", ".join(fields)
+
+
+def query_fields_from_enrichment_sources(
+    sources: object,
+    *,
+    existing_query_fields: object = None,
+) -> str:
+    """Return query fields with requirements for selected enrichment sources."""
+    fields = parse_csv_list(existing_query_fields)
+    known_fields = {field.casefold() for field in fields}
+    requirements_by_source = dict(ENRICHMENT_SOURCE_OPTIONS.values())
+    for source in normalize_enrichment_sources(sources):
+        for required_field in requirements_by_source[source]:
+            if required_field.casefold() not in known_fields:
+                fields.append(required_field)
+                known_fields.add(required_field.casefold())
     return ", ".join(fields)
 
 
@@ -1406,7 +1429,13 @@ def build_query_section(form_values: Mapping[str, object]) -> dict[str, object]:
             "include_isoform": parse_bool(get_form_value(form_values, "query.include_isoform")),
         }
 
-    add_optional_list(query, "fields", get_form_value(form_values, "query.fields"))
+    query_fields = get_form_value(form_values, "query.fields")
+    if has_form_value(form_values, "execution.enrichment_sources"):
+        query_fields = query_fields_from_enrichment_sources(
+            get_form_value(form_values, "execution.enrichment_sources"),
+            existing_query_fields=query_fields,
+        )
+    add_optional_list(query, "fields", query_fields)
     crossref_fields = get_form_value(form_values, "query.crossref_fields")
     if has_form_value(form_values, "execution.enrichment_sources"):
         crossref_fields = crossref_fields_from_enrichment_sources(

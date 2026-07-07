@@ -81,6 +81,7 @@ from bioseq_dl.gui.yaml_builder import (
     normalize_query_builder_key,
     normalize_query_input_mode,
     parse_bool,
+    query_fields_from_enrichment_sources,
     render_workflow_yaml,
     resolve_query_composition_entry_value,
     validate_generated_descriptor,
@@ -589,6 +590,7 @@ class WorkflowYamlBuilderApp:
         self.query_composition_entry_previews: dict[int, Any] = {}
         self.query_builder_select: Any = None
         self.enrichment_sources_select: Any = None
+        self.query_fields_input: Any = None
         self.crossref_fields_input: Any = None
         self.interaction_type_select: Any = None
         self.workflow_upload: Any = None
@@ -1199,7 +1201,7 @@ class WorkflowYamlBuilderApp:
     def build_shared_query_controls(self) -> None:
         """Build query options shared by both workflow modes."""
         with ui.grid(columns=2).classes("w-full gap-3"):
-            (
+            self.query_fields_input = (
                 ui.input("Return fields")
                 .props('clearable placeholder="accession, protein_name, organism_name, sequence"')
                 .bind_value(self.form_values, "query.fields")
@@ -2329,11 +2331,19 @@ class WorkflowYamlBuilderApp:
         self.build_enrichment_controls.refresh()
 
     def handle_enrichment_sources_change(self, event: object) -> None:
-        """Synchronize selected enrichment sources to cross-reference field text."""
+        """Synchronize selected enrichment sources to query and cross-reference fields."""
         if self.is_loading_form_values:
             return
         sources = normalize_enrichment_sources(getattr(event, "value", []))
         self.form_values["execution.enrichment_sources"] = sources
+        query_fields = query_fields_from_enrichment_sources(
+            sources,
+            existing_query_fields=self.form_values.get("query.fields"),
+        )
+        self.form_values["query.fields"] = query_fields
+        if self.query_fields_input is not None:
+            self.query_fields_input.value = query_fields
+            self.query_fields_input.update()
         crossref_fields = crossref_fields_from_enrichment_sources(
             sources,
             existing_crossref_fields=self.form_values.get("query.crossref_fields"),
