@@ -62,6 +62,20 @@ def test_validate_rejects_credential_key(tmp_path):
     assert "Credentials must be provided" in result.output
 
 
+def test_validate_reports_missing_schema_version(tmp_path):
+    no_version = VALID_DESCRIPTOR.replace('schema_version: "workflow-v1"\n', "")
+    result = runner.invoke(app, ["workflow", "validate", _write(tmp_path, no_version)])
+    assert result.exit_code == 1
+    assert "missing required top-level key 'schema_version'" in result.output
+
+
+def test_validate_reports_unsupported_schema_version(tmp_path):
+    bad = VALID_DESCRIPTOR.replace('schema_version: "workflow-v1"', 'schema_version: "workflow-v2"')
+    result = runner.invoke(app, ["workflow", "validate", _write(tmp_path, bad)])
+    assert result.exit_code == 1
+    assert "Unsupported workflow schema_version" in result.output
+
+
 def test_validate_reports_missing_file(tmp_path):
     result = runner.invoke(app, ["workflow", "validate", str(tmp_path / "nope.yml")])
     assert result.exit_code == 1
@@ -98,6 +112,7 @@ def test_validate_reports_all_errors_at_once(tmp_path):
 
 def test_collect_returns_empty_for_valid():
     recipe = {
+        "schema_version": "workflow-v1",
         "dataset": {"name": "d", "modality": "protein", "mode": "query_first"},
         "query": {"value": "P1"},
         "execution": {},

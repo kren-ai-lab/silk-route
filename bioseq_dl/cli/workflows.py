@@ -1031,6 +1031,7 @@ def collect_workflow_recipe_errors(recipe: object) -> list[str]:
     _check(lambda: check_forbidden_workflow_recipe_keys(recipe))
     descriptor = {str(key): value for key, value in recipe.items()}
     _check(lambda: validate_descriptor_section_names(descriptor))
+    _check(lambda: validate_schema_version(descriptor))
 
     missing_sections = sorted(REQUIRED_DESCRIPTOR_SECTIONS - set(descriptor))
     if missing_sections:
