@@ -22,6 +22,7 @@ DEFAULT_MAX_WORKERS = 5
 DEFAULT_TOTAL_RETRIES = 3
 DEFAULT_CHEMBL_PAGES_TO_FETCH = -1
 DEFAULT_WORKFLOW_FILENAME = "workflow-v1.yml"
+CHEMBL_IC50_BUILDER_KEY = "chembl_ic50_activity"
 DEFAULT_OUTPUT_DIRECTORY_NAME_ERROR = (
     "Dataset name is required because the default output folder is generated as results/{dataset.name}."
 )
@@ -141,6 +142,13 @@ CHEBI_BUILDER_RESOURCE_BY_KEY = {
     "chebi_ontology": "ontology",
     "chebi_structure": "structure",
 }
+DEFAULT_CHEMBL_IC50_FORM_ROW = {
+    "comparison_mode": "range",
+    "lower_value": "",
+    "upper_value": "",
+    "value": "",
+    "standard_units": "nM",
+}
 ENRICHMENT_SOURCE_XREF_LABELS = (
     ("AlphaFold", "AlphaFold"),
     ("BioGRID", "BioGRID"),
@@ -182,6 +190,7 @@ DEFAULT_FORM_VALUES: dict[str, object] = {
             "value": "",
         }
     ],
+    "query.chembl_ic50_builder.row": deepcopy(DEFAULT_CHEMBL_IC50_FORM_ROW),
     "query.pubchem_builder.row": {
         "field": "name",
         "value": "",
@@ -204,6 +213,7 @@ DEFAULT_FORM_VALUES: dict[str, object] = {
             "query_builder_key": "uniprot",
             "uniprot_builder_rows": [],
             "chembl_builder_rows": [],
+            "chembl_ic50_builder_row": deepcopy(DEFAULT_CHEMBL_IC50_FORM_ROW),
         }
     ],
     "query.fields": "",
@@ -241,6 +251,7 @@ FORM_VALUE_ALIASES: dict[str, tuple[str, ...]] = {
     "query.value": ("query_value",),
     "query.uniprot_builder.rows": ("query_uniprot_builder_rows",),
     "query.chembl_builder.rows": ("query_chembl_builder_rows",),
+    "query.chembl_ic50_builder.row": ("query_chembl_ic50_builder_row",),
     "query.pubchem_builder.row": ("query_pubchem_builder_row",),
     "query.chebi_builder.rows": ("query_chebi_builder_rows",),
     "query.composition.entries": ("query_composition_entries",),
@@ -385,6 +396,10 @@ def build_query_composition_entry_form_values(
         "query.builder.key": entry.get("query_builder_key", "uniprot"),
         "query.uniprot_builder.rows": entry.get("uniprot_builder_rows", []),
         "query.chembl_builder.rows": entry.get("chembl_builder_rows", []),
+        "query.chembl_ic50_builder.row": entry.get(
+            "chembl_ic50_builder_row",
+            deepcopy(DEFAULT_CHEMBL_IC50_FORM_ROW),
+        ),
     }
 
 
@@ -607,6 +622,15 @@ def restore_query_composition_entry_builder_state(
             }
             for row in restoration.rows
         ]
+    elif restoration.builder_key == CHEMBL_IC50_BUILDER_KEY:
+        row = restoration.rows[0]
+        entry["chembl_ic50_builder_row"] = {
+            "comparison_mode": row.comparison_mode,
+            "lower_value": row.lower_value,
+            "upper_value": row.upper_value,
+            "value": row.value,
+            "standard_units": row.standard_units,
+        }
     else:
         entry["chembl_builder_rows"] = [
             {
@@ -769,6 +793,15 @@ def restore_loaded_query_builder_form_values(
             }
             for row in restoration.rows
         ]
+    elif restoration.builder_key == CHEMBL_IC50_BUILDER_KEY:
+        row = restoration.rows[0]
+        form_values["query.chembl_ic50_builder.row"] = {
+            "comparison_mode": row.comparison_mode,
+            "lower_value": row.lower_value,
+            "upper_value": row.upper_value,
+            "value": row.value,
+            "standard_units": row.standard_units,
+        }
     else:
         form_values["query.chembl_builder.rows"] = [
             {
@@ -926,6 +959,29 @@ def build_chembl_builder_rows_from_form(form_values: Mapping[str, object]) -> li
     ]
 
 
+def build_chembl_ic50_builder_row_from_form(form_values: Mapping[str, object]) -> object:
+    """Build one pure ChEMBL IC50 query builder row from GUI form values."""
+    from bioseq_dl.gui.query_builders.chembl_ic50 import (  # noqa: PLC0415
+        ChEMBLIC50QueryBuilderRow,
+    )
+
+    builder_key = normalize_query_builder_key(get_form_value(form_values, "query.builder.key"))
+    if builder_key != CHEMBL_IC50_BUILDER_KEY:
+        msg = f"Query builder '{builder_key}' is not the ChEMBL IC50 builder."
+        raise ValueError(msg)
+    raw_row = get_form_value(form_values, "query.chembl_ic50_builder.row")
+    if not isinstance(raw_row, Mapping):
+        msg = "Advanced ChEMBL IC50 builder row must be a mapping."
+        raise TypeError(msg)
+    return ChEMBLIC50QueryBuilderRow(
+        comparison_mode=str(get_builder_row_value(raw_row, "comparison_mode", "range")),
+        lower_value=str(get_builder_row_value(raw_row, "lower_value", "")),
+        upper_value=str(get_builder_row_value(raw_row, "upper_value", "")),
+        value=str(get_builder_row_value(raw_row, "value", "")),
+        standard_units=str(get_builder_row_value(raw_row, "standard_units", "")),
+    )
+
+
 def build_pubchem_builder_row_from_form(form_values: Mapping[str, object]) -> object:
     """Build a pure PubChem query builder row from GUI form values."""
     from bioseq_dl.gui.query_builders.pubchem import PubChemQueryBuilderRow  # noqa: PLC0415
@@ -991,6 +1047,15 @@ def resolve_query_value_from_form(form_values: Mapping[str, object]) -> str:
             raise ValueError(msg)
         return build_uniprot_interpreted_query(rows)
 
+    if builder_key == CHEMBL_IC50_BUILDER_KEY:
+        from bioseq_dl.gui.query_builders.chembl_ic50 import (  # noqa: PLC0415
+            build_chembl_ic50_interpreted_query,
+        )
+
+        return build_chembl_ic50_interpreted_query(
+            build_chembl_ic50_builder_row_from_form(form_values)
+        )
+
     if builder_key in CHEMBL_BUILDER_RESOURCE_BY_KEY:
         from bioseq_dl.gui.query_builders.chembl import build_chembl_interpreted_query  # noqa: PLC0415
 
@@ -1035,6 +1100,15 @@ def build_query_builder_metadata_from_form(
 
         return build_uniprot_query_builder_metadata(
             build_uniprot_builder_rows_from_form(form_values)
+        )
+
+    if builder_key == CHEMBL_IC50_BUILDER_KEY:
+        from bioseq_dl.gui.query_builders.metadata import (  # noqa: PLC0415
+            build_chembl_ic50_query_builder_metadata,
+        )
+
+        return build_chembl_ic50_query_builder_metadata(
+            build_chembl_ic50_builder_row_from_form(form_values)
         )
 
     if builder_key in CHEMBL_BUILDER_RESOURCE_BY_KEY:

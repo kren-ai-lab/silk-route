@@ -26,6 +26,7 @@ def test_query_builder_registry_contains_uniprot_and_chembl_builders():
         "chembl_cell_line",
         "chembl_molecule",
         "chembl_activity",
+        "chembl_ic50_activity",
         "pubchem_compound",
         "pubchem_structure",
         "chebi_entity",
@@ -45,6 +46,9 @@ def test_query_builder_registry_labels_and_builder_types():
     assert specs["chembl_target"].database == "chembl"
     assert specs["chembl_target"].builder_type == "resource_filter"
     assert specs["chembl_activity"].builder_type == "flat_parameters"
+    assert specs["chembl_ic50_activity"].database == "chembl"
+    assert specs["chembl_ic50_activity"].builder_type == "ic50_activity"
+    assert specs["chembl_ic50_activity"].compatible_modalities == ("compound",)
     assert specs["pubchem_compound"].database == "pubchem"
     assert specs["chebi_entity"].database == "chebi"
 
@@ -59,6 +63,7 @@ def test_query_builder_choices_expose_user_facing_labels():
 
     assert choices["uniprot"] == "UniProt query builder"
     assert choices["chembl_activity"] == "ChEMBL activity parameter builder"
+    assert choices["chembl_ic50_activity"] == "ChEMBL IC50 activity builder"
 
 
 def test_protein_modality_returns_only_uniprot_builder():
@@ -73,6 +78,7 @@ def test_compound_modality_returns_compound_chembl_builders():
     assert choices == {
         "chembl_molecule": "ChEMBL molecule filter builder",
         "chembl_activity": "ChEMBL activity parameter builder",
+        "chembl_ic50_activity": "ChEMBL IC50 activity builder",
         "pubchem_compound": "PubChem compound lookup builder",
         "pubchem_structure": "PubChem structure search builder",
         "chebi_entity": "ChEBI entity search builder",
@@ -89,6 +95,7 @@ def test_protein_ligand_interaction_returns_compatible_chembl_builders():
         "chembl_assay": "ChEMBL assay filter builder",
         "chembl_activity": "ChEMBL activity parameter builder",
     }
+    assert "chembl_ic50_activity" not in choices
 
 
 def test_protein_protein_interaction_returns_uniprot_builder():

@@ -15,6 +15,21 @@ QUOTED_CSV_VALUE_PATTERN = re.compile(r"(?:'[^']*'|\"[^\"]*\"|[^,]+)")
 MIN_QUOTED_VALUE_LENGTH = 2
 
 
+def ensure_ic50_standard_units(query: str) -> str:
+    """Add the default nM constraint to an interpreted IC50 query when absent."""
+    if not re.search(r"\bstandard_type\s*=\s*IC50\b", query, flags=re.IGNORECASE):
+        return query
+    if re.search(r"\bstandard_units\s*=", query, flags=re.IGNORECASE):
+        return query
+    return re.sub(
+        r"\bstandard_type\s*=\s*IC50\b",
+        "standard_type=IC50 AND standard_units=nM",
+        query,
+        count=1,
+        flags=re.IGNORECASE,
+    )
+
+
 def strip_surrounding_quotes(value: str) -> str:
     """Strip one matching pair of surrounding single or double quotes."""
     stripped = value.strip()
@@ -514,7 +529,7 @@ class ChEMBLQueryInterpreter(BaseQueryInterpreter):
             low, high = self._parse_numeric_range(value)
             # 1) Range case
             if low is not None and high is not None:
-                return "", f"standard_type=IC50 AND standard_value>{low} AND standard_value<{high}"
+                return "", f"standard_type=IC50 AND standard_value>={low} AND standard_value<{high}"
             # 2) Comparison: >1000, <=50, etc.
             if m_comp:
                 operator = m_comp.group(1)
@@ -548,8 +563,8 @@ class ChEMBLQueryInterpreter(BaseQueryInterpreter):
             processed_query = self._remove_ignored_fields(processed_query)
         # Clean additional whitespace
         processed_query = self._cleanup_whitespace(processed_query)
-        # Resolve item values as needed
-        return self._resolve_query_items(processed_query)
+        # Resolve item values and apply the default IC50 unit constraint.
+        return ensure_ic50_standard_units(self._resolve_query_items(processed_query))
 
     def parse_query_builder_string(self, query: str) -> dict[str, object]:
         """Parse a ChEMBL query-builder string into an internal query structure."""

@@ -191,6 +191,7 @@ class ChEMBLInterface(BaseAPIInterface):
             "standard_type": "IC50",
             "standard_value_min": None,
             "standard_value_max": None,
+            "standard_units": "nM",
             "standard_value_min_inclusive": False,
             "standard_value_max_inclusive": False,
         }
@@ -222,9 +223,10 @@ class ChEMBLInterface(BaseAPIInterface):
         if range_match:
             activity_filter["standard_value_min"] = cls._parse_filter_number(range_match.group(1))
             activity_filter["standard_value_max"] = cls._parse_filter_number(range_match.group(2))
+            activity_filter["standard_value_min_inclusive"] = True
 
         comparison_pattern = re.compile(
-            rf"\b(?:ic50|standard_value)\s*(>=|<=|>|<|=)\s*{number_pattern}",
+            rf"\b(?:ic50\s*:?|standard_value)\s*(>=|<=|>|<|=)\s*{number_pattern}",
             flags=re.IGNORECASE,
         )
         for match in comparison_pattern.finditer(query_text):
@@ -240,6 +242,17 @@ class ChEMBLInterface(BaseAPIInterface):
                 activity_filter["standard_value_max_inclusive"] = operator == "<="
             elif operator == "=":
                 activity_filter["standard_value"] = number
+
+        if not range_match:
+            exact_macro_match = re.search(
+                rf"\bic50\s*:\s*{number_pattern}(?!\s*-)",
+                query_text,
+                flags=re.IGNORECASE,
+            )
+            if exact_macro_match:
+                activity_filter["standard_value"] = cls._parse_filter_number(
+                    exact_macro_match.group(1)
+                )
 
         return activity_filter
 

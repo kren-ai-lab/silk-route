@@ -7,15 +7,106 @@ import sys
 
 import pytest
 
+from bioseq_dl.core.workflow.query_interpreter import build_default_chembl_interpreter
 from bioseq_dl.gui.query_builders.chembl import (
     ChEMBLFilterQueryBuilderRow,
     build_chembl_friendly_query,
     build_chembl_interpreted_query,
 )
+from bioseq_dl.gui.query_builders.chembl_ic50 import (
+    ChEMBLIC50QueryBuilderRow,
+    build_chembl_ic50_interpreted_query,
+)
 from bioseq_dl.gui.query_builders.metadata import (
     QUERY_BUILDER_SCHEMA_VERSION,
+    build_chembl_ic50_query_builder_metadata,
     build_chembl_query_builder_metadata,
 )
+
+
+@pytest.mark.parametrize(
+    ("row", "expected"),
+    [
+        (ChEMBLIC50QueryBuilderRow("range", "0", "10", "", "nM"), "ic50:0-10 AND standard_units:nM"),
+        (ChEMBLIC50QueryBuilderRow("range", "0", "10", "", ""), "ic50:0-10"),
+        (
+            ChEMBLIC50QueryBuilderRow("lt", value="1000", standard_units="nM"),
+            "ic50:<1000 AND standard_units:nM",
+        ),
+        (
+            ChEMBLIC50QueryBuilderRow("lte", value="1000", standard_units="nM"),
+            "ic50:<=1000 AND standard_units:nM",
+        ),
+        (ChEMBLIC50QueryBuilderRow("gt", value="10", standard_units="uM"), "ic50:>10 AND standard_units:uM"),
+        (
+            ChEMBLIC50QueryBuilderRow("gte", value="10", standard_units="uM"),
+            "ic50:>=10 AND standard_units:uM",
+        ),
+        (
+            ChEMBLIC50QueryBuilderRow("exact", value="50", standard_units="nM"),
+            "ic50:50 AND standard_units:nM",
+        ),
+        (ChEMBLIC50QueryBuilderRow("range", "0", "1", "", "µM"), "ic50:0-1 AND standard_units:uM"),
+        (ChEMBLIC50QueryBuilderRow("range", "0", "1", "", "μM"), "ic50:0-1 AND standard_units:uM"),
+    ],
+)
+def test_chembl_ic50_builder_generates_macro_queries(
+    row: ChEMBLIC50QueryBuilderRow,
+    expected: str,
+) -> None:
+    assert build_chembl_ic50_interpreted_query(row) == expected
+
+
+@pytest.mark.parametrize(
+    "row",
+    [
+        ChEMBLIC50QueryBuilderRow("range", "invalid", "10", "", "nM"),
+        ChEMBLIC50QueryBuilderRow("exact", value="", standard_units="nM"),
+    ],
+)
+def test_chembl_ic50_builder_rejects_invalid_numeric_values(
+    row: ChEMBLIC50QueryBuilderRow,
+) -> None:
+    with pytest.raises(ValueError, match=r"IC50 .*value"):
+        build_chembl_ic50_interpreted_query(row)
+
+
+def test_chembl_ic50_builder_rejects_invalid_comparison_mode() -> None:
+    with pytest.raises(ValueError, match="Unsupported IC50 comparison mode"):
+        build_chembl_ic50_interpreted_query(ChEMBLIC50QueryBuilderRow("between", "0", "10", "", "nM"))
+
+
+def test_chembl_ic50_builder_metadata_uses_one_stable_row() -> None:
+    metadata = build_chembl_ic50_query_builder_metadata(
+        ChEMBLIC50QueryBuilderRow("range", "0", "10", "", "nM")
+    )
+
+    assert metadata == {
+        "schema_version": QUERY_BUILDER_SCHEMA_VERSION,
+        "source": "chembl",
+        "builder_key": "chembl_ic50_activity",
+        "builder_type": "ic50_activity",
+        "rows": [
+            {
+                "comparison_mode": "range",
+                "lower_value": "0",
+                "upper_value": "10",
+                "value": "",
+                "standard_units": "nM",
+            }
+        ],
+    }
+
+
+def test_generated_chembl_ic50_query_is_accepted_by_backend_interpreter() -> None:
+    query = build_chembl_ic50_interpreted_query(
+        ChEMBLIC50QueryBuilderRow("range", "0", "10", "", "nM")
+    )
+
+    assert build_default_chembl_interpreter().interpret(query) == (
+        "standard_type=IC50 AND standard_value>=0 AND standard_value<10 "
+        "AND standard_units=nM"
+    )
 
 
 def test_chembl_target_filters_build_interpreted_query():

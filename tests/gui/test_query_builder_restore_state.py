@@ -115,6 +115,35 @@ def test_uniprot_metadata_restores_two_visible_rows() -> None:
     ]
 
 
+def test_chembl_ic50_metadata_restores_visible_controls() -> None:
+    state = restore_state(
+        base_form_values()
+        | {
+            "dataset.modality": "compound",
+            "query.input_mode": "advanced_builder",
+            "query.builder.key": "chembl_ic50_activity",
+            "query.chembl_ic50_builder.row": {
+                "comparison_mode": "range",
+                "lower_value": "0",
+                "upper_value": "10",
+                "value": "",
+                "standard_units": "nM",
+            },
+        }
+    )
+
+    assert state["builder_key"] == "chembl_ic50_activity"
+    assert state["builder_label"] == "ChEMBL IC50 activity builder"
+    assert state["chembl_ic50_row"] == {
+        "comparison_mode": "Range",
+        "lower_value": "0",
+        "upper_value": "10",
+        "value": "",
+        "standard_units_option": "nM",
+        "custom_standard_units": "",
+    }
+
+
 def test_missing_builder_metadata_returns_manual_state() -> None:
     state = restore_state(base_form_values())
 

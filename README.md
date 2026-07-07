@@ -169,7 +169,9 @@ YAML descriptors use top-level `schema_version`, `dataset`, `query`, `resources`
 
 ChEMBL workflow fetches retrieve all available pages by default. In YAML, `execution.chembl_pages_to_fetch: -1` means all pages; a positive value caps the number of pages. ChEMBL `limit` remains records per page, not total records and not a page count. Large ChEMBL queries can take longer when all pages are fetched; use a positive page cap for quick validation runs.
 
-For IC50 queries, the ChEMBL workflow enforces `standard_type = IC50` and numeric `standard_value` constraints for requested ranges. Add an optional unit constraint with syntax such as `ic50:0-10 AND standard_units:nM`; the numeric range is interpreted in that ChEMBL `standard_units` value, and no unit conversion is applied. Labeled composition remains valid, for example `ic50:0-10 AND standard_units:nM=very_high_potency`.
+For IC50 queries, the ChEMBL workflow enforces `standard_type = IC50` and numeric `standard_value` constraints for requested ranges. IC50 macros default to `standard_units=nM`; an explicit unit may be supplied with syntax such as `ic50:0-10 AND standard_units:uM`. The numeric range is interpreted in that ChEMBL `standard_units` value, and no unit conversion is applied. Labeled composition remains valid, for example `ic50:0-10 AND standard_units:nM=very_high_potency`.
+
+For compound datasets, the GUI includes a dedicated **ChEMBL IC50 activity builder** for both Query First and Query Composition. It generates the existing IC50 macro syntax, for example `ic50:0-10 AND standard_units:nM`; `standard_units` is optional and unit conversion is not applied. Potency bins can be composed as `ic50:0-10 AND standard_units:nM=very_high_potency,ic50:10-100 AND standard_units:nM=high_potency`.
 
 Allowed top-level descriptor sections are: `schema_version`, `dataset`, `query`, `resources`, `execution`, `harmonization`, `export`, `reporting`, `interaction_retrieval`, `activity_retrieval`, `chemical_metadata_integration`, `protein_target_integration`, `temperature_enrichment`, and `cross_source_integration`.
 

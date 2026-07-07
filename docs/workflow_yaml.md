@@ -590,7 +590,22 @@ individual composition query value.
 
 For ChEMBL workflows, `chembl_pages_to_fetch: -1` is the default and means fetch all available pages until ChEMBL stops returning `page_meta.next`. Positive integers cap the number of pages. `limit` is records per page, not total records and not a page count. Large ChEMBL queries can take longer when all pages are fetched; use a positive page cap for quick validation runs.
 
-For IC50 activity queries, the ChEMBL workflow constrains `standard_type` to `IC50` and applies numeric `standard_value` filters for exact values or requested ranges. An optional unit constraint may be added, for example `ic50:0-10 AND standard_units:nM` or `ic50:0-10 AND standard_units:nM=very_high_potency` in query composition. The numeric range is interpreted in the selected ChEMBL `standard_units`; no unit conversion is applied.
+For IC50 activity queries, the ChEMBL workflow constrains `standard_type` to `IC50` and applies numeric `standard_value` filters for exact values or requested ranges. IC50 macros default to `standard_units=nM`; an explicit unit may be added, for example `ic50:0-10 AND standard_units:uM` or `ic50:0-10 AND standard_units:nM=very_high_potency` in query composition. The numeric range is interpreted in the selected ChEMBL `standard_units`; no unit conversion is applied.
+
+The GUI exposes this syntax through the compound-only **ChEMBL IC50 activity builder** in Query First and Query Composition. The builder accepts ranges, comparisons, and exact values; `standard_units` is optional.
+
+```yaml
+dataset:
+  name: chembl_ic50_activity_composition
+  description: Compound bioactivity dataset grouped by IC50 potency ranges using ChEMBL activity records.
+  modality: compound
+  mode: query_composition
+  primary_data_source: chembl
+
+query:
+  value: "ic50:0-10 AND standard_units:nM=very_high_potency,ic50:10-100 AND standard_units:nM=high_potency,ic50:100-1000 AND standard_units:nM=moderate_potency"
+  description: Retrieve ChEMBL IC50 activity records grouped into labeled potency ranges.
+```
 
 ### `harmonization`
 

@@ -16,6 +16,7 @@ from bioseq_dl.gui.yaml_builder import (
     load_workflow_yaml_to_form_values,
     render_workflow_yaml,
 )
+from bioseq_dl.workflow_schema_definition import parse_query_composition_value
 
 
 def manual_composition_entry(
@@ -399,6 +400,81 @@ def test_chembl_entry_builder_metadata_round_trip_restores_local_state() -> None
     assert entry["chembl_builder_rows"] == [
         {"field": "gene_symbol", "filter_type": "iexact", "value": "EGFR"}
     ]
+
+
+def test_chembl_ic50_composition_builds_and_restores_entry_metadata() -> None:
+    form_values = composition_form_values()
+    form_values["dataset.modality"] = "compound"
+    form_values["query.composition.entries"] = [
+        {
+            "label": "very_high_potency",
+            "value": "",
+            "description": "Very high potency compounds.",
+            "query_input_mode": "Advanced builder",
+            "query_builder_key": "chembl_ic50_activity",
+            "chembl_ic50_builder_row": {
+                "comparison_mode": "range",
+                "lower_value": "0",
+                "upper_value": "10",
+                "value": "",
+                "standard_units": "nM",
+            },
+        },
+        {
+            "label": "high_potency",
+            "value": "",
+            "description": "High potency compounds.",
+            "query_input_mode": "Advanced builder",
+            "query_builder_key": "chembl_ic50_activity",
+            "chembl_ic50_builder_row": {
+                "comparison_mode": "range",
+                "lower_value": "10",
+                "upper_value": "100",
+                "value": "",
+                "standard_units": "nM",
+            },
+        },
+    ]
+
+    descriptor = build_workflow_descriptor(form_values)
+    loaded, warnings = load_workflow_yaml_to_form_values(
+        render_workflow_yaml(descriptor)
+    )
+
+    assert descriptor["query"]["value"] == (
+        "ic50:0-10 AND standard_units:nM=very_high_potency,"
+        "ic50:10-100 AND standard_units:nM=high_potency"
+    )
+    assert parse_query_composition_value(descriptor["query"]["value"]) == [
+        ("ic50:0-10 AND standard_units:nM", "very_high_potency"),
+        ("ic50:10-100 AND standard_units:nM", "high_potency"),
+    ]
+    assert "builder" not in descriptor["query"]
+    assert all(
+        item["builder"]["builder_key"] == "chembl_ic50_activity"
+        for item in descriptor["query"]["composition"]
+    )
+    assert warnings == []
+    assert [
+        entry["chembl_ic50_builder_row"]
+        for entry in loaded["query.composition.entries"]
+    ] == [
+        {
+            "comparison_mode": "range",
+            "lower_value": "0",
+            "upper_value": "10",
+            "value": "",
+            "standard_units": "nM",
+        },
+        {
+            "comparison_mode": "range",
+            "lower_value": "10",
+            "upper_value": "100",
+            "value": "",
+            "standard_units": "nM",
+        },
+    ]
+    assert build_workflow_descriptor(loaded) == descriptor
 
 
 def test_query_first_generation_remains_unchanged() -> None:

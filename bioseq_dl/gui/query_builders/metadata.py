@@ -16,6 +16,14 @@ from bioseq_dl.gui.query_builders.chembl import (
     normalize_chembl_resource,
     validate_chembl_builder_rows,
 )
+from bioseq_dl.gui.query_builders.chembl_ic50 import (
+    CHEMBL_IC50_BUILDER_KEY,
+    ChEMBLIC50QueryBuilderRow,
+    normalize_ic50_comparison_mode,
+    normalize_ic50_numeric_value,
+    normalize_ic50_standard_units,
+    validate_chembl_ic50_builder_row,
+)
 from bioseq_dl.gui.query_builders.registry import (
     get_query_builder_spec,
     is_query_builder_compatible,
@@ -41,6 +49,13 @@ REQUIRED_QUERY_BUILDER_METADATA_FIELDS = (
 )
 UNIPROT_METADATA_ROW_FIELDS = {"connector", "field", "match_mode", "values"}
 CHEMBL_METADATA_ROW_FIELDS = {"field", "operator", "value"}
+CHEMBL_IC50_METADATA_ROW_FIELDS = {
+    "comparison_mode",
+    "lower_value",
+    "upper_value",
+    "value",
+    "standard_units",
+}
 
 
 class QueryBuilderMetadataMismatchError(ValueError):
@@ -52,7 +67,10 @@ class QueryBuilderRestoration:
     """Validated query-builder state reconstructed from neutral metadata."""
 
     builder_key: str
-    rows: tuple[UniProtQueryBuilderRow | ChEMBLFilterQueryBuilderRow, ...]
+    rows: tuple[
+        UniProtQueryBuilderRow | ChEMBLFilterQueryBuilderRow | ChEMBLIC50QueryBuilderRow,
+        ...,
+    ]
     query_value: str
 
 
@@ -162,6 +180,31 @@ def restore_chembl_query_builder_rows(
     return tuple(restored_rows)
 
 
+def restore_chembl_ic50_query_builder_rows(
+    rows: object,
+) -> tuple[ChEMBLIC50QueryBuilderRow, ...]:
+    """Restore one validated IC50 builder row from neutral metadata."""
+    if not isinstance(rows, list) or len(rows) != 1:
+        msg = "query.builder.rows must contain exactly one IC50 row."
+        raise ValueError(msg)
+    row = rows[0]
+    if not isinstance(row, dict) or set(row) != CHEMBL_IC50_METADATA_ROW_FIELDS:
+        msg = "query.builder.rows[0] has an invalid ChEMBL IC50 row shape."
+        raise ValueError(msg)
+    if any(not isinstance(row[field], str) for field in CHEMBL_IC50_METADATA_ROW_FIELDS):
+        msg = "query.builder.rows[0] IC50 values must be strings."
+        raise TypeError(msg)
+    restored_row = ChEMBLIC50QueryBuilderRow(
+        comparison_mode=row["comparison_mode"],
+        lower_value=row["lower_value"],
+        upper_value=row["upper_value"],
+        value=row["value"],
+        standard_units=row["standard_units"],
+    )
+    validate_chembl_ic50_builder_row(restored_row)
+    return (restored_row,)
+
+
 def restore_query_builder_metadata(
     metadata: object,
     query_value: object,
@@ -190,13 +233,16 @@ def restore_query_builder_metadata(
 
     if builder_key == "uniprot":
         rows = restore_uniprot_query_builder_rows(metadata["rows"])
+    elif builder_key == CHEMBL_IC50_BUILDER_KEY:
+        rows = restore_chembl_ic50_query_builder_rows(metadata["rows"])
     elif spec.database == "chembl":
         rows = restore_chembl_query_builder_rows(builder_key, metadata["rows"])
     else:
         msg = f"query.builder source '{spec.database}' cannot be restored."
         raise ValueError(msg)
 
-    regenerated_query = spec.build_interpreted_query(rows)
+    builder_input = rows[0] if builder_key == CHEMBL_IC50_BUILDER_KEY else rows
+    regenerated_query = spec.build_interpreted_query(builder_input)
     if normalize_query_value_for_comparison(regenerated_query) != normalize_query_value_for_comparison(
         query_value
     ):
@@ -283,6 +329,43 @@ def build_chembl_query_builder_metadata(
         "builder_key": spec.key,
         "builder_type": spec.builder_type,
         "rows": serialized_rows,
+    }
+    validate_query_builder_metadata(metadata)
+    return metadata
+
+
+def build_chembl_ic50_query_builder_metadata(
+    row: ChEMBLIC50QueryBuilderRow,
+) -> dict[str, object]:
+    """Build neutral metadata for one validated ChEMBL IC50 builder row."""
+    validate_chembl_ic50_builder_row(row)
+    spec = get_query_builder_spec(CHEMBL_IC50_BUILDER_KEY)
+    mode = normalize_ic50_comparison_mode(row.comparison_mode)
+    serialized_row = {
+        "comparison_mode": mode,
+        "lower_value": (
+            normalize_ic50_numeric_value(row.lower_value, "IC50 lower value")
+            if mode == "range"
+            else ""
+        ),
+        "upper_value": (
+            normalize_ic50_numeric_value(row.upper_value, "IC50 upper value")
+            if mode == "range"
+            else ""
+        ),
+        "value": (
+            ""
+            if mode == "range"
+            else normalize_ic50_numeric_value(row.value, "IC50 value")
+        ),
+        "standard_units": normalize_ic50_standard_units(row.standard_units),
+    }
+    metadata: dict[str, object] = {
+        "schema_version": QUERY_BUILDER_SCHEMA_VERSION,
+        "source": spec.database,
+        "builder_key": spec.key,
+        "builder_type": spec.builder_type,
+        "rows": [serialized_row],
     }
     validate_query_builder_metadata(metadata)
     return metadata

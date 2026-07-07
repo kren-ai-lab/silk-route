@@ -54,8 +54,29 @@ def test_existing_chembl_ic50_behavior_still_works():
     interpreter = build_default_chembl_interpreter()
 
     assert interpreter.interpret("ic50:10-100") == (
-        "standard_type=IC50 AND standard_value>10 AND standard_value<100"
+        "standard_type=IC50 AND standard_units=nM AND "
+        "standard_value>=10 AND standard_value<100"
     )
+
+
+@pytest.mark.parametrize(
+    ("query", "expected_constraint"),
+    [
+        ("ic50:<1000", "standard_value<1000"),
+        ("ic50:<=1000", "standard_value<=1000"),
+        ("ic50:>10", "standard_value>10"),
+        ("ic50:>=10", "standard_value>=10"),
+        ("ic50:50", "standard_value=50"),
+    ],
+)
+def test_chembl_ic50_comparisons_default_to_nm(
+    query: str,
+    expected_constraint: str,
+) -> None:
+    interpreted = build_default_chembl_interpreter().interpret(query)
+
+    assert interpreted.startswith("standard_type=IC50 AND standard_units=nM AND ")
+    assert interpreted.endswith(expected_constraint)
 
 
 @pytest.mark.parametrize(
@@ -63,7 +84,7 @@ def test_existing_chembl_ic50_behavior_still_works():
     [
         (
             "ic50:0-10 AND standard_units:nM",
-            "standard_type=IC50 AND standard_value>0 AND standard_value<10 AND standard_units=nM",
+            "standard_type=IC50 AND standard_value>=0 AND standard_value<10 AND standard_units=nM",
         ),
         (
             "ic50:<1000 AND standard_units:nM",
@@ -79,11 +100,11 @@ def test_existing_chembl_ic50_behavior_still_works():
         ),
         (
             "ic50:0-1 AND standard_units:µM",
-            "standard_type=IC50 AND standard_value>0 AND standard_value<1 AND standard_units=uM",
+            "standard_type=IC50 AND standard_value>=0 AND standard_value<1 AND standard_units=uM",
         ),
         (
             "ic50:0-1 AND standard_units:μM",
-            "standard_type=IC50 AND standard_value>0 AND standard_value<1 AND standard_units=uM",
+            "standard_type=IC50 AND standard_value>=0 AND standard_value<1 AND standard_units=uM",
         ),
     ],
 )

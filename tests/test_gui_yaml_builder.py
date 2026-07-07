@@ -656,6 +656,42 @@ def test_selected_chembl_builder_determines_resource() -> None:
     assert descriptor["query"]["value"] == "chembl.activity:standard_type=IC50"
 
 
+def test_dedicated_chembl_ic50_builder_generates_query_and_metadata() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "dataset.modality": "compound",
+            "query.input_mode": "advanced_builder",
+            "query.builder.key": "chembl_ic50_activity",
+            "query.chembl_ic50_builder.row": {
+                "comparison_mode": "range",
+                "lower_value": "0",
+                "upper_value": "10",
+                "value": "",
+                "standard_units": "nM",
+            },
+        }
+    )
+
+    assert descriptor["query"]["value"] == "ic50:0-10 AND standard_units:nM"
+    assert descriptor["query"]["builder"] == {
+        "schema_version": "query-builder-v1",
+        "source": "chembl",
+        "builder_key": "chembl_ic50_activity",
+        "builder_type": "ic50_activity",
+        "rows": [
+            {
+                "comparison_mode": "range",
+                "lower_value": "0",
+                "upper_value": "10",
+                "value": "",
+                "standard_units": "nM",
+            }
+        ],
+    }
+    assert validate_generated_descriptor(descriptor) == []
+
+
 @pytest.mark.parametrize(
     ("builder_key", "row", "expected_query_value"),
     [
@@ -1756,6 +1792,52 @@ def test_nicegui_app_imports_when_nicegui_is_installed() -> None:
     module = importlib.import_module("bioseq_dl.gui.nicegui_app")
 
     assert callable(module.main)
+
+
+def test_nicegui_query_first_renders_dedicated_ic50_controls() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    app = module.create_app()
+
+    labels = {
+        element._props.get("label")
+        for element in module.ui.context.client.elements.values()
+    }
+
+    assert {"Comparison mode", "Lower value", "Upper value", "Standard units"} <= labels
+    app.form_values["dataset.modality"] = "Compound"
+    assert "ChEMBL IC50 activity builder" in app.get_compatible_query_builder_labels()
+
+
+def test_nicegui_composition_ic50_controls_generate_entry_preview() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    app = module.WorkflowYamlBuilderApp()
+    app.form_values["dataset.modality"] = "Compound"
+    app.form_values["dataset.mode"] = "Query Composition"
+    app.form_values["query.composition.entries"] = [
+        {
+            "label": "very_high_potency",
+            "value": "",
+            "description": "",
+            "query_input_mode": "Advanced builder",
+            "query_builder_key": "chembl_ic50_activity",
+            "chembl_ic50_builder_row": {
+                "comparison_mode": "range",
+                "lower_value": "0",
+                "upper_value": "10",
+                "value": "",
+                "standard_units": "nM",
+            },
+        }
+    ]
+
+    app.build()
+
+    entry = app.form_values["query.composition.entries"][0]
+    assert app.get_query_composition_entry_preview(entry) == (
+        "ic50:0-10 AND standard_units:nM"
+    )
 
 
 def test_nicegui_main_uses_root_factory_without_reload(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -122,6 +122,39 @@ def test_chembl_builder_metadata_round_trip_restores_advanced_rows() -> None:
     assert warnings == []
 
 
+def test_chembl_ic50_metadata_round_trip_restores_advanced_row() -> None:
+    descriptor = build_workflow_descriptor(
+        base_form_values()
+        | {
+            "dataset.modality": "compound",
+            "query.input_mode": "advanced_builder",
+            "query.builder.key": "chembl_ic50_activity",
+            "query.chembl_ic50_builder.row": {
+                "comparison_mode": "gte",
+                "lower_value": "",
+                "upper_value": "",
+                "value": "10",
+                "standard_units": "μM",
+            },
+        }
+    )
+
+    form_values, warnings = load_workflow_yaml_to_form_values(
+        render_workflow_yaml(descriptor)
+    )
+
+    assert warnings == []
+    assert form_values["query.input_mode"] == "Advanced builder"
+    assert form_values["query.builder.key"] == "chembl_ic50_activity"
+    assert form_values["query.chembl_ic50_builder.row"] == {
+        "comparison_mode": "gte",
+        "lower_value": "",
+        "upper_value": "",
+        "value": "10",
+        "standard_units": "uM",
+    }
+
+
 def test_chembl_interaction_metadata_restores_target_builder_rows() -> None:
     descriptor = build_workflow_descriptor(
         base_form_values()

@@ -7,6 +7,11 @@ from bioseq_dl.gui.query_builders.chembl import (
     build_chembl_friendly_query,
     build_chembl_interpreted_query,
 )
+from bioseq_dl.gui.query_builders.chembl_ic50 import (
+    ChEMBLIC50QueryBuilderRow,
+    build_chembl_ic50_friendly_query,
+    build_chembl_ic50_interpreted_query,
+)
 from bioseq_dl.gui.query_builders.registry import (
     QueryBuilderSpec,
     get_query_builder_choices,
@@ -21,9 +26,12 @@ from bioseq_dl.gui.query_builders.uniprot import (
 
 __all__ = [
     "ChEMBLFilterQueryBuilderRow",
+    "ChEMBLIC50QueryBuilderRow",
     "QueryBuilderSpec",
     "UniProtQueryBuilderRow",
     "build_chembl_friendly_query",
+    "build_chembl_ic50_friendly_query",
+    "build_chembl_ic50_interpreted_query",
     "build_chembl_interpreted_query",
     "build_uniprot_friendly_query",
     "build_uniprot_interpreted_query",

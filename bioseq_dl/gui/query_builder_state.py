@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from collections.abc import Mapping
 
 from bioseq_dl.core.workflow.chembl_query_catalog import get_chembl_query_builder_field_catalog
 from bioseq_dl.core.workflow.query_field_catalog import get_uniprot_query_builder_field_catalog
@@ -10,6 +10,7 @@ from bioseq_dl.gui.query_builders.registry import get_query_builder_choices
 from bioseq_dl.gui.query_builders.uniprot import get_uniprot_query_builder_field_metadata
 from bioseq_dl.gui.yaml_builder import (
     CHEMBL_BUILDER_RESOURCE_BY_KEY,
+    DEFAULT_CHEMBL_IC50_FORM_ROW,
     QUERY_INPUT_MODE_LABEL_TO_VALUE,
     UNIPROT_MATCH_MODE_LABEL_TO_VALUE,
     get_labeled_option_default,
@@ -17,9 +18,6 @@ from bioseq_dl.gui.yaml_builder import (
     normalize_query_builder_key,
     normalize_query_input_mode,
 )
-
-if TYPE_CHECKING:
-    from collections.abc import Mapping
 
 UNIPROT_QUERY_FIELD_CATALOG = get_uniprot_query_builder_field_catalog()
 UNIPROT_BUILDER_FIELD_LABEL_TO_VALUE = {
@@ -41,6 +39,24 @@ DEFAULT_CHEMBL_FIELDS_BY_RESOURCE = {
     "molecule": "name",
     "activity": "target_chembl_id",
 }
+CHEMBL_IC50_BUILDER_KEY = "chembl_ic50_activity"
+IC50_COMPARISON_MODE_LABEL_TO_VALUE = {
+    "Range": "range",
+    "Less than": "lt",
+    "Less than or equal": "lte",
+    "Greater than": "gt",
+    "Greater than or equal": "gte",
+    "Exact value": "exact",
+}
+IC50_STANDARD_UNITS_LABEL_TO_VALUE = {
+    "No unit constraint": "",
+    "nM": "nM",
+    "uM": "uM",
+    "mM": "mM",
+    "pM": "pM",
+    "M": "M",
+}
+IC50_CUSTOM_UNITS_LABEL = "Custom"
 
 
 def is_uniprot_builder_key(value: object) -> bool:
@@ -51,6 +67,74 @@ def is_uniprot_builder_key(value: object) -> bool:
 def is_chembl_builder_key(value: object) -> bool:
     """Return whether a GUI builder key or label selects a ChEMBL builder."""
     return get_query_builder_key(value) in CHEMBL_BUILDER_RESOURCE_BY_KEY
+
+
+def is_chembl_ic50_builder_key(value: object) -> bool:
+    """Return whether a GUI builder key or label selects the IC50 builder."""
+    return get_query_builder_key(value) == CHEMBL_IC50_BUILDER_KEY
+
+
+def get_ic50_comparison_mode_label(value: object) -> str:
+    """Return the visible label for an IC50 comparison mode."""
+    return get_labeled_option_default(value, IC50_COMPARISON_MODE_LABEL_TO_VALUE)
+
+
+def get_ic50_comparison_mode_value(value: object) -> str:
+    """Return the internal value for an IC50 comparison-mode label."""
+    return str(normalize_labeled_value(value, IC50_COMPARISON_MODE_LABEL_TO_VALUE))
+
+
+def get_ic50_standard_units_label(value: object) -> str:
+    """Return a common unit label or Custom for an arbitrary unit value."""
+    normalized = str(value or "").strip()
+    for label, unit_value in IC50_STANDARD_UNITS_LABEL_TO_VALUE.items():
+        if normalized == unit_value:
+            return label
+    return IC50_CUSTOM_UNITS_LABEL
+
+
+def make_chembl_ic50_builder_ui_row() -> dict[str, object]:
+    """Return one mutable UI row for the dedicated IC50 builder."""
+    return build_chembl_ic50_builder_ui_row(DEFAULT_CHEMBL_IC50_FORM_ROW)
+
+
+def build_chembl_ic50_builder_form_row(
+    ui_row: Mapping[str, object],
+) -> dict[str, object]:
+    """Convert visible IC50 controls to one pure builder form row."""
+    units_label = str(ui_row.get("standard_units_option") or "No unit constraint")
+    if units_label == IC50_CUSTOM_UNITS_LABEL:
+        standard_units = str(ui_row.get("custom_standard_units") or "").strip()
+    else:
+        standard_units = str(IC50_STANDARD_UNITS_LABEL_TO_VALUE.get(units_label, units_label))
+    return {
+        "comparison_mode": get_ic50_comparison_mode_value(
+            ui_row.get("comparison_mode", "Range")
+        ),
+        "lower_value": str(ui_row.get("lower_value") or ""),
+        "upper_value": str(ui_row.get("upper_value") or ""),
+        "value": str(ui_row.get("value") or ""),
+        "standard_units": standard_units,
+    }
+
+
+def build_chembl_ic50_builder_ui_row(form_row: object) -> dict[str, object]:
+    """Convert a restored IC50 form row to visible GUI control values."""
+    source = form_row if isinstance(form_row, Mapping) else DEFAULT_CHEMBL_IC50_FORM_ROW
+    standard_units = str(source.get("standard_units") or "").strip()
+    units_label = get_ic50_standard_units_label(standard_units)
+    return {
+        "comparison_mode": get_ic50_comparison_mode_label(
+            source.get("comparison_mode", "range")
+        ),
+        "lower_value": str(source.get("lower_value") or ""),
+        "upper_value": str(source.get("upper_value") or ""),
+        "value": str(source.get("value") or ""),
+        "standard_units_option": units_label,
+        "custom_standard_units": (
+            standard_units if units_label == IC50_CUSTOM_UNITS_LABEL else ""
+        ),
+    }
 
 
 def get_query_builder_label(builder_key: object) -> str:
@@ -292,6 +376,7 @@ def build_gui_query_builder_state_from_loaded_form(
     builder_label = get_query_builder_label(builder_key)
     uniprot_rows = [make_uniprot_builder_ui_row()]
     chembl_rows = [make_chembl_builder_ui_row(get_query_builder_label("chembl_target"))]
+    chembl_ic50_row = make_chembl_ic50_builder_ui_row()
     if normalize_query_input_mode(query_input_mode) == "advanced_builder":
         if builder_key == "uniprot":
             uniprot_rows = build_uniprot_builder_ui_rows(
@@ -302,10 +387,15 @@ def build_gui_query_builder_state_from_loaded_form(
                 builder_label,
                 form_values.get("query.chembl_builder.rows"),
             )
+        elif builder_key == CHEMBL_IC50_BUILDER_KEY:
+            chembl_ic50_row = build_chembl_ic50_builder_ui_row(
+                form_values.get("query.chembl_ic50_builder.row")
+            )
     return {
         "query_input_mode": query_input_mode,
         "builder_key": builder_key,
         "builder_label": builder_label,
         "uniprot_rows": uniprot_rows,
         "chembl_rows": chembl_rows,
+        "chembl_ic50_row": chembl_ic50_row,
     }
