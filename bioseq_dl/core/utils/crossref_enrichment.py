@@ -2,10 +2,10 @@
 
 from typing import Any, Literal
 
-import pandas as pd
+import polars as pl
 
 from bioseq_dl.constants.uniprot import XREF_MAPPING
-from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
+from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec, specs_for_database
 from bioseq_dl.core.interfacesconfig import load_packaged_config
 from bioseq_dl.logging import get_logger
 
@@ -13,7 +13,18 @@ log = get_logger("bioseq_dl.core.utils.crossref_enrichment")
 
 
 def normalize_crossref_fields(crossref_fields: object) -> list[str]:
-    """Return cleaned cross-reference field names."""
+    """Return cleaned cross-reference field names.
+
+    Accepts a comma-separated string or a list/tuple/set; non-string entries are
+    skipped with a warning, and blank entries are dropped.
+
+    Args:
+        crossref_fields (object): Raw cross-reference field specification.
+
+    Returns:
+        list[str]: Stripped, non-empty field names.
+
+    """
     if crossref_fields is None:
         return []
     if isinstance(crossref_fields, str):
@@ -35,11 +46,22 @@ def normalize_crossref_fields(crossref_fields: object) -> list[str]:
 
 
 def is_empty_enrichment_input(data: object) -> bool:
-    """Return whether enrichment input has no records to process."""
+    """Return whether enrichment input has no records to process.
+
+    Handles DataFrames, lists/dicts, bytes, and strings; other types are treated
+    as non-empty.
+
+    Args:
+        data (object): Input data to check.
+
+    Returns:
+        bool: True if the input has no records to process.
+
+    """
     if data is None:
         return True
-    if isinstance(data, pd.DataFrame):
-        return data.empty
+    if isinstance(data, pl.DataFrame):
+        return data.is_empty()
     if isinstance(data, (list, dict)):
         return len(data) == 0
     if isinstance(data, bytes):
@@ -50,11 +72,22 @@ def is_empty_enrichment_input(data: object) -> bool:
 
 
 def has_enrichment_result_value(value: object) -> bool:
-    """Return whether an enrichment result value contains exportable data."""
+    """Return whether an enrichment result value contains exportable data.
+
+    Handles DataFrames, strings, bytes, and collections; other types are treated
+    as containing data.
+
+    Args:
+        value (object): Enrichment result value to check.
+
+    Returns:
+        bool: True if the value contains exportable data.
+
+    """
     if value is None:
         return False
-    if isinstance(value, pd.DataFrame):
-        return not value.empty
+    if isinstance(value, pl.DataFrame):
+        return not value.is_empty()
     if isinstance(value, str):
         return value.strip() != ""
     if isinstance(value, bytes):
@@ -71,7 +104,26 @@ def run_crossref_enrichment(
     max_workers: int = 4,
     total_retries: int = 3,
 ) -> tuple[Any, dict | list[dict]]:
-    """Run cross-reference enrichment for all configured endpoint specs."""
+    """Run cross-reference enrichment for the requested fields.
+
+    Parses each field into a database/method/option spec (supporting ``db``,
+    ``db_method``, ``db_method_option``, and ``db_all`` forms), resolves matching
+    endpoint specs from the packaged config, runs the enricher, and filters the
+    output to exportable values. Returns early with skip metadata when there are
+    no fields, no input, or no resolved specs.
+
+    Args:
+        data (Any): Input records to enrich.
+        crossref_fields (list): Requested cross-reference fields.
+        format (Literal["dataframe", "json", "xml"]): Output format for results. Default is "json".
+        max_workers (int): Maximum number of worker threads. Default is 4.
+        total_retries (int): Number of retries per request. Default is 3.
+
+    Returns:
+        tuple[Any, dict | list[dict]]: Enriched data (empty dict if skipped) and
+            accompanying metadata.
+
+    """
     crossref_fields = normalize_crossref_fields(crossref_fields)
     if not crossref_fields:
         log.info("Skipping CrossRef enrichment because no cross-reference fields were requested.")
@@ -132,22 +184,7 @@ def run_crossref_enrichment(
             if processed_crossref_fields[db_name] == [{"method": None, "option": None}]:
                 # Use all available methods for this database
                 log.debug("Using all available methods for database: %s", db_name)
-                endpoint_config = endpoints_config.get(db_name)
-                if not isinstance(endpoint_config, dict):
-                    continue
-
-                for ep_name, ep_info in endpoint_config.get("endpoints", {}).items():
-                    if ep_info.get("enabled", False):
-                        options = ep_info.get("options", [None]) if "options" in ep_info else [None]
-                        endpoint_specs.extend(
-                            EndpointSpec(
-                                database=db_name,
-                                endpoint=ep_name,
-                                option=ep_option,
-                                params=ep_info.get("params", {}),
-                            )
-                            for ep_option in options
-                        )
+                endpoint_specs.extend(specs_for_database(endpoints_config.get(db_name), db_name))
             else:
                 log.debug("Using specified methods for database: %s", db_name)
                 for method in processed_crossref_fields[db_name]:
@@ -190,10 +227,7 @@ def run_crossref_enrichment(
     elif not isinstance(enriched_metadata, dict):
         enriched_metadata = {"details": enriched_metadata}
 
-    if (isinstance(enriched_data, pd.DataFrame) and not enriched_data.empty) or (
-        isinstance(enriched_data, list) and len(enriched_data) > 0
-    ):
-        return enriched_data, enriched_metadata
+    # enrich() always returns a dict keyed by endpoint; filter to exportable values.
     if isinstance(enriched_data, dict):
         enriched_data = {
             label: value for label, value in enriched_data.items() if has_enrichment_result_value(value)

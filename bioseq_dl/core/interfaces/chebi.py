@@ -4,9 +4,8 @@ import json
 from typing import Any, ClassVar
 from urllib.parse import quote
 
-from requests import Request
-from requests.exceptions import RequestException
-from requests.models import Response
+from niquests import Request
+from niquests.exceptions import RequestException
 
 from bioseq_dl.constants.databases import CHEBI
 from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
@@ -78,7 +77,22 @@ class ChEBIInterface(BaseAPIInterface):
     }
 
     def fetch(self, query: str | dict | list, *, method: str = "compound", **kwargs: Any) -> dict | list:
-        """Fetch compound or ontology data from ChEBI."""
+        """Fetch compound or ontology data from ChEBI.
+
+        Validates parameters, joins any ChEBI id list into the request, builds the URL,
+        sends it, and unwraps the ``results`` envelope. Returns an empty dict on
+        validation, decode, or request failure.
+
+        Args:
+            query (str | dict | list): Identifier(s) or structured query to fetch.
+            method (str): Method to use (e.g. ``compound``, ``compounds``, ``es_search``,
+                ``ontology-children``, ``ontology-parents``).
+            **kwargs: Extra request parameters forwarded to method initialization.
+
+        Returns:
+            dict | list: The fetched, envelope-unwrapped response, or ``{}`` on failure.
+
+        """
         if method not in self.METHODS:
             log.error("Method %s is not supported. Available methods: %s", method, list(self.METHODS.keys()))
             return {}
@@ -124,7 +138,7 @@ class ChEBIInterface(BaseAPIInterface):
             self._delay()
             response.raise_for_status()
             try:
-                response = json.loads(response.text)
+                response = json.loads(response.text or "")
             except json.JSONDecodeError:
                 log.exception(
                     "Failed to decode JSON response for method '%s' with query '%s'. Response text: %s",
@@ -139,29 +153,10 @@ class ChEBIInterface(BaseAPIInterface):
                 # Convert to list of interactions
                 response = list(response.values())
 
-            if isinstance(response, dict) and "results" in response:
-                response = response["results"]
+            response = self._unwrap_envelope(response, "results")
 
         except RequestException:
             log.exception("Error fetching %s for method '%s'", query, method)
             return {}
         else:
             return response
-
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **_kwargs: Any) -> list | dict:
-        """Parse ChEBI response data."""
-        if not data:
-            log.warning("Tried to parse data but the data is empty or None.")
-            return {}
-
-        if isinstance(data, Response):
-            data = data.json()
-        elif not isinstance(data, dict):
-            log.error(
-                "Tried to parse data but the type is not supported. Response should be a dict or a "
-                "requests.Response "
-                "object."
-            )
-            return {}
-
-        return self._extract_fields(data, fields_to_extract)

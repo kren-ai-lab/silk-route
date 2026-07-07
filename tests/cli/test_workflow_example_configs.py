@@ -40,11 +40,7 @@ CREDENTIAL_LIKE_STRINGS = ("API_KEY", "TOKEN", "SECRET", "PASSWORD", "PRIVATE_KE
 
 def iter_valid_example_paths() -> list[Path]:
     """Return runnable workflow example descriptors."""
-    return [
-        path
-        for path in sorted(WORKFLOW_DIR.glob("*.yml"))
-        if path.name != REFERENCE_FILENAME
-    ]
+    return [path for path in sorted(WORKFLOW_DIR.glob("*.yml")) if path.name != REFERENCE_FILENAME]
 
 
 def iter_workflow_yaml_paths() -> list[Path]:
@@ -83,7 +79,7 @@ def test_valid_workflow_examples_validate_offline(config_path: Path) -> None:
 def test_executable_workflow_examples_are_minimal_and_honest(config_path: Path) -> None:
     recipe = load_workflow_recipe(config_path)
 
-    assert REQUIRED_EXECUTABLE_SECTIONS <= set(recipe)
+    assert set(recipe) >= REQUIRED_EXECUTABLE_SECTIONS
     assert recipe["schema_version"] == WORKFLOW_SCHEMA_VERSION
     assert isinstance(recipe["query"]["value"], str)
     assert recipe["query"]["value"].strip()

@@ -5,7 +5,6 @@ from __future__ import annotations
 import importlib
 import sys
 
-
 REQUIRED_GUI_FIELDS = {
     "dataset.name",
     "dataset.description",
@@ -68,7 +67,7 @@ def test_workflow_v1_schema_definition_includes_required_gui_fields() -> None:
 
     schema_definition = get_workflow_v1_schema_definition()
 
-    assert REQUIRED_GUI_FIELDS <= set(schema_definition)
+    assert set(schema_definition) >= REQUIRED_GUI_FIELDS
     assert schema_definition["query.value"]["gui_visible"] is True
     assert schema_definition["query.builder"]["role"] == "preserved_metadata"
     assert schema_definition["query.composition"]["role"] == "preserved_metadata"

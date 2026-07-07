@@ -3,7 +3,7 @@
 import typer
 
 from bioseq_dl import ReactomeInterface
-from bioseq_dl.cli._shared import save_or_print
+from bioseq_dl.cli._shared import format_option, output_option, save_or_print
 
 app = typer.Typer(help="Collect data from Reactome database.")
 
@@ -13,7 +13,8 @@ def run_discover(
     identifier: str = typer.Argument(
         ..., help="Identifier to discover (comma-separated for several), e.g., R-DME-1834941"
     ),
-    output_file: str = typer.Option(None, help="Output file to save results"),
+    output: str = output_option(),
+    output_format: str = format_option(),
 ) -> None:
     """Discover data in Reactome using one or more identifiers."""
     interface = ReactomeInterface()
@@ -32,4 +33,4 @@ def run_discover(
             {"id": ids[0]}, method="data-discover", parse=True, format="dataframe"
         )
 
-    save_or_print(result, output_file)
+    save_or_print(result, output, output_format=output_format)

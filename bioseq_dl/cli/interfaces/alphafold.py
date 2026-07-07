@@ -3,15 +3,15 @@
 import typer
 
 from bioseq_dl import AlphafoldInterface
-from bioseq_dl.cli._shared import save_or_print
+from bioseq_dl.cli._shared import fetch_auto, format_option, output_option, save_or_print
 
 app = typer.Typer(help="Fetch data from AlphaFold database.")
 
 
 @app.command("prediction")
 def run_prediction(
-    identifier: str = typer.Option(
-        ..., "--id", "-id", help="UniProt ID of the protein to fetch from AlphaFold."
+    identifier: str = typer.Argument(
+        ..., help="UniProt ID(s) of the protein to fetch from AlphaFold (comma-separated for batch)."
     ),
     download_structures: bool = typer.Option(
         False,
@@ -19,12 +19,10 @@ def run_prediction(
         "-ds",
         help="Whether to download the predicted structure files (PDB format).",
     ),
-    output: str = typer.Option(
-        None,
-        "--output",
-        "-o",
-        help="Output file to save the fetched data.",
+    output: str = output_option(
+        help="Output file to save the fetched data (also the dir for downloaded structures)."
     ),
+    output_format: str = format_option(),
 ) -> None:
     """Fetch data from AlphaFold database."""
     if download_structures:
@@ -32,10 +30,6 @@ def run_prediction(
     else:
         instance = AlphafoldInterface()
 
-    if len(identifier.split(",")) > 1:
-        ids: list[str] = identifier.split(",")
-        df = instance.fetch_batch(queries=ids, method="prediction", parse=True, format="dataframe")
-    else:
-        df = instance.fetch_single(query=identifier, method="prediction", parse=True, format="dataframe")
+    df = fetch_auto(instance, identifier.split(","), method="prediction", parse=True, format="dataframe")
 
-    save_or_print(df, output)
+    save_or_print(df, output, output_format=output_format)

@@ -3,13 +3,11 @@
 import json
 from typing import Any, ClassVar
 
-from requests import Request, Response
-from requests.exceptions import RequestException
+from niquests import Request
 
 # Add the import for your database in constants
 from bioseq_dl.constants.databases import PATHWAYCOMMONS
 from bioseq_dl.constants.pathwaycommons import OUTPUT_FORMATS, PATTERNS
-from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
 from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
@@ -22,6 +20,8 @@ class PathwayCommonsInterface(BaseAPIInterface):
 
     API_NAME = "PathwayCommons"
     DB_CONFIG = PATHWAYCOMMONS
+    # Responses wrap results in ``searchHit`` or a JSON-LD ``@graph`` envelope.
+    _RESPONSE_ENVELOPE_KEYS: ClassVar[tuple[str, ...]] = ("searchHit", "@graph")
     METHODS: ClassVar[dict[str, Any]] = {
         "fetch": {
             "http_method": "POST",
@@ -64,84 +64,29 @@ class PathwayCommonsInterface(BaseAPIInterface):
         },
     }
 
-    def fetch(self, query: str | dict | list, *, method: str = "SOME_DEFAULT", **kwargs: Any) -> dict | list:
-        """Fetch pathway data from PathwayCommons."""
-        if method not in self.METHODS:
-            log.error("Method %s is not supported. Available methods: %s", method, list(self.METHODS.keys()))
-            return {}
-        if method == "fetch" and "uri" not in query:
-            log.error("The 'uri' parameter is required for the 'fetch' method.")
-            return {}
-        if method == "top_pathways" and "q" not in query:
-            log.error("The 'q' parameter is required for the 'top_pathways' method.")
-            return {}
-        if method == "neighborhood" and "source" not in query:
-            log.error("The 'source' parameter is required for the 'neighborhood' method.")
-            return {}
+    # Per-method required parameter (raises ValueError when missing).
+    _REQUIRED_PARAM: ClassVar[dict[str, str]] = {
+        "fetch": "uri",
+        "top_pathways": "q",
+        "neighborhood": "source",
+    }
 
-        http_method, _path_param, parameters, inputs = self.initialize_method_parameters(
-            query, method, self.METHODS, **kwargs
-        )
-
-        # Validate and clean parameters
-        try:
-            validated_params = validate_parameters(inputs, parameters)
-        except ValueError:
-            log.exception("Invalid parameters for method '%s'", method)
-            return {}
+    def _build_request(
+        self, *, method: str, http_method: str, validated_params: dict, **_kwargs: Any
+    ) -> Request:
+        """Build the PathwayCommons POST request (JSON body), validating params."""
+        required = self._REQUIRED_PARAM.get(method)
+        if required and not validated_params.get(required):
+            msg = f"The '{required}' parameter is required for the '{method}' method."
+            raise ValueError(msg)
 
         if "format" in validated_params and validated_params["format"] not in OUTPUT_FORMATS:
-            log.error("Invalid format '%s'. Allowed formats: %s", validated_params["format"], OUTPUT_FORMATS)
-            return {}
+            msg = f"Invalid format '{validated_params['format']}'. Allowed formats: {OUTPUT_FORMATS}"
+            raise ValueError(msg)
         if "pattern" in validated_params and any(p not in PATTERNS for p in validated_params["pattern"]):
-            log.error("Invalid pattern '%s'. Allowed patterns: %s", validated_params["pattern"], PATTERNS)
-            return {}
+            msg = f"Invalid pattern '{validated_params['pattern']}'. Allowed patterns: {PATTERNS}"
+            raise ValueError(msg)
 
         url = f"{PATHWAYCOMMONS.API_URL}{method}"
-
         headers = {"accept": "*/*", "Content-Type": "application/json"}
-
-        response = Request(
-            url=url,
-            headers=headers,
-            method=http_method,
-            data=json.dumps(validated_params),
-        )
-
-        prepared = self.session.prepare_request(response)
-        log.debug("Prepared request: %s", prepared.url)
-
-        try:
-            response = self.session.send(prepared)
-            self._delay()
-            response.raise_for_status()
-            if response.content == b"":
-                return {}
-            response = response.json()
-            if "searchHit" in response:
-                response = response["searchHit"]
-            elif "@graph" in response:
-                response = response["@graph"]
-
-        except RequestException:
-            log.exception("Error fetching data from %s", url)
-            return {}
-        else:
-            return response
-
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
-        """Parse PathwayCommons response data."""
-        if not data:
-            return {}
-
-        if isinstance(data, Response):
-            data = data.json()
-        elif not isinstance(data, dict):
-            log.error(
-                "Tried to parse data but the type is not supported. Response should be a dict or a "
-                "requests.Response "
-                "object."
-            )
-            return {}
-
-        return self._extract_fields(data, fields_to_extract, **kwargs)
+        return Request(url=url, headers=headers, method=http_method, data=json.dumps(validated_params))

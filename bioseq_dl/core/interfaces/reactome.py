@@ -2,7 +2,7 @@
 
 from typing import Any, ClassVar
 
-import requests
+import niquests
 
 from bioseq_dl.constants.databases import REACTOME
 from bioseq_dl.constants.reactome import methods
@@ -12,8 +12,6 @@ from bioseq_dl.logging import get_logger
 from .base import BaseAPIInterface
 
 log = get_logger("bioseq_dl.interfaces.reactome")
-
-# TODO(diego): Need to review other methods besides data-discover
 
 
 class ReactomeInterface(BaseAPIInterface):
@@ -37,7 +35,6 @@ class ReactomeInterface(BaseAPIInterface):
         """Validate the query parameters.
 
         Args:
-            method (str): The method to validate against.
             query (dict): The query parameters to validate.
 
         Raises:
@@ -69,12 +66,16 @@ class ReactomeInterface(BaseAPIInterface):
         """Download pathways from a given Reactome pathway ID.
 
         Args:
-            query (str|dict|list): Reactome pathway ID or query dict.
-            method (str): Method to use for fetching data (e.g., 'discover', 'complex', etc.).
-            **kwargs: Supports `option` key for additional method options.
+            query (str | dict | list): Reactome pathway ID or query dict.
+            method (str): Method to use for fetching data (e.g. ``data-discover``).
+            **kwargs: Additional parameters. Notable key: ``option`` (extra method
+                option appended to the URL path).
 
         Returns:
-            dict: Pathway data.
+            dict | list: Pathway data; empty dict on error.
+
+        Raises:
+            ConfigError: If the query dict has invalid parameters.
 
         """
         option = kwargs.get("option", "")
@@ -125,29 +126,6 @@ class ReactomeInterface(BaseAPIInterface):
             self._delay()
             response.raise_for_status()
             return response.json()
-        except requests.exceptions.RequestException:
+        except niquests.exceptions.RequestException:
             log.exception("Error fetching prediction for %s", query)
             return {}
-
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **_kwargs: Any) -> list | dict:
-        """Parse the pathway data.
-
-        Args:
-            data (Union[List, Dict]): Data to parse.
-            fields_to_extract (list|dict): Fields to keep from the original response.
-                - If list: Keep those keys.
-                - If dict: Maps {desired_name: real_field_name}.
-            **kwargs: Additional keyword arguments.
-
-        Returns:
-            Union[List, Dict]: Parsed data with specified fields or the entire structure.
-
-        """
-        # Check input data type
-        if not isinstance(data, (list, dict)):
-            log.error(
-                "Tried to parse data but the type is not supported. Data should be a list or a dictionary."
-            )
-            return {}
-
-        return self._extract_fields(data, fields_to_extract)

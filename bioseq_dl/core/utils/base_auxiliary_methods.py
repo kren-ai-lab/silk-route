@@ -9,12 +9,15 @@ def get_nested(data: dict | list, path: str, sep: str = ".") -> Any:
     """Get a nested value from a dictionary or list given a specific path.
 
     Args:
-        data (Union[dict, list]): Dictionary or list to search.
-        path (str): path to the desired value.
+        data (dict | list): Dictionary or list to search.
+        path (str): Path to the desired value.
         sep (str): Separator used in the path. Default is '.'.
 
     Returns:
         Any: Value at the specified path, or None if not found.
+
+    Raises:
+        TypeError: If ``path`` is not a string.
 
     """
     if not path:
@@ -40,47 +43,6 @@ def get_nested(data: dict | list, path: str, sep: str = ".") -> Any:
             return value
 
     return None
-
-
-def get_feature_keys(data: dict, sep: str = ".") -> dict:
-    """Recursively get all keys in a nested dictionary and the type of each value.
-
-    Uses dot notation for nested keys.
-
-    Args:
-        data (dict): The dictionary to extract keys from.
-        sep (str): The separator to use for nested keys. Default is '.'.
-
-    Returns:
-        list: List of keys with their types.
-
-    """
-    keys = {}
-    if data is None:
-        return keys
-
-    if isinstance(data, list):
-        data = data[0]  # Use the first element of the list to determine the type
-
-    if isinstance(data, dict):
-        for key, value in data.items():
-            if isinstance(value, dict):
-                nested_keys = get_feature_keys(value, sep=sep)
-                for nested_key, nested_value in nested_keys.items():
-                    keys[f"{key}{sep}{nested_key}"] = f"{type(value).__name__}({nested_value})"
-            if isinstance(value, list) and value:
-                # Use the first element of the list to determine the type
-                if isinstance(value[0], dict):
-                    nested_keys = get_feature_keys(value[0], sep=sep)
-                    for nested_key, nested_value in nested_keys.items():
-                        keys[f"{key}{sep}{nested_key}"] = nested_value
-                else:
-                    keys[key] = f"list({type(value[0]).__name__})"
-            else:
-                keys[key] = type(value).__name__
-    else:
-        keys["value"] = type(data).__name__
-    return keys
 
 
 def validate_parameters(inputs: dict, param_schema: dict) -> dict:
@@ -129,7 +91,15 @@ def validate_parameters(inputs: dict, param_schema: dict) -> dict:
 
 
 def get_primary_keys(methods_def: dict) -> list:
-    """Extract primary keys from the methods definition."""
+    """Extract the sorted, unique primary-key parameter names from a methods definition.
+
+    Args:
+        methods_def (dict): Schema dict mapping param name to (type, default, is_primary) tuples.
+
+    Returns:
+        list: Sorted, de-duplicated names of parameters flagged as primary.
+
+    """
     primary_keys = []
     for param, (_, _, is_primary) in methods_def.items():
         if is_primary:

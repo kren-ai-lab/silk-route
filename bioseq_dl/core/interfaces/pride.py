@@ -2,13 +2,10 @@
 
 from typing import Any, ClassVar
 
-import pandas as pd
-from requests import Request, Response
-from requests.exceptions import RequestException
+from niquests import Request
 
 # Add the import for your database in constants
 from bioseq_dl.constants.databases import PRIDE
-from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
 from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
@@ -21,6 +18,7 @@ class PrideInterface(BaseAPIInterface):
 
     API_NAME = "PRIDE"
     DB_CONFIG = PRIDE
+    DEFAULT_OPTION: ClassVar[str | None] = "default"
     METHODS: ClassVar[dict[str, Any]] = {
         "search": {
             "projects": {
@@ -62,76 +60,15 @@ class PrideInterface(BaseAPIInterface):
         },
     }
 
-    def fetch(self, query: str | dict | list, *, method: str = "search", **kwargs: Any) -> dict | list:
-        """Fetch proteomics data from PRIDE Archive."""
-        if method not in self.METHODS:
-            log.error("Method '%s' is not defined in the interface.", method)
-            return {}
-        option = kwargs.pop("option", "default")
-
-        http_method, path_param, parameters, inputs = self.initialize_method_parameters(
-            query, method, self.METHODS, option=option, **kwargs
-        )
-
-        # Validate and clean parameters
-        try:
-            validated_params = validate_parameters(inputs, parameters)
-        except ValueError:
-            log.exception("Invalid parameters for method '%s'", method)
-            return {}
-
+    def _build_request(
+        self, *, method: str, http_method: str, path_param: Any, validated_params: dict, **kwargs: Any
+    ) -> Request:
+        """Build the PRIDE request URL (path segments + optional option suffix)."""
         url = f"{PRIDE.API_URL}{method.replace('-', '/')}"
+        url = self._append_path_params(url, path_param, validated_params)
 
-        if path_param:
-            if isinstance(path_param, list):
-                url += "/" + "/".join(
-                    str(validated_params.pop(param)) for param in path_param if param in validated_params
-                )
-            else:
-                url += f"/{validated_params.pop(path_param)}"
-
+        option = kwargs.get("option")
         if option and option != "default":
             url += f"/{option}"
 
-        response = Request(
-            url=url,
-            method=http_method,
-            params=validated_params,
-        )
-
-        prepared = self.session.prepare_request(response)
-        log.debug("Prepared request: %s", prepared.url)
-
-        try:
-            response = self.session.send(prepared)
-            self._delay()
-            response.raise_for_status()
-
-            return response.json()
-        except RequestException:
-            log.exception("Error fetching data from %s", url)
-            return {}
-
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
-        """Parse PRIDE Archive response data."""
-        if not data:
-            return {}
-
-        if isinstance(data, Response):
-            data = data.json()
-        elif not isinstance(data, dict):
-            log.error(
-                "Tried to parse data but the type is not supported. Response should be a dict or a "
-                "requests.Response "
-                "object."
-            )
-            return {}
-
-        return self._extract_fields(data, fields_to_extract, **kwargs)
-
-    def fetch_single(
-        self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
-    ) -> tuple[list | dict | pd.DataFrame | bytes | str, dict]:
-        """Fetch a single PRIDE record."""
-        option = kwargs.pop("option", "default")
-        return super().fetch_single(query, parse, *args, option=option, **kwargs)
+        return Request(url=url, method=http_method, params=validated_params)

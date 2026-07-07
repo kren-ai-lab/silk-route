@@ -5,12 +5,12 @@ from typing import Any
 import typer
 
 from bioseq_dl import PathwayCommonsInterface
-from bioseq_dl.cli._shared import save_or_print
+from bioseq_dl.cli._shared import format_option, output_option, save_or_print
 
 app = typer.Typer(help="Fetch data from Pathway Commons.")
 
 
-@app.command("top_pathways")
+@app.command("top-pathways")
 def run_top_pathways(
     query: str = typer.Argument(..., help="Gene or protein identifier to query."),
     organism: str = typer.Option(
@@ -25,12 +25,8 @@ def run_top_pathways(
         "-dbs",
         help="Comma-separated list of databases to filter results (e.g., reactome, uniprot).",
     ),
-    output: str = typer.Option(
-        None,
-        "--output",
-        "-o",
-        help="Output file to save the top pathways.",
-    ),
+    output: str = output_option(help="Output file to save the top pathways."),
+    output_format: str = format_option(),
 ) -> None:
     """Fetch data from Pathway Commons."""
     instance = PathwayCommonsInterface()
@@ -43,7 +39,7 @@ def run_top_pathways(
 
     df = instance.fetch_single(query=query_params, method="top_pathways", parse=True, format="dataframe")
 
-    save_or_print(df, output)
+    save_or_print(df, output, output_format=output_format)
 
 
 @app.command("fetch")
@@ -55,12 +51,8 @@ def run_fetch(
         "-p",
         help="Pattern to filter the fetched data.",
     ),
-    output: str = typer.Option(
-        None,
-        "--output",
-        "-o",
-        help="Output file to save the fetched data.",
-    ),
+    output: str = output_option(help="Output file to save the fetched data."),
+    output_format: str = format_option(),
 ) -> None:
     """Fetch data from Pathway Commons using a BioPAX URI."""
     instance = PathwayCommonsInterface()
@@ -75,7 +67,7 @@ def run_fetch(
         format="dataframe",
     )
 
-    save_or_print(data, output)
+    save_or_print(data, output, output_format=output_format)
 
 
 @app.command("neighborhood")
@@ -105,12 +97,8 @@ def run_neighborhood(
         "-p",
         help="Pattern to filter the fetched data.",
     ),
-    output: str = typer.Option(
-        None,
-        "--output",
-        "-o",
-        help="Output file to save the neighborhood data.",
-    ),
+    output: str = output_option(help="Output file to save the neighborhood data."),
+    output_format: str = format_option(),
 ) -> None:
     """Fetch neighborhood data from Pathway Commons."""
     instance = PathwayCommonsInterface()
@@ -125,4 +113,4 @@ def run_neighborhood(
 
     df = instance.fetch_single(query=query_params, method="neighborhood", parse=True, format="dataframe")
 
-    save_or_print(df, output)
+    save_or_print(df, output, output_format=output_format)

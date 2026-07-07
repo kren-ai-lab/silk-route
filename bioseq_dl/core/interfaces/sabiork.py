@@ -1,10 +1,9 @@
 """SABIO-RK kinetics database API interface."""
 
-from pathlib import Path
 from typing import Any, ClassVar
 
-import requests
-from requests import Request
+import niquests
+from niquests import Request
 
 from bioseq_dl.constants.databases import SABIORK
 from bioseq_dl.core.interfaces.base import BaseAPIInterface
@@ -42,13 +41,28 @@ class SabiorkInterface(BaseAPIInterface):
     ) -> None:
         """Initialize the SabiorkInterface."""
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
-        self.output_dir = output_dir or self.cache_dir
-        Path(self.output_dir).mkdir(parents=True, exist_ok=True)
+        self.output_dir = self._resolve_output_dir(output_dir)
 
     def fetch(
         self, query: str | dict | list, *, method: str = "kineticlaws", **kwargs: Any
     ) -> dict | list | str:
-        """Fetch data from the Sabio-RK API based on the provided query."""
+        """Fetch data from the Sabio-RK API based on the provided query.
+
+        Builds a SABIO-RK query string from the validated parameters and requests a TSV
+        export, returning the rows as a list of dicts keyed by the header row.
+
+        Args:
+            query (str | dict | list): Identifier(s) or structured query to fetch.
+            method (str): Method name; must be a key of ``METHODS``.
+            **kwargs: Forwarded to method parameter initialization.
+
+        Returns:
+            dict | list | str: Parsed kinetic-law rows, or the raw response text.
+
+        Raises:
+            ValueError: If ``method`` is not supported.
+
+        """
         if method not in self.METHODS:
             msg = f"Method '{method}' is not supported. Available methods: {list(self.METHODS.keys())}"
             raise ValueError(msg)
@@ -62,7 +76,7 @@ class SabiorkInterface(BaseAPIInterface):
             validated_params = validate_parameters(inputs, parameters)
         except ValueError:
             log.exception("Invalid parameters for method '%s'", method)
-            return {}
+            return []
 
         query_string = " AND ".join(
             [f'{k}:"{v}"' if any(c.isspace() for c in v) else f"{k}:{v}" for k, v in validated_params.items()]
@@ -84,7 +98,7 @@ class SabiorkInterface(BaseAPIInterface):
             ]
         else:
             log.error("Method '%s' is not implemented.", method)
-            return {}
+            return []
 
         url = SABIORK.API_URL + method
 
@@ -99,15 +113,11 @@ class SabiorkInterface(BaseAPIInterface):
             response.raise_for_status()
 
             if method == "kineticlawsExportTsv":
-                results = [line.split("\t") for line in response.text.strip().split("\n")]
+                results = [line.split("\t") for line in (response.text or "").strip().split("\n")]
                 return [{results[0][i]: row[i] for i in range(len(results[0]))} for row in results[1:]]
 
-        except requests.exceptions.RequestException:
+        except niquests.exceptions.RequestException:
             log.exception("Error fetching prediction for %s", query)
-            return {}
+            return []
         else:
-            return response.text
-
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **_kwargs: Any) -> list | dict:
-        """Parse SABIO-RK response data."""
-        return self._extract_fields(data, fields_to_extract)
+            return response.text or ""

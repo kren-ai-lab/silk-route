@@ -10,12 +10,14 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 from urllib.parse import parse_qs, urlencode, urlparse
 
-import pandas as pd
-import requests
+import niquests
+import polars as pl
 
 from bioseq_dl.constants.databases import DATABASES, UNIPROT
 from bioseq_dl.core.exceptions import RequestError
 from bioseq_dl.core.interfaces.base import BaseAPIInterface
+from bioseq_dl.core.metadata import FetchMetadata, RequestInfo, current_tool
+from bioseq_dl.core.utils.frames import drop_all_null_columns, records_to_frame
 from bioseq_dl.core.utils.uniprot_auxiliary_methods import (
     extract_active_sites,
     extract_database_terms,
@@ -60,6 +62,14 @@ class UniprotInterface(BaseAPIInterface):
         ``fetch`` machinery, but inherits ``BaseAPIInterface`` for shared session,
         cache, and directory handling. ``use_config`` defaults to ``False`` since
         UniProt ships no per-database YAML config.
+
+        Args:
+            total_retries (int): Maximum number of request retries.
+            timeout (float): Default request timeout in seconds.
+            cache_dir (str | None): Override for the cache directory.
+            config_dir (str | None): Override for the config directory.
+            **kwargs: Forwarded to ``BaseAPIInterface``; ``use_config`` defaults to False.
+
         """
         kwargs.setdefault("use_config", False)
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, total_retries=total_retries, **kwargs)
@@ -121,18 +131,36 @@ class UniprotInterface(BaseAPIInterface):
             "keyword": ("keywords", extract_keywords),
         }
 
-    def check_response(self, response: requests.Response) -> None:
-        """Check for HTTP errors in a UniProt response and re-raise if present."""
+    def check_response(self, response: niquests.Response) -> None:
+        """Check for HTTP errors in a UniProt response and re-raise if present.
+
+        Args:
+            response (niquests.Response): The response to check.
+
+        Raises:
+            niquests.HTTPError: If the response status indicates an error.
+
+        """
         try:
             response.raise_for_status()
-        except requests.HTTPError:
+        except niquests.HTTPError:
             log.exception("HTTP error occurred: %s - %s", response.status_code, response.text)
             log.exception("Response JSON: %s", response.json())
             raise
 
     def submit_id_mapping(self, from_db: str, to_db: str, ids: list) -> str:
-        """Submit an ID mapping job and return the job ID."""
-        request = requests.post(
+        """Submit an ID mapping job and return the job ID.
+
+        Args:
+            from_db (str): Source database identifier type.
+            to_db (str): Target database identifier type.
+            ids (list): Identifiers to map.
+
+        Returns:
+            str: The job ID assigned by the UniProt ID mapping service.
+
+        """
+        request = niquests.post(
             f"{API_URL}/idmapping/run",
             data={"from": from_db, "to": to_db, "ids": ",".join(ids)},
             timeout=self.timeout,
@@ -141,12 +169,29 @@ class UniprotInterface(BaseAPIInterface):
         return request.json()["jobId"]
 
     def print_progress_batches(self, batch_index: int, size: int, total: int) -> None:
-        """Log batch download progress."""
+        """Log batch download progress.
+
+        Args:
+            batch_index (int): Zero-based index of the current batch.
+            size (int): Number of records per batch.
+            total (int): Total number of records to fetch.
+
+        """
         n_fetched = min((batch_index + 1) * size, total)
         log.info("Fetched: %s / %s", n_fetched, total)
 
     def combine_batches(self, all_results: Any, batch_results: Any, file_format: str) -> Any:
-        """Combine incremental batch results into a single accumulated result."""
+        """Combine incremental batch results into a single accumulated result.
+
+        Args:
+            all_results (Any): Results accumulated so far.
+            batch_results (Any): Results from the latest batch.
+            file_format (str): Format of the results ("json", "tsv", or other).
+
+        Returns:
+            Any: The accumulated results including the latest batch.
+
+        """
         if file_format == "json":
             for key in ("results", "failedIds"):
                 if batch_results.get(key):
@@ -157,36 +202,60 @@ class UniprotInterface(BaseAPIInterface):
             return all_results + batch_results
         return all_results
 
-    def decode_results(self, response: requests.Response, file_format: str, compressed: bool) -> Any:
-        """Decode a UniProt API response into JSON, XML, or plain text."""
-        if compressed:
-            decompressed = zlib.decompress(response.content, 16 + zlib.MAX_WBITS)
-            if file_format == "json":
-                return json.loads(decompressed.decode("utf-8"))
-            if file_format == "tsv":
-                return [line for line in decompressed.decode("utf-8").split("\n") if line]
-            if file_format == "xlsx":
-                return [decompressed]
-            if file_format == "xml":
-                return [decompressed.decode("utf-8")]
-            return decompressed.decode("utf-8")
-        if file_format == "json":
-            return response.json()
-        if file_format == "tsv":
-            return [line for line in response.text.split("\n") if line]
+    def decode_results(self, response: niquests.Response, file_format: str, compressed: bool) -> Any:
+        """Decode a UniProt API response into JSON, XML, or plain text.
+
+        Args:
+            response (niquests.Response): The response to decode.
+            file_format (str): Expected format ("json", "tsv", "xml", "xlsx", or other).
+            compressed (bool): Whether the response body is gzip-compressed.
+
+        Returns:
+            Any: The decoded content; type depends on ``file_format``.
+
+        """
+        content = response.content or b""
+        raw = zlib.decompress(content, 16 + zlib.MAX_WBITS) if compressed else content
+
+        # xlsx is binary: never UTF-8-decode it.
         if file_format == "xlsx":
-            return [response.content]
+            return [raw]
+
+        # Decode text only now (xlsx already returned), keeping the original
+        # source per branch: response.json()/response.text for uncompressed.
+        text = raw.decode("utf-8") if compressed else (response.text or "")
+        if file_format == "json":
+            return json.loads(text) if compressed else response.json()
+        if file_format == "tsv":
+            return [line for line in text.split("\n") if line]
         if file_format == "xml":
-            return [response.text]
-        return response.text
+            return [text]
+        return text
 
     def get_xml_namespace(self, element: ET.Element) -> str:
-        """Extract the XML namespace from an element tag."""
+        """Extract the XML namespace from an element tag.
+
+        Args:
+            element (ET.Element): The element whose tag holds the namespace.
+
+        Returns:
+            str: The namespace URI, or an empty string if none is present.
+
+        """
         m = re.match(r"\{(.*)\}", element.tag)
         return m.groups()[0] if m else ""
 
     def merge_xml_results(self, xml_results: list) -> bytes:
-        """Merge a list of XML byte strings into one root element."""
+        """Merge a list of XML byte strings into one root element.
+
+        Args:
+            xml_results (list): XML byte strings to merge; entries from later
+                documents are inserted into the first document's root.
+
+        Returns:
+            bytes: The serialized merged XML document.
+
+        """
         merged_root = ET.fromstring(xml_results[0])  # noqa: S314  # trusted UniProt API response
         for result in xml_results[1:]:
             root = ET.fromstring(result)  # noqa: S314  # trusted UniProt API response
@@ -196,7 +265,18 @@ class UniprotInterface(BaseAPIInterface):
         return ET.tostring(merged_root, encoding="utf-8", xml_declaration=True)
 
     def get_id_mapping_results_search(self, url: str) -> Any:
-        """Fetch ID mapping search results for a given URL."""
+        """Fetch ID mapping search results for a given URL.
+
+        Follows pagination links to retrieve all batches, combines them, and
+        merges XML results when the requested format is XML.
+
+        Args:
+            url (str): The results URL, including format and size query params.
+
+        Returns:
+            Any: The combined results; type depends on the requested format.
+
+        """
         parsed = urlparse(url)
         query = parse_qs(parsed.query)
         file_format = query["format"][0] if "format" in query else "json"
@@ -221,14 +301,30 @@ class UniprotInterface(BaseAPIInterface):
         return results
 
     def get_id_mapping_results_link(self, job_id: str) -> str:
-        """Return the redirect URL for a completed ID mapping job."""
+        """Return the redirect URL for a completed ID mapping job.
+
+        Args:
+            job_id (str): The ID mapping job identifier.
+
+        Returns:
+            str: The redirect URL pointing to the job's results.
+
+        """
         url = f"{API_URL}/idmapping/details/{job_id}"
         request = self.session.get(url, timeout=self.timeout)
         self.check_response(request)
         return request.json()["redirectURL"]
 
     def get_next_link(self, headers: Mapping[str, str]) -> str | None:
-        """Extract the 'next' link from pagination headers."""
+        """Extract the 'next' link from pagination headers.
+
+        Args:
+            headers (Mapping[str, str]): Response headers, possibly with a ``Link`` entry.
+
+        Returns:
+            str | None: The next-page URL, or None if there is no next link.
+
+        """
         re_next_link = re.compile(r'<(.+)>; rel="next"')
         if "Link" in headers:
             match = re_next_link.match(headers["Link"])
@@ -237,9 +333,19 @@ class UniprotInterface(BaseAPIInterface):
         return None
 
     def get_batch(
-        self, batch_response: requests.Response, file_format: str, compressed: bool
+        self, batch_response: niquests.Response, file_format: str, compressed: bool
     ) -> Iterator[Any]:
-        """Yield decoded result batches following pagination links."""
+        """Yield decoded result batches following pagination links.
+
+        Args:
+            batch_response (niquests.Response): The first response, used to find the next link.
+            file_format (str): Format passed to ``decode_results`` for each batch.
+            compressed (bool): Whether each batch body is gzip-compressed.
+
+        Yields:
+            Any: The decoded content of each subsequent batch.
+
+        """
         batch_url = self.get_next_link(batch_response.headers)
         while batch_url:
             batch_response = self.session.get(batch_url, timeout=self.timeout)
@@ -248,7 +354,18 @@ class UniprotInterface(BaseAPIInterface):
             batch_url = self.get_next_link(batch_response.headers)
 
     def check_id_mapping_results_ready(self, job_id: str) -> bool:
-        """Poll until an ID mapping job is complete, then return True."""
+        """Poll until an ID mapping job is complete, then return True.
+
+        Args:
+            job_id (str): The ID mapping job identifier.
+
+        Returns:
+            bool: True once the job has results or failed IDs available.
+
+        Raises:
+            RequestError: If the job finishes with a non-running failure status.
+
+        """
         while True:
             log.debug("Checking status for job ID: %s", job_id)
             request = self.session.get(f"{API_URL}/idmapping/status/{job_id}", timeout=self.timeout)
@@ -266,7 +383,15 @@ class UniprotInterface(BaseAPIInterface):
                 return bool(j["results"] or j["failedIds"])
 
     def identify_id_type(self, id_str: str) -> str:
-        """Identifica el tipo de ID basado en patrones regex."""
+        """Identify the ID type by matching against the configured regex patterns.
+
+        Args:
+            id_str (str): The identifier to classify.
+
+        Returns:
+            str: The detected database type, or an empty string if none matched.
+
+        """
         if not isinstance(id_str, str):
             return ""
 
@@ -274,12 +399,18 @@ class UniprotInterface(BaseAPIInterface):
             for pattern in config["patterns"]:
                 if re.fullmatch(pattern, id_str):
                     return db_type
-
-                return ""
         return ""
 
     def group_ids_by_type(self, ids: list[str]) -> dict[str, list[str]]:
-        """Agrupa IDs por su tipo detectado."""
+        """Group IDs by their detected type, collecting unmatched ones under "unknown".
+
+        Args:
+            ids (list[str]): Identifiers to group.
+
+        Returns:
+            dict[str, list[str]]: Mapping of database type to the IDs of that type.
+
+        """
         grouped = {db_type: [] for db_type in self.db_config}
         grouped["unknown"] = []
 
@@ -296,7 +427,7 @@ class UniprotInterface(BaseAPIInterface):
 
     def download_batch(
         self,
-        dataset: pd.DataFrame,
+        dataset: pl.DataFrame,
         column_ids: str,
         auto_db: bool = False,
         from_db: str = "UniProtKB_AC-ID",
@@ -306,69 +437,100 @@ class UniprotInterface(BaseAPIInterface):
         """Download data from UniProt in batches based on a DataFrame of IDs.
 
         Args:
-            dataset (pd.DataFrame): DataFrame containing the IDs.
+            dataset (pl.DataFrame): DataFrame containing the IDs.
             column_ids (str): Column name in the DataFrame with the IDs.
             auto_db (bool): Whether to automatically detect the database type.
             from_db (str): Database to convert from (used if auto_db is False).
             to_db (str): Database to convert to (used if auto_db is False).
             batch_size (int): Number of IDs to process in each batch.
 
-        """
-        ids = dataset[column_ids].dropna().unique().tolist()
+        Returns:
+            tuple[list[dict], dict]: The downloaded records and aggregated fetch metadata.
 
-        results = []
-        metadata = {}
-        batch_metadata = {}
+        """
+        ids = dataset[column_ids].drop_nulls().unique(maintain_order=True).to_list()
+
+        results: list[dict] = []
 
         if auto_db:
-            # Automatically detect and group IDs
+            # Automatically detect and group IDs, then process EVERY group and
+            # accumulate both results and metadata (earlier groups were previously
+            # overwritten, silently dropping their data for mixed-ID inputs).
             id_groups = self.group_ids_by_type(ids)
-
             log.debug(
                 "Auto db has identified the following ID groups: %s",
                 {k: len(v) for k, v in id_groups.items()},
             )
+            meta = FetchMetadata()
+            groups: list[dict[str, Any]] = []
             for db_type, id_list in id_groups.items():
                 if not id_list or db_type == "unknown":
                     continue
 
                 config = self.db_config[db_type]
-                results, batch_metadata = self.process_id_batch(
+                group_results, group_metadata = self.process_id_batch(
                     ids=id_list,
                     from_db=config["from_db"],
                     to_db=config["to_db"],
                     batch_size=batch_size,
                     db_type=db_type,
                 )
+                results.extend(group_results)
+                group_meta = FetchMetadata.from_dict(group_metadata)
+                meta = meta.merge(group_meta)
+                groups.append(
+                    {
+                        "db_type": db_type,
+                        "from_db": config["from_db"],
+                        "to_db": config["to_db"],
+                        "num_batches": group_meta.extra.get("num_batches", 0),
+                        "failed_ids_count": group_meta.extra.get("failed_ids_count", 0),
+                    }
+                )
+            # Per-group flat fields (from_db/to_db/db_type) are ambiguous across
+            # groups; expose the per-group breakdown instead.
+            meta.extra = {"batch_size": batch_size, "groups": groups}
         else:
-            # Manually use the provided from_db/to_db parameters
-            results, batch_metadata = self.process_id_batch(
+            # Manually use the provided from_db/to_db parameters.
+            group_results, group_metadata = self.process_id_batch(
                 ids=ids, from_db=from_db, to_db=to_db, batch_size=batch_size, db_type="manual"
             )
+            results = group_results
+            meta = FetchMetadata.from_dict(group_metadata)
 
-        metadata["search_process"] = batch_metadata
-        metadata["search_params"] = {
-            "query": {
-                "type": type(pd.DataFrame()),
-                "value": dataset[column_ids].tolist(),
-                "total_rows": len(dataset),
-                "columns": dataset.columns.tolist(),
+        # Augment with the input-query provenance specific to the batch download.
+        meta.extra.update(
+            {
+                "query_values": dataset[column_ids].to_list(),
+                "total_rows": dataset.height,
+                "columns": list(dataset.columns),
                 "id_column": column_ids,
-            },
-            "from_db": from_db,
-            "to_db": to_db,
-            "auto_db": auto_db,
-            "batch_size": batch_size,
-        }
+                "auto_db": auto_db,
+            }
+        )
 
-        return results, metadata
+        return results, meta.to_dict()
 
     def process_id_batch(
         self, ids: list[str], from_db: str, to_db: str, batch_size: int, db_type: str
     ) -> tuple[list[dict], dict]:
-        """Procesa un lote de IDs de un tipo específico."""
+        """Process a set of IDs of a single type via the ID mapping flow.
+
+        Submits the IDs in batches, polls each job to completion, fetches the
+        mapped results, and builds fetch metadata including failed IDs.
+
+        Args:
+            ids (list[str]): Identifiers to process.
+            from_db (str): Source database identifier type.
+            to_db (str): Target database identifier type.
+            batch_size (int): Number of IDs per submitted batch.
+            db_type (str): Label for the ID group, attached as ``source_db`` on results.
+
+        Returns:
+            tuple[list[dict], dict]: The mapped result dicts and the fetch metadata.
+
+        """
         downloader = UniprotInterface()
-        metadata: dict[str, Any] = {}
         time_started = time.time()
         job_id = None
         results = []
@@ -391,14 +553,28 @@ class UniprotInterface(BaseAPIInterface):
 
             self.print_progress_batches(batch_index, batch_size, total)
 
-        metadata["time_taken_seconds"] = time.time() - time_started
-        metadata["started_at"] = datetime.fromtimestamp(time_started, tz=UTC).isoformat()
-        metadata["batch_size"] = batch_size
-        metadata["num_batches"] = (len(ids) + batch_size - 1) // batch_size
-        metadata["failed_ids_count"] = sum(len(res.get("failedIds", [])) for res in results)
-        metadata["failed_ids"] = [fid for res in results for fid in res.get("failedIds", [])]
+        time_finished = time.time()
+        failed_ids = [fid for res in results for fid in res.get("failedIds", [])]
+        mapped_records = [record for res in results for record in res.get("results", [])]
+        meta = FetchMetadata(
+            tool=current_tool(),
+            started_at=datetime.fromtimestamp(time_started, tz=UTC).isoformat(),
+            finished_at=datetime.fromtimestamp(time_finished, tz=UTC).isoformat(),
+            request=RequestInfo(api_name=self.API_NAME, method="idmapping", option=None),
+            data_info=self._build_data_info(mapped_records),
+            extra={
+                "batch_size": batch_size,
+                "num_batches": (len(ids) + batch_size - 1) // batch_size,
+                "from_db": from_db,
+                "to_db": to_db,
+                "db_type": db_type,
+                "failed_ids_count": len(failed_ids),
+            },
+        )
+        for fid in failed_ids:
+            meta.failed.add(fid, {"id": fid}, "unmapped")
 
-        return results, metadata
+        return results, meta.to_dict()
 
     def submit_stream(
         self,
@@ -416,21 +592,25 @@ class UniprotInterface(BaseAPIInterface):
             query (str): The query string.
             fields (str): The fields to include in the response.
             sort (str): The sorting order.
-            include_isoform (bool, optional): Whether to include isoforms. Defaults to False.
-            download (bool, optional): Whether to download the results. Defaults to False.
+            include_isoform (bool | None): Whether to include isoforms. Defaults to False.
+            download (bool | None): Whether to download the results. Defaults to False.
             method (str): UniProt endpoint to query (default: "uniprotkb").
-            timeout (float, optional): Request timeout in seconds. Defaults to the interface timeout.
+            timeout (float | None): Request timeout in seconds. Defaults to the interface timeout.
 
         Returns:
-            requests.Response: The response object.
+            tuple[dict, dict]: The JSON payload and the fetch metadata.
+
+        Raises:
+            TimeoutError: If the request keeps timing out after all retries.
+            RuntimeError: If the request keeps failing after all retries.
 
         """
         parameters = {
             "query": query,
             "fields": fields,
             "sort": sort,
-            "includeIsoform": include_isoform,
-            "download": download,
+            "includeIsoform": str(include_isoform),
+            "download": str(download),
             "format": "json",
         }
         metadata: dict[str, Any] = {}
@@ -457,7 +637,7 @@ class UniprotInterface(BaseAPIInterface):
                     effective_timeout,
                     started_at,
                 )
-                response = requests.get(
+                response = niquests.get(
                     f"{API_URL}/{method}/stream",
                     params=parameters,
                     headers=headers,
@@ -469,7 +649,9 @@ class UniprotInterface(BaseAPIInterface):
                 elapsed_seconds = time_finished - time_started
                 size_header = response.headers.get("Content-Length")
                 response_size_bytes = (
-                    int(size_header) if size_header and size_header.isdigit() else len(response.content)
+                    int(size_header)
+                    if size_header and size_header.isdigit()
+                    else len(response.content or b"")
                 )
                 payload = response.json()
                 results_count = 0
@@ -488,28 +670,33 @@ class UniprotInterface(BaseAPIInterface):
                     response_size_bytes,
                     results_count,
                 )
-                metadata["search_process"] = {
-                    "time_taken_seconds": elapsed_seconds,
-                    "started_at": started_at,
-                    "finished_at": finished_at,
-                    "status_code": response.status_code,
-                    "response_size_bytes": response_size_bytes,
-                    "total_results": results_count,
-                    "attempts": attempt + 1,
-                }
-                metadata["search_params"] = {
-                    "api_url": API_URL,
-                    "query": {
-                        "type": type(query),
-                        "value": query,
+                meta = FetchMetadata(
+                    tool=current_tool(),
+                    started_at=started_at,
+                    finished_at=finished_at,
+                    request=RequestInfo(api_name=self.API_NAME, method=method, option=None),
+                    data_info=self._build_data_info(
+                        payload.get("results", []) if isinstance(payload, dict) else payload
+                    ),
+                    extra={
+                        "api_url": API_URL,
+                        "status_code": response.status_code,
+                        "response_size_bytes": response_size_bytes,
+                        "total_results": results_count,
+                        "attempts": attempt + 1,
+                        "query": query,
+                        "fields": fields,
+                        "sort": sort,
+                        "include_isoform": include_isoform,
+                        "download": download,
+                        "timeout_seconds": effective_timeout,
                     },
-                    "fields": fields,
-                    "sort": sort,
-                    "include_isoform": include_isoform,
-                    "download": download,
-                    "timeout_seconds": effective_timeout,
-                }
-            except requests.exceptions.Timeout as e:
+                )
+                if isinstance(payload, dict):
+                    for failed_id in payload.get("failedIds", []):
+                        meta.failed.add(failed_id, query, "unmapped")
+                metadata = meta.to_dict()
+            except niquests.exceptions.Timeout as e:
                 if attempt < self.total_retries - 1:
                     log.warning(
                         "UniProt stream request timed out after %ss on attempt %s/%s. Retrying...",
@@ -526,7 +713,7 @@ class UniprotInterface(BaseAPIInterface):
                     )
                     log.exception(message)
                     raise TimeoutError(message) from e
-            except requests.exceptions.RequestException as e:
+            except niquests.exceptions.RequestException as e:
                 if attempt < self.total_retries - 1:
                     log.info("Attempt %s failed: %s. Retrying...", attempt + 1, e)
                     time.sleep(POLLING_INTERVAL)
@@ -541,7 +728,18 @@ class UniprotInterface(BaseAPIInterface):
     def adapt_field_map(
         self, field_map: dict[str, tuple[str, Callable[..., Any]]], use_prefix: bool = False
     ) -> dict[str, tuple[str, Callable[..., Any]]]:
-        """Adapt the field map to include a prefix if needed."""
+        """Adapt the field map to include a prefix if needed.
+
+        Args:
+            field_map (dict[str, tuple[str, Callable[..., Any]]]): Field name to
+                (path, extractor) mapping.
+            use_prefix (bool): Whether to prefix each path with ``to.`` for
+                id-mapping results.
+
+        Returns:
+            dict[str, tuple[str, Callable[..., Any]]]: The (optionally prefixed) field map.
+
+        """
         if not use_prefix:
             return field_map
 
@@ -551,11 +749,21 @@ class UniprotInterface(BaseAPIInterface):
             adapted_map[key] = (new_path, extractor)
         return adapted_map
 
-    def _parse_result(self, result: dict, extract_fields: list[str] | None) -> tuple[dict, dict]:
-        """Parse a single UniProt result."""
+    def _parse_result(self, result: dict, extract_fields: list[str] | None) -> dict:
+        """Parse a single UniProt result into a flat ``{field: value}`` dict.
+
+        Fields that can't be extracted are kept as ``None`` so the aggregate
+        field-coverage stats in :meth:`parse` can tell present from missing.
+
+        Args:
+            result (dict): A single raw UniProt result record.
+            extract_fields (list[str] | None): Fields to keep; None keeps all fields.
+
+        Returns:
+            dict: The flattened ``{field: value}`` record.
+
+        """
         parsed = {}
-        field_map = {}
-        metadata = {}
 
         # Change field_map if 'from' and 'to' keys are present
         if "from" in result and "to" in result:
@@ -584,67 +792,86 @@ class UniprotInterface(BaseAPIInterface):
         if extract_fields is not None:
             parsed = {k: v for k, v in parsed.items() if k in extract_fields}
 
-        metadata["extract_fields"] = extract_fields if extract_fields is not None else list(field_map.keys())
-        metadata["parsed_fields"] = list(parsed.keys())
-        metadata["failed_fields"] = [k for k in field_map if k not in parsed]
+        return parsed
 
-        return parsed, metadata
+    @staticmethod
+    def _aggregate_parse_metadata(
+        parsed: list[dict], failed_records: int, extract_fields: list[str] | None
+    ) -> dict:
+        """Aggregate per-record parse results into dataset-level metadata.
 
-    # TODO(diego): eliminar bytes y str cuando ET este asegurado
+        Replaces the old behavior of returning only the first record's metadata.
+        ``field_coverage`` maps each requested field to how many records actually
+        carried a non-null value — surfacing sparse fields across the whole result.
+
+        Args:
+            parsed (list[dict]): Per-record parse results, including failed placeholders.
+            failed_records (int): Number of records that failed to map.
+            extract_fields (list[str] | None): Requested fields; None uses the union seen.
+
+        Returns:
+            dict: Dataset-level parse metadata including field coverage.
+
+        """
+        records = [p for p in parsed if p.get("status") != "failed"]
+        if extract_fields is not None:
+            requested = list(extract_fields)
+        else:
+            # No explicit selection: use the union of fields seen across records.
+            requested = list({field for record in records for field in record})
+        return {
+            "requested_fields": requested,
+            "records": len(records),
+            "failed_records": failed_records,
+            "field_coverage": {
+                field: sum(1 for record in records if record.get(field) is not None) for field in requested
+            },
+        }
+
     def parse(  # ty: ignore[invalid-method-override]  # type: ignore[bad-override]
         self,
         results: dict | list[dict],
         extract_fields: list[str] | None,
         format: Literal["json", "dataframe", "xml"] = "json",  # noqa: A002
-    ) -> tuple[(pd.DataFrame | list[dict] | bytes | str | ET.ElementTree), dict | list[dict]]:
+    ) -> tuple[(pl.DataFrame | list[dict] | bytes | str | ET.ElementTree), dict | list[dict]]:
         """Parse UniProt JSON results into a DataFrame.
 
         Args:
-            results (Dict): The JSON results from UniProt.
-            extract_fields (Optional[List[str]]): List of fields to extract.
+            results (dict | list[dict]): The JSON results from UniProt.
+            extract_fields (list[str] | None): Fields to extract; None keeps all fields.
             format (Literal["json", "dataframe", "xml"]): The output format.
 
+        Returns:
+            tuple[pl.DataFrame | list[dict] | bytes | str | ET.ElementTree, dict | list[dict]]:
+                The parsed results in the requested format and the parse metadata.
+
         """
-        parsed = []
-        metadata = []
+        parsed: list = []
+        failed_records = 0
 
-        # Process successful results
-        if isinstance(results, dict):
-            for result in results.get("results", []):
-                p, m = self._parse_result(result, extract_fields)
-                parsed.append(p)
-                metadata.append(m)
-
-            # Process failed IDs
-            for failed_id in results.get("failedIds", []):
+        def _accumulate(res: dict) -> None:
+            """Collect parsed results + failed-id placeholders from one results dict."""
+            nonlocal failed_records
+            parsed.extend(self._parse_result(result, extract_fields) for result in res.get("results", []))
+            for failed_id in res.get("failedIds", []):
                 parsed.append({"uniprot_id": failed_id, "status": "failed"})
-                metadata.append({})
+                failed_records += 1
+
+        if isinstance(results, dict):
+            _accumulate(results)
         elif isinstance(results, list):
             for res in results:
                 if isinstance(res, dict):
-                    for result in res.get("results", []):
-                        p, m = self._parse_result(result, extract_fields)
-                        parsed.append(p)
-                        metadata.append(m)
-
-                    # Process failed IDs
-                    for failed_id in res.get("failedIds", []):
-                        parsed.append({"uniprot_id": failed_id, "status": "failed"})
-                        metadata.append({})
+                    _accumulate(res)
                 else:
                     log.warning("Tried to parse non-dict result: %s, skipping.", type(res))
-                    continue
 
+        meta_out = self._aggregate_parse_metadata(parsed, failed_records, extract_fields)
         if format == "dataframe":
-            return pd.DataFrame(parsed).dropna(axis=1, how="all"), metadata[0] if len(
-                metadata
-            ) > 0 else metadata
+            return drop_all_null_columns(records_to_frame(parsed)), meta_out
         if format == "xml":
-            return dict_to_elementtree(parsed, root_tag="results"), metadata[0] if len(
-                metadata
-            ) > 0 else metadata
-
-        return parsed, metadata[0] if len(metadata) > 0 else metadata
+            return dict_to_elementtree(parsed, root_tag="results"), meta_out
+        return parsed, meta_out
 
     def fetch(self, query: str | dict | list, *, method: str = "uniprotkb", **kwargs: Any) -> Any:
         """UniProt does not use the generic fetch machinery.
@@ -652,6 +879,15 @@ class UniprotInterface(BaseAPIInterface):
         Data is retrieved through the dedicated flows instead:
         ``submit_stream`` (query search) and ``download_batch`` /
         ``submit_id_mapping`` (id mapping). ``parse`` then shapes the results.
+
+        Args:
+            query (str | dict | list): Unused; present for interface compatibility.
+            method (str): Unused; present for interface compatibility.
+            **kwargs: Unused; present for interface compatibility.
+
+        Raises:
+            NotImplementedError: Always, since UniProt uses dedicated flows.
+
         """
         msg = (
             "UniprotInterface does not implement generic fetch(); use submit_stream() "

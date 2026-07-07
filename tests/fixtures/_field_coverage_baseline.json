@@ -1,0 +1,151 @@
+{
+  "alphafold/prediction": [
+    "entry",
+    "gene",
+    "is_reference",
+    "is_reviewed",
+    "organism",
+    "tax_id"
+  ],
+  "biodbnet/getpathways": [
+    "description",
+    "name",
+    "source_database",
+    "title"
+  ],
+  "biogrid/interactions": [
+    "interaction_b",
+    "organism_a",
+    "organism_b",
+    "synonyms_a",
+    "synonyms_b"
+  ],
+  "brenda/getKmValue": [
+    "ec",
+    "km",
+    "km_max",
+    "organism",
+    "substrate"
+  ],
+  "chebi/compound": [
+    "id"
+  ],
+  "chembl/activity": [
+    "assay_id",
+    "type",
+    "units",
+    "value"
+  ],
+  "genontology/term": [
+    "definition",
+    "go_term",
+    "label"
+  ],
+  "interpro/entry": [
+    "integrated",
+    "interpro_accession",
+    "name",
+    "pfam",
+    "smart",
+    "source_database",
+    "type"
+  ],
+  "panther/geneinfo": [
+    "id"
+  ],
+  "pathwaycommons/fetch": [
+    "db",
+    "id",
+    "imports"
+  ],
+  "pdb/entry": [
+    "diffrn_resolution_high",
+    "experimental_method",
+    "rcsb_id",
+    "resolution_combined"
+  ],
+  "pride/project": [
+    "accession",
+    "additional_attributes",
+    "countries",
+    "data_processing_protocol",
+    "diseases",
+    "doi",
+    "experiment_types",
+    "identified_ptm_strings",
+    "instruments",
+    "keywords",
+    "lab_pis",
+    "license",
+    "organism_parts",
+    "organisms",
+    "project_description",
+    "project_tags",
+    "publication_date",
+    "quantification_methods",
+    "references",
+    "sample_attributes",
+    "sample_processing_protocol",
+    "softwares",
+    "submission_date",
+    "submission_type",
+    "submitters",
+    "title",
+    "total_file_downloads"
+  ],
+  "pubchem/pug_view_compound": [
+    "record_number",
+    "record_type",
+    "sections",
+    "title"
+  ],
+  "reactome/discover": [
+    "name"
+  ],
+  "refseq/protein": [
+    "locus"
+  ],
+  "stringdb/get_string_ids": [
+    "query_index",
+    "query_item",
+    "str_id"
+  ],
+  "uniprot/idmapping_results": [
+    "accession",
+    "active_sites",
+    "alphafold_ids",
+    "biogrid_ids",
+    "brenda_ids",
+    "chebi_ids",
+    "chembl_ids",
+    "diseases",
+    "domains",
+    "ec",
+    "gene_primary",
+    "go_terms",
+    "interactions",
+    "interpro_ids",
+    "kegg_ids",
+    "keyword",
+    "length",
+    "lineage",
+    "organism",
+    "organism_id",
+    "panther_ids",
+    "pathwaycommons_ids",
+    "pdb_ids",
+    "pfam_ids",
+    "ph",
+    "pride_ids",
+    "protein_name",
+    "reactome_ids",
+    "references",
+    "refseq_ids",
+    "rhea_ids",
+    "sabiork_ids",
+    "sequence",
+    "string_ids",
+    "temperature",
+    "variants"
+  ]
+}

@@ -66,7 +66,18 @@ if TYPE_CHECKING:
 
 
 def __getattr__(name: str) -> object:
-    """Lazily import public exports on first access (PEP 562)."""
+    """Lazily import public exports on first access (PEP 562).
+
+    Args:
+        name (str): Attribute name being accessed on the package.
+
+    Returns:
+        object: The resolved export (interface class, workflow, etc.).
+
+    Raises:
+        AttributeError: If ``name`` is not a known public export.
+
+    """
     module_path = _LAZY_EXPORTS.get(name)
     if module_path is None:
         msg = f"module {__name__!r} has no attribute {name!r}"
@@ -76,6 +87,7 @@ def __getattr__(name: str) -> object:
 
 
 def __dir__() -> list[str]:
+    """Return the sorted public attribute names for tab-completion."""
     return sorted(__all__)
 
 

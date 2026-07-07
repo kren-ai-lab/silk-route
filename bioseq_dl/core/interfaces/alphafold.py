@@ -1,18 +1,15 @@
 """AlphaFold API interface."""
 
 import json
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
-import pandas as pd
-from requests import Request
-from requests.exceptions import RequestException
+import polars as pl
 
 from bioseq_dl.constants.databases import ALPHAFOLD
 from bioseq_dl.core.export import export_dataframe
-from bioseq_dl.core.interfacesconfig import load_packaged_config
-from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
+from bioseq_dl.core.utils.frames import records_to_frame
 from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
@@ -25,6 +22,9 @@ class AlphafoldInterface(BaseAPIInterface):
 
     API_NAME = "Alphafold"
     DB_CONFIG = ALPHAFOLD
+    # Endpoints are ``{method}/{qualifier}``; responses wrap rows in ``results``.
+    _METHOD_SUFFIX: ClassVar[str] = "/"
+    _RESPONSE_ENVELOPE_KEYS: ClassVar[tuple[str, ...]] = ("results",)
     METHODS: ClassVar[dict[str, Any]] = {
         "prediction": {
             "http_method": "GET",
@@ -48,8 +48,8 @@ class AlphafoldInterface(BaseAPIInterface):
         """Initialize the AlphafoldInterface.
 
         Args:
-            structures (List[str]): List of structures extensions to download. Available options are pdb, cif,
-                bcif, none.
+            structures (list[str] | None): Structure file extensions to download. Available options are pdb,
+                cif, bcif.
             cache_dir (str): Directory to cache API responses. If None, defaults to the cache directory
                 defined in constants.
             config_dir (str): Directory for configuration files. If None, defaults to the config directory
@@ -58,20 +58,39 @@ class AlphafoldInterface(BaseAPIInterface):
             **kwargs: Passed through to the base class.
 
         """
-        cache_dir, config_dir = self._resolve_dirs(cache_dir, config_dir)
-        packaged_init = load_packaged_config("alphafold", "init.yml") or {}
-        download_folder_fallback = packaged_init.get("download_folder") or cache_dir
-
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
-        self.output_dir = output_dir or download_folder_fallback
-        Path(self.output_dir).mkdir(parents=True, exist_ok=True)
+        self.output_dir = self._resolve_output_dir(output_dir, init_subdir="alphafold")
 
         self.structures = structures
 
+    @staticmethod
+    def _iter_records(result: Any) -> Iterator[dict]:
+        """Yield the individual record dicts contained in a fetch result."""
+        if isinstance(result, list):
+            yield from result
+        elif isinstance(result, pl.DataFrame):
+            yield from result.iter_rows(named=True)
+        elif isinstance(result, dict):
+            yield result
+
     def fetch_single(
         self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
-    ) -> tuple[list | dict | pd.DataFrame | bytes | str, dict]:
-        """Fetch a single prediction and optionally download structure files."""
+    ) -> tuple[list | dict | pl.DataFrame | bytes | str, dict]:
+        """Fetch a single prediction and optionally download structure files.
+
+        Delegates to the base fetch, then downloads configured structure files for each
+        record when ``structures`` is set. Returns empty data if ``query`` is not a string.
+
+        Args:
+            query (str | dict): AlphaFold/UniProt identifier to fetch.
+            parse (bool): Whether to run ``parse`` on the raw response.
+            *args: Forwarded to the base fetch.
+            **kwargs: Forwarded to the base fetch.
+
+        Returns:
+            tuple[list | dict | pl.DataFrame | bytes | str, dict]: Fetched data and metadata.
+
+        """
         if not isinstance(query, str):
             log.error("Query must be a string representing a AlphaFold ID.")
             return {}, {}
@@ -79,108 +98,52 @@ class AlphafoldInterface(BaseAPIInterface):
         result, metadata = super().fetch_single(query, parse, *args, **kwargs)
 
         if self.structures:
-            if isinstance(result, list):
-                for res in result:
-                    self.download_structures(res)
-            elif isinstance(result, pd.DataFrame):
-                for _, row in result.iterrows():
-                    row_dict = row.to_dict()
-                    self.download_structures(row_dict)
-            elif isinstance(result, dict):
-                self.download_structures(result)
+            for record in self._iter_records(result):
+                self.download_structures(record)
 
         return result, metadata
 
     def fetch_batch(
         self, queries: Sequence[str | dict], parse: bool = False, *args: Any, **kwargs: Any
-    ) -> tuple[list | pd.DataFrame | bytes | str, dict]:
-        """Fetch a batch of predictions and optionally download structure files."""
+    ) -> tuple[list | pl.DataFrame | bytes | str, dict]:
+        """Fetch a batch of predictions and optionally download structure files.
+
+        Delegates to the base fetch, then downloads configured structure files for each
+        record when ``structures`` is set. Returns empty data if ``queries`` is not a list
+        of strings.
+
+        Args:
+            queries (Sequence[str | dict]): AlphaFold/UniProt identifiers to fetch.
+            parse (bool): Whether to run ``parse`` on each raw response.
+            *args: Forwarded to the base fetch.
+            **kwargs: Forwarded to the base fetch.
+
+        Returns:
+            tuple[list | pl.DataFrame | bytes | str, dict]: Fetched data and metadata.
+
+        """
         if not isinstance(queries, list) or not isinstance(queries[0], str):
             log.error("Queries must be a list of strings representing AlphaFold IDs.")
             return [], {}
 
         results, metadata = super().fetch_batch(queries, parse, *args, **kwargs)
 
-        new_results = []
-        if self.structures:
-            for result in results:
-                if isinstance(result, list):
-                    new_results.extend(self.download_structures(res) for res in result)
-                elif isinstance(result, pd.DataFrame):
-                    for _, row in result.iterrows():
-                        row_dict = row.to_dict()
-                        new_results.append(self.download_structures(row_dict))
-                elif isinstance(result, dict):
-                    new_results = [self.download_structures(result)]
+        if not self.structures:
+            return results, metadata
 
-        if new_results:
-            return new_results, metadata
-        return results, metadata
-
-    def fetch(self, query: str | dict | list, *, method: str = "prediction", **kwargs: Any) -> dict | list:
-        """Get prediction for a given UniProt ID.
-
-        Args:
-            query (str): UniProt ID to fetch prediction for.
-            method (str): Method to use for fetching data. Currently only "prediction" is supported.
-            **kwargs: Additional keyword arguments passed to the request builder.
-
-        Returns:
-            Dict: Prediction data.
-
-        """
-        if method not in self.METHODS:
-            log.error(
-                "Method %s is not supported. Supported methods are: %s.",
-                method,
-                ", ".join(self.METHODS.keys()),
-            )
-            return {}
-
-        http_method, path_param, parameters, inputs = self.initialize_method_parameters(
-            query, method, self.METHODS, **kwargs
-        )
-
-        # Validate and clean parameters
-        try:
-            validated_params = validate_parameters(inputs, parameters)
-        except ValueError:
-            log.exception("Invalid parameters for method '%s'", method)
-            return {}
-
-        url = f"{ALPHAFOLD.API_URL}{method}/"
-
-        if path_param:
-            path_value = validated_params.pop(path_param)
-            url += f"{path_value}"
-
-        req = Request(method=http_method, url=url, params=validated_params)
-        prepared = self.session.prepare_request(req)
-        log.debug("Fetching prediction for %s using URL: %s", query, prepared.url)
-
-        try:
-            response = self.session.send(prepared)
-            self._delay()
-            response.raise_for_status()
-        except RequestException:
-            log.exception("Error fetching prediction for %s", query)
-            return {}
-        else:
-            response = response.json()
-
-            if "results" in response:
-                response = response["results"]
-
-            return response
+        new_results = [
+            self.download_structures(record) for result in results for record in self._iter_records(result)
+        ]
+        return (new_results or results), metadata
 
     def download_structures(self, parsed: dict) -> dict:
         """Download structure files based on parsed prediction info.
 
         Args:
-            parsed (Dict): Parsed data containing URLs for structures.
+            parsed (dict): Parsed data containing URLs for structures.
 
         Returns:
-            Dict: Parsed data without the structure URLs.
+            dict: Parsed data without the structure URLs.
 
         """
         if not self.structures:
@@ -222,14 +185,14 @@ class AlphafoldInterface(BaseAPIInterface):
         """Parse data by extracting specified fields or returning the entire structure.
 
         Args:
-            data (Union[List, Dict]): Data to parse.
-            fields_to_extract (List|Dict): Fields to keep from the original response.
-                - If List: Keep those keys.
-                - If Dict: Maps {desired_name: real_field_name}.
-            **kwargs: Additional keyword arguments.
+            data (list | dict): Data to parse.
+            fields_to_extract (list | dict | None): Fields to keep from the original response.
+                - If list: Keep those keys.
+                - If dict: Maps {desired_name: real_field_name}.
+            **_kwargs: Additional keyword arguments.
 
         Returns:
-            Union[List, Dict]: Parsed data with specified fields or the entire structure.
+            list | dict: Parsed data with specified fields or the entire structure.
 
         """
         # Check input data type
@@ -254,9 +217,12 @@ class AlphafoldInterface(BaseAPIInterface):
         """Save the parsed data to a file.
 
         Args:
-            data (Union[List, Dict]): Data to save.
+            data (list | dict): Data to save.
             filename (str): Name of the file to save the data to.
             extension (str): File format. One of csv, tsv, json, parquet.
+
+        Returns:
+            str | None: Path to the saved file, or None if the extension is unsupported.
 
         """
         if not Path(self.output_dir).exists():
@@ -271,7 +237,7 @@ class AlphafoldInterface(BaseAPIInterface):
                 json.dump(data, f, indent=4)
             return str(Path(self.output_dir) / f"{filename}.{extension}")
 
-        df = pd.DataFrame(data)
+        df = records_to_frame(data)
         output_path = str(Path(self.output_dir) / f"{filename}.{extension}")
         export_dataframe(df, output_path, output_format=extension)
         return output_path

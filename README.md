@@ -113,31 +113,31 @@ bioseq-dl --help
 
 **Example 1 - Search antimicrobial proteins (length 50-51) in UniProt:**
 ```bash
-bioseq-dl general-collect uniprot search-by-query run \
+bioseq-dl search uniprot by-query \
 --query "(length:[50 TO 51]) AND antimicrobial AND reviewed:true" \
 --fields accession,protein_name,gene_primary,sequence,ec \
---crossref_fields alphafold,pdb \
---output search_query_test
+--crossref-fields alphafold,pdb \
+--output-dir search_query_test
 ```
 
 **Example 2 - Search UniProt entries by accession IDs:**
 ```bash
-bioseq-dl general-collect uniprot search-by-ids run \
+bioseq-dl search uniprot by-ids \
 --input unknown_ids.csv \
 --column accession \
---output search_ids_test \
---crossref_fields alphafold
+--output-dir search_ids_test \
+--crossref-fields alphafold
 ```
 
 **Example 3 - Experimental BLAST-backed UniProt sequence search:**
 ```bash
-bioseq-dl general-collect uniprot search-by-sequences run \
+bioseq-dl search uniprot by-sequences \
 --database uniprotkb_reviewed \
 --seq-column sequence \
---min_identity 100.0 \
+--min-identity 100.0 \
 --input unknown_sequences.csv \
---output search_sequences_test \
---crossref_fields alphafold
+--output-dir search_sequences_test \
+--crossref-fields alphafold
 ```
 
 This path is exposed by the CLI but is experimental compared with the validated YAML workflow path.
@@ -149,6 +149,11 @@ Commands that export parsed tabular results can write Parquet files when `parque
 ### Workflow YAML descriptors
 
 BioSeqDownloader supports structured YAML descriptors for reproducible workflow runs. These descriptors must declare `schema_version: "workflow-v1"` and define dataset, query, execution, harmonization, export, and reporting information. See [`docs/workflow_yaml.md`](docs/workflow_yaml.md) for the full implemented schema, field behavior, forbidden keys, credential policy, and examples.
+
+The `workflow` namespace has two commands:
+
+- `workflow run` — execute a workflow (descriptor and/or CLI options).
+- `workflow validate` — check a YAML descriptor without running it.
 
 Workflow runs can be described with a structured dataset descriptor and executed with:
 
@@ -162,6 +167,21 @@ CLI arguments override YAML values, so a descriptor can be reused with a differe
 bioseq-dl workflow run --config examples/workflows/protein_query_first_minimal.yml -o result_override
 bioseq-dl workflow run --config examples/workflows/protein_query_first_minimal.yml -e csv
 ```
+
+Before running, validate a descriptor to catch schema problems early. All
+section-level errors are reported at once:
+
+```bash
+bioseq-dl workflow validate examples/workflows/protein_query_first_minimal.yml
+```
+
+```text
+✗ my-workflow.yml has 2 validation error(s):
+  - Unsupported dataset.modality 'rna'. Supported modalities are: protein, compound, interaction.
+  - Unsupported export format 'xlsx'. Supported formats are: csv, json, xml, parquet.
+```
+
+A valid descriptor exits zero and echoes the resolved modality, mode, and output directory.
 
 YAML descriptors use top-level `schema_version`, `dataset`, `query`, `resources`, `execution`, `harmonization`, `export`, and `reporting` sections, plus a small allowlist of descriptive integration sections. `dataset.mode` is the workflow execution mode, and the only valid values are `query_first` and `query_composition`. Only part of the descriptor is executable: `dataset.modality`, `dataset.mode`, `query.value`, selected `query` options, supported `execution` options, and `export` options are mapped to the current workflow. `query.value` is the actual API query. `query.builder`, `query.composition`, `query.description`, and `query.filtering_strategy` are descriptive metadata only. If `query.composition` is present, it must match the executable `query.value`.
 
@@ -255,6 +275,7 @@ In YAML, set the execution mode with `dataset.mode`. In the CLI, use `--mode` or
 
 ```bash
 bioseq-dl workflow run [OPTIONS]
+bioseq-dl workflow validate CONFIG.yml
 ```
 
 ##### Required Options
@@ -412,9 +433,9 @@ bioseq-dl workflow run \
 You can also use the Python API to interact with the tool. Here's an example of how to use the UniProt interface:
 ```python
 from bioseq_dl import UniprotInterface
-import pandas as pd
+import polars as pl
 
-df = pd.DataFrame({
+df = pl.DataFrame({
     "id": [1, 2, 3],
     "accession": ["A1L3X0", "A0JNC4", "A2RUC4"]
 })

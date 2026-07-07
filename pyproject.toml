@@ -26,9 +26,8 @@ classifiers = [
 ]
 
 dependencies = [
-    "pandas",
+    "polars>=1.0",
     "pyarrow",
-    "requests",
     "biopython",
     "zeep",
     "python-dotenv",
@@ -36,6 +35,7 @@ dependencies = [
     "typer",
     "dicttoxml",
     "platformdirs>=4.0,<5.0",
+    "niquests>=3.19",
 ]
 
 [project.optional-dependencies]
@@ -48,7 +48,7 @@ dev = [
 tests = [
     "pytest>=9.0",
     "pytest-cov>=7.1",
-    "responses>=0.25",
+    "niquests-mock>=0.4.0",
 ]
 
 [project.scripts]
@@ -113,6 +113,7 @@ ignore = [
     "ANN",
     "ARG001", # unused fixture/mock arguments are common in tests
     "ARG002", # unused mock-method arguments are common in tests
+    "ARG005", # unused lambda args in monkeypatch stubs are common in tests
     "D",
     "EM101",
     "FBT003",
@@ -120,6 +121,7 @@ ignore = [
     "PLR2004",
     "PT011",
     "PT017",
+    "RUF012", # contract-mixin class attrs (QUERY/CALL_KWARGS dicts) are fixed test data
     "S101",
     "SLF001", # tests legitimately exercise private members
     "TRY003",
