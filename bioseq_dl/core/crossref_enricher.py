@@ -44,6 +44,68 @@ class EndpointSpec:
     required_columns: list[str] | None = None
 
 
+def get_source_context_value(row: pd.Series, column: str) -> Any | None:
+    """Return a non-missing source value from an enrichment input row."""
+    value = row.get(column)
+    if value is None or value is pd.NA:
+        return None
+    missing = pd.isna(value)
+    if not hasattr(missing, "__len__") and bool(missing):
+        return None
+    return value
+
+
+def attach_source_context(
+    result: Any,
+    row: pd.Series,
+    source_query: dict[str, Any] | list[Any],
+    *,
+    source_database: str,
+    source_endpoint: str,
+) -> Any:
+    """Attach input-row and endpoint provenance to a cross-reference result."""
+    if isinstance(result, pd.DataFrame) and result.empty:
+        return result
+    if isinstance(result, (list, dict)) and not result:
+        return result
+
+    context = {
+        "source_accession": get_source_context_value(row, "accession"),
+        "source_protein_name": get_source_context_value(row, "protein_name"),
+        "source_organism_id": get_source_context_value(row, "organism_id"),
+        "source_query": source_query,
+        "source_database": source_database,
+        "source_endpoint": source_endpoint,
+    }
+    context = {key: value for key, value in context.items() if value is not None}
+
+    if isinstance(result, pd.DataFrame):
+        enriched_result = result.copy()
+        for key, value in context.items():
+            enriched_result[key] = [value] * len(enriched_result)
+        return enriched_result
+    if isinstance(result, list):
+        return [dict(item, **context) if isinstance(item, dict) else item for item in result]
+    if isinstance(result, dict):
+        return dict(result, **context)
+    return result
+
+
+def add_endpoint_result_metadata(metadata: dict, spec: EndpointSpec) -> dict:
+    """Add endpoint semantics needed to interpret exported enrichment results."""
+    enriched_metadata = dict(metadata) if isinstance(metadata, dict) else {}
+    if spec.database == "pathwaycommons" and spec.endpoint == "neighborhood":
+        enriched_metadata.update(
+            {
+                "result_kind": "graph_neighborhood",
+                "result_description": (
+                    "Raw PathwayCommons graph neighborhood; rows are not compact pathway annotations."
+                ),
+            }
+        )
+    return enriched_metadata
+
+
 class CrossRefEnricher:
     """Reusable orchestrator that enriches a dataframe of sequences/IDs with cross-references from APIs.
 
@@ -126,7 +188,7 @@ class CrossRefEnricher:
         spec: EndpointSpec,
         params: dict[str, Any],
         fmt: Literal["dataframe", "json", "xml"] = "dataframe",
-    ) -> tuple[pd.DataFrame | list[dict[str, Any]], dict]:
+    ) -> tuple[pd.DataFrame | list[dict[str, Any]] | dict[str, Any], dict]:
         """Build query from row using the registered query-builder.
 
         Performs ``fetch_single`` or ``fetch_batch`` and merges the API result with the original row
@@ -164,7 +226,14 @@ class CrossRefEnricher:
         else:
             result = []
 
-        return result, metadata
+        result = attach_source_context(
+            result,
+            row,
+            query_params,
+            source_database=spec.database,
+            source_endpoint=spec.endpoint,
+        )
+        return result, add_endpoint_result_metadata(metadata, spec)
 
     def _merge_metadata(self, meta1: dict, meta2: dict) -> dict:
         """Merge two metadata dicts, concatenating lists and summing counts where appropriate."""

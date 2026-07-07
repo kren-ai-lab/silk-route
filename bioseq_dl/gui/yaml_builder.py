@@ -172,7 +172,7 @@ ENRICHMENT_SOURCE_OPTIONS: dict[str, tuple[str, tuple[str, ...]]] = {
         "pathwaycommons_top_pathways",
         ("gene_primary", "organism_id"),
     ),
-    "PathwayCommons Fetch": ("pathwaycommons_fetch", ("xref_reactome",)),
+    "PathwayCommons Fetch": ("pathwaycommons_fetch", ("xref_pathwaycommons",)),
 }
 
 DEFAULT_FORM_VALUES: dict[str, object] = {

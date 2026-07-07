@@ -314,7 +314,7 @@ def test_selected_enrichment_sources_generate_crossref_fields() -> None:
     [
         ("pathwaycommons_neighborhood", ["accession", "organism_id"]),
         ("pathwaycommons_top_pathways", ["gene_primary", "organism_id"]),
-        ("pathwaycommons_fetch", ["xref_reactome"]),
+        ("pathwaycommons_fetch", ["xref_pathwaycommons"]),
     ],
 )
 def test_pathwaycommons_sources_generate_crossrefs_and_required_fields(

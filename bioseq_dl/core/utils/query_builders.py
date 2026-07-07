@@ -99,6 +99,14 @@ def to_str_list(value: Any) -> list[str]:
     return [str(value).strip()] if str(value).strip() else []
 
 
+def add_database_prefix(identifier: str, database: str) -> str:
+    """Return an identifier with a PathwayCommons-compatible database prefix."""
+    cleaned_identifier = identifier.strip()
+    if ":" in cleaned_identifier:
+        return cleaned_identifier
+    return f"{database}:{cleaned_identifier}"
+
+
 ##########################################
 # Query Builders
 ###########################################
@@ -261,24 +269,23 @@ def build_query_go(row: pd.Series, _params: dict) -> list:
 def build_query_interpro(row: pd.Series, params: dict) -> list:
     """Build InterPro entry queries from 'interpro_ids' or 'accession'+'organism_id' columns."""
     interpro_ids = to_str_list(row.get("interpro_ids"))
-    accession = to_str_list(row.get("accession"))[0]
-    organism = to_str_list(row.get("organism_id"))[0]
-    if interpro_ids:
-        return [
-            {"id": interpro_id, "db": "InterPro", "modifiers": {}, **params} for interpro_id in interpro_ids
-        ]
-    if accession and organism:
-        # If accession and organism_id are present, use them to fetch InterPro entries
+    accessions = to_str_list(row.get("accession"))
+    organisms = to_str_list(row.get("organism_id"))
+    if accessions and organisms:
         return [
             {
                 "db": "InterPro",
                 "modifiers": {},
                 "filters": [
-                    {"type": "protein", "db": "reviewed", "value": accession},
-                    {"type": "taxonomy", "db": "uniprot", "value": organism},
+                    {"type": "protein", "db": "reviewed", "value": accessions[0]},
+                    {"type": "taxonomy", "db": "uniprot", "value": organisms[0]},
                 ],
                 **params,
             }
+        ]
+    if interpro_ids:
+        return [
+            {"id": interpro_id, "db": "InterPro", "modifiers": {}, **params} for interpro_id in interpro_ids
         ]
     return []
 
@@ -314,14 +321,21 @@ def build_query_panther_geneinfo(row: pd.Series, params: dict) -> list:
 
 @register_query_builder("pathwaycommons", "fetch")
 def build_query_pathwaycommons_fetch(row: pd.Series, params: dict) -> list:
-    """Build PathwayCommons 'fetch' requests from 'reactome_ids' column.
+    """Build PathwayCommons fetch requests from xrefs or a UniProt accession.
 
     Returns a list of query dicts. Empty if no valid IDs.
     """
-    ids = to_str_list(row.get("reactome_ids"))
-    if not ids:  # no ambiguous truth value here
-        return []
-    return [{"uri": [rid], **params} for rid in ids]
+    pathwaycommons_ids = to_str_list(row.get("pathwaycommons_ids"))
+    if pathwaycommons_ids:
+        identifiers = [add_database_prefix(identifier, "uniprot") for identifier in pathwaycommons_ids]
+    else:
+        accessions = to_str_list(row.get("accession"))
+        if accessions:
+            identifiers = [add_database_prefix(identifier, "uniprot") for identifier in accessions]
+        else:
+            reactome_ids = to_str_list(row.get("reactome_ids"))
+            identifiers = [add_database_prefix(identifier, "reactome") for identifier in reactome_ids]
+    return [{"uri": [identifier], **params} for identifier in identifiers]
 
 
 @register_query_builder("pathwaycommons", "top_pathways")

@@ -56,6 +56,86 @@ def test_build_query_brenda_filters_invalid_ec():
     assert out == [{"ecNumber": "1.1.1.1"}]
 
 
+def test_build_query_interpro_prioritizes_protein_context_over_interpro_ids():
+    builder = get_query_builder("interpro", "entry")
+
+    out = builder(
+        pd.Series(
+            {
+                "accession": "P04637",
+                "organism_id": "9606",
+                "interpro_ids": ["IPR002117"],
+            }
+        ),
+        {},
+    )
+
+    assert out == [
+        {
+            "db": "InterPro",
+            "modifiers": {},
+            "filters": [
+                {"type": "protein", "db": "reviewed", "value": "P04637"},
+                {"type": "taxonomy", "db": "uniprot", "value": "9606"},
+            ],
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    "row",
+    [
+        {"organism_id": "9606", "interpro_ids": ["IPR002117"]},
+        {"accession": "P04637", "interpro_ids": ["IPR002117"]},
+    ],
+)
+def test_build_query_interpro_falls_back_to_interpro_ids_without_full_context(row):
+    builder = get_query_builder("interpro", "entry")
+
+    assert builder(pd.Series(row), {}) == [
+        {"id": "IPR002117", "db": "InterPro", "modifiers": {}}
+    ]
+
+
+def test_build_query_pathwaycommons_fetch_prefers_and_prefixes_pathwaycommons_ids():
+    builder = get_query_builder("pathwaycommons", "fetch")
+
+    out = builder(
+        pd.Series(
+            {
+                "pathwaycommons_ids": ["P04637", "uniprot:Q00987"],
+                "accession": "P99999",
+                "reactome_ids": ["R-HSA-69541"],
+            }
+        ),
+        {},
+    )
+
+    assert out == [
+        {"uri": ["uniprot:P04637"]},
+        {"uri": ["uniprot:Q00987"]},
+    ]
+
+
+def test_build_query_pathwaycommons_fetch_falls_back_to_accession_before_reactome():
+    builder = get_query_builder("pathwaycommons", "fetch")
+
+    out = builder(
+        pd.Series({"accession": "P04637", "reactome_ids": ["R-HSA-69541"]}),
+        {},
+    )
+
+    assert out == [{"uri": ["uniprot:P04637"]}]
+
+
+def test_build_query_pathwaycommons_fetch_uses_reactome_as_last_fallback():
+    builder = get_query_builder("pathwaycommons", "fetch")
+
+    out = builder(pd.Series({"reactome_ids": ["R-HSA-69541"]}), {})
+
+    assert out == [{"uri": ["reactome:R-HSA-69541"]}]
+
+
 def test_chebi_compounds_chunks_in_groups_of_five():
     builder = get_query_builder("chebi", "compounds")
     ids = [str(i) for i in range(12)]
