@@ -49,12 +49,13 @@ FUTURE_ONLY_FIELDS = {
 HEAVY_MODULE_PREFIXES = (
     "bioseq_dl.cli.workflows",
     "bioseq_dl.core.interfaces.",
-    "bioseq_dl.core.workflow.",
+    "bioseq_dl.core.workflow.main_workflow",
+    "bioseq_dl.core.workflow.query_interpreter",
 )
 
 
 def test_workflow_v1_schema_definition_returns_dictionary() -> None:
-    from bioseq_dl.workflow_schema_definition import get_workflow_v1_schema_definition
+    from bioseq_dl.core.workflow.schema import get_workflow_v1_schema_definition
 
     schema_definition = get_workflow_v1_schema_definition()
 
@@ -63,7 +64,7 @@ def test_workflow_v1_schema_definition_returns_dictionary() -> None:
 
 
 def test_workflow_v1_schema_definition_includes_required_gui_fields() -> None:
-    from bioseq_dl.workflow_schema_definition import get_workflow_v1_schema_definition
+    from bioseq_dl.core.workflow.schema import get_workflow_v1_schema_definition
 
     schema_definition = get_workflow_v1_schema_definition()
 
@@ -74,7 +75,7 @@ def test_workflow_v1_schema_definition_includes_required_gui_fields() -> None:
 
 
 def test_workflow_v1_schema_definition_hides_future_only_fields() -> None:
-    from bioseq_dl.workflow_schema_definition import get_workflow_v1_schema_definition
+    from bioseq_dl.core.workflow.schema import get_workflow_v1_schema_definition
 
     schema_definition = get_workflow_v1_schema_definition()
 
@@ -86,11 +87,11 @@ def test_workflow_v1_schema_definition_hides_future_only_fields() -> None:
 
 def test_workflow_schema_definition_import_is_lightweight() -> None:
     for module_name in list(sys.modules):
-        if module_name == "bioseq_dl.workflow_schema_definition":
+        if module_name == "bioseq_dl.core.workflow.schema":
             sys.modules.pop(module_name)
 
     imported_before = set(sys.modules)
-    importlib.import_module("bioseq_dl.workflow_schema_definition")
+    importlib.import_module("bioseq_dl.core.workflow.schema")
 
     imported_modules = set(sys.modules) - imported_before
     for module_prefix in HEAVY_MODULE_PREFIXES:

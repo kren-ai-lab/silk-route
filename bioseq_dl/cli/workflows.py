@@ -24,8 +24,8 @@ from bioseq_dl.core.export import (
 )
 from bioseq_dl.core.interfaces.uniprot import UniprotInterface
 from bioseq_dl.core.workflow.main_workflow import MainWorkflow
+from bioseq_dl.core.workflow.schema import WORKFLOW_SCHEMA_VERSION
 from bioseq_dl.logging import configure_logging, get_logger
-from bioseq_dl.workflow_schema_definition import WORKFLOW_SCHEMA_VERSION
 
 log = get_logger("bioseq_dl.cli.workflows")
 

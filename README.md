@@ -198,7 +198,7 @@ There are no legacy top-level workflow YAML examples. Future GUI or YAML
 generator tools can inspect the lightweight schema definition with:
 
 ```python
-from bioseq_dl.workflow_schema_definition import get_workflow_v1_schema_definition
+from bioseq_dl.core.workflow.schema import get_workflow_v1_schema_definition
 ```
 
 The future simple GUI will generate YAML only and will not execute workflows unless implemented in a separate task later.

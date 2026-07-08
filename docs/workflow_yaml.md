@@ -189,7 +189,7 @@ The lightweight schema definition for future GUI or YAML generator tools is
 available through:
 
 ```python
-from bioseq_dl.workflow_schema_definition import get_workflow_v1_schema_definition
+from bioseq_dl.core.workflow.schema import get_workflow_v1_schema_definition
 ```
 
 The future simple GUI is expected to generate YAML only. It will not execute
