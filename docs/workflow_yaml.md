@@ -4,6 +4,17 @@ BioSeqDownloader workflow YAML files are structured dataset descriptors for repr
 
 They are not a generic workflow engine, a multi-step pipeline language, or a plugin system. The current implementation maps a specific set of descriptor fields to `bioseq-dl workflow run` and preserves the rest as descriptive metadata.
 
+Workflow descriptors must declare the frozen schema version:
+
+```yaml
+schema_version: "workflow-v1"
+```
+
+No other schema version is accepted.
+
+The old top-level key `version` is forbidden. Use only
+`schema_version: "workflow-v1"` for the workflow YAML schema marker.
+
 ## Execution Model
 
 The workflow execution strategy is configured with:
@@ -31,23 +42,51 @@ When a YAML descriptor and CLI options are both provided, values are resolved in
 Examples:
 
 ```bash
-bioseq-dl workflow run --config examples/protein-dataset-construction.yml
-bioseq-dl workflow run --config examples/protein-dataset-construction.yml -o result_override
-bioseq-dl workflow run --config examples/protein-dataset-construction.yml -e csv
+bioseq-dl workflow run --config examples/workflows/protein_query_first_minimal.yml
+bioseq-dl workflow run --config examples/workflows/protein_query_first_minimal.yml -o result_override
+bioseq-dl workflow run --config examples/workflows/protein_query_first_minimal.yml -e csv
 ```
 
 To check a descriptor without running it, use `workflow validate`. It reports all
 section-level errors at once and exits non-zero on any problem:
 
 ```bash
-bioseq-dl workflow validate examples/protein-dataset-construction.yml
+bioseq-dl workflow validate examples/workflows/protein_query_first_minimal.yml
 ```
 
-Validated example descriptors are:
+The organized workflow-v1 examples live under `examples/workflows/`.
+There are no legacy workflow YAML examples outside that directory.
+Use `examples/workflows/full_options_reference.yml` as the tutorial/reference
+descriptor for the full schema surface. It is documentation-oriented and is not
+intended to be executed as a complete workflow.
 
-- `examples/protein-dataset-construction.yml`
-- `examples/interaction-aware-dataset-construction.yml`
-- `examples/compound-dataset-construction.yml`
+The runnable examples under `examples/workflows/` intentionally keep preserved-only
+metadata fields out unless the example is specifically demonstrating metadata
+preservation. This keeps executable descriptors aligned with behavior implemented
+by the current workflow runner.
+
+Example descriptors:
+
+| File | Purpose | Schema-valid | Intended-to-run | Requires-internet | Notes |
+| --- | --- | --- | --- | --- | --- |
+| `examples/workflows/full_options_reference.yml` | Tutorial/reference descriptor | Yes | No | No | Documents the schema surface and current limitations. |
+| `examples/workflows/protein_query_first_minimal.yml` | Minimal protein `query_first` workflow | Yes | Yes | Yes | Small UniProt example. |
+| `examples/workflows/protein_query_first_with_fields.yml` | Protein query with UniProt request fields | Yes | Yes | Yes | `query.fields` is passed to UniProt and is not an output-column filter. |
+| `examples/workflows/protein_query_first_with_gui_metadata.yml` | Protein query with preserved GUI metadata | Yes | Yes | Yes | Demonstrates `query.builder`; `query.value` remains executable. |
+| `examples/workflows/protein_query_composition_labels.yml` | Labeled protein query-composition workflow | Yes | Yes | Yes | Demonstrates preserved `query.composition`; labels still execute from `query.value`. |
+| `examples/workflows/compound_chembl_ic50_ranges.yml` | Small ChEMBL IC50 range workflow | Yes | Yes | Yes | Uses `execution.chembl_pages_to_fetch: 1`. |
+| `examples/workflows/interaction_ppi_uniprot.yml` | Protein-protein interaction workflow descriptor | Yes | Yes | Yes | Keeps interaction settings limited to currently validated fields. |
+| `examples/workflows/interaction_pli_chembl.yml` | Protein-ligand interaction workflow descriptor | Yes | Yes | Yes | Uses a small ChEMBL query and page cap. |
+| `examples/workflows/invalid/missing_schema_version.yml` | Invalid missing-schema example | No | No | No | Expected to fail because `schema_version` is required. |
+| `examples/workflows/invalid/unsupported_schema_version.yml` | Invalid unsupported-schema example | No | No | No | Expected to fail because only `"workflow-v1"` is accepted. |
+| `examples/workflows/invalid/forbidden_version_key.yml` | Invalid old-version-key example | No | No | No | Expected to fail because top-level `version` is forbidden. |
+| `examples/workflows/invalid/unknown_top_level_section.yml` | Invalid unknown-section example | No | No | No | Expected to fail because `resoures` is not a supported section. |
+| `examples/workflows/invalid/invalid_query_composition.yml` | Invalid composition metadata example | No | No | No | Expected to fail because each composition item needs `label` and `value`. |
+
+Educational notebooks live under `examples/notebooks/`. The validation and
+metadata walkthrough notebooks are designed to work offline when the local
+package dependencies are installed. Notebooks that run workflow descriptors
+clearly mark live API cells and handle network/API failures gracefully.
 
 ## Top-Level Sections
 
@@ -55,6 +94,7 @@ Required top-level sections:
 
 | Section | Type | Role |
 | --- | --- | --- |
+| `schema_version` | string | Required schema marker. Must be exactly `"workflow-v1"`. |
 | `dataset` | mapping | Dataset identity plus executable `modality` and `mode`. |
 | `query` | mapping | Executable query string plus query metadata and fetch options. |
 | `execution` | mapping | Executable workflow controls such as enrichment, retries, and logging. |
@@ -81,6 +121,18 @@ These extension sections are preserved in metadata and run summary output. They 
 
 Unknown top-level sections are rejected. For example, `resoures` fails because the accepted section is `resources`.
 
+The canonical top-level order is:
+
+1. `schema_version`
+2. `dataset`
+3. `query`
+4. `resources`
+5. `execution`
+6. `harmonization`
+7. `export`
+8. `reporting`
+9. Optional descriptive extension sections
+
 ## Field Reference
 
 Field roles:
@@ -88,6 +140,60 @@ Field roles:
 - **Executable**: changes the workflow run.
 - **Descriptive**: accepted and preserved, but does not currently change execution.
 - **Generated**: filled or overwritten by BioSeqDownloader during reporting.
+
+Current executable fields are the fields that should be used to control
+workflow behavior today:
+
+| Field | Current behavior |
+| --- | --- |
+| `schema_version` | Required schema marker. Must be exactly `"workflow-v1"`. |
+| `dataset.modality` | Selects the workflow modality: `protein`, `compound`, or `interaction`. |
+| `dataset.mode` | Selects `query_first` or `query_composition`. |
+| `dataset.interaction_type` | Required for interaction workflows and validated as `protein-protein` or `protein-ligand`. |
+| `query.value` | The executable query string. |
+| `query.fields` | Passed to UniProt as requested API fields. |
+| `query.crossref_fields` | Used by supported enrichment paths when enrichment is enabled. |
+| `query.include_isoform` | Passed to UniProt requests. |
+| `execution.enrich` | Enables supported enrichment behavior. |
+| `execution.max_workers` | Controls worker count for supported workflow/enrichment paths. |
+| `execution.total_retries` | Controls retry settings for supported interfaces. |
+| `execution.chembl_pages_to_fetch` | Caps ChEMBL page retrieval. |
+| `execution.uniprot_timeout` | Controls UniProt request timeout when provided. |
+| `execution.debug` | Enables debug logging. |
+| `harmonization.id_column` | Adds deterministic IDs to exported tabular outputs when absent. |
+| `export.output_dir` | Selects the output directory. |
+| `export.format` | Selects `csv`, `json`, `xml`, or `parquet`. |
+| `export.include_metadata` | Controls metadata manifest writing. |
+| `export.include_summary` | Controls run summary writing. |
+| `export.manifest_file` | Selects the metadata manifest filename. |
+| `export.summary_file` | Selects the run summary filename. |
+
+Preserved metadata fields are accepted by the schema and carried into metadata
+or summaries, but they must not be described as execution controls:
+
+| Field or section | Current behavior |
+| --- | --- |
+| `dataset.name` | Dataset identity and default output-directory source when `export.output_dir` is absent. |
+| `dataset.description` | Preserved descriptive text. |
+| `dataset.primary_data_source` | Preserved descriptive text; it does not route execution. |
+| `query.description` | Preserved descriptive text. |
+| `query.filtering_strategy` | Preserved descriptive text; executable filtering belongs in `query.value`. |
+| `query.builder` | Preserved GUI-oriented metadata only. |
+| `query.composition` | Preserved GUI-oriented metadata only; it does not replace `query.value`. If `query.composition` is present, it must match the executable `query.value`. |
+| `harmonization.sequence_column` | Used only for generated unique-sequence reporting when matching tabular output exists. |
+| `reporting` custom fields | Preserved YAML-safe descriptive values unless overwritten by generated reporting. |
+
+Future features are listed in [Future Workflow YAML Features](#future-workflow-yaml-features).
+
+The lightweight schema definition for future GUI or YAML generator tools is
+available through:
+
+```python
+from bioseq_dl.core.workflow.schema import get_workflow_v1_schema_definition
+```
+
+The future simple GUI is expected to generate YAML only. It will not execute
+workflows unless execution behavior is implemented in a separate task later.
 
 ### `dataset`
 
@@ -105,11 +211,24 @@ Field roles:
 | Field | Type | Required | Default | Role | Internal mapping | Limitations |
 | --- | --- | --- | --- | --- | --- | --- |
 | `value` | non-empty string | Required | none | Executable | Normalized to `workflow_values["query"]` | For `query_first`, this is the query string. For `query_composition`, use comma-separated labeled pairs such as `temperature:99=temp_99,temperature:98=temp_98`. |
+| `builder` | mapping | Optional | omitted | Descriptive GUI metadata | Preserved in descriptor metadata and summary | Intended for future GUI reconstruction. It does not affect execution, and nested values are not constrained yet. |
+| `composition` | list of mappings | Optional | omitted | Descriptive GUI metadata | Preserved in descriptor metadata and summary | Does not replace `query.value`. Each item must include non-empty string `label` and `value`; optional `description` may be a string or null. |
 | `description` | string or null | Optional | `null` | Descriptive | Preserved in metadata and summary | Does not affect query execution. |
 | `filtering_strategy` | string or null | Optional | `null` | Descriptive | Preserved in metadata and summary | Filtering must be encoded in `query.value`; `query.filters` is not supported. |
 | `fields` | null, string, or list of strings | Optional | `null` | Executable | Normalized to `workflow_values["fields"]` and passed to the UniProt fetch as the API `fields` parameter | It controls requested UniProt fields. It is not currently used as a parser column filter. |
 | `crossref_fields` | null, string, or list of strings | Optional | `null` | Executable when enrichment is enabled | Normalized to `workflow_values["crossref_fields"]` and passed to the enrichment path | Used with `execution.enrich`; unavailable or unsupported cross-reference fields may produce no enrichment output. |
 | `include_isoform` | boolean | Optional | `false` | Executable | Normalized to `workflow_values["include_isoform"]` and passed to UniProt fetches | Applies to UniProt requests. |
+
+`query.value` is the only executable query field. `query.builder` and
+`query.composition` are preserved GUI-oriented metadata for future
+reconstruction and do not affect execution.
+
+When `dataset.mode` is `query_composition` and `query.composition` is present,
+the preserved composition metadata must match the executable comma-separated
+`query.value` pairs. For example,
+`query.value: "gene:TP53=tp53,gene:BRCA1=brca1"` must be described by
+composition items whose labels include `tp53` and `brca1` and whose values
+include `gene:TP53` and `gene:BRCA1`.
 
 ### `resources`
 
@@ -176,7 +295,7 @@ These YAML fields are not supported:
 
 | Forbidden field | Reason | Alternative |
 | --- | --- | --- |
-| `version` | Old root key | Use the structured `dataset`, `query`, `execution`, and `export` sections. |
+| `version` | Old root key | Use `schema_version: "workflow-v1"`. |
 | `kind` | Old root key | Use the structured sections. |
 | `workflow` | Old root key | Use the structured sections. |
 | `dispatch_mode` | Removed workflow mode key | Use `dataset.mode` in YAML or `--mode` in the CLI. |
@@ -213,6 +332,7 @@ Workflow runs can produce:
 
 The metadata manifest includes:
 
+- a tool identity block with the tool name, distribution name, import package name, and version;
 - raw workflow metadata returned by the workflow implementation;
 - the original descriptor;
 - the normalized descriptor after CLI overrides and defaults;
@@ -223,6 +343,7 @@ The metadata manifest includes:
 
 The run summary includes:
 
+- the same tool identity block;
 - dataset and query information;
 - execution status, timing, enrichment, retry, and worker settings;
 - export settings;
@@ -243,6 +364,8 @@ If `harmonization.id_column` is set, exported tabular outputs for CSV, Parquet, 
 ## Example: Minimal Protein Query Workflow
 
 ```yaml
+schema_version: "workflow-v1"
+
 dataset:
   name: antimicrobial_reviewed_proteins
   description: Reviewed UniProt protein records retrieved with an antimicrobial query.
@@ -256,27 +379,14 @@ query:
   filtering_strategy: >
     Filtering is encoded in the UniProt-compatible query string.
 
-resources:
-  primary:
-    - uniprot
-  integration: []
-
 execution:
   enrich: false
   max_workers: 5
   total_retries: 3
-  merge_results: false
   debug: true
 
 harmonization:
   id_column: "_id"
-  label_column: null
-  sequence_column: "sequence"
-  metadata_fields:
-    - accession
-    - protein_name
-    - organism_name
-    - sequence
 
 export:
   output_dir: "results/protein_antimicrobial_reviewed"
@@ -285,18 +395,13 @@ export:
   include_summary: true
   manifest_file: "metadata.json"
   summary_file: "run_summary.yml"
-
-reporting:
-  workflow_execution_time_seconds: null
-  retrieved_records: null
-  unique_sequences: null
-  notes: >
-    Values are filled after execution from exported result files and metadata.
 ```
 
 ## Example: Disease-Oriented UniProt Query
 
 ```yaml
+schema_version: "workflow-v1"
+
 dataset:
   name: uniprot_breast_cancer_proteins
   description: Reviewed UniProt protein records associated with breast cancer disease annotations.
@@ -311,28 +416,13 @@ query:
     Disease filtering is encoded directly in the UniProt-compatible query string
     using the cc_disease field.
 
-resources:
-  primary:
-    - uniprot
-  integration: []
-
 execution:
   enrich: false
   max_workers: 5
   total_retries: 3
-  merge_results: false
 
 harmonization:
   id_column: "_id"
-  label_column: null
-  sequence_column: "sequence"
-  metadata_fields:
-    - accession
-    - protein_name
-    - gene_primary
-    - organism_name
-    - sequence
-    - diseases
 
 export:
   output_dir: "results/uniprot_breast_cancer_proteins"
@@ -341,15 +431,29 @@ export:
   include_summary: true
   manifest_file: "metadata.json"
   summary_file: "run_summary.yml"
-
-reporting:
-  workflow_execution_time_seconds: null
-  retrieved_records: null
-  unique_sequences: null
-  notes: >
-    Disease annotations are parsed from structured UniProt DISEASE comments
-    when the response includes disease objects.
 ```
+
+## Future Workflow YAML Features
+
+These features are not part of the current executable workflow behavior.
+They are documented as possible future extensions and must not be used as active fields in executable examples until implementation and tests exist.
+
+Do not reintroduce these fields into runnable examples as though they control
+execution. If a future implementation makes one of these fields executable,
+update the implementation, tests, examples, and this documentation together.
+
+| Future feature | Fields or sections | Purpose | Current status |
+| --- | --- | --- | --- |
+| Resource-driven routing | `resources.primary`, `resources.integration` | Allow YAML descriptors to explicitly select primary and secondary databases for execution. | Not an execution driver in the current workflow. Routing comes from `dataset.modality`, `dataset.mode`, and the current workflow implementation. |
+| Interaction retrieval configuration | `interaction_retrieval` | Allow explicit configuration of PPI or PLI retrieval sources and strategies. | Do not include it in executable YAML unless implementation and tests exist for that behavior. |
+| Activity retrieval configuration | `activity_retrieval` | Allow explicit activity type, units, thresholds, and range strategies for ChEMBL-like workflows. | Use only the currently supported executable query syntax in `query.value`. |
+| Chemical metadata integration | `chemical_metadata_integration` | Allow explicit enrichment of compound metadata from chemical sources. | Future feature unless the workflow code supports it directly and tests cover it. |
+| Protein target integration | `protein_target_integration` | Allow explicit target metadata enrichment from protein sources. | Future feature unless the workflow code supports it directly and tests cover it. |
+| Temperature enrichment | `temperature_enrichment` | Allow explicit temperature metadata retrieval or enrichment. | Future feature unless the workflow code supports it directly and tests cover it. |
+| Cross-source integration | `cross_source_integration` | Allow explicit integration rules across multiple databases. | Future feature unless the workflow code supports it directly and tests cover it. |
+| Runtime reporting fields in YAML | `reporting.workflow_execution_time_seconds`, `reporting.retrieved_records`, `reporting.unique_sequences` | Represent measured outputs from workflow execution. | Generated outputs, not user-authored input fields. They should appear in metadata or summaries generated after execution, not in executable YAML examples. |
+| Planned export filename control | `export.result_files` | Allow user-defined output filenames. | Future feature unless current code supports it directly. Output filenames currently derive from result labels. |
+| Advanced harmonization controls | `harmonization.unique_sequence_strategy`, `harmonization.metadata_fields` | Control deduplication, metadata selection, and output harmonization. | Future feature unless current code supports it directly. They should not be used as active controls in executable examples. |
 
 ## Validation Notes
 
@@ -368,3 +472,10 @@ Important current limitations:
 - `harmonization.metadata_fields`, `label_column`, and `unique_sequence_strategy` do not filter, rename, merge, or deduplicate output.
 - `query.fields` is sent to UniProt as the fetch `fields` parameter, but parsing currently uses the workflow parser's field map rather than this value as an output-column filter.
 - `export.result_files` does not control output filenames.
+
+Keep preserved-only and future-facing fields out of runnable examples unless an
+example is specifically demonstrating metadata preservation. This includes
+descriptive `resources` entries, domain-specific extension sections,
+descriptor-provided `reporting` placeholders, `execution.merge_results`,
+`harmonization.metadata_fields`, `harmonization.label_column`,
+`harmonization.unique_sequence_strategy`, and `export.result_files`.

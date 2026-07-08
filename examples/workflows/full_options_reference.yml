@@ -1,0 +1,82 @@
+schema_version: "workflow-v1"
+
+# BioSeqDownloader workflow-v1 reference descriptor.
+# This file is documentation-oriented and is not intended to be executed as a
+# complete workflow. Copy one of the smaller runnable examples when you want a
+# live workflow run.
+#
+# Required schema marker:
+# - schema_version is required.
+# - Only "workflow-v1" is accepted.
+# - The old top-level key "version" is forbidden.
+#
+# Security:
+# - Do not store credentials in workflow YAML.
+# - Provide credentials through environment variables or a local .env file.
+
+dataset:
+  name: reference_workflow_v1
+  description: Documentation-oriented reference for the workflow-v1 YAML schema.
+  modality: protein
+  mode: query_first
+  primary_data_source: uniprot
+  # Add interaction_type only when modality is interaction.
+
+query:
+  # query.value is the only executable query field.
+  value: "gene:TP53 AND reviewed:true AND organism:human"
+  description: Reference UniProt query for workflow-v1 examples.
+  filtering_strategy: >
+    Put executable filtering in query.value. Descriptive filtering notes belong
+    here.
+  # query.builder is preserved GUI-oriented metadata only.
+  builder:
+    source: example_gui
+    filters:
+      - field: reviewed
+        operator: equals
+        value: true
+      - field: organism
+        operator: equals
+        value: human
+  # query.composition is preserved GUI-oriented metadata only.
+  # It does not replace query.value.
+  composition:
+    - label: reviewed_human
+      value: "gene:TP53 AND reviewed:true AND organism:human"
+      description: Example query component for future GUI reconstruction.
+  fields:
+    - accession
+    - protein_name
+    - organism_name
+    - sequence
+  crossref_fields:
+    - PDB
+  include_isoform: false
+
+execution:
+  enrich: false
+  max_workers: 2
+  total_retries: 1
+  chembl_pages_to_fetch: 1
+  uniprot_timeout: 30
+  debug: false
+
+harmonization:
+  id_column: "_id"
+  # sequence_column is used only to compute generated unique-sequence reporting
+  # when the named column exists in tabular outputs.
+  sequence_column: "sequence"
+
+export:
+  output_dir: "examples/results/reference_workflow_v1"
+  format: csv
+  include_metadata: true
+  include_summary: true
+  manifest_file: "metadata.json"
+  summary_file: "run_summary.yml"
+
+# Future-feature and preserved-metadata sections intentionally stay out of the
+# runnable examples unless an example demonstrates schema preservation. The
+# schema currently accepts resources, reporting, and descriptive extension
+# sections, but those sections do not activate additional APIs by themselves.

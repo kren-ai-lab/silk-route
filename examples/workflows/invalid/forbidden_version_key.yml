@@ -1,0 +1,18 @@
+# Invalid example: the old top-level key "version" is forbidden.
+schema_version: "workflow-v1"
+version: "workflow-v1"
+
+dataset:
+  name: invalid_forbidden_version_key
+  modality: protein
+  mode: query_first
+
+query:
+  value: "reviewed:true"
+
+execution:
+  enrich: false
+
+export:
+  output_dir: "examples/results/invalid_forbidden_version_key"
+  format: csv

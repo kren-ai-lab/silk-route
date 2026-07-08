@@ -15,6 +15,7 @@ import polars as pl
 import typer
 import yaml
 
+from bioseq_dl import __version__
 from bioseq_dl.core.export import (
     USER_EXPORT_FORMATS,
     export_dataframe,
@@ -23,6 +24,7 @@ from bioseq_dl.core.export import (
 )
 from bioseq_dl.core.interfaces.uniprot import UniprotInterface
 from bioseq_dl.core.workflow.main_workflow import MainWorkflow
+from bioseq_dl.core.workflow.schema import WORKFLOW_SCHEMA_VERSION
 from bioseq_dl.logging import configure_logging, get_logger
 
 log = get_logger("bioseq_dl.cli.workflows")
@@ -30,6 +32,7 @@ log = get_logger("bioseq_dl.cli.workflows")
 
 MODALITIES = ["protein", "compound", "interaction"]
 MODES = ["query_first", "query_composition"]
+INTERACTION_TYPES = ["protein-protein", "protein-ligand"]
 FORMATS = list(USER_EXPORT_FORMATS)
 QUERY_COMPOSITION_LABEL_COLUMN = "_label"
 PRIMARY_RESULT_LABELS = {
@@ -52,7 +55,23 @@ DESCRIPTIVE_DESCRIPTOR_SECTIONS = {
     "temperature_enrichment",
     "cross_source_integration",
 }
-KNOWN_DESCRIPTOR_SECTIONS = CORE_DESCRIPTOR_SECTIONS | DESCRIPTIVE_DESCRIPTOR_SECTIONS
+ALLOWED_DESCRIPTOR_SECTION_NAMES = [
+    "schema_version",
+    "dataset",
+    "query",
+    "resources",
+    "execution",
+    "harmonization",
+    "export",
+    "reporting",
+    "interaction_retrieval",
+    "activity_retrieval",
+    "chemical_metadata_integration",
+    "protein_target_integration",
+    "temperature_enrichment",
+    "cross_source_integration",
+]
+KNOWN_DESCRIPTOR_SECTIONS = CORE_DESCRIPTOR_SECTIONS | DESCRIPTIVE_DESCRIPTOR_SECTIONS | {"schema_version"}
 
 DATASET_KEYS = {
     "name",
@@ -64,6 +83,8 @@ DATASET_KEYS = {
 }
 QUERY_KEYS = {
     "value",
+    "builder",
+    "composition",
     "description",
     "filtering_strategy",
     "fields",
@@ -98,9 +119,7 @@ EXPORT_KEYS = {
 }
 
 OLD_ROOT_KEY_ERRORS = {
-    "version": (
-        "Unknown workflow YAML key 'version'. Use the structured dataset/query/execution/export schema."
-    ),
+    "version": (f"Unknown workflow YAML key 'version'. Use schema_version: \"{WORKFLOW_SCHEMA_VERSION}\"."),
     "kind": "Unknown workflow YAML key 'kind'. Use the structured dataset/query/execution/export schema.",
     "workflow": (
         "Unknown workflow YAML key 'workflow'. Use the structured dataset/query/execution/export schema."
@@ -130,6 +149,7 @@ FORBIDDEN_CREDENTIAL_KEYS = {
     "bioseq_dl_refseq_email",
 }
 CREDENTIAL_ERROR = "Credentials must be provided through environment variables or .env, not workflow YAML."
+QUERY_COMPOSITION_MISMATCH_ERROR = "query.composition does not match executable query.value."
 
 
 def build_default_workflow_values() -> dict:
@@ -149,6 +169,7 @@ def build_default_workflow_values() -> dict:
         "reporting": {},
         "extra_descriptor_sections": {},
         "original_descriptor": {},
+        "schema_version": None,
         "output": None,
         "query": None,
         "modality": None,
@@ -262,6 +283,25 @@ def validate_descriptor_section_names(workflow_descriptor: dict) -> None:
         if key not in KNOWN_DESCRIPTOR_SECTIONS:
             msg = f"Unknown workflow YAML section '{key}'. Allowed sections are: {allowed_sections}."
             raise ValueError(msg)
+
+
+def validate_schema_version(workflow_descriptor: dict) -> str:
+    """Validate the required workflow schema version."""
+    if "schema_version" not in workflow_descriptor:
+        msg = (
+            "Workflow YAML is missing required top-level key 'schema_version'. "
+            f'Use schema_version: "{WORKFLOW_SCHEMA_VERSION}".'
+        )
+        raise ValueError(msg)
+
+    schema_version = workflow_descriptor["schema_version"]
+    if schema_version != WORKFLOW_SCHEMA_VERSION:
+        msg = (
+            f"Unsupported workflow schema_version '{schema_version}'. "
+            f'Only schema_version: "{WORKFLOW_SCHEMA_VERSION}" is supported.'
+        )
+        raise ValueError(msg)
+    return schema_version
 
 
 def validate_required_section_keys(section_name: str, section: dict, required_keys: set[str]) -> None:
@@ -387,6 +427,69 @@ def validate_string_list(section_name: str, key: str, value: object) -> None:
         raise ValueError(msg)
 
 
+def validate_query_builder(value: object) -> None:
+    """Validate optional GUI query-builder metadata."""
+    if value is not None and not isinstance(value, dict):
+        msg = "Workflow YAML key 'query.builder' must be a mapping."
+        raise TypeError(msg)
+
+
+def validate_query_composition(value: object) -> None:
+    """Validate optional GUI query-composition metadata."""
+    if value is None:
+        return
+    if not isinstance(value, list):
+        msg = "Workflow YAML key 'query.composition' must be a list of mappings."
+        raise TypeError(msg)
+    for index, item in enumerate(value):
+        if not isinstance(item, dict):
+            msg = f"Workflow YAML key 'query.composition[{index}]' must be a mapping."
+            raise TypeError(msg)
+        for required_key in ("label", "value"):
+            required_value = item.get(required_key)
+            if not isinstance(required_value, str) or not required_value.strip():
+                msg = (
+                    f"Workflow YAML key 'query.composition[{index}].{required_key}' "
+                    "must be a non-empty string."
+                )
+                raise ValueError(msg)
+        description = item.get("description")
+        if "description" in item and description is not None and not isinstance(description, str):
+            msg = f"Workflow YAML key 'query.composition[{index}].description' must be a string or null."
+            raise ValueError(msg)
+
+
+def parse_query_composition_value(query_value: str) -> list[tuple[str, str]]:
+    """Parse executable query-composition pairs from query.value."""
+    pairs = []
+    for raw_part in query_value.split(","):
+        query_part = raw_part.strip()
+        if not query_part:
+            continue
+        try:
+            query_text, label = split_pair(query_part)
+        except ValueError:
+            raise ValueError(QUERY_COMPOSITION_MISMATCH_ERROR) from None
+        if not query_text or not label:
+            raise ValueError(QUERY_COMPOSITION_MISMATCH_ERROR)
+        pairs.append((query_text, label))
+    if not pairs:
+        raise ValueError(QUERY_COMPOSITION_MISMATCH_ERROR)
+    return pairs
+
+
+def validate_query_composition_matches_query_value(query_descriptor: dict, mode: str) -> None:
+    """Require preserved query.composition metadata to match executable query.value."""
+    composition = query_descriptor.get("composition")
+    if mode != "query_composition" or composition is None:
+        return
+
+    executable_pairs = set(parse_query_composition_value(query_descriptor["value"]))
+    for item in composition:
+        if (item["value"], item["label"]) not in executable_pairs:
+            raise ValueError(QUERY_COMPOSITION_MISMATCH_ERROR)
+
+
 def normalize_optional_field_list(section_name: str, key: str, value: object) -> str | None:
     """Normalize null, comma-separated string, or string-list fields for workflow calls.
 
@@ -452,6 +555,36 @@ def validate_reporting_section(reporting: dict) -> None:
             raise ValueError(msg)
 
 
+def validate_interaction_type(
+    modality: object,
+    interaction_type: object,
+    field_label: str,
+    modality_label: str,
+) -> None:
+    """Validate the interaction type against the selected modality.
+
+    Args:
+        modality (object): The selected modality.
+        interaction_type (object): The interaction type to validate.
+        field_label (str): Interaction-type field name used in error messages.
+        modality_label (str): Modality field name used in error messages.
+
+    Raises:
+        ValueError: If the modality is ``interaction`` without an interaction type,
+            or the interaction type is not supported.
+
+    """
+    if modality == "interaction" and not interaction_type:
+        msg = f"{field_label} is required when {modality_label} is 'interaction'."
+        raise ValueError(msg)
+    if interaction_type is not None and interaction_type not in INTERACTION_TYPES:
+        msg = (
+            f"Unsupported {field_label} '{interaction_type}'. "
+            f"Supported interaction types are: {', '.join(INTERACTION_TYPES)}."
+        )
+        raise ValueError(msg)
+
+
 def validate_dataset_section(dataset: dict, export_section: dict) -> dict:
     """Validate and return the dataset descriptor section.
 
@@ -476,7 +609,8 @@ def validate_dataset_section(dataset: dict, export_section: dict) -> dict:
     modality = dataset.get("modality")
     mode = dataset.get("mode")
     if modality not in MODALITIES:
-        msg = f"Unsupported dataset.modality '{modality}'. Supported modalities are: {', '.join(MODALITIES)}."
+        supported_modalities = ", ".join(MODALITIES)
+        msg = f"Unsupported dataset.modality '{modality}'. Supported modalities are: {supported_modalities}."
         raise ValueError(msg)
     if mode not in MODES:
         msg = f"Unsupported dataset.mode '{mode}'. Supported modes are: {', '.join(MODES)}."
@@ -484,6 +618,10 @@ def validate_dataset_section(dataset: dict, export_section: dict) -> dict:
 
     for key in ("name", "description", "primary_data_source", "interaction_type"):
         validate_optional_string("dataset", key, dataset.get(key))
+
+    validate_interaction_type(
+        modality, dataset.get("interaction_type"), "dataset.interaction_type", "dataset.modality"
+    )
 
     if not export_section.get("output_dir") and not dataset.get("name"):
         msg = "dataset.name is required when export.output_dir is not provided."
@@ -515,6 +653,8 @@ def validate_query_section(query_section: dict) -> tuple[dict, str | None, str |
 
     for key in ("description", "filtering_strategy"):
         validate_optional_string("query", key, query_section.get(key))
+    validate_query_builder(query_section.get("builder"))
+    validate_query_composition(query_section.get("composition"))
     if "include_isoform" in query_section:
         validate_bool("query", "include_isoform", query_section["include_isoform"])
 
@@ -650,16 +790,21 @@ def collect_descriptor_sections(values: dict) -> dict:
         dict: The descriptor-shaped section mapping.
 
     """
-    descriptor = {
-        "dataset": values.get("dataset", {}),
-        "query": values.get("query_descriptor", {}),
-        "execution": values.get("execution", {}),
-        "export": values.get("export", {}),
-    }
+    descriptor = {}
+    if values.get("schema_version"):
+        descriptor["schema_version"] = values["schema_version"]
+    descriptor.update(
+        {
+            "dataset": values.get("dataset", {}),
+            "query": values.get("query_descriptor", {}),
+        }
+    )
     if values.get("resources"):
         descriptor["resources"] = values["resources"]
+    descriptor["execution"] = values.get("execution", {})
     if values.get("harmonization"):
         descriptor["harmonization"] = values["harmonization"]
+    descriptor["export"] = values.get("export", {})
     if values.get("reporting"):
         descriptor["reporting"] = values["reporting"]
     descriptor.update(values.get("extra_descriptor_sections", {}))
@@ -791,6 +936,7 @@ def validate_workflow_recipe(recipe: dict) -> dict:
     check_forbidden_workflow_recipe_keys(recipe)
     workflow_descriptor = {str(key): value for key, value in recipe.items()}
     validate_descriptor_section_names(workflow_descriptor)
+    schema_version = validate_schema_version(workflow_descriptor)
 
     missing_sections = sorted(REQUIRED_DESCRIPTOR_SECTIONS - set(workflow_descriptor))
     if missing_sections:
@@ -805,6 +951,7 @@ def validate_workflow_recipe(recipe: dict) -> dict:
     query_descriptor, fields, crossref_fields = validate_query_section(
         require_mapping("query", workflow_descriptor["query"])
     )
+    validate_query_composition_matches_query_value(query_descriptor, dataset["mode"])
     execution = validate_execution_section(require_mapping("execution", workflow_descriptor["execution"]))
 
     resources = {}
@@ -845,6 +992,7 @@ def validate_workflow_recipe(recipe: dict) -> dict:
             "reporting": reporting,
             "extra_descriptor_sections": extra_descriptor_sections,
             "original_descriptor": workflow_descriptor,
+            "schema_version": schema_version,
             "output": output_dir,
             "query": query_descriptor["value"],
             "modality": dataset["modality"],
@@ -900,6 +1048,7 @@ def collect_workflow_recipe_errors(recipe: object) -> list[str]:
     _check(lambda: check_forbidden_workflow_recipe_keys(recipe))
     descriptor = {str(key): value for key, value in recipe.items()}
     _check(lambda: validate_descriptor_section_names(descriptor))
+    _check(lambda: validate_schema_version(descriptor))
 
     missing_sections = sorted(REQUIRED_DESCRIPTOR_SECTIONS - set(descriptor))
     if missing_sections:
@@ -943,9 +1092,23 @@ def collect_workflow_recipe_errors(recipe: object) -> list[str]:
             lambda: validate_reporting_section(require_mapping("reporting", descriptor["reporting"])),
         ),
     ]
+    valid_sections: set[str] = set()
     for name, step in section_steps:
         if name in descriptor:
+            before = len(errors)
             _check(step)
+            if len(errors) == before:
+                valid_sections.add(name)
+
+    # The composition/query.value cross-check spans two sections, so it only runs
+    # once both validated cleanly (their shapes are then safe to index).
+    if {"dataset", "query"} <= valid_sections:
+        _check(
+            lambda: validate_query_composition_matches_query_value(
+                require_mapping("query", descriptor["query"]),
+                require_mapping("dataset", descriptor["dataset"]).get("mode"),
+            )
+        )
 
     return errors
 
@@ -1051,14 +1214,19 @@ def validate_merged_workflow_values(values: dict) -> None:
         raise ValueError(msg)
 
     if values["modality"] not in MODALITIES:
+        supported_modalities = ", ".join(MODALITIES)
         msg = (
-            f"Unsupported modality '{values['modality']}'. Supported modalities are: {', '.join(MODALITIES)}."
+            f"Unsupported modality '{values['modality']}'. Supported modalities are: {supported_modalities}."
         )
         raise ValueError(msg)
 
     if values["mode"] not in MODES:
         msg = f"Unsupported workflow mode '{values['mode']}'. Supported modes are: {', '.join(MODES)}."
         raise ValueError(msg)
+
+    validate_interaction_type(
+        values["modality"], values.get("interaction_type"), "interaction_type", "modality"
+    )
 
     chembl_pages_to_fetch = values.get("chembl_pages_to_fetch", -1)
     if not isinstance(chembl_pages_to_fetch, int) or isinstance(chembl_pages_to_fetch, bool):
@@ -1341,7 +1509,14 @@ def export_workflow_outputs(
     for label, content in data.items():
         if label == "uniprot_enrichment":
             continue
-        info = export_single_result(label, content, output_dir, export_format, id_column, suffix_results=True)
+        info = export_single_result(
+            label,
+            content,
+            output_dir,
+            export_format,
+            id_column,
+            suffix_results=True,
+        )
         if info:
             output_infos.append(info)
 
@@ -1638,7 +1813,10 @@ def has_primary_output(output_infos: list[dict]) -> bool:
     return any(info.get("category") == "result" for info in output_infos)
 
 
-def determine_execution_status(workflow_metadata: object, output_infos: list[dict]) -> tuple[str, str | None]:
+def determine_execution_status(
+    workflow_metadata: object,
+    output_infos: list[dict],
+) -> tuple[str, str | None]:
     """Determine the execution status from exported outputs and metadata errors.
 
     Returns "failed" when no primary output exists alongside errors, "completed_with_errors"
@@ -1676,6 +1854,7 @@ def build_normalized_workflow_metadata(values: dict) -> dict:
 
     """
     metadata_keys = [
+        "schema_version",
         "output",
         "query",
         "modality",
@@ -1699,6 +1878,16 @@ def build_normalized_workflow_metadata(values: dict) -> dict:
         "summary_file",
     ]
     return {key: values.get(key) for key in metadata_keys}
+
+
+def build_tool_identity() -> dict[str, str]:
+    """Return stable tool identity metadata for run provenance."""
+    return {
+        "tool_name": "BioSeqDownloader",
+        "distribution_name": "bioseqdownloader",
+        "import_package_name": "bioseq_dl",
+        "version": __version__,
+    }
 
 
 def build_metadata_document(
@@ -1739,6 +1928,7 @@ def build_metadata_document(
         execution["error"] = error
 
     return {
+        "tool": build_tool_identity(),
         "workflow_metadata": workflow_metadata,
         "original_descriptor": workflow_values.get("original_descriptor")
         or collect_descriptor_sections(workflow_values),
@@ -1807,7 +1997,15 @@ def build_summary_document(
     """
     query_descriptor = dict(workflow_values.get("query_descriptor") or {})
     query_summary = {"value": workflow_values.get("query")}
-    for key in ("description", "filtering_strategy", "fields", "crossref_fields", "include_isoform"):
+    for key in (
+        "builder",
+        "composition",
+        "description",
+        "filtering_strategy",
+        "fields",
+        "crossref_fields",
+        "include_isoform",
+    ):
         if key in query_descriptor and query_descriptor[key] is not None:
             query_summary[key] = query_descriptor[key]
 
@@ -1838,19 +2036,20 @@ def build_summary_document(
     if metadata_path:
         export_summary["metadata_path"] = metadata_path.name
 
-    summary = {
-        "dataset": workflow_values.get("dataset") or {},
-        "query": query_summary,
-        "execution": execution_summary,
-        "export": export_summary,
-        "outputs": build_summary_outputs(output_infos),
-        "reporting": reporting,
-    }
-
+    summary: dict[str, object] = {}
+    summary["tool"] = build_tool_identity()
+    if workflow_values.get("schema_version"):
+        summary["schema_version"] = workflow_values["schema_version"]
+    summary["dataset"] = workflow_values.get("dataset") or {}
+    summary["query"] = query_summary
     if workflow_values.get("resources"):
         summary["resources"] = workflow_values["resources"]
+    summary["execution"] = execution_summary
     if workflow_values.get("harmonization"):
         summary["harmonization"] = workflow_values["harmonization"]
+    summary["export"] = export_summary
+    summary["outputs"] = build_summary_outputs(output_infos)
+    summary["reporting"] = reporting
     summary.update(workflow_values.get("extra_descriptor_sections", {}))
     return summary
 
@@ -2058,7 +2257,7 @@ def run_workflow(
         )
         workflow_values = merge_workflow_recipe(cli_values, recipe_values)
         validate_merged_workflow_values(workflow_values)
-    except ValueError as e:
+    except (TypeError, ValueError) as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=1) from None
 

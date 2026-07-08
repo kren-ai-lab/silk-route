@@ -1,0 +1,39 @@
+schema_version: "workflow-v1"
+
+dataset:
+  name: protein_query_first_with_fields
+  description: Protein query-first workflow that requests selected UniProt fields.
+  modality: protein
+  mode: query_first
+  primary_data_source: uniprot
+
+query:
+  value: "gene:TP53 AND reviewed:true AND organism:human"
+  description: Reviewed human UniProt records with selected request fields.
+  filtering_strategy: >
+    query.value is the executable query string. query.fields is passed to
+    UniProt as the API fields parameter, but it is not an output-column filter.
+  fields:
+    - accession
+    - protein_name
+    - organism_name
+    - gene_primary
+    - sequence
+  include_isoform: false
+
+execution:
+  enrich: false
+  max_workers: 2
+  total_retries: 1
+  debug: false
+
+harmonization:
+  id_column: "_id"
+
+export:
+  output_dir: "examples/results/protein_query_first_with_fields"
+  format: csv
+  include_metadata: true
+  include_summary: true
+  manifest_file: "metadata.json"
+  summary_file: "run_summary.yml"

@@ -1,0 +1,17 @@
+# Invalid example: only schema_version: "workflow-v1" is accepted.
+schema_version: "workflow-v2"
+
+dataset:
+  name: invalid_unsupported_schema_version
+  modality: protein
+  mode: query_first
+
+query:
+  value: "reviewed:true"
+
+execution:
+  enrich: false
+
+export:
+  output_dir: "examples/results/invalid_unsupported_schema_version"
+  format: csv

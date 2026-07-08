@@ -1,0 +1,20 @@
+# Invalid example: each query.composition item needs non-empty label and value.
+schema_version: "workflow-v1"
+
+dataset:
+  name: invalid_query_composition
+  modality: protein
+  mode: query_first
+
+query:
+  value: "reviewed:true"
+  composition:
+    - value: "reviewed:true"
+      description: Missing the required label field.
+
+execution:
+  enrich: false
+
+export:
+  output_dir: "examples/results/invalid_query_composition"
+  format: csv

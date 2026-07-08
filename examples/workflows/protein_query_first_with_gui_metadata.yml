@@ -1,0 +1,47 @@
+schema_version: "workflow-v1"
+
+dataset:
+  name: protein_query_first_with_gui_metadata
+  description: Protein query-first workflow with preserved GUI reconstruction metadata.
+  modality: protein
+  mode: query_first
+  primary_data_source: uniprot
+
+query:
+  value: "gene:TP53 AND reviewed:true AND organism:human"
+  description: Reviewed human UniProt records with GUI-oriented query metadata.
+  filtering_strategy: >
+    query.value remains the only executable query field.
+  builder:
+    source: example_gui
+    display_name: Reviewed human TP53 proteins
+    filters:
+      - field: reviewed
+        operator: equals
+        value: true
+      - field: organism
+        operator: equals
+        value: human
+      - field: gene
+        operator: equals
+        value: TP53
+    layout:
+      group: root
+      collapsed: false
+
+execution:
+  enrich: false
+  max_workers: 2
+  total_retries: 1
+  debug: false
+
+harmonization:
+  id_column: "_id"
+
+export:
+  output_dir: "examples/results/protein_query_first_with_gui_metadata"
+  format: csv
+  include_metadata: true
+  include_summary: true
+  manifest_file: "metadata.json"
+  summary_file: "run_summary.yml"

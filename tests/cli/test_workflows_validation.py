@@ -85,7 +85,7 @@ def test_descriptor_section_names_reject_old_mode_key():
 
 def test_descriptor_section_names_reject_old_root_key():
     with pytest.raises(ValueError, match="structured dataset/query"):
-        validate_descriptor_section_names({"version": 1})
+        validate_descriptor_section_names({"kind": 1})
 
 
 def test_descriptor_section_names_reject_unknown():

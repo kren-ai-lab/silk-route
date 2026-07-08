@@ -1,0 +1,40 @@
+schema_version: "workflow-v1"
+
+dataset:
+  name: compound_chembl_ic50_ranges
+  description: Live ChEMBL IC50 range example with a small page cap.
+  modality: compound
+  mode: query_composition
+  primary_data_source: chembl
+
+query:
+  value: "ic50:0-10=very_high_potency,ic50:10-100=high_potency"
+  description: Retrieve small ChEMBL IC50 activity ranges with labels.
+  filtering_strategy: >
+    This is a live ChEMBL example. execution.chembl_pages_to_fetch is set to 1
+    to keep the run small.
+  composition:
+    - label: very_high_potency
+      value: "ic50:0-10"
+      description: IC50 values from 0 to 10 in the workflow query syntax.
+    - label: high_potency
+      value: "ic50:10-100"
+      description: IC50 values from 10 to 100 in the workflow query syntax.
+
+execution:
+  enrich: true
+  max_workers: 2
+  total_retries: 1
+  chembl_pages_to_fetch: 1
+  debug: false
+
+harmonization:
+  id_column: "_id"
+
+export:
+  output_dir: "examples/results/compound_chembl_ic50_ranges"
+  format: csv
+  include_metadata: true
+  include_summary: true
+  manifest_file: "metadata.json"
+  summary_file: "run_summary.yml"

@@ -1,0 +1,36 @@
+schema_version: "workflow-v1"
+
+dataset:
+  name: interaction_pli_chembl
+  description: Protein-ligand interaction workflow using a small ChEMBL target-oriented query.
+  modality: interaction
+  mode: query_first
+  interaction_type: protein-ligand
+  primary_data_source: chembl
+
+query:
+  # This is a small live API example and may depend on ChEMBL availability.
+  value: "kinase"
+  description: Small ChEMBL target-oriented query for protein-ligand interaction records.
+  filtering_strategy: >
+    This example uses a small ChEMBL target-oriented query and caps ChEMBL
+    retrieval at one page. Current workflow support for protein-ligand interaction outputs
+    depends on the implemented interaction workflow path.
+
+execution:
+  enrich: true
+  max_workers: 2
+  total_retries: 1
+  chembl_pages_to_fetch: 1
+  debug: false
+
+harmonization:
+  id_column: "_id"
+
+export:
+  output_dir: "examples/results/interaction_pli_chembl"
+  format: csv
+  include_metadata: true
+  include_summary: true
+  manifest_file: "metadata.json"
+  summary_file: "run_summary.yml"
