@@ -484,11 +484,9 @@ def validate_query_composition_matches_query_value(query_descriptor: dict, mode:
     if mode != "query_composition" or composition is None:
         return
 
-    executable_pairs = parse_query_composition_value(query_descriptor["value"])
-    executable_queries = {query for query, _label in executable_pairs}
-    executable_labels = {label for _query, label in executable_pairs}
+    executable_pairs = set(parse_query_composition_value(query_descriptor["value"]))
     for item in composition:
-        if item["label"] not in executable_labels or item["value"] not in executable_queries:
+        if (item["value"], item["label"]) not in executable_pairs:
             raise ValueError(QUERY_COMPOSITION_MISMATCH_ERROR)
 
 
@@ -1094,9 +1092,23 @@ def collect_workflow_recipe_errors(recipe: object) -> list[str]:
             lambda: validate_reporting_section(require_mapping("reporting", descriptor["reporting"])),
         ),
     ]
+    valid_sections: set[str] = set()
     for name, step in section_steps:
         if name in descriptor:
+            before = len(errors)
             _check(step)
+            if len(errors) == before:
+                valid_sections.add(name)
+
+    # The composition/query.value cross-check spans two sections, so it only runs
+    # once both validated cleanly (their shapes are then safe to index).
+    if {"dataset", "query"} <= valid_sections:
+        _check(
+            lambda: validate_query_composition_matches_query_value(
+                require_mapping("query", descriptor["query"]),
+                require_mapping("dataset", descriptor["dataset"]).get("mode"),
+            )
+        )
 
     return errors
 

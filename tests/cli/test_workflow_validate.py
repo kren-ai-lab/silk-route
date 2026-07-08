@@ -107,6 +107,32 @@ def test_validate_reports_all_errors_at_once(tmp_path):
     assert "Credentials must be provided" in result.output
 
 
+def test_validate_reports_query_composition_mismatch(tmp_path):
+    # Cross-section check: collected as an error, not raised as a traceback.
+    bad = textwrap.dedent(
+        """
+        schema_version: "workflow-v1"
+        dataset:
+          name: demo
+          modality: protein
+          mode: query_composition
+        query:
+          value: "gene:TP53=tp53"
+          composition:
+            - label: brca1
+              value: "gene:BRCA1"
+        execution: {}
+        export:
+          format: csv
+        """
+    )
+    result = runner.invoke(app, ["workflow", "validate", _write(tmp_path, bad)])
+    assert result.exit_code == 1
+    assert "validation error(s):" in result.output
+    assert "query.composition does not match executable query.value" in result.output
+    assert not isinstance(result.exception, ValueError)
+
+
 # --- collect_workflow_recipe_errors (unit) ----------------------------------
 
 
@@ -130,6 +156,18 @@ def test_collect_accumulates_across_sections():
     }
     errors = collect_workflow_recipe_errors(recipe)
     assert len(errors) >= 4  # one per broken section
+
+
+def test_collect_catches_query_composition_mismatch():
+    recipe = {
+        "schema_version": "workflow-v1",
+        "dataset": {"name": "d", "modality": "protein", "mode": "query_composition"},
+        "query": {"value": "gene:TP53=tp53", "composition": [{"label": "brca1", "value": "gene:BRCA1"}]},
+        "execution": {},
+        "export": {"format": "csv"},
+    }
+    errors = collect_workflow_recipe_errors(recipe)
+    assert any("does not match executable query.value" in error for error in errors)
 
 
 def test_collect_non_mapping_root():

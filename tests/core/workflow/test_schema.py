@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import importlib
+import subprocess
 import sys
 
 REQUIRED_GUI_FIELDS = {
@@ -86,13 +86,12 @@ def test_workflow_v1_schema_definition_hides_future_only_fields() -> None:
 
 
 def test_workflow_schema_definition_import_is_lightweight() -> None:
-    for module_name in list(sys.modules):
-        if module_name == "bioseq_dl.core.workflow.schema":
-            sys.modules.pop(module_name)
-
-    imported_before = set(sys.modules)
-    importlib.import_module("bioseq_dl.core.workflow.schema")
-
-    imported_modules = set(sys.modules) - imported_before
-    for module_prefix in HEAVY_MODULE_PREFIXES:
-        assert not any(module_name.startswith(module_prefix) for module_name in imported_modules)
+    # Run in a clean interpreter so the check is real: importing the schema module
+    # must not pull heavy workflow-execution or interface modules. A same-process
+    # check would pass trivially once earlier tests have imported those modules.
+    checks = "; ".join(
+        f"assert not any(m.startswith({prefix!r}) for m in sys.modules)" for prefix in HEAVY_MODULE_PREFIXES
+    )
+    code = f"import sys; import bioseq_dl.core.workflow.schema; {checks}"
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)  # noqa: S603  # sys.executable, trusted
+    assert result.returncode == 0, result.stderr
