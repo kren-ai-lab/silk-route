@@ -1,33 +1,16 @@
 """Cache management CLI commands."""
 
-import logging
-
 import typer
 
 from bioseq_dl.core.cache import clear_cache, list_caches
 from bioseq_dl.logging import get_logger
-from bioseq_dl.logging.logger import configure_logging
 
 app = typer.Typer(name="cache", help="Cache utility commands for BioSeqDownloader.")
 
 
 @app.command("list")
-def list_registered(
-    log_level: str = typer.Option(
-        "info", "--log", "-l", help="Logging level (debug, info, warning, error, critical)."
-    ),
-) -> None:
+def list_registered() -> None:
     """List registered caches."""
-    LOG_LEVELS = {
-        "debug": logging.DEBUG,
-        "info": logging.INFO,
-        "warning": logging.WARNING,
-        "error": logging.ERROR,
-        "critical": logging.CRITICAL,
-    }
-    logging_level = LOG_LEVELS.get(log_level.lower(), logging.INFO)
-    configure_logging(level=logging_level)
-
     log = get_logger("bioseq_dl.cli.cache.list")
     regs = list_caches()
     if not regs:
@@ -52,25 +35,12 @@ def clear(
     force: bool = typer.Option(False, "--force", help="Skip any confirmation prompts (non-interactive)."),
     list_registered: bool = typer.Option(False, "--list", help="List registered caches and exit."),
     empty: bool = typer.Option(False, "--empty", help="Clear empty caches only."),
-    log_level: str = typer.Option(
-        "info", "--log", "-l", help="Logging level (debug, info, warning, error, critical)."
-    ),
 ) -> dict:
     """Clear cached data.
 
     Use --name to specify one or more registered cache names, or --all to clear everything.
     By default the command runs in --dry-run mode.
     """
-    LOG_LEVELS = {
-        "debug": logging.DEBUG,
-        "info": logging.INFO,
-        "warning": logging.WARNING,
-        "error": logging.ERROR,
-        "critical": logging.CRITICAL,
-    }
-    logging_level = LOG_LEVELS.get(log_level.lower(), logging.INFO)
-    configure_logging(level=logging_level)
-
     log = get_logger("bioseq_dl.cli.cache.clear")
 
     if list_registered:

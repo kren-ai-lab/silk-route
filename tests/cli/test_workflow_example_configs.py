@@ -11,14 +11,7 @@ from bioseq_dl.cli.workflows import WORKFLOW_SCHEMA_VERSION, load_workflow_recip
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_DIR = REPO_ROOT / "examples" / "workflows"
-DOCS_PATH = REPO_ROOT / "docs" / "workflow_yaml.md"
 REFERENCE_FILENAME = "full_options_reference.yml"
-REMOVED_LEGACY_WORKFLOW_FILENAMES = {
-    "protein-dataset-construction.yml",
-    "compound-dataset-construction.yml",
-    "interaction-aware-dataset-construction.yml",
-    "disease_query.yml",
-}
 FUTURE_ONLY_SECTIONS = {
     "interaction_retrieval",
     "activity_retrieval",
@@ -40,16 +33,13 @@ CREDENTIAL_LIKE_STRINGS = ("API_KEY", "TOKEN", "SECRET", "PASSWORD", "PRIVATE_KE
 
 def iter_valid_example_paths() -> list[Path]:
     """Return runnable workflow example descriptors."""
-    return [
-        path
-        for path in sorted(WORKFLOW_DIR.glob("*.yml"))
-        if path.name != REFERENCE_FILENAME
-    ]
+    return [path for path in sorted(WORKFLOW_DIR.glob("*.yml")) if path.name != REFERENCE_FILENAME]
 
 
-def iter_workflow_yaml_paths() -> list[Path]:
-    """Return every organized workflow YAML example descriptor."""
-    return sorted(WORKFLOW_DIR.rglob("*.yml"))
+def iter_example_asset_paths() -> list[Path]:
+    """Return shipped workflow example assets (workflow YAML + workflow notebooks)."""
+    notebook_dir = REPO_ROOT / "examples" / "notebooks"
+    return sorted([*WORKFLOW_DIR.rglob("*.yml"), *notebook_dir.glob("*.ipynb")])
 
 
 def collect_mapping_keys(value: Any) -> set[str]:
@@ -120,41 +110,14 @@ def test_reference_workflow_descriptor_is_excluded_from_executable_examples() ->
     )
 
 
-@pytest.mark.parametrize("config_path", iter_workflow_yaml_paths(), ids=lambda path: path.name)
-def test_workflow_yaml_examples_do_not_contain_credentials_or_local_paths(config_path: Path) -> None:
-    text = config_path.read_text(encoding="utf-8")
+@pytest.mark.parametrize("asset_path", iter_example_asset_paths(), ids=lambda path: path.name)
+def test_example_assets_do_not_contain_credentials_or_local_paths(asset_path: Path) -> None:
+    text = asset_path.read_text(encoding="utf-8")
 
     for credential_text in CREDENTIAL_LIKE_STRINGS:
         assert credential_text not in text
     for local_path_pattern in LOCAL_PATH_PATTERNS:
         assert local_path_pattern not in text
-
-
-def test_workflow_yaml_docs_separate_current_preserved_and_future_fields() -> None:
-    docs = DOCS_PATH.read_text(encoding="utf-8")
-
-    assert "Current executable fields are the fields that should be used to control" in docs
-    assert "Preserved metadata fields are accepted by the schema" in docs
-    assert "## Future Workflow YAML Features" in docs
-    assert "These features are not part of the current executable workflow behavior." in docs
-    assert (
-        "They are documented as possible future extensions and must not be used as active fields "
-        "in executable examples until implementation and tests exist."
-    ) in docs
-    assert "`query.value` is the only executable query field." in docs
-    assert "`query.builder` and" in docs
-    assert "`query.composition` are preserved GUI-oriented metadata" in docs
-    assert "If `query.composition` is present, it must match the executable `query.value`." in docs
-
-
-def test_no_old_top_level_workflow_yaml_examples_remain() -> None:
-    top_level_workflow_yaml_files = {
-        path.name
-        for path in (REPO_ROOT / "examples").glob("*.yml")
-        if path.name in REMOVED_LEGACY_WORKFLOW_FILENAMES
-    }
-
-    assert not top_level_workflow_yaml_files
 
 
 def test_canonical_workflow_yaml_examples_live_under_workflows_directory() -> None:

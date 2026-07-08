@@ -2,12 +2,10 @@
 
 import json
 import urllib.parse
-from collections.abc import Sequence
 from typing import Any, ClassVar
 
-import pandas as pd
-from requests import Request, Response
-from requests.exceptions import RequestException
+from niquests import Request, Response
+from niquests.exceptions import RequestException
 
 # Add the import for your database in constants
 from bioseq_dl.constants.databases import PUBCHEM
@@ -29,6 +27,7 @@ class PubChemInterface(BaseAPIInterface):
 
     API_NAME = "PubChem"
     DB_CONFIG = PUBCHEM
+    DEFAULT_OPTION: ClassVar[str | None] = "default"
     METHODS: ClassVar[dict[str, Any]] = {
         "pug/compound": {
             **dict.fromkeys(OPTIONS["pug/compound"], COMPOUND_TEMPLATE),
@@ -112,7 +111,17 @@ class PubChemInterface(BaseAPIInterface):
 
     @staticmethod
     def _has_exactly_one_identifier(method: str, inputs: dict) -> bool:
-        """Validate that exactly one main identifier is supplied for compound/gene methods."""
+        """Validate that exactly one main identifier is supplied for compound/gene methods.
+
+        Args:
+            method (str): Method family being requested (e.g. ``pug/compound``).
+            inputs (dict): Resolved input parameters for the request.
+
+        Returns:
+            bool: True if exactly one main identifier is present (or the method has no
+            such constraint), False otherwise.
+
+        """
         if method == "pug/compound":
             keys = ["cid", "name", "smiles", "inchi"]
             if sum(bool(inputs.get(k)) for k in keys) != 1:
@@ -136,7 +145,17 @@ class PubChemInterface(BaseAPIInterface):
 
     @staticmethod
     def _build_pug_url(method: str, validated_params: dict, option: str) -> str:
-        """Build a PUG-REST (``pug/``) request URL."""
+        """Build a PUG-REST (``pug/``) request URL.
+
+        Args:
+            method (str): Method family (e.g. ``pug/compound``).
+            validated_params (dict): Validated request parameters used to compose the path.
+            option (str): Fetch option appended to the path unless it is ``default``.
+
+        Returns:
+            str: The fully composed PUG-REST request URL.
+
+        """
         url = f"{PUBCHEM.API_URL}{method}"
         if "inchi" not in validated_params:
             for key, value in validated_params.items():
@@ -155,7 +174,16 @@ class PubChemInterface(BaseAPIInterface):
 
     @staticmethod
     def _build_pug_view_url(method: str, validated_params: dict) -> str:
-        """Build a PUG-View (``pug_view/``) request URL."""
+        """Build a PUG-View (``pug_view/``) request URL.
+
+        Args:
+            method (str): Method family (e.g. ``pug_view/compound``).
+            validated_params (dict): Validated request parameters supplying the path identifier(s).
+
+        Returns:
+            str: The fully composed PUG-View request URL.
+
+        """
         m = method.replace("pug_view/", "")
         path_keys = {
             "compound": "cid",
@@ -174,7 +202,21 @@ class PubChemInterface(BaseAPIInterface):
     def _build_request_url(
         cls, method: str, validated_params: dict, option: str, name_type: str | None
     ) -> str:
-        """Build the PubChem request URL for the given method family and parameters."""
+        """Build the PubChem request URL for the given method family and parameters.
+
+        Dispatches to the autocomplete, PUG-REST, or PUG-View URL builders based on the
+        method, then appends an optional ``name_type`` query parameter.
+
+        Args:
+            method (str): Method family being requested.
+            validated_params (dict): Validated request parameters.
+            option (str): Fetch option used by PUG-REST URLs.
+            name_type (str | None): Optional ``name_type`` query parameter to append.
+
+        Returns:
+            str: The fully composed request URL.
+
+        """
         if method == "autocomplete":
             url = f"{PUBCHEM.API_URL}{method}"
             for value in validated_params.values():
@@ -193,7 +235,22 @@ class PubChemInterface(BaseAPIInterface):
     def _unwrap_pug_envelope(
         cls, response: dict, method: str, option: str, validated_params: dict
     ) -> dict | list:
-        """Unwrap a single ``pug/`` response envelope into its payload list."""
+        """Unwrap a single ``pug/`` response envelope into its payload list.
+
+        Handles ``InformationList``, ``Table``, and the envelopes declared in
+        ``_PUG_ENVELOPES``, returning the response unchanged if none match.
+
+        Args:
+            response (dict): Raw PUG-REST response body.
+            method (str): Method family the response belongs to.
+            option (str): Fetch option used for the request.
+            validated_params (dict): Validated request parameters, used to backfill
+                missing keys (e.g. ``GeneSymbol``).
+
+        Returns:
+            dict | list: The unwrapped payload.
+
+        """
         if "InformationList" in response:
             information = response.get("InformationList", {}).get("Information", [])
             if method == "gene" and option == "pwaccs":
@@ -219,7 +276,18 @@ class PubChemInterface(BaseAPIInterface):
     def _postprocess_pug_response(
         cls, response: Any, method: str, option: str, validated_params: dict
     ) -> dict | list | str:
-        """Unwrap the various PubChem response envelopes into a plain list/dict/str."""
+        """Unwrap the various PubChem response envelopes into a plain list/dict/str.
+
+        Args:
+            response (Any): Raw response body (dict for PUG-REST, str for PUG-View/autocomplete).
+            method (str): Method family the response belongs to.
+            option (str): Fetch option used for the request.
+            validated_params (dict): Validated request parameters forwarded to the unwrapper.
+
+        Returns:
+            dict | list | str: The unwrapped payload.
+
+        """
         if method.startswith("pug/") and isinstance(response, dict):
             return cls._unwrap_pug_envelope(response, method, option, validated_params)
         if (method.startswith("pug_view/") or method == "autocomplete") and isinstance(response, str):
@@ -229,9 +297,21 @@ class PubChemInterface(BaseAPIInterface):
     def _resolve_request(
         self, query: str | dict | list, method: str, kwargs: dict
     ) -> tuple[str, dict, dict, str, str | None] | None:
-        """Validate the request and return (http_method, inputs, validated_params, option, name_type).
+        """Validate the request and resolve its method, inputs, and parameters.
 
-        Returns ``None`` (after logging) if the request is invalid.
+        Checks the method and option, validates parameters, and resolves the optional
+        ``name_type`` for compound queries. Logs and returns ``None`` if the request is
+        invalid.
+
+        Args:
+            query (str | dict | list): Identifier(s) or structured query to fetch.
+            method (str): Method family being requested.
+            kwargs (dict): Extra request options; notably ``option``.
+
+        Returns:
+            tuple[str, dict, dict, str, str | None] | None: ``(http_method, inputs,
+            validated_params, option, name_type)`` if valid, otherwise ``None``.
+
         """
         option = kwargs.get("option")
         option_given = bool(option)
@@ -272,7 +352,20 @@ class PubChemInterface(BaseAPIInterface):
         return http_method, inputs, validated_params, option, name_type
 
     def fetch(self, query: str | dict | list, *, method: str = "DEFAULT", **kwargs: Any) -> dict | list | str:
-        """Fetch compound or protein data from PubChem."""
+        """Fetch compound or protein data from PubChem.
+
+        Resolves and validates the request, builds the URL, sends it, and unwraps the
+        response envelope. Returns an empty dict on validation or request failure.
+
+        Args:
+            query (str | dict | list): Identifier(s) or structured query to fetch.
+            method (str): Method family to use (e.g. ``pug/compound``, ``pug_view/gene``).
+            **kwargs: Extra request options; notably ``option``.
+
+        Returns:
+            dict | list | str: The fetched, envelope-unwrapped response, or ``{}`` on failure.
+
+        """
         resolved = self._resolve_request(query, method, kwargs)
         if resolved is None:
             return {}
@@ -309,7 +402,22 @@ class PubChemInterface(BaseAPIInterface):
             return response
 
     def parse(self, data: list | dict, fields_to_extract: list | dict | None, **kwargs: Any) -> list | dict:
-        """Parse PubChem response data."""
+        """Parse PubChem response data.
+
+        Selects the fields to extract based on the fetch ``option``, extracts them, and
+        flattens PUG-View records via ``process_sections``.
+
+        Args:
+            data (list | dict): Raw response data to parse.
+            fields_to_extract (list | dict | None): Fields to extract; when a dict, it is
+                keyed by option (or ``properties``).
+            **kwargs: Extra options; notably ``option``.
+
+        Returns:
+            list | dict: The parsed (and, for PUG-View records, flattened) data, or ``{}``
+            for empty or unsupported input.
+
+        """
         if not data:
             return {}
         option = kwargs.get("option", "default")
@@ -330,7 +438,7 @@ class PubChemInterface(BaseAPIInterface):
         elif not isinstance(data, dict):
             log.error(
                 "Tried to parse data but the type is not supported. Response should be a dict or a "
-                "requests.Response "
+                "niquests.Response "
                 "object."
             )
             return {}
@@ -352,10 +460,32 @@ class PubChemInterface(BaseAPIInterface):
         return processed_data
 
     def is_pug_view_record(self, data: dict) -> bool:
-        """Return True if data is a PUG View record (contains 'Record' key)."""
+        """Return True if data is a PUG-View record.
+
+        Args:
+            data (dict): Candidate record to check.
+
+        Returns:
+            bool: True if ``data`` has the ``record_type``, ``record_number``, and
+            ``sections`` keys.
+
+        """
         return all(key in data for key in ["record_type", "record_number", "sections"])
 
     def _proccess_information_value(self, info_value: dict) -> str | list | dict:
+        """Extract the scalar or list value from a PUG-View ``Value`` object.
+
+        Inspects the known value keys (``StringWithMarkup``, ``Number``, ``String``,
+        ``URL``, ``Boolean``), collapsing single-element lists to a scalar.
+
+        Args:
+            info_value (dict): A PUG-View ``Value`` object.
+
+        Returns:
+            str | list | dict: The extracted value, or ``info_value`` unchanged if no
+            known key is present.
+
+        """
         if "StringWithMarkup" in info_value:
             texts = [text_entry.get("String", "") for text_entry in info_value["StringWithMarkup"]]
             return texts if len(texts) > 1 else texts[0]
@@ -376,7 +506,18 @@ class PubChemInterface(BaseAPIInterface):
         return info_value  # Return as is if no known key is found
 
     def process_tocheadings(self, sections: list[dict]) -> dict:
-        """Process PubChem compound sections into a flat dict."""
+        """Process PubChem compound sections into a flat dict.
+
+        Recurses into nested ``Section`` entries and maps each ``TOCHeading`` to its
+        extracted value(s).
+
+        Args:
+            sections (list[dict]): PUG-View section objects.
+
+        Returns:
+            dict: Mapping of heading name to its extracted value(s).
+
+        """
         headings = {}
         for section in sections:
             if "TOCHeading" in section and "Information" in section:
@@ -396,7 +537,16 @@ class PubChemInterface(BaseAPIInterface):
         return headings
 
     def process_sections(self, data: dict) -> dict:
-        """Fetch a single PubChem record."""
+        """Flatten a single PUG-View record into a plain dict.
+
+        Args:
+            data (dict): A PUG-View record with ``record_type``/``record_number`` and
+                ``sections``.
+
+        Returns:
+            dict: The record id paired with its flattened heading values.
+
+        """
         export_data = {}
         if "record_type" in data and "record_number" in data:
             record_type = data["record_type"]
@@ -408,17 +558,3 @@ class PubChemInterface(BaseAPIInterface):
             export_data.update(headings)
 
         return export_data
-
-    def fetch_single(
-        self, query: str | dict, parse: bool = False, *args: Any, **kwargs: Any
-    ) -> tuple[list | dict | pd.DataFrame | bytes | str, dict]:
-        """Fetch a batch of PubChem records."""
-        option = kwargs.pop("option", "default")
-        return super().fetch_single(query, parse, *args, option=option, **kwargs)
-
-    def fetch_batch(
-        self, queries: Sequence[str | dict], parse: bool = False, *args: Any, **kwargs: Any
-    ) -> tuple[list | pd.DataFrame | bytes | str, dict]:
-        """Fetch a batch of PubChem records."""
-        option = kwargs.pop("option", "default")
-        return super().fetch_batch(queries, parse, *args, option=option, **kwargs)

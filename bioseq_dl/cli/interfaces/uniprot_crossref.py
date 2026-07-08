@@ -4,15 +4,14 @@
 import json
 from pathlib import Path
 
-import pandas as pd
+import polars as pl
 import typer
 
 from bioseq_dl.constants.uniprot import XREF_MAPPING
-from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
+from bioseq_dl.core.crossref_enricher import CrossRefEnricher, specs_for_database
+from bioseq_dl.core.export import export_dataframe
 from bioseq_dl.core.interfacesconfig import load_packaged_config
 from bioseq_dl.logging import get_logger
-
-app = typer.Typer(help="Search and download cross-references from UniProt.")
 
 log = get_logger("bioseq_dl.cli.uniprot_crossref")
 
@@ -20,9 +19,19 @@ CROSS_REF_FIELDS = [xref.lower() for xref in XREF_MAPPING]
 
 
 def save_to_file(
-    df: pd.DataFrame, out_dir: str, filename: str, db: str, endpoint: str, option: str | None
+    df: pl.DataFrame, out_dir: str, filename: str, db: str, endpoint: str, option: str | None
 ) -> None:
-    """Run UniProt cross-reference ID mapping."""
+    """Save a cross-reference result DataFrame to a CSV file under ``out_dir/filename``.
+
+    Args:
+        df (pl.DataFrame): The results to save.
+        out_dir (str): Base output directory.
+        filename (str): Subfolder name (typically the input file stem).
+        db (str): Database name, used in the output file name.
+        endpoint (str): Endpoint name, used in the output file name.
+        option (str | None): Optional variant, included in the file name when set.
+
+    """
     # Make folder with filename
     (Path(out_dir) / filename).mkdir(parents=True, exist_ok=True)
     # Save the DataFrame to a CSV file
@@ -30,11 +39,10 @@ def save_to_file(
         output_file = Path(out_dir) / filename / f"{db}_{endpoint}_results.csv"
     else:
         output_file = Path(out_dir) / filename / f"{db}_{endpoint}_{option}_results.csv"
-    df.to_csv(output_file, index=False)
+    export_dataframe(df, output_file, output_format="csv")
     log.info("Results for %s with option %s saved to %s", db, option, output_file)
 
 
-@app.command(name="")
 def run(
     input_file: str = typer.Option(
         ...,
@@ -45,7 +53,7 @@ def run(
     ),
     out_dir: str = typer.Option(
         ...,
-        "--out_dir",
+        "--output-dir",
         "-o",
         help="Output directory for results.",
         case_sensitive=True,
@@ -68,7 +76,7 @@ def run(
 
         # Load input file into a DataFrame
         try:
-            df = pd.read_csv(input_file)
+            df = pl.read_csv(input_file)
         except Exception as e:
             msg = f"Error reading input file {input_file}: {e}"
             raise ValueError(msg) from e
@@ -82,22 +90,7 @@ def run(
         # Generate the endpoint specs based on selected crossref fields
         for xref in databases.split(","):
             if xref in CROSS_REF_FIELDS:
-                endpoint_config = endpoints_config.get(xref)
-                if not isinstance(endpoint_config, dict):
-                    continue
-
-                for ep_name, ep_info in endpoint_config.get("endpoints", {}).items():
-                    if ep_info.get("enabled", False):
-                        options = ep_info.get("options", [None]) if "options" in ep_info else [None]
-                        endpoint_specs.extend(
-                            EndpointSpec(
-                                database=xref,
-                                endpoint=ep_name,
-                                option=ep_option,
-                                params=ep_info.get("params", {}),
-                            )
-                            for ep_option in options
-                        )
+                endpoint_specs.extend(specs_for_database(endpoints_config.get(xref), xref))
 
         if not endpoint_specs:
             msg = (
@@ -109,17 +102,17 @@ def run(
         enricher = CrossRefEnricher(endpoint_specs)
         enriched_data, enriched_metadata = enricher.enrich(df)
 
-        if isinstance(enriched_data, pd.DataFrame) and not enriched_data.empty:
-            log.info("Crossref enrichment resulted in %s rows", len(enriched_data))
+        if isinstance(enriched_data, pl.DataFrame) and not enriched_data.is_empty():
+            log.info("Crossref enrichment resulted in %s rows", enriched_data.height)
 
         # Create output directory if it doesn't exist
         if not Path(out_dir).exists():
             Path(out_dir).mkdir(parents=True)
 
-        if isinstance(enriched_data, pd.DataFrame) and not enriched_data.empty:
+        if isinstance(enriched_data, pl.DataFrame) and not enriched_data.is_empty():
             filename = Path(input_file).stem
             results_path = Path(out_dir) / f"{filename}_results.csv"
-            enriched_data.to_csv(results_path, index=False)
+            export_dataframe(enriched_data, results_path, output_format="csv")
             log.info("Results saved to %s", results_path)
         else:
             log.info("No results to save.")

@@ -42,7 +42,16 @@ def compact_parentheses_spacing(value: str) -> str:
 
 
 def _remove_unknown_field_match(match: re.Match, allowed_fields: set[str]) -> str:
-    """Remove fielded query matches that are not in the allowed field set."""
+    """Replace a fielded match with a space unless its field is in the allowed set.
+
+    Args:
+        match (re.Match): A match whose group 2 is the field name.
+        allowed_fields (set[str]): Field names that should be preserved.
+
+    Returns:
+        str: A single space if the field is not allowed, otherwise the original match text.
+
+    """
     field_name = match.group(2)
     if field_name not in allowed_fields:
         return " "
@@ -54,10 +63,10 @@ class MultiModeFieldConfig:
     """Generic configuration for a multimode field.
 
     Attributes:
-        field: The target/native field name used by the downstream service.
-        value_map: Optional mapping from user tokens to native tokens.
-        supports_range: Whether the field accepts numeric ranges (low-high).
-        resolver_kind: Optional resolver hint for custom resolution logic in subclasses.
+        field (str): The target/native field name used by the downstream service.
+        value_map (dict[str, str]): Mapping from user tokens to native tokens.
+        supports_range (bool): Whether the field accepts numeric ranges (low-high).
+        resolver_kind (str | None): Optional resolver hint for custom resolution logic in subclasses.
 
     """
 
@@ -72,11 +81,11 @@ class QueryInterpreterConfig:
     """Generic interpreter configuration shared by concrete interpreters.
 
     Attributes:
-        fields: Mapping of friendly field name to MultiModeFieldConfig.
-        field_aliases: Simple prefix aliases (e.g. 'taxon' -> 'taxonomy_id').
-        ignored_fields: List of field prefixes that should be stripped by the base
-                        interpreter because they may imply additional searches.
-        extras: Place to keep implementation specific extra config values.
+        fields (dict[str, MultiModeFieldConfig]): Mapping of friendly field name to its config.
+        field_aliases (dict[str, str]): Simple prefix aliases (e.g. 'taxon' -> 'taxonomy_id').
+        ignored_fields (list[str]): Field prefixes that should be stripped by the base
+            interpreter because they may imply additional searches.
+        extras (dict[str, Any] | None): Place to keep implementation specific extra config values.
 
     """
 
@@ -96,25 +105,71 @@ class BaseQueryInterpreter:
     """
 
     def __init__(self, config: Any) -> None:
-        """Initialize with a configuration object."""
+        """Store the interpreter configuration object.
+
+        Args:
+            config (Any): A configuration object exposing ``fields``, ``field_aliases``,
+                ``ignored_fields`` and ``extras`` (typically a ``QueryInterpreterConfig``).
+
+        """
         self.config = config
 
     def interpret(self, query: str) -> str:
         """Interpret a query string into the target data source's query language.
 
-        Subclasses MUST implement this method.
+        Expand field aliases, strip ignored/unknown fields, normalize whitespace,
+        then resolve each ``field:value`` item via the subclass ``_resolve_item``.
+
+        Args:
+            query (str): The raw user query to interpret.
+
+        Returns:
+            str: The query rewritten in the target query language.
+
         """
-        msg = "Subclasses must implement this method."
-        raise NotImplementedError(msg)
+        processed_query = self._expand_field_aliases(query)
+        if self.config.extras and self.config.extras.get("ignore_all_fields", False):
+            processed_query = self._remove_all_fields(processed_query)
+        else:
+            processed_query = self._remove_ignored_fields(processed_query)
+        processed_query = self._cleanup_whitespace(processed_query)
+        return self._resolve_query_items(processed_query)
 
     def _resolve_item(self, prefix: str, value: str, cfg: MultiModeFieldConfig) -> tuple[str, str]:
-        """Resolve an item value based on the resolver kind specified in the field config."""
+        """Resolve a single ``prefix:value`` item according to its field config.
+
+        Abstract hook implemented by concrete interpreters.
+
+        Args:
+            prefix (str): The (already formatted) field prefix.
+            value (str): The raw value to resolve.
+            cfg (MultiModeFieldConfig): Configuration for the field being resolved.
+
+        Returns:
+            tuple[str, str]: The resolved ``(prefix, value)`` pair.
+
+        Raises:
+            NotImplementedError: Always; subclasses must override this method.
+
+        """
         msg = "Subclasses must implement this method."
         raise NotImplementedError(msg)
 
     # --- Generic helpers useful across interpreters ---
     def _resolve_query_items(self, text: str) -> str:
-        """Process individual items in the query string based on field configurations."""
+        """Resolve each item in the query string against the field configurations.
+
+        Tokenizes the query, expands multimode tokens (commas / ``_any``/``_all``/``_not``)
+        into boolean expressions, then formats and resolves every ``field:value`` token while
+        passing boolean operators and parentheses through unchanged.
+
+        Args:
+            text (str): The preprocessed query string.
+
+        Returns:
+            str: The space-joined, fully resolved query.
+
+        """
         if not text:
             return ""
 
@@ -159,11 +214,30 @@ class BaseQueryInterpreter:
         return compact_parentheses_spacing(" ".join(resolved_final))
 
     def _format_prefix(self, _prefix: str, cfg: MultiModeFieldConfig) -> str:
-        """Format a field prefix based on the field configuration."""
+        """Return the native field name for a prefix from its field configuration.
+
+        Args:
+            _prefix (str): The original (friendly) prefix; ignored.
+            cfg (MultiModeFieldConfig): Configuration providing the native field name.
+
+        Returns:
+            str: The native field name.
+
+        """
         return cfg.field
 
     def _format_value_for_field(self, value: str, cfg: MultiModeFieldConfig) -> str:
-        """Format a value for a field configuration, applying numeric-range parsing."""
+        """Format a value for a field, normalizing numeric ranges when supported.
+
+        Args:
+            value (str): The raw value.
+            cfg (MultiModeFieldConfig): Configuration for the field.
+
+        Returns:
+            str: A ``low-high`` range when the field supports ranges and the value parses
+                as one; otherwise the original value.
+
+        """
         if cfg.supports_range:
             low, high = self._parse_numeric_range(value)
             if low is not None and high is not None:
@@ -180,6 +254,16 @@ class BaseQueryInterpreter:
         - field_any:value1,value2  -> (value1 OR value2)
         - field_all:value1,value2  -> (value1 AND value2)
         - field_not:value1,value2  -> NOT (value1 AND value2)
+
+        Values are split on commas while respecting quoted segments. When no mode suffix is
+        present the default is ``all``. Single-value tokens are returned without parentheses.
+
+        Args:
+            text (str): A single ``field:value`` token, optionally with a mode suffix.
+
+        Returns:
+            str: The expanded boolean expression, or the original text if it cannot be parsed.
+
         """
         if not text or ":" not in text:
             return text
@@ -223,6 +307,13 @@ class BaseQueryInterpreter:
 
         Preserves quoted phrases, boolean operators (AND/OR/NOT) as separate tokens,
         and separates parentheses '(' and ')' into their own tokens.
+
+        Args:
+            text (str): The query string to tokenize.
+
+        Returns:
+            list[str]: The ordered tokens, with boolean operators normalized to uppercase.
+
         """
         if not text:
             return []
@@ -264,7 +355,16 @@ class BaseQueryInterpreter:
         return tokens
 
     def _parse_numeric_range(self, value: str) -> tuple[str | None, str | None]:
-        """Parse a numeric range expressed as 'low-high'. If invalid return (None, None)."""
+        """Parse a numeric range expressed as 'low-high'.
+
+        Args:
+            value (str): The candidate range string.
+
+        Returns:
+            tuple[str | None, str | None]: The ``(low, high)`` bounds, or ``(None, None)`` if
+                the value is not a valid numeric range.
+
+        """
         if not value or "-" not in value:
             return None, None
         parts = value.split("-", 1)
@@ -289,6 +389,13 @@ class BaseQueryInterpreter:
         """Replace simple prefix aliases like 'taxon:' -> 'taxonomy_id:' based on configuration.
 
         Simple prefix substitution that does not fully parse boolean grammar.
+
+        Args:
+            text (str): The query string to process.
+
+        Returns:
+            str: The query with configured field aliases substituted.
+
         """
         out = text or ""
         for friendly, native in (self.config.field_aliases or {}).items():
@@ -302,6 +409,13 @@ class BaseQueryInterpreter:
         Strips field tokens and attempts to keep boolean operators well-formed.
         If "ignore_all_fields" is set in extras, removes all fielded queries
         except those explicitly listed in fields.
+
+        Args:
+            text (str): The query string to process.
+
+        Returns:
+            str: The query with ``ignored_fields`` tokens removed and dangling booleans cleaned.
+
         """
         out = text or ""
         fields_to_ignore = set(self.config.ignored_fields or [])
@@ -319,12 +433,32 @@ class BaseQueryInterpreter:
             )
             out = pattern.sub(" ", out)
 
-        out = re.sub(r"\b(AND|OR|NOT)\s*(?=\b(AND|OR|NOT)\b)", " ", out, flags=re.IGNORECASE)
+        return self._strip_dangling_booleans(out)
+
+    def _strip_dangling_booleans(self, text: str) -> str:
+        """Collapse consecutive, leading, or trailing boolean operators left after field removal.
+
+        Args:
+            text (str): The query string to clean.
+
+        Returns:
+            str: The query with stray boolean operators removed.
+
+        """
+        out = re.sub(r"\b(AND|OR|NOT)\s*(?=\b(AND|OR|NOT)\b)", " ", text, flags=re.IGNORECASE)
         out = re.sub(r"^\s*(AND|OR|NOT)\b\s*", "", out, flags=re.IGNORECASE)
         return re.sub(r"\b(AND|OR|NOT)\s*$", "", out, flags=re.IGNORECASE)
 
     def _remove_all_fields(self, text: str) -> str:
-        """Remove all fielded queries from the text, except those in the configuration fields."""
+        """Remove every fielded query from the text except those listed in ``config.fields``.
+
+        Args:
+            text (str): The query string to process.
+
+        Returns:
+            str: The query with unknown fields removed and dangling booleans cleaned.
+
+        """
         out = text or ""
         allowed_fields = set(self.config.fields.keys())
 
@@ -342,30 +476,11 @@ class BaseQueryInterpreter:
         replacement = partial(_remove_unknown_field_match, allowed_fields=allowed_fields)
         out = pattern.sub(replacement, out)
 
-        out = re.sub(r"\b(AND|OR|NOT)\s*(?=\b(AND|OR|NOT)\b)", " ", out, flags=re.IGNORECASE)
-        out = re.sub(r"^\s*(AND|OR|NOT)\b\s*", "", out, flags=re.IGNORECASE)
-        return re.sub(r"\b(AND|OR|NOT)\s*$", "", out, flags=re.IGNORECASE)
-
-
-@dataclass
-class UniProtInterpreterConfig(QueryInterpreterConfig):
-    """Configuration for interpreting UniProt-related queries.
-
-    Attributes:
-        ph_field: The field name used for pH in UniProt queries.
-
-    """
-
-    ph_field: str
-    temperature_field: str
+        return self._strip_dangling_booleans(out)
 
 
 class UniProtQueryInterpreter(BaseQueryInterpreter):
     """Query interpreter for UniProt queries."""
-
-    def __init__(self, config: UniProtInterpreterConfig) -> None:
-        """Initialize with a UniProt-specific configuration."""
-        super().__init__(config)
 
     def _looks_like_go_id(self, text: str) -> bool:
         """Check if a string matches a 7-digit GO numeric ID."""
@@ -390,6 +505,15 @@ class UniProtQueryInterpreter(BaseQueryInterpreter):
         Map-based resolvers translate a friendly value to its native id via
         ``cfg.value_map``; ``length_transform`` rewrites a numeric range to UniProt
         ``[low TO high]`` syntax. Values that are already native ids pass through.
+
+        Args:
+            prefix (str): The (already formatted) field prefix.
+            value (str): The value to resolve.
+            cfg (MultiModeFieldConfig): Configuration for the field, including its resolver kind.
+
+        Returns:
+            tuple[str, str]: The resolved ``(prefix, value)`` pair.
+
         """
         # Already-native ids pass through untouched.
         if cfg.resolver_kind == "go_name_map" and self._looks_like_go_id(value):
@@ -410,26 +534,19 @@ class UniProtQueryInterpreter(BaseQueryInterpreter):
 
         return prefix, value
 
-    def interpret(self, query: str) -> str:
-        """Interpret a query string into a UniProt-compatible query string."""
-        # Replace field aliases, for example 'taxon:' -> 'taxonomy_id:'
-        processed_query = self._expand_field_aliases(query)
-        # Remove ignored fields, for example 'ic50:'
-        if self.config.extras and self.config.extras.get("ignore_all_fields", False):
-            processed_query = self._remove_all_fields(processed_query)
-        else:
-            processed_query = self._remove_ignored_fields(processed_query)
-        # Clean additional whitespace
-        processed_query = self._cleanup_whitespace(processed_query)
-        # Resolve item values as needed
-        return self._resolve_query_items(processed_query)
-
     def extract_databases(self, query: str) -> list[str]:
         """Extract databases implied by special fields in the query.
 
         Some fields imply enrichment searches. For example, 'temperature' implies
         searching brenda with "getTemperatureOptimum", "getTemperatureStability",
         "getTemperatureRange". Call this before interpreting the query.
+
+        Args:
+            query (str): The raw query to inspect.
+
+        Returns:
+            list[str]: Database identifiers implied by the query's special fields.
+
         """
         databases: list[str] = []
         tokens = self._tokenize_query(query)
@@ -484,11 +601,9 @@ def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
         "ph": "cc_bpcp_ph_dependence",
     }
 
-    config = UniProtInterpreterConfig(
+    config = QueryInterpreterConfig(
         fields=fields,
         field_aliases=field_aliases,
-        temperature_field="cc_bpcp_temp_dependence",
-        ph_field="cc_bpcp_ph_dependence",
         ignored_fields=["ic50", "activity", "target"],
         extras=None,
     )
@@ -499,14 +614,22 @@ def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
 class ChEMBLQueryInterpreter(BaseQueryInterpreter):
     """Query interpreter for ChEMBL queries."""
 
-    def __init__(self, config: Any) -> None:
-        """Initialize with a ChEMBL-specific configuration."""
-        super().__init__(config)
-
     def _resolve_item(self, prefix: str, value: str, cfg: MultiModeFieldConfig) -> tuple[str, str]:
         """Resolve an item value based on the field configuration.
 
-        Currently applies IC50 transforms; no other resolution is implemented for ChEMBL.
+        Currently applies IC50 transforms (ranges, comparison operators, and plain numbers
+        are rewritten to ``standard_type``/``standard_value`` clauses); no other resolution
+        is implemented for ChEMBL.
+
+        Args:
+            prefix (str): The (already formatted) field prefix.
+            value (str): The value to resolve.
+            cfg (MultiModeFieldConfig): Configuration for the field, including its resolver kind.
+
+        Returns:
+            tuple[str, str]: The resolved ``(prefix, value)`` pair; an empty prefix indicates
+                the value is a complete standalone clause.
+
         """
         if cfg.resolver_kind == "ic50_transform":
             m_comp = re.fullmatch(r"(>=|<=|>|<)\s*(\d+(?:\.\d+)?)", value.strip())
@@ -545,7 +668,13 @@ class ChEMBLQueryInterpreter(BaseQueryInterpreter):
 
 
 def build_default_chembl_interpreter() -> ChEMBLQueryInterpreter:
-    """Build a ChEMBLQueryInterpreter with default configuration."""
+    """Build a ChEMBLQueryInterpreter with default configuration.
+
+    Returns:
+        ChEMBLQueryInterpreter: An interpreter wired with the default ChEMBL fields and the
+            ``ignore_all_fields`` extra enabled.
+
+    """
     fields = {
         "ic50": MultiModeFieldConfig(
             field="ic50",

@@ -47,6 +47,13 @@ bioseq-dl workflow run --config examples/workflows/protein_query_first_minimal.y
 bioseq-dl workflow run --config examples/workflows/protein_query_first_minimal.yml -e csv
 ```
 
+To check a descriptor without running it, use `workflow validate`. It reports all
+section-level errors at once and exits non-zero on any problem:
+
+```bash
+bioseq-dl workflow validate examples/workflows/protein_query_first_minimal.yml
+```
+
 The organized workflow-v1 examples live under `examples/workflows/`.
 There are no legacy workflow YAML examples outside that directory.
 Use `examples/workflows/full_options_reference.yml` as the tutorial/reference
@@ -193,7 +200,7 @@ The lightweight schema definition and workflow-v1 validator used by GUI or YAML
 generator tools are available through:
 
 ```python
-from bioseq_dl.workflow_schema_definition import (
+from bioseq_dl.core.workflow.schema import (
     get_workflow_v1_schema_definition,
     validate_workflow_v1_descriptor,
 )

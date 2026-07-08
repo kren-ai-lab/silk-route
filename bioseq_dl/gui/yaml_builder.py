@@ -10,7 +10,7 @@ from typing import cast
 
 import yaml
 
-from bioseq_dl.workflow_schema_definition import (
+from bioseq_dl.core.workflow.schema import (
     WORKFLOW_SCHEMA_VERSION,
     get_workflow_v1_schema_definition,
     validate_workflow_v1_descriptor,

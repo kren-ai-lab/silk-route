@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import pytest
-import responses
+from niquests_mock import startswith
 
 from bioseq_dl.core.interfaces.pride import PrideInterface
 from tests._helpers import load_fixture
+from tests.core.interfaces._contract import CachingContract, HttpErrorContract
 
 PROJECT_URL = "https://www.ebi.ac.uk/pride/ws/archive/v3/projects/PXD000001"
 
@@ -18,15 +19,15 @@ def interface(tmp_path):
     )
 
 
-def test_fetch_builds_url_and_returns_project(interface, mocked_responses):
+def test_fetch_builds_url_and_returns_project(interface, niquests_mock):
     body = load_fixture("pride", "project")
-    mocked_responses.add(responses.GET, PROJECT_URL, json=body, status=200)
+    niquests_mock.get(url=startswith(PROJECT_URL)).respond(status_code=200, json=body)
 
     result = interface.fetch("PXD000001", method="projects")
 
     assert result == body
-    assert len(mocked_responses.calls) == 1
-    assert mocked_responses.calls[0].request.url.startswith(PROJECT_URL)
+    assert len(niquests_mock.calls) == 1
+    assert niquests_mock.calls[0].request.url.startswith(PROJECT_URL)
 
 
 def test_parse_extracts_requested_fields(interface):
@@ -36,12 +37,8 @@ def test_parse_extracts_requested_fields(interface):
     assert parsed == {"accession": body["accession"], "title": body["title"]}
 
 
-def test_fetch_single_round_trips_through_cache(interface, mocked_responses):
-    body = load_fixture("pride", "project")
-    mocked_responses.add(responses.GET, PROJECT_URL, json=body, status=200)
-
-    first, _ = interface.fetch_single("PXD000001", method="projects")
-    second, _ = interface.fetch_single("PXD000001", method="projects")
-
-    assert len(mocked_responses.calls) == 1
-    assert first == second
+class TestPrideContract(CachingContract, HttpErrorContract):
+    INTERFACE_URL = PROJECT_URL
+    QUERY = "PXD000001"
+    METHOD = "projects"
+    FIXTURE = ("pride", "project")

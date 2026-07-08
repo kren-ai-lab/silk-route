@@ -63,10 +63,10 @@ class RefSeqInterface(BaseAPIInterface):
 
         Args:
             email (str): Email address for NCBI Entrez.
-            cache_dir (str): Directory to cache API responses. If None, defaults to the cache directory
+            cache_dir (str | None): Directory to cache API responses. If None, defaults to the cache directory
                 defined in constants.
-            config_dir (str): Directory for configuration files. If None, defaults to the config directory
-                defined in constants.
+            config_dir (str | None): Directory for configuration files. If None, defaults to the config
+                directory defined in constants.
             **kwargs: Passed through to the base class.
 
         """
@@ -79,13 +79,13 @@ class RefSeqInterface(BaseAPIInterface):
             Entrez.email = self.email  # ty: ignore[invalid-assignment]  # type: ignore[assignment]  # biopython stub: email typed None
 
     def to_native(self, obj: Any) -> Any:
-        """Convert EntrezDict to native Python types.
+        """Recursively convert Biopython Entrez elements to native Python types.
 
         Args:
-            obj (EntrezDict): EntrezDict object to convert.
+            obj (Any): Entrez element (dictionary, list, or string) to convert.
 
         Returns:
-            dict: Converted object.
+            Any: Equivalent value using built-in dict, list, and str types.
 
         """
         if isinstance(obj, DictionaryElement):
@@ -100,12 +100,15 @@ class RefSeqInterface(BaseAPIInterface):
         """Fetch data from NCBI Entrez for a given ID.
 
         Args:
-            query (str|dict|list): ID or query dict to fetch data for.
-            method (str): Database to query (default: "protein").
-            **kwargs: Supports `retmode` key for return mode (default: "xml").
+            query (str | dict | list): ID or query dict to fetch data for.
+            method (str): Database to query.
+            **kwargs: Supports ``retmode`` key for return mode (default: "xml").
 
         Returns:
-            list: Fetched data.
+            dict | list: Fetched data, or an empty dict for unsupported databases.
+
+        Raises:
+            ValueError: If no valid RefSeq email is available.
 
         """
         retmode = kwargs.get("retmode", "xml")
@@ -118,7 +121,7 @@ class RefSeqInterface(BaseAPIInterface):
 
         if method not in databases:
             log.error("Database '%s' is not supported. Supported databases: %s", method, ", ".join(databases))
-            return {}
+            return []
 
         ids = query.get("id") if isinstance(query, dict) else query
 
@@ -127,24 +130,3 @@ class RefSeqInterface(BaseAPIInterface):
         handle.close()
 
         return self.to_native(records)
-
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **_kwargs: Any) -> list | dict:
-        """Parse the fetched data into a DataFrame.
-
-        Args:
-            data (dict): Fetched data from NCBI Entrez.
-            fields_to_extract (list|dict): Fields to extract from the data.
-            **kwargs: Additional keyword arguments.
-
-        Returns:
-            dict: Parsed data.
-
-        """
-        # Check input data type
-        if not isinstance(data, (list, dict)):
-            log.error(
-                "Tried to parse data but the type is not supported. Data should be a list or a dictionary."
-            )
-            return {}
-
-        return self._extract_fields(data, fields_to_extract)

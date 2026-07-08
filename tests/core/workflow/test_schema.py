@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import importlib
+import subprocess
 import sys
 
 import pytest
@@ -54,7 +54,8 @@ HEAVY_MODULE_PREFIXES = (
     "bioseq_dl.cli.workflows",
     "bioseq_dl.core.export",
     "bioseq_dl.core.interfaces.",
-    "bioseq_dl.core.workflow.",
+    "bioseq_dl.core.workflow.main_workflow",
+    "bioseq_dl.core.workflow.query_interpreter",
     "nicegui",
     "pandas",
 )
@@ -76,7 +77,7 @@ def minimal_workflow_descriptor() -> dict[str, object]:
 
 
 def test_workflow_v1_schema_definition_returns_dictionary() -> None:
-    from bioseq_dl.workflow_schema_definition import get_workflow_v1_schema_definition
+    from bioseq_dl.core.workflow.schema import get_workflow_v1_schema_definition
 
     schema_definition = get_workflow_v1_schema_definition()
 
@@ -86,7 +87,7 @@ def test_workflow_v1_schema_definition_returns_dictionary() -> None:
 
 
 def test_workflow_v1_schema_definition_includes_required_gui_fields() -> None:
-    from bioseq_dl.workflow_schema_definition import get_workflow_v1_schema_definition
+    from bioseq_dl.core.workflow.schema import get_workflow_v1_schema_definition
 
     schema_definition = get_workflow_v1_schema_definition()
 
@@ -99,7 +100,7 @@ def test_workflow_v1_schema_definition_includes_required_gui_fields() -> None:
 
 
 def test_workflow_validator_accepts_complete_harmonization_section() -> None:
-    from bioseq_dl.workflow_schema_definition import validate_workflow_v1_descriptor
+    from bioseq_dl.core.workflow.schema import validate_workflow_v1_descriptor
 
     descriptor = minimal_workflow_descriptor()
     descriptor["harmonization"] = {
@@ -120,7 +121,7 @@ def test_workflow_validator_accepts_complete_harmonization_section() -> None:
     ["id_column", "label_column", "sequence_column", "unique_sequence_strategy"],
 )
 def test_workflow_validator_rejects_non_string_harmonization_fields(field_name: str) -> None:
-    from bioseq_dl.workflow_schema_definition import validate_workflow_v1_descriptor
+    from bioseq_dl.core.workflow.schema import validate_workflow_v1_descriptor
 
     descriptor = minimal_workflow_descriptor()
     descriptor["harmonization"] = {field_name: 42}
@@ -130,7 +131,7 @@ def test_workflow_validator_rejects_non_string_harmonization_fields(field_name: 
 
 
 def test_workflow_validator_rejects_scalar_harmonization_metadata_fields() -> None:
-    from bioseq_dl.workflow_schema_definition import validate_workflow_v1_descriptor
+    from bioseq_dl.core.workflow.schema import validate_workflow_v1_descriptor
 
     descriptor = minimal_workflow_descriptor()
     descriptor["harmonization"] = {"metadata_fields": "accession"}
@@ -140,7 +141,7 @@ def test_workflow_validator_rejects_scalar_harmonization_metadata_fields() -> No
 
 
 def test_workflow_v1_schema_definition_hides_future_only_fields() -> None:
-    from bioseq_dl.workflow_schema_definition import get_workflow_v1_schema_definition
+    from bioseq_dl.core.workflow.schema import get_workflow_v1_schema_definition
 
     schema_definition = get_workflow_v1_schema_definition()
 
@@ -151,20 +152,19 @@ def test_workflow_v1_schema_definition_hides_future_only_fields() -> None:
 
 
 def test_workflow_schema_definition_import_is_lightweight() -> None:
-    for module_name in list(sys.modules):
-        if module_name == "bioseq_dl.workflow_schema_definition":
-            sys.modules.pop(module_name)
-
-    imported_before = set(sys.modules)
-    importlib.import_module("bioseq_dl.workflow_schema_definition")
-
-    imported_modules = set(sys.modules) - imported_before
-    for module_prefix in HEAVY_MODULE_PREFIXES:
-        assert not any(module_name.startswith(module_prefix) for module_name in imported_modules)
+    # Run in a clean interpreter so the check is real: importing the schema module
+    # must not pull heavy workflow-execution or interface modules. A same-process
+    # check would pass trivially once earlier tests have imported those modules.
+    checks = "; ".join(
+        f"assert not any(m.startswith({prefix!r}) for m in sys.modules)" for prefix in HEAVY_MODULE_PREFIXES
+    )
+    code = f"import sys; import bioseq_dl.core.workflow.schema; {checks}"
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)  # noqa: S603  # sys.executable, trusted
+    assert result.returncode == 0, result.stderr
 
 
 def test_lightweight_workflow_validator_normalizes_descriptor_without_heavy_imports() -> None:
-    from bioseq_dl.workflow_schema_definition import validate_workflow_v1_descriptor
+    from bioseq_dl.core.workflow.schema import validate_workflow_v1_descriptor
 
     imported_before = set(sys.modules)
     validated = validate_workflow_v1_descriptor(minimal_workflow_descriptor())

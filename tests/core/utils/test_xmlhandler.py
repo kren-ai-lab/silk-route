@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 
-import pandas as pd
+import polars as pl
 
 from bioseq_dl.core.utils.xmlhandler import (
     dict_to_element,
@@ -51,14 +51,14 @@ def test_elementtree_to_dataframe_leaf_rows():
     df = elementtree_to_dataframe(dict_to_elementtree(rows))
 
     assert list(df.columns) == ["accession", "length"]
-    assert df.loc[0, "accession"] == "P1"
+    assert df["accession"][0] == "P1"
     # 'length' is cast to int by the numeric-field heuristic.
-    assert df.loc[0, "length"] == 100
-    assert pd.api.types.is_integer_dtype(df["length"])
+    assert df["length"][0] == 100
+    assert df["length"].dtype == pl.Int64
 
 
 def test_elementtree_to_dataframe_nested_list_container():
     rows = [{"accession": "P1", "ec": ["1.1.1.1", "1.1.1.2"]}]
     df = elementtree_to_dataframe(dict_to_elementtree(rows))
 
-    assert df.loc[0, "ec"] == ["1.1.1.1", "1.1.1.2"]
+    assert df["ec"][0].to_list() == ["1.1.1.1", "1.1.1.2"]

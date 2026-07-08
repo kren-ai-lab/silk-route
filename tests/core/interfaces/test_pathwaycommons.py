@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import pytest
-import responses
+from niquests_mock import startswith
 
 from bioseq_dl.core.interfaces.pathwaycommons import PathwayCommonsInterface
 from tests._helpers import load_fixture
+from tests.core.interfaces._contract import CachingContract, HttpErrorContract
 
 FETCH_URL = "https://www.pathwaycommons.org/pc2/v2/fetch"
+TOP_PATHWAYS_URL = "https://www.pathwaycommons.org/pc2/v2/top_pathways"
 
 
 @pytest.fixture
@@ -18,15 +20,15 @@ def interface(tmp_path):
     )
 
 
-def test_fetch_unwraps_graph(interface, mocked_responses):
+def test_fetch_unwraps_graph(interface, niquests_mock):
     body = load_fixture("pathwaycommons", "fetch")
-    mocked_responses.add(responses.POST, FETCH_URL, json=body, status=200)
+    niquests_mock.post(url=startswith(FETCH_URL)).respond(status_code=200, json=body)
 
     result = interface.fetch({"uri": ["uniprot:P04637"]}, method="fetch")
 
     # fetch unwraps the JSON-LD "@graph" envelope.
     assert result == body["@graph"]
-    assert len(mocked_responses.calls) == 1
+    assert len(niquests_mock.calls) == 1
 
 
 def test_parse_extracts_requested_fields(interface):
@@ -37,13 +39,23 @@ def test_parse_extracts_requested_fields(interface):
     assert parsed == {k: record[k] for k in ("@id", "@type")}
 
 
-def test_fetch_single_round_trips_through_cache(interface, mocked_responses):
-    body = load_fixture("pathwaycommons", "fetch")
-    mocked_responses.add(responses.POST, FETCH_URL, json=body, status=200)
+def test_fetch_unwraps_search_hit(interface, niquests_mock):
+    body = {"searchHit": [{"uri": "http://identifiers.org/reactome/R-HSA-1"}]}
+    niquests_mock.post(url=startswith(TOP_PATHWAYS_URL)).respond(status_code=200, json=body)
 
-    query = {"uri": ["uniprot:P04637"]}
-    first, _ = interface.fetch_single(query, method="fetch")
-    second, _ = interface.fetch_single(query, method="fetch")
+    result = interface.fetch({"q": "TP53"}, method="top_pathways")
 
-    assert len(mocked_responses.calls) == 1
-    assert first == second
+    assert result == body["searchHit"]
+
+
+def test_fetch_missing_required_param_raises(interface):
+    with pytest.raises(ValueError, match="uri"):
+        interface.fetch({"uri": []}, method="fetch")
+
+
+class TestPathwaycommonsContract(CachingContract, HttpErrorContract):
+    INTERFACE_URL = FETCH_URL
+    QUERY = {"uri": ["uniprot:P04637"]}
+    METHOD = "fetch"
+    FIXTURE = ("pathwaycommons", "fetch")
+    HTTP_METHOD = "post"

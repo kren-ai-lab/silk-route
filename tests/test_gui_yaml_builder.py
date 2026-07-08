@@ -1105,7 +1105,8 @@ blocked_prefixes = (
     "bioseq_dl.cli.workflows",
     "bioseq_dl.core.export",
     "bioseq_dl.core.interfaces",
-    "bioseq_dl.core.workflow",
+    "bioseq_dl.core.workflow.main_workflow",
+    "bioseq_dl.core.workflow.query_interpreter",
     "nicegui",
     "pandas",
 )

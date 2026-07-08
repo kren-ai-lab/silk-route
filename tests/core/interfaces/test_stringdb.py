@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import pytest
-import responses
+from niquests_mock import startswith
 
 from bioseq_dl.core.interfaces.stringdb import StringInterface
 from tests._helpers import load_fixture
+from tests.core.interfaces._contract import CachingContract, HttpErrorContract
 
 IDS_URL = "https://string-db.org/api/json/get_string_ids"
 
@@ -18,15 +19,15 @@ def interface(tmp_path):
     )
 
 
-def test_fetch_builds_url_with_format_segment(interface, mocked_responses):
+def test_fetch_builds_url_with_format_segment(interface, niquests_mock):
     body = load_fixture("stringdb", "get_string_ids")
-    mocked_responses.add(responses.GET, IDS_URL, json=body, status=200)
+    niquests_mock.get(url=startswith(IDS_URL)).respond(status_code=200, json=body)
 
     result = interface.fetch({"identifiers": "TP53", "species": 9606}, method="get_string_ids")
 
     assert result == body
-    assert len(mocked_responses.calls) == 1
-    sent = mocked_responses.calls[0].request.url
+    assert len(niquests_mock.calls) == 1
+    sent = niquests_mock.calls[0].request.url
     assert sent.startswith(IDS_URL)
     assert "identifiers=TP53" in sent
     assert "species=9606" in sent
@@ -40,13 +41,8 @@ def test_parse_extracts_requested_fields(interface):
     assert parsed[0] == {"stringId": "9606.ENSP00000269305", "preferredName": "TP53"}
 
 
-def test_fetch_single_round_trips_through_cache(interface, mocked_responses):
-    body = load_fixture("stringdb", "get_string_ids")
-    mocked_responses.add(responses.GET, IDS_URL, json=body, status=200)
-
-    query = {"identifiers": "TP53", "species": 9606}
-    first, _ = interface.fetch_single(query, method="get_string_ids")
-    second, _ = interface.fetch_single(query, method="get_string_ids")
-
-    assert len(mocked_responses.calls) == 1
-    assert first == second
+class TestStringdbContract(CachingContract, HttpErrorContract):
+    INTERFACE_URL = IDS_URL
+    QUERY = {"identifiers": "TP53", "species": 9606}
+    METHOD = "get_string_ids"
+    FIXTURE = ("stringdb", "get_string_ids")

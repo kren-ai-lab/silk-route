@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 
 from bioseq_dl.core.utils.base_auxiliary_methods import (
-    get_feature_keys,
     get_primary_keys,
     validate_parameters,
 )
@@ -53,11 +52,3 @@ def test_validate_parameters_omits_keys_with_none_default():
 def test_get_primary_keys_sorted_and_deduped():
     schema = {"b": (str, None, True), "a": (str, None, True), "c": (int, 0, False)}
     assert get_primary_keys(schema) == ["a", "b"]
-
-
-def test_get_feature_keys_nested_and_lists():
-    data = {"name": "x", "nested": {"a": 1}, "tags": ["t1", "t2"]}
-    keys = get_feature_keys(data)
-    assert keys["name"] == "str"
-    assert keys["nested.a"] == "dict(int)"
-    assert keys["tags"] == "list(str)"

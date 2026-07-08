@@ -3,16 +3,22 @@
 import xml.etree.ElementTree as ET
 from typing import Any
 
-import pandas as pd
+import polars as pl
+
+from bioseq_dl.core.utils.frames import records_to_frame
 
 
 def dict_to_element(data: Any, parent: ET.Element, *, list_item_tag: str = "item") -> None:
-    """Convert a dict, list, or scalar value to XML under `parent`.
+    """Convert a dict, list, or scalar value to XML under ``parent``.
 
-    Rules:
-    - dict  -> <key>...</key>
-    - list  -> repeated <item>...</item> elements by default
-    - value -> element text
+    Dicts become ``<key>...</key>`` elements, lists become repeated
+    ``<item>...</item>`` elements, and scalars become element text.
+
+    Args:
+        data (Any): Value to serialize into XML.
+        parent (ET.Element): Element to append the serialized value to.
+        list_item_tag (str): Tag name used for list items. Default is "item".
+
     """
     if isinstance(data, dict):
         for key, value in data.items():
@@ -33,7 +39,17 @@ def dict_to_elementtree(
     root_tag: str = "results",
     list_item_tag: str = "item",
 ) -> ET.ElementTree:
-    """Convert an ElementTree XML tree to a flat pandas DataFrame."""
+    """Convert a dict/list/scalar value into an ``ElementTree`` rooted at ``root_tag``.
+
+    Args:
+        data (Any): Value to serialize into XML.
+        root_tag (str): Tag name for the root element. Default is "results".
+        list_item_tag (str): Tag name used for list items. Default is "item".
+
+    Returns:
+        ET.ElementTree: Tree containing the serialized value.
+
+    """
     root = ET.Element(root_tag)
     dict_to_element(data, root, list_item_tag=list_item_tag)
     return ET.ElementTree(root)
@@ -41,55 +57,71 @@ def dict_to_elementtree(
 
 def _xml_is_leaf(element: ET.Element) -> bool:
     """Return whether an XML element has no child elements."""
-    return len(list(element)) == 0
+    return len(element) == 0
+
+
+def _children_map(element: ET.Element) -> dict[str, str]:
+    """Map each child tag to its leaf text, or serialized XML for non-leaf children."""
+    return {
+        child.tag: (child.text or "").strip()
+        if _xml_is_leaf(child)
+        else ET.tostring(child, encoding="unicode")
+        for child in element
+    }
 
 
 def _parse_xml_container(element: ET.Element, list_item_tag: str) -> Any:
-    """Parse an XML container as a scalar, dict, or list."""
+    """Parse an XML container as a scalar, dict, or list.
+
+    Repeated ``list_item_tag`` children yield a list (of strings if all leaves,
+    otherwise of dicts); a leaf element yields its text; any other element yields
+    a tag-to-text mapping.
+
+    Args:
+        element (ET.Element): Container element to parse.
+        list_item_tag (str): Tag name identifying repeated list items.
+
+    Returns:
+        Any: A string, list, or dict depending on the element's structure.
+
+    """
     items = element.findall(f"./{list_item_tag}")
 
     if items:
         if all(_xml_is_leaf(item) for item in items):
             return [(item.text or "").strip() for item in items if (item.text or "").strip()]
 
-        output = []
-        for item in items:
-            parsed_item = {}
-            for child in list(item):
-                parsed_item[child.tag] = (
-                    (child.text or "").strip()
-                    if _xml_is_leaf(child)
-                    else ET.tostring(child, encoding="unicode")
-                )
-            output.append(parsed_item)
-        return output
+        return [_children_map(item) for item in items]
 
     if _xml_is_leaf(element):
         return (element.text or "").strip()
 
-    parsed = {}
-    for child in list(element):
-        parsed[child.tag] = (
-            (child.text or "").strip() if _xml_is_leaf(child) else ET.tostring(child, encoding="unicode")
-        )
-    return parsed
+    return _children_map(element)
 
 
 def elementtree_to_dataframe(
     tree: ET.ElementTree,
     record_path: str = "./item",
     list_item_tag: str = "item",
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """Convert an ElementTree to a DataFrame.
 
-    Rules:
-    - Each element at record_path becomes one row
-    - Leaf elements -> scalar values
-    - Containers with repeated <item> -> list[str] or list[dict]
+    Each element at ``record_path`` becomes one row: leaf children become scalar
+    values and container children become ``list[str]`` or ``list[dict]``. Common
+    numeric fields (``length``, ``organism_id``, ``tax_id``) are cast to int.
+
+    Args:
+        tree (ET.ElementTree): Source tree to convert.
+        record_path (str): Path selecting the elements that become rows. Default is "./item".
+        list_item_tag (str): Tag name used for list items within containers. Default is "item".
+
+    Returns:
+        pl.DataFrame: One row per matched record; empty if the tree has no root.
+
     """
     root = tree.getroot()
     if root is None:
-        return pd.DataFrame()
+        return pl.DataFrame()
     records = root.findall(record_path)
 
     rows = []
@@ -108,4 +140,4 @@ def elementtree_to_dataframe(
 
         rows.append(row)
 
-    return pd.DataFrame(rows)
+    return records_to_frame(rows)

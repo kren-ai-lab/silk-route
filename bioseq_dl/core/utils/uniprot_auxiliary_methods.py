@@ -10,17 +10,45 @@ def extract_simple(value: Any) -> Any:
 
 
 def extract_ec_numbers(ec_data: list) -> list[str]:
-    """Extract EC numbers."""
+    """Extract EC numbers.
+
+    Args:
+        ec_data (list): EC number entries, each a dict with a ``value`` key.
+
+    Returns:
+        list[str]: The EC number values, or an empty list if input is not a list.
+
+    """
     return [ec["value"] for ec in ec_data] if isinstance(ec_data, list) else []
 
 
 def extract_gene_names(gene_names: list) -> list[str]:
-    """Extract gene names."""
+    """Extract gene names.
+
+    Args:
+        gene_names (list): Gene entries, each with a ``geneName.value`` field.
+
+    Returns:
+        list[str]: The gene name values, or an empty list if input is not a list.
+
+    """
     return [gene["geneName"]["value"] for gene in gene_names] if isinstance(gene_names, list) else []
 
 
 def extract_database_terms(xrefs: list, database: str) -> list[str]:
-    """Extract database terms."""
+    """Extract cross-reference IDs for a given database.
+
+    Handles both plain cross-references and reaction cross-references nested
+    under comments.
+
+    Args:
+        xrefs (list): Cross-reference entries to scan.
+        database (str): The database name to match against.
+
+    Returns:
+        list[str]: The matching cross-reference IDs.
+
+    """
     # Comment solution
     if all("reaction" in xref for xref in xrefs if isinstance(xrefs, list)):
         return [
@@ -34,7 +62,15 @@ def extract_database_terms(xrefs: list, database: str) -> list[str]:
 
 
 def extract_references(refs: list) -> list[dict]:
-    """Extract references."""
+    """Extract literature references.
+
+    Args:
+        refs (list): Reference entries, each with a ``citation`` dict.
+
+    Returns:
+        list[dict]: References with title, authors, journal, pub_date, and pmid.
+
+    """
     extracted = []
     for ref in refs if isinstance(refs, list) else []:
         citation = ref.get("citation", {})
@@ -57,26 +93,39 @@ def extract_references(refs: list) -> list[dict]:
     return extracted
 
 
+def _format_location(feature: dict) -> str:
+    """Format a feature's start/end as 'start', 'start-end', or '' when absent."""
+    location = feature.get("location") or {}
+    start_pos = location.get("start", {}).get("value")
+    end_pos = location.get("end", {}).get("value")
+    if start_pos and end_pos:
+        return start_pos if start_pos == end_pos else f"{start_pos}-{end_pos}"
+    return ""
+
+
 # For fields ft_mutagen and ft_variant
 def extract_variants(features: list) -> list[dict]:
-    """Extract variant information."""
+    """Extract variant information from sequence features.
+
+    Keeps only mutagenesis, natural variant, and disease mutation features.
+
+    Args:
+        features (list): Feature entries to scan.
+
+    Returns:
+        list[dict]: Variant records with type, id, location, sequences, and description.
+
+    """
     VARIANTS_NAMES = {"Mutagenesis", "Natural variant", "Disease mutation"}
     extracted = []
     for feature in features if isinstance(features, list) else []:
         if feature.get("type") in VARIANTS_NAMES:
             vtype = feature.get("type")
             feature_id = feature.get("featureId", "")
-            variant_start_pos = feature.get("location", "").get("start", "").get("value")
-            variant_end_pos = feature.get("location", "").get("end", "").get("value")
-            if variant_start_pos and variant_end_pos:
-                if variant_start_pos == variant_end_pos:
-                    location = variant_start_pos
-                else:
-                    location = f"{variant_start_pos}-{variant_end_pos}"
-            else:
-                location = ""
-            original_seq = feature.get("alternativeSequence", "").get("originalSequence", "")
-            alt_seqs = feature.get("alternativeSequence", []).get("alternativeSequences", [])
+            location = _format_location(feature)
+            alt_seq = feature.get("alternativeSequence") or {}
+            original_seq = alt_seq.get("originalSequence", "")
+            alt_seqs = alt_seq.get("alternativeSequences", [])
             description = feature.get("description", "")
 
             extracted.append(
@@ -94,7 +143,16 @@ def extract_variants(features: list) -> list[dict]:
 
 
 def extract_diseases(comments: list) -> list[dict]:
-    """Extract structured disease comments from UniProt comment data."""
+    """Extract structured disease comments from UniProt comment data.
+
+    Args:
+        comments (list): Comment entries to scan for DISEASE comments.
+
+    Returns:
+        list[dict]: Disease records with id, acronym, accession, description,
+        cross_reference, note, and evidences.
+
+    """
     if not isinstance(comments, list):
         return []
 
@@ -144,22 +202,24 @@ def extract_diseases(comments: list) -> list[dict]:
 
 # For fields ft_act_site, ft_binding, and ft_site.
 def extract_active_sites(active_sites: list) -> list[dict]:
-    """Extract active sites from features."""
+    """Extract active sites from features.
+
+    Keeps only active site, binding site, and site features.
+
+    Args:
+        active_sites (list): Feature entries to scan.
+
+    Returns:
+        list[dict]: Site records with type, description, and location.
+
+    """
     ACTIVE_SITE_TYPES = {"Active site", "Binding site", "Site"}
     extracted = []
     for feature in active_sites if isinstance(active_sites, list) else []:
         if feature.get("type") in ACTIVE_SITE_TYPES:
             stype = feature.get("type")
             description = feature.get("description", "")
-            site_start_pos = feature.get("location", "").get("start", "").get("value")
-            site_end_pos = feature.get("location", "").get("end", "").get("value")
-            if site_start_pos and site_end_pos:
-                if site_start_pos == site_end_pos:
-                    location = site_start_pos
-                else:
-                    location = f"{site_start_pos}-{site_end_pos}"
-            else:
-                location = ""
+            location = _format_location(feature)
             extracted.append(
                 {
                     "type": stype,
@@ -173,7 +233,16 @@ def extract_active_sites(active_sites: list) -> list[dict]:
 
 # for fields cc_interaction
 def extract_interactions(comments: list) -> list[dict]:
-    """Extract interaction information from comments."""
+    """Extract interaction information from comments.
+
+    Args:
+        comments (list): Comment entries to scan for INTERACTION comments.
+
+    Returns:
+        list[dict]: Interaction records with the two interactants' accessions and
+        gene names, experiment count, and organism-differ flag.
+
+    """
     extracted = []
     for c in comments if isinstance(comments, list) else []:
         comment_type = c.get("commentType", "")
@@ -188,11 +257,8 @@ def extract_interactions(comments: list) -> list[dict]:
                 {
                     "accesion_a": interactor_one.get("uniProtKBAccession", ""),
                     "geneName_a": interactor_one.get("geneName", ""),
-                    # You can also retrieve intact id, but will be left out for now
-                    #'intActId_a': interactor_one.get('intActId', '')
                     "accesion_b": interactor_two.get("uniProtKBAccession", ""),
                     "geneName_b": interactor_two.get("geneName", ""),
-                    #'intActId_b': interactor_two.get('intActId', '')
                     "numberOfExperiments": interactor.get("numberOfExperiments", 0),
                     "organismDiffer": interactor.get("organismDiffer", False),
                 }
@@ -201,57 +267,56 @@ def extract_interactions(comments: list) -> list[dict]:
 
 
 # for fields temp_dependence, ph_dependence
+def _extract_dependence(comments: list, dependence_key: str) -> list[str]:
+    """Extract BIOPHYSICOCHEMICAL PROPERTIES dependence texts for ``dependence_key``.
+
+    Args:
+        comments (list): Comment entries to scan.
+        dependence_key (str): The dependence field to read (e.g. ``temperatureDependence``).
+
+    Returns:
+        list[str]: The dependence text values.
+
+    """
+    extracted = []
+    for c in comments if isinstance(comments, list) else []:
+        if c.get("commentType", "") != "BIOPHYSICOCHEMICAL PROPERTIES":
+            continue
+        if dependence_key in c:
+            extracted.extend(text.get("value", "") for text in c.get(dependence_key, {}).get("texts", []))
+    return extracted
+
+
 def extract_temperature(comments: list) -> list[str]:
     """Extract temperature dependence information from comments."""
-    extracted = []
-    for c in comments if isinstance(comments, list) else []:
-        comment_type = c.get("commentType", "")
-        if comment_type != "BIOPHYSICOCHEMICAL PROPERTIES":
-            continue
-
-        if "temperatureDependence" in c:
-            temp_dep = c.get("temperatureDependence", {}).get("texts", [])
-            for temp in temp_dep:
-                temp_value = temp.get("value", "")
-                extracted.append(temp_value)
-    return extracted
+    return _extract_dependence(comments, "temperatureDependence")
 
 
-# for fields temp_dependence, ph_dependence
 def extract_ph(comments: list) -> list[str]:
     """Extract pH dependence information from comments."""
-    extracted = []
-    for c in comments if isinstance(comments, list) else []:
-        comment_type = c.get("commentType", "")
-        if comment_type != "BIOPHYSICOCHEMICAL PROPERTIES":
-            continue
-
-        if "phDependence" in c:
-            ph_dep = c.get("phDependence", {}).get("texts", [])
-            for ph in ph_dep:
-                ph_value = ph.get("value", "")
-                extracted.append(ph_value)
-    return extracted
+    return _extract_dependence(comments, "phDependence")
 
 
 # for fields ft_domain,ft_motif and ft_region,
 def extract_domains(domains: list) -> list[dict]:
-    """Extract protein domains from features."""
+    """Extract protein domains from features.
+
+    Keeps region, motif, domain, repeat, coiled coil, and compositional bias features.
+
+    Args:
+        domains (list): Feature entries to scan.
+
+    Returns:
+        list[dict]: Domain records with type, description, and location.
+
+    """
     DOMAINS_TYPES = {"Region", "Motif", "Domain", "Repeat", "Coiled coil", "Compositional bias"}
     extracted = []
     for domain in domains if isinstance(domains, list) else []:
         if domain.get("type") in DOMAINS_TYPES:
             dtype = domain.get("type")
             description = domain.get("description", "")
-            domain_start_pos = domain.get("location", "").get("start", "").get("value")
-            domain_end_pos = domain.get("location", "").get("end", "").get("value")
-            if domain_start_pos and domain_end_pos:
-                if domain_start_pos == domain_end_pos:
-                    location = domain_start_pos
-                else:
-                    location = f"{domain_start_pos}-{domain_end_pos}"
-            else:
-                location = ""
+            location = _format_location(domain)
             extracted.append(
                 {
                     "type": dtype,
@@ -264,5 +329,13 @@ def extract_domains(domains: list) -> list[dict]:
 
 
 def extract_keywords(keywords: list) -> list[str]:
-    """Extract keywords."""
-    return [kw.get("name", "") for kw in keywords if isinstance(keywords, list)]
+    """Extract keywords.
+
+    Args:
+        keywords (list): Keyword entries, each with a ``name`` field.
+
+    Returns:
+        list[str]: The keyword names, or an empty list if input is not a list.
+
+    """
+    return [kw.get("name", "") for kw in keywords] if isinstance(keywords, list) else []

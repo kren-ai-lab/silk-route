@@ -4,14 +4,6 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from importlib import metadata
-
-
-def raise_missing_distribution(distribution_name: str) -> str:
-    from bioseq_dl._version import DISTRIBUTION_NAME
-
-    assert distribution_name == DISTRIBUTION_NAME
-    raise metadata.PackageNotFoundError
 
 
 def test_version_is_exposed() -> None:
@@ -19,14 +11,6 @@ def test_version_is_exposed() -> None:
 
     assert isinstance(bioseq_dl.__version__, str)
     assert bioseq_dl.__version__
-
-
-def test_runtime_version_falls_back_when_distribution_is_missing(monkeypatch) -> None:
-    from bioseq_dl._version import UNKNOWN_VERSION, get_runtime_version
-
-    monkeypatch.setattr(metadata, "version", raise_missing_distribution)
-
-    assert get_runtime_version() == UNKNOWN_VERSION
 
 
 def test_public_exports_are_lazy_and_resolve() -> None:

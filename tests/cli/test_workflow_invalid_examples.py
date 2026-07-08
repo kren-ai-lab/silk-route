@@ -10,8 +10,6 @@ from bioseq_dl.cli.workflows import load_workflow_recipe, validate_workflow_reci
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 INVALID_WORKFLOW_DIR = REPO_ROOT / "examples" / "workflows" / "invalid"
-CREDENTIAL_LIKE_STRINGS = ("API_KEY", "TOKEN", "SECRET", "PASSWORD", "PRIVATE_KEY")
-LOCAL_PATH_PATTERNS = ("C:\\", "/Users/", "/home/")
 
 EXPECTED_ERRORS = {
     "missing_schema_version.yml": "missing required top-level key 'schema_version'",
@@ -31,13 +29,3 @@ def test_invalid_workflow_examples_raise_expected_errors(filename: str, expected
 
     with pytest.raises((TypeError, ValueError), match=expected_error):
         validate_workflow_recipe(recipe)
-
-
-@pytest.mark.parametrize("filename", sorted(EXPECTED_ERRORS))
-def test_invalid_workflow_examples_do_not_contain_credentials_or_local_paths(filename: str) -> None:
-    text = (INVALID_WORKFLOW_DIR / filename).read_text(encoding="utf-8")
-
-    for credential_text in CREDENTIAL_LIKE_STRINGS:
-        assert credential_text not in text
-    for local_path_pattern in LOCAL_PATH_PATTERNS:
-        assert local_path_pattern not in text

@@ -10,23 +10,27 @@ import operator
 import random
 import re
 import time
-from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from abc import ABC
+from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
+from http import HTTPStatus
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
-import pandas as pd
-import requests
+import niquests
+import polars as pl
 from dicttoxml import dicttoxml
-from requests.adapters import HTTPAdapter, Retry
-from requests.exceptions import RequestException
-from requests.models import Request, Response
+from niquests.adapters import HTTPAdapter, Retry
+from niquests.exceptions import RequestException
+from niquests.models import Request, Response
 
 from bioseq_dl.core.dbconfig import DBConfig
 from bioseq_dl.core.exceptions import RequestError
 from bioseq_dl.core.interfacesconfig import load_packaged_config, read_config_file
+from bioseq_dl.core.metadata import FetchMetadata, RequestInfo, current_tool
 from bioseq_dl.core.utils.base_auxiliary_methods import get_nested, get_primary_keys, validate_parameters
+from bioseq_dl.core.utils.frames import records_to_frame
 from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.interfaces.base")
@@ -61,12 +65,22 @@ def _extract_nested_values(value: object) -> list[str]:
     return result
 
 
-class BaseAPIInterface(ABC):
+class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have concrete defaults
     """Abstract base class for all BioSeqDownloader API interfaces."""
 
     API_NAME: ClassVar[str] = "BaseAPI"
     METHODS: ClassVar[dict[str, Any]] = {}
     DB_CONFIG: ClassVar[DBConfig | None] = None
+    # Default `option` injected into fetch_single/fetch_batch when the caller
+    # omits it. Only set on interfaces whose METHODS are option-keyed (e.g.
+    # {"default": {...}, ...}); leave None otherwise.
+    DEFAULT_OPTION: ClassVar[str | None] = None
+    # Suffix appended after ``{api_url}{method}`` by the default ``_build_request``
+    # (e.g. ``"/"`` for APIs whose endpoints are ``{method}/{id}``).
+    _METHOD_SUFFIX: ClassVar[str] = ""
+    # Response envelope keys the default ``_unwrap_response`` unwraps, in order;
+    # the first present key's value is returned. Empty = return data unchanged.
+    _RESPONSE_ENVELOPE_KEYS: ClassVar[tuple[str, ...]] = ()
 
     cache_key_ignore_args: ClassVar[set[str]] = {
         "parse",
@@ -102,6 +116,22 @@ class BaseAPIInterface(ABC):
 
         return cache_dir, config_dir
 
+    def _resolve_output_dir(self, output_dir: str | None, *, init_subdir: str | None = None) -> str:
+        """Resolve a download output dir and ensure it exists.
+
+        Precedence: explicit ``output_dir`` > packaged ``init.yml`` ``download_folder``
+        (when ``init_subdir`` is given) > ``self.cache_dir``. Shared by the
+        file-downloading interfaces (AlphaFold / PDB / SABIO-RK). Call after
+        ``super().__init__`` so ``self.cache_dir`` is set.
+        """
+        fallback = self.cache_dir
+        if init_subdir:
+            packaged_init = load_packaged_config(init_subdir, "init.yml") or {}
+            fallback = packaged_init.get("download_folder") or self.cache_dir
+        out_dir = output_dir or fallback
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
+        return out_dir
+
     def __init__(
         self,
         cache_dir: str | None = None,
@@ -116,13 +146,13 @@ class BaseAPIInterface(ABC):
         """Initialize the BaseAPIInterface class.
 
         Args:
-            cache_dir (str): Directory to store cached data.
-            config_dir (Optional[str]): Directory to load configuration files.
+            cache_dir (str | None): Directory to store cached data.
+            config_dir (str | None): Directory to load configuration files.
             max_workers (int): Maximum number of parallel requests.
             min_wait (float): Minimum wait time between requests.
             max_wait (float): Maximum wait time between requests.
             total_retries (int): Total number of retries for requests.
-            headers (Dict, optional): Headers to include in requests.
+            headers (dict | None): Headers to include in requests.
             use_config (bool): Whether to use a configuration file for initialization.
 
         """
@@ -137,7 +167,6 @@ class BaseAPIInterface(ABC):
         self.use_config = use_config
 
         self.configs: dict[str, dict] = {}
-        self.fields_config: dict[str, dict] = {}
 
         if self.use_config:
             # Optional user-provided extra configs (never required).
@@ -156,7 +185,7 @@ class BaseAPIInterface(ABC):
         Path(self.cache_dir).mkdir(parents=True, exist_ok=True)
 
         # Init session
-        self.session = requests.Session()
+        self.session = niquests.Session()
         retries = Retry(total=self.total_retries, backoff_factor=0.25, status_forcelist=[500, 502, 503, 504])
         adapter = HTTPAdapter(max_retries=retries)
         self.session.mount("https://", adapter)
@@ -203,28 +232,21 @@ class BaseAPIInterface(ABC):
         """Introduce a random delay between min_wait and max_wait."""
         time.sleep(random.uniform(self.min_wait, self.max_wait))  # noqa: S311  # jittered rate-limit delay, not cryptographic
 
-    @staticmethod
-    def _empty_metadata() -> dict[str, Any]:
-        """Return a fresh metadata skeleton shared by fetch_single/fetch_batch."""
-        return {
-            "cached_ids": [],
-            "cached_subqueries": [],
-            "fetched_ids": [],
-            "fetched_subqueries": [],
-            "failed_ids": [],
-            "fetched_length": 0,
-            "data_info": {},
-            "execution_time": 0.0,
-            "api_name": "",
-            "method": "",
-            "option": "",
-        }
+    def _stamp_metadata(self, metadata: FetchMetadata, *, method: str, option: Any) -> None:
+        """Stamp the ``tool`` and ``request`` provenance shared by every return path."""
+        metadata.tool = current_tool()
+        metadata.request = RequestInfo(api_name=self.API_NAME, method=method, option=option)
+
+    def _apply_default_option(self, kwargs: dict) -> None:
+        """Inject ``DEFAULT_OPTION`` into ``kwargs`` when the caller omitted ``option``."""
+        if self.DEFAULT_OPTION is not None:
+            kwargs.setdefault("option", self.DEFAULT_OPTION)
 
     @staticmethod
-    def _build_columns_info(df: pd.DataFrame) -> list[dict]:
+    def _build_columns_info(df: pl.DataFrame) -> list[dict]:
         """Build the per-column ``data_info`` block (name / dtype / n_missing)."""
         return [
-            {"name": col, "dtype": str(df[col].dtype), "n_missing": int(df[col].isna().sum())}
+            {"name": col, "dtype": str(df.schema[col]), "n_missing": int(df[col].null_count())}
             for col in df.columns
         ]
 
@@ -237,27 +259,27 @@ class BaseAPIInterface(ABC):
         metadata stays serializable); ``total_entries`` and the per-column block
         are derived from a DataFrame view of the data.
         """
-        if isinstance(data, pd.DataFrame):
+        if isinstance(data, pl.DataFrame):
             df = data
         elif isinstance(data, list):
-            df = pd.DataFrame(data) if len(data) > 0 else pd.DataFrame()
+            # Only a list of record dicts maps to a columnar frame; a list of
+            # non-dicts (e.g. per-query result lists) has no column schema, so
+            # report the entry count without a per-column block.
+            if data and all(isinstance(item, dict) for item in data):
+                df = records_to_frame(data)
+            else:
+                return {"total_entries": len(data), "data_type": "list", "columns": []}
         elif isinstance(data, dict):
-            df = pd.DataFrame([data]) if len(data) > 0 else pd.DataFrame()
+            df = records_to_frame(data) if data else pl.DataFrame()
         elif data is None:
-            df = pd.DataFrame()
+            df = pl.DataFrame()
         else:
-            df = pd.DataFrame([data])
+            return {"total_entries": 1, "data_type": type(data).__name__, "columns": []}
 
-        if isinstance(data, list):
-            total_entries = len(data)
-        elif isinstance(data, pd.DataFrame):
-            total_entries = data.shape[0]
-        elif data is None:
-            total_entries = 0
-        else:
-            total_entries = len(df)
+        # The DataFrame view above faithfully represents the row count for every
+        # input shape (list, dict, None), so derive the count from it.
         return {
-            "total_entries": total_entries,
+            "total_entries": df.height,
             "data_type": type(data).__name__,
             "columns": cls._build_columns_info(df),
         }
@@ -266,7 +288,7 @@ class BaseAPIInterface(ABC):
         """Get the set of keys to ignore when generating cache keys.
 
         Returns:
-            Set[str]: Set of keys to ignore.
+            set[str]: Set of keys to ignore.
 
         """
         return self.cache_key_ignore_args
@@ -277,7 +299,7 @@ class BaseAPIInterface(ABC):
         """Get the set of keys used for matching queries and generating subqueries.
 
         Returns:
-            Set[str]: Set of keys used for matching queries.
+            set[str]: Set of keys used for matching queries.
 
         """
         return self.subquery_match_keys
@@ -305,7 +327,7 @@ class BaseAPIInterface(ABC):
             result[k] = val
         return result
 
-    def _make_cache_key(self, input_obj: str | dict, **kwargs: Any) -> str:
+    def _make_cache_key(self, input_obj: str | dict | list, **kwargs: Any) -> str:
         """Generate a string key from the input object."""
         # Serialize input_obj based on its type
         if isinstance(input_obj, dict):
@@ -315,22 +337,14 @@ class BaseAPIInterface(ABC):
         else:
             base = json.dumps(input_obj, sort_keys=True)
 
-        # Filter kwargs to exclude cache_key_ignore_args
+        # Include relevant kwargs (like 'operation') in the cache key, excluding
+        # cache_key_ignore_args. Empty parts drop out of the join.
         relevant_kwargs = self._filter_dict_keys(kwargs)
-        extra = ""
-
-        # Include relevant kwargs (like 'operation') in the cache key
-        if relevant_kwargs:
-            extra = "_".join(f"{v}" for _, v in relevant_kwargs.items())
-
-        if base and extra:
-            return f"{base}_{extra}"
-        if base:
-            return base
-        # A rarer case where input_obj is empty or None
-        return extra
+        extra = "_".join(map(str, relevant_kwargs.values()))
+        return "_".join(part for part in (base, extra) if part)
 
     def _hash_key(self, key: str) -> str:
+        """Return the MD5 hex digest of a cache key."""
         return hashlib.md5(key.encode("utf-8"), usedforsecurity=False).hexdigest()
 
     def _get_cache_path(self, identifier: str) -> str:
@@ -343,14 +357,12 @@ class BaseAPIInterface(ABC):
         cache_path = self._get_cache_path(identifier)
         return Path(cache_path).exists()
 
-    def _load_file(self, path: str) -> dict | pd.DataFrame:
-        """Load a file from the cache path, supporting JSON and CSV formats."""
-        if path.endswith(".csv"):
-            return pd.read_csv(path)
+    def _load_file(self, path: str) -> dict | pl.DataFrame:
+        """Load a JSON cache file (cache paths are always ``.json``)."""
         with Path(path).open() as f:
             return json.load(f)
 
-    def load_cache(self, identifier: str) -> dict | pd.DataFrame | None:
+    def load_cache(self, identifier: str) -> dict | pl.DataFrame | None:
         """Load cached results for a given identifier."""
         # Try directly loading from the cache
         cache_path = self._get_cache_path(identifier)
@@ -359,12 +371,13 @@ class BaseAPIInterface(ABC):
 
         return None
 
-    def save_cache(self, identifier: str, data: list | dict | pd.DataFrame | str) -> None:
+    def save_cache(self, identifier: str, data: list | dict | pl.DataFrame | str) -> None:
         """Save results to cache."""
         path = self._get_cache_path(identifier)
 
-        if isinstance(data, pd.DataFrame):
-            data.to_csv(path, index=False)
+        if isinstance(data, pl.DataFrame):
+            with Path(path).open("w") as f:
+                json.dump(data.to_dicts(), f)
         elif isinstance(data, str):
             with Path(path).open("w") as f:
                 f.write(data)
@@ -402,7 +415,28 @@ class BaseAPIInterface(ABC):
 
     def _maybe_parse(
         self, data: Any, parse: bool, fmt: Literal["dataframe", "json", "xml"], **kwargs: Any
-    ) -> list | dict | pd.DataFrame | bytes | str:
+    ) -> list | dict | pl.DataFrame | bytes | str:
+        """Optionally parse raw data and convert it to the requested output format.
+
+        When ``parse`` is set, resolves ``fields_to_extract`` (from kwargs, then
+        ``config_key``) and runs ``parse`` per item. The result is then returned as
+        JSON-like data, a DataFrame, or XML bytes per ``fmt``.
+
+        Args:
+            data (Any): Raw or cached data (list, dict, str or None).
+            parse (bool): Whether to run ``parse`` on the data.
+            fmt (Literal["dataframe", "json", "xml"]): Output format to convert to.
+            **kwargs: Notable keys: ``config_key``, ``fields_to_extract``; remaining
+                keys are forwarded to ``parse``.
+
+        Returns:
+            list | dict | pl.DataFrame | bytes | str: The (optionally parsed) data in
+            the requested format.
+
+        Raises:
+            ValueError: If the data cannot be converted to the requested format.
+
+        """
         config_key = kwargs.pop("config_key", None)
         fields_to_extract = kwargs.pop("fields_to_extract", None)
 
@@ -444,13 +478,10 @@ class BaseAPIInterface(ABC):
         # Convert to DataFrame if requested
         if fmt == "dataframe":
             log.debug("Converting result to DataFrame")
-            # TODO(diego): Make sure parse method returns a consistent structure
-            if isinstance(result, list):
-                return pd.DataFrame(result)
-            if isinstance(result, dict):
-                return pd.DataFrame([result])
+            if isinstance(result, (list, dict)):
+                return records_to_frame(result)
             if result is None or result == []:
-                return pd.DataFrame()
+                return pl.DataFrame()
             log.error("Cannot convert to DataFrame, unsupported type.")
             msg = f"Cannot convert to DataFrame: unsupported type {type(result)}"
             raise ValueError(msg)
@@ -465,10 +496,7 @@ class BaseAPIInterface(ABC):
             log.error("Cannot convert to XML, unsupported type.")
             msg = f"Cannot convert to XML: unsupported type {type(result)}"
             raise ValueError(msg)
-        if fmt == "json":
-            log.debug("Returning result as JSON")
-            return result
-
+        # json (and any other format) returns the result unchanged.
         return result
 
     ##################
@@ -476,6 +504,18 @@ class BaseAPIInterface(ABC):
     ##################
 
     def _get_method_spec(self, **kwargs: Any) -> dict[str, Any]:
+        """Resolve the spec dict for a method (and optional option) from ``METHODS``.
+
+        Args:
+            **kwargs: Notable keys: ``method`` (required) and ``option``.
+
+        Returns:
+            dict[str, Any]: The spec for the method, narrowed to ``option`` when given.
+
+        Raises:
+            ValueError: If the method is not defined in ``METHODS``.
+
+        """
         method = kwargs.get("method")
         if method not in self.METHODS:
             msg = f"Unknown method '{method}'"
@@ -525,10 +565,41 @@ class BaseAPIInterface(ABC):
         parts = [str(query[k]) for k in keys if k in query] if isinstance(query, dict) else [str(query)]
         return "_".join(parts)
 
+    def _identifier_for(self, query: str | dict | list, spec: dict, **kwargs: Any) -> str:
+        """Stable string identifier for a query, used to key metadata buckets.
+
+        Prefers the ``is_id`` identifier; falls back to the cache key when the spec
+        has no parameters block. Always a string, so ``fetch_single`` and
+        ``fetch_batch`` record identifiers uniformly (never an index/cache-key mix).
+        """
+        if spec.get("parameters"):
+            return self._make_identifier(query, spec)
+        return self._make_cache_key(query, **kwargs)
+
     def initialize_method_parameters(
         self, query: str | dict | list, method: str, method_definition: dict, **kwargs: Any
     ) -> tuple:
-        """Initialize HTTP method params and build query inputs."""
+        """Initialize HTTP method params and build query inputs.
+
+        Resolves the method (and optional ``option``) spec, then maps the query
+        onto the method's primary keys, joining ``group_queries`` values with the
+        configured separator.
+
+        Args:
+            query (str | dict | list): Query to map onto the method parameters.
+            method (str): Method to look up in ``method_definition``.
+            method_definition (dict): The ``METHODS`` mapping for this interface.
+            **kwargs: Notable key: ``option`` (method variant/profile).
+
+        Returns:
+            tuple: ``(http_method, path_param, parameters, inputs)`` for the request.
+
+        Raises:
+            ValueError: If the method/option is unknown or has no primary keys, or if
+                multiple primary keys are defined but the query is not a dict.
+            TypeError: If the query type is not str, dict or list.
+
+        """
         if method not in method_definition:
             msg = (
                 f"Method '{method}' is not defined in the method definition. Available methods: "
@@ -569,7 +640,7 @@ class BaseAPIInterface(ABC):
 
         inputs = {}
 
-        if isinstance(query, (dict)):
+        if isinstance(query, dict):
             if group_queries:
                 for key in group_queries:
                     if key in query and isinstance(query[key], list):
@@ -605,18 +676,20 @@ class BaseAPIInterface(ABC):
     # gene separately.
     ##################
 
-    def multiple_queries_supported(self, method: str, method_definition: dict) -> bool:
-        """Check if the API method supports multiple queries based on the method definition."""
-        if method not in method_definition:
-            return False
-
-        return bool(method_definition[method].get("group_queries"))
-
     def decompose_query(self, query: dict, method: str, option: str | None) -> list[tuple[str, dict]] | None:
         """Decompose a query into multiple subqueries if any of the identity keys contain lists.
 
+        Args:
+            query (dict): Query whose identity keys may contain lists to expand.
+            method (str): Method whose spec defines the parameters and group keys.
+            option (str | None): Method variant/profile, when the method is option-keyed.
+
         Returns:
-            List of (identifier, subquery) tuples or None if no decomposition is needed.
+            list[tuple[str, dict]] | None: List of (identifier, subquery) tuples, or
+            an empty list when no decomposition is needed.
+
+        Raises:
+            ValueError: If the method or option is not valid.
 
         """
         if method not in self.METHODS:
@@ -728,36 +801,35 @@ class BaseAPIInterface(ABC):
 
     def fetch_single(
         self, query: str | dict | list, parse: bool = False, *args: Any, **kwargs: Any
-    ) -> tuple[list | dict | pd.DataFrame | bytes | str, dict]:
+    ) -> tuple[list | dict | pl.DataFrame | bytes | str, dict]:
         """General-purpose fetch method with optional parsing and cache handling.
 
         Args:
-            query (Union[str, dict]): Query to fetch data for.
+            query (str | dict | list): Query to fetch data for.
             parse (bool): Whether to parse the fetched data.
             *args: Positional arguments for subclass compatibility.
-            **kwargs: Keyword arguments; notable keys: config_key, fields_to_extract, format, method, option.
+            **kwargs: Keyword arguments; notable keys: ``config_key``,
+                ``fields_to_extract``, ``format``, ``method``, ``option``.
 
         Returns:
-            Tuple[Union[List, Dict, pd.DataFrame], Dict]: Fetched (and optionally parsed) data and metadata.
+            tuple[list | dict | pl.DataFrame | bytes | str, dict]: Fetched (and
+            optionally parsed) data and the fetch metadata.
 
         """
-        metadata = self._empty_metadata()
+        metadata = FetchMetadata()
         # Extract flags and avoid passing twice to _maybe_parse
+        self._apply_default_option(kwargs)
         fmt = kwargs.pop("format", "json")
         method = kwargs.get("method", "NOT_GIVEN")
         option = kwargs.get("option")
 
         # Get method specification
         spec = self._get_method_spec(**kwargs)
-        if spec is None:
-            log.error("Method '%s' is not supported", method)
-            msg = f"Method '{method}' is not supported. Available: {list(self.METHODS)}"
-            raise ValueError(msg)
         log.debug("Checking if multiple queries are supported")
         group_key = spec.get("group_queries", [None])[0]
 
         # If group_key is present and value is list: check cache per element
-        t0 = time.time()
+        metadata.started_at = datetime.now(UTC).isoformat()
         if isinstance(query, dict) and group_key and isinstance(query.get(group_key), list):
             log.debug("Multiple queries detected in the input.")
             log.debug("Generated a group of queries based on key '%s' with multiple values.", group_key)
@@ -771,8 +843,7 @@ class BaseAPIInterface(ABC):
                 cache_key = self._make_cache_key(identifier, **kwargs)
                 if self.has_results(cache_key):
                     log.debug("Cache hit for identifier: %s, loading from cache.", identifier)
-                    metadata["cached_ids"] = [*metadata.get("cached_ids", []), identifier]
-                    metadata["cached_subqueries"] = [*metadata.get("cached_subqueries", []), subq]
+                    metadata.cached.add(identifier, subq)
                     raw = self.load_cache(cache_key)
                     parsed = self._maybe_parse(data=raw, parse=parse, fmt=fmt, **kwargs)
                     results[identifier] = parsed
@@ -783,17 +854,26 @@ class BaseAPIInterface(ABC):
             # If some remain, fetch them together
             if remaining:
                 log.debug("Fetching remaining %s subqueries in a single request.", len(remaining))
-                metadata["fetched_ids"] = [identifier for identifier, _ in remaining]
-                metadata["fetched_subqueries"] = [subq for _, subq in remaining]
+                for identifier, subq in remaining:
+                    metadata.fetched.add(identifier, subq)
                 combined = self.merge_dicts([subq for _, subq in remaining])
                 params = self._prepare_params(combined, spec, **kwargs)
-                full = self.fetch(params, *args, **kwargs)
-                mapping = self.split_results_by_subquery(full, remaining)
-                for identifier, _ in remaining:
+                try:
+                    full = self.fetch(params, *args, **kwargs)
+                    fetch_failed = False
+                except RequestError:
+                    log.exception("Request failed for method '%s'", method)
+                    full = {}
+                    fetch_failed = True
+                mapping = self.split_results_by_subquery(full, remaining) if full else {}
+                # The whole batched request either failed (request_error) or simply
+                # returned nothing for this id (empty_result).
+                fail_reason = "request_error" if fetch_failed else "empty_result"
+                for identifier, subq in remaining:
                     partial_result = mapping.get(identifier, [])
                     if not partial_result:
                         log.debug("No results found for identifier %s. Skipping.", identifier)
-                        metadata["failed_ids"] = [*metadata.get("failed_ids", []), identifier]
+                        metadata.failed.add(identifier, subq, fail_reason)
                         continue
                     log.debug(
                         "Fetched %s items for identifier %s. Caching result.", len(partial_result), identifier
@@ -803,108 +883,99 @@ class BaseAPIInterface(ABC):
                     parsed = self._maybe_parse(data=partial_result, parse=parse, fmt=fmt, **kwargs)
                     results[identifier] = parsed
 
-            # Additional check and convert needed. If many subqueries are brought,
-            # the result should be concatenated into a single DataFrame if format="dataframe"
-            if fmt == "dataframe":
-                dfs = []
-                log.debug("Converting results to DataFrames")
-                for data in results.values():
-                    df = data if isinstance(data, pd.DataFrame) else pd.DataFrame(data)
-                    dfs.append(df)
-                # TODO(diego): Check if this line of code works as intended
-                if dfs:
-                    export_df = pd.concat(dfs, ignore_index=True)
-                    metadata["data_info"] = self._build_data_info(export_df)
-                    metadata["execution_time"] = time.time() - t0
-                    metadata["api_name"] = self.API_NAME
-                    metadata["method"] = method
-                    metadata["option"] = option
+            # Flatten the per-subquery results into a single structured view,
+            # used for metadata (data_info / fetched_length)
+            flat: list = []
+            for data in results.values():
+                if isinstance(data, list):
+                    flat.extend(data)
+                else:
+                    flat.append(data)
 
-                    return export_df, metadata
-                return pd.DataFrame(), metadata
-            if fmt == "xml":
+            # Serialize the per-subquery results to the requested output format.
+            if fmt == "dataframe":
+                log.debug("Converting results to DataFrames")
+                dfs = [d if isinstance(d, pl.DataFrame) else records_to_frame(d) for d in results.values()]
+                export_data: Any = pl.concat(dfs, how="diagonal_relaxed") if dfs else pl.DataFrame()
+            elif fmt == "xml":
                 log.debug("Converting results to XML format")
-                combined_results = []
-                for data in results.values():
-                    if isinstance(data, list):
-                        combined_results.extend(data)
-                    else:
-                        combined_results.append(data)
-                xml_bytes = dicttoxml(
-                    {"item": combined_results},
+                export_data = dicttoxml(
+                    {"item": flat},
                     custom_root="results",
                     item_func=lambda _: "entry",
                     attr_type=False,
                 )
-                metadata["fetched_length"] = len(combined_results)
-                metadata["execution_time"] = time.time() - t0
-                metadata["api_name"] = self.API_NAME
-                metadata["method"] = method
-                metadata["option"] = option
+            else:
+                export_data = list(results.values())
+                if len(export_data) == 1:
+                    export_data = export_data[0]
 
-                return xml_bytes, metadata
+            metadata.data_info = self._build_data_info(export_data if fmt == "dataframe" else flat)
+            metadata.finished_at = datetime.now(UTC).isoformat()
+            self._stamp_metadata(metadata, method=method, option=option)
 
-            metadata["fetched_length"] = sum(len(v) for v in results.values() if isinstance(v, list))
-
-            export_data = list(results.values())
-
-            if len(export_data) == 1:
-                export_data = export_data[0]
-
-            return export_data, metadata
+            return export_data, metadata.to_dict()
         log.debug("Single query detected, proceeding with fetch.")
         params = self._prepare_params(query, spec, **kwargs)
         identifier = self._make_identifier(query, spec)
         cache_key = self._make_cache_key(identifier, **kwargs)
         if self.has_results(cache_key):
             log.debug("Cache hit for identifier: %s, loading from cache.", identifier)
-            metadata["cached_ids"] = [identifier]
-            metadata["cached_subqueries"] = [query]
+            metadata.cached.add(identifier, query)
             raw = self.load_cache(cache_key)
         else:
-            # TODO(diego): Probably is necesary to give the user the option to not save empty results, check
-            # if it is a problem in some APIs
             log.debug("No cache found for identifier: %s, fetching from API.", identifier)
-            raw = self.fetch(params, *args, **kwargs)
+            fetch_failed = False
+            try:
+                raw = self.fetch(params, *args, **kwargs)
+            except RequestError:
+                log.exception("Request failed for identifier %s", identifier)
+                raw = {}
+                fetch_failed = True
             # Save to cache even if empty, to avoid refetching known empty results
-            metadata["fetched_ids"] = [identifier]
-            metadata["fetched_subqueries"] = [query]
-            metadata["fetched_length"] = len(raw) if isinstance(raw, list) else 1
+            metadata.fetched.add(identifier, query)
             self.save_cache(cache_key, raw)
             if not raw:
-                metadata["failed_ids"] = [identifier]
+                metadata.failed.add(identifier, query, "request_error" if fetch_failed else "empty_result")
 
         parsed = self._maybe_parse(data=raw, parse=parse, fmt=fmt, **kwargs)
 
-        metadata["data_info"] = self._build_data_info(parsed)
-        metadata["execution_time"] = time.time() - t0
-        metadata["api_name"] = self.API_NAME
-        metadata["method"] = method
-        metadata["option"] = option
+        metadata.data_info = self._build_data_info(parsed)
+        metadata.finished_at = datetime.now(UTC).isoformat()
+        self._stamp_metadata(metadata, method=method, option=option)
 
-        return parsed, metadata
+        return parsed, metadata.to_dict()
 
     def fetch_batch(
         self, queries: Sequence[str | dict], parse: bool = False, *args: Any, **kwargs: Any
-    ) -> tuple[list | pd.DataFrame | bytes | str, dict]:
+    ) -> tuple[list | pl.DataFrame | bytes | str, dict]:
         """Fetch data in parallel for a batch of queries.
 
         Args:
-            queries (List[Union[str, dict, list[str]]]): List of queries to fetch data for.
+            queries (Sequence[str | dict]): Queries to fetch data for.
             parse (bool): Whether to parse the fetched data.
             *args: Positional arguments for subclass compatibility.
-            **kwargs: Keyword arguments; notable keys: config_key, fields_to_extract, format, method, option.
+            **kwargs: Keyword arguments; notable keys: ``config_key``,
+                ``fields_to_extract``, ``format``, ``method``, ``option``.
 
         Returns:
-            Tuple[Union[List, pd.DataFrame, bytes, str], Dict]: Fetched (and optionally parsed) data and
-            metadata.
+            tuple[list | pl.DataFrame | bytes | str, dict]: Fetched (and optionally
+            parsed) data and the fetch metadata.
 
         """
-        metadata = self._empty_metadata()
+        metadata = FetchMetadata()
+        self._apply_default_option(kwargs)
         method = kwargs.get("method", "NOT_GIVEN")
         fmt = kwargs.pop("format", "json")
         option = kwargs.get("option")
         results: list[Any] = []
+
+        # Resolve the method spec once so metadata buckets can record stable string
+        # identifiers (not the loop index) for fetched/cached queries.
+        try:
+            spec = self._get_method_spec(**kwargs)
+        except ValueError:
+            spec = {}
 
         # Separate queries in cache and not in cache
         index_query_map = {}
@@ -932,9 +1003,7 @@ class BaseAPIInterface(ABC):
                     cache_key = self._make_cache_key(identifier, **kwargs)
                     if self.has_results(cache_key):
                         cached = self.load_cache(cache_key)
-                        result = (
-                            cached.to_dict(orient="records") if isinstance(cached, pd.DataFrame) else cached
-                        )
+                        result = cached.to_dicts() if isinstance(cached, pl.DataFrame) else cached
                         cached_subquery_results.append((identifier, result))
                     else:
                         log.debug("No cache found for subquery identifier: %s, will fetch.", identifier)
@@ -945,8 +1014,7 @@ class BaseAPIInterface(ABC):
                     index_query_map[i] = query
                 else:
                     for identifier, subquery in subqueries:
-                        metadata["cached_ids"] = [*metadata.get("cached_ids", []), identifier]
-                        metadata["cached_subqueries"] = [*metadata.get("cached_subqueries", []), subquery]
+                        metadata.cached.add(identifier, subquery)
                     for _identifier, result in cached_subquery_results:
                         log.debug("Cache hit for subquery identifier: %s, loading from cache.", _identifier)
                         results.append(self._maybe_parse(data=result, parse=parse, fmt=fmt, **kwargs))
@@ -956,10 +1024,9 @@ class BaseAPIInterface(ABC):
                 cache_key = self._make_cache_key(query, **kwargs)
                 if self.has_results(cache_key):
                     log.debug("Cache hit for query at index %s, loading from cache.", i)
-                    metadata["cached_ids"] = [*metadata.get("cached_ids", []), cache_key]
-                    metadata["cached_subqueries"] = [*metadata.get("cached_subqueries", []), query]
+                    metadata.cached.add(self._identifier_for(query, spec, **kwargs), query)
                     cached = self.load_cache(cache_key)
-                    result = cached.to_dict(orient="records") if isinstance(cached, pd.DataFrame) else cached
+                    result = cached.to_dicts() if isinstance(cached, pl.DataFrame) else cached
                     results.append(self._maybe_parse(data=result, parse=parse, fmt=fmt, **kwargs))
                 else:
                     log.debug("No cache found for query at index %s, will fetch.", i)
@@ -972,7 +1039,7 @@ class BaseAPIInterface(ABC):
         # If there is an incorrect cache key handling then it's better to do a better implementation
         #############################
         # Fetch missing ones in parallel
-        t0 = time.time()
+        metadata.started_at = datetime.now(UTC).isoformat()
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             future_to_index = {
                 executor.submit(self.fetch_single, query, parse, *args, **kwargs): i
@@ -981,8 +1048,8 @@ class BaseAPIInterface(ABC):
             }
             for future, i in future_to_index.items():
                 log.debug("Waiting for future result for query at index %s", i)
-                metadata["fetched_ids"] = [*metadata.get("fetched_ids", []), i]
-                metadata["fetched_subqueries"] = [*metadata.get("fetched_subqueries", []), index_query_map[i]]
+                batch_query = index_query_map[i]
+                metadata.fetched.add(self._identifier_for(batch_query, spec, **kwargs), batch_query)
                 try:
                     result = future.result()
 
@@ -995,21 +1062,18 @@ class BaseAPIInterface(ABC):
                 except Exception:
                     log.exception("Error fetching query at index %s (%s)", i, queries[i])
                 self._delay()
-        metadata["execution_time"] = time.time() - t0
-        metadata["fetched_length"] = sum(len(r) if isinstance(r, list) else 1 for r in results)
+        metadata.finished_at = datetime.now(UTC).isoformat()
 
         # If it's a list of dataframes, concatenate them
-        if all(isinstance(r, pd.DataFrame) for r in results) and len(results) > 0:
-            batch_data = pd.concat(results, ignore_index=True)
+        if all(isinstance(r, pl.DataFrame) for r in results) and len(results) > 0:
+            batch_data = pl.concat(results, how="diagonal_relaxed")
         else:
             batch_data = results
 
-        metadata["data_info"] = self._build_data_info(batch_data)
-        metadata["api_name"] = self.API_NAME
-        metadata["method"] = method
-        metadata["option"] = option
+        metadata.data_info = self._build_data_info(batch_data)
+        self._stamp_metadata(metadata, method=method, option=option)
 
-        return batch_data, metadata
+        return batch_data, metadata.to_dict()
 
     ###################
     # Auxiliary methods
@@ -1021,14 +1085,14 @@ class BaseAPIInterface(ABC):
         """Extract specified fields from the data.
 
         Args:
-            data (Union[List, Dict]): Data to parse.
-            fields_to_extract (List|Dict): Fields to keep from the original response.
-                - If List: Keep those keys.
-                - If Dict: Maps {desired_name: real_field_name}.
-            **kwargs: Supports `option` key to select a sub-section of fields_to_extract.
+            data (dict | list): Data to parse.
+            fields_to_extract (list | dict | None): Fields to keep from the original response.
+                - If list: Keep those keys.
+                - If dict: Maps {desired_name: real_field_name}.
+            **kwargs: Supports ``option`` key to select a sub-section of ``fields_to_extract``.
 
         Returns:
-            Union[dict, list]: Data with only the specified fields.
+            dict | list: Data with only the specified fields.
 
         """
         option = kwargs.get("option", "default")
@@ -1058,29 +1122,84 @@ class BaseAPIInterface(ABC):
 
         return parsed
 
+    def _build_request(
+        self,
+        *,
+        method: str,
+        http_method: str,
+        path_param: str | None,
+        validated_params: dict,
+        **kwargs: Any,
+    ) -> Request:
+        """Assemble the niquests ``Request`` for a fetch.
+
+        Default implementation: ``f"{api_url}{method}{_METHOD_SUFFIX}"`` plus an
+        optional path parameter, with the remaining validated params as the query
+        string. ``api_url`` is taken from kwargs, falling back to
+        ``DB_CONFIG.API_URL``. Subclasses override this to build API-specific URLs
+        (path layouts, option suffixes, POST bodies, …) or set ``_METHOD_SUFFIX``.
+        """
+        api_url = kwargs.get("api_url") or (self.DB_CONFIG.API_URL if self.DB_CONFIG else None)
+        if not api_url:
+            msg = "API URL must be provided in kwargs or via DB_CONFIG."
+            raise ValueError(msg)
+
+        url = f"{api_url}{method}{self._METHOD_SUFFIX}"
+        if path_param:
+            url += f"{validated_params.pop(path_param)}"
+
+        return Request(method=http_method, url=url, params=validated_params)
+
+    @staticmethod
+    def _unwrap_envelope(data: Any, *keys: str) -> Any:
+        """Return the first present envelope key's value from a dict, else ``data``."""
+        if isinstance(data, dict):
+            for key in keys:
+                if key in data:
+                    return data[key]
+        return data
+
+    @staticmethod
+    def _append_path_params(url: str, path_param: Any, validated_params: dict) -> str:
+        """Append ``/``-prefixed path segment(s) for a str or list ``path_param``.
+
+        Shared by the PRIDE/PDB ``_build_request`` overrides. Not used by the
+        default ``_build_request`` (whose scalar branch omits the leading slash).
+        """
+        if not path_param:
+            return url
+        if isinstance(path_param, list):
+            return (
+                url
+                + "/"
+                + "/".join(
+                    str(validated_params.pop(param)) for param in path_param if param in validated_params
+                )
+            )
+        return url + f"/{validated_params.pop(path_param)}"
+
+    def _unwrap_response(self, data: Any, **_kwargs: Any) -> Any:
+        """Shape a parsed JSON response by unwrapping ``_RESPONSE_ENVELOPE_KEYS``."""
+        return self._unwrap_envelope(data, *self._RESPONSE_ENVELOPE_KEYS)
+
     def _do_request(self, query: str | dict | list, *, method: str, **kwargs: Any) -> Response:
-        """Fetch data from the API based on the provided query and method.
+        """Run a validated HTTP request and return the raw response.
 
         Args:
-            query (Union[str, dict, list]): Query to fetch data for.
+            query (str | dict | list): Query to fetch data for.
             method (str): Method to use for fetching data.
-            **kwargs: Supports `api_url` key for the API endpoint URL.
+            **kwargs: Forwarded to ``_build_request`` (e.g. ``api_url``, ``option``).
 
         Returns:
             Response: The raw HTTP response from the API.
 
         Raises:
-            ValueError: If the method is not defined in the METHODS.
-            RequestError: If there is an error during the HTTP request. Raised
-                instead of silently returning an empty result so callers can
-                distinguish a failed request from a successful empty response.
+            ValueError: If the method or parameters are invalid.
+            RequestError: If the HTTP request fails. Raised instead of silently
+                returning an empty result so callers can distinguish a failed
+                request from a successful empty response.
 
         """
-        api_url = kwargs.pop("api_url", None)
-
-        if not api_url:
-            msg = "API URL must be provided in kwargs."
-            raise ValueError(msg)
         http_method, path_param, parameters, inputs = self.initialize_method_parameters(
             query, method, self.METHODS, **kwargs
         )
@@ -1091,13 +1210,13 @@ class BaseAPIInterface(ABC):
             msg = f"Invalid parameters for method '{method}': {e}"
             raise ValueError(msg) from e
 
-        url = f"{api_url}{method}"
-
-        if path_param:
-            path_value = validated_params.pop(path_param)
-            url += f"{path_value}"
-
-        req = Request(method=http_method, url=url, params=validated_params)
+        req = self._build_request(
+            method=method,
+            http_method=http_method,
+            path_param=path_param,
+            validated_params=validated_params,
+            **kwargs,
+        )
         prepared = self.session.prepare_request(req)
         log.debug("Prepared request: %s", prepared.url)
 
@@ -1112,12 +1231,108 @@ class BaseAPIInterface(ABC):
         else:
             return response
 
-    @abstractmethod
     def fetch(self, query: str | dict | list, *, method: str, **kwargs: Any) -> Any:
-        """Fetch raw data from the API for a given query and method."""
-        raise NotImplementedError
+        """Fetch and shape data via the standard request template.
 
-    @abstractmethod
+        Runs ``_do_request`` (validate → build → send → raise) and passes the
+        parsed JSON through ``_unwrap_response``. Interfaces customise behaviour
+        by overriding ``_build_request`` / ``_unwrap_response``; outliers with
+        non-standard flows (pagination, SOAP, Entrez, text payloads) override
+        ``fetch`` directly.
+        """
+        self._apply_default_option(kwargs)
+        response = self._do_request(query, method=method, **kwargs)
+        return self._unwrap_response(response.json(), method=method, **kwargs)
+
+    def _fetch_paginated(
+        self,
+        first_url: str,
+        *,
+        next_link: Callable[[Any], str | None],
+        extract_records: Callable[[Any], list],
+        pages_to_fetch: int = 1,
+    ) -> list:
+        """Follow JSON-body pagination from ``first_url``, accumulating records.
+
+        Shared by interfaces whose list endpoints page via a ``next`` URL embedded
+        in the JSON body. ``next_link`` returns the next page's URL from a parsed
+        response (or None to stop); ``extract_records`` pulls the row list out of
+        one parsed page. Each request is rate-limited via ``_delay``; a 204, a
+        missing next link, or a request error ends the loop.
+
+        Args:
+            first_url (str): URL of the first page.
+            next_link (Callable[[Any], str | None]): Maps a parsed page to the next
+                URL, or None when exhausted.
+            extract_records (Callable[[Any], list]): Maps a parsed page to its records.
+            pages_to_fetch (int): ``-1`` fetches all pages; a positive N caps at N.
+
+        Returns:
+            list: Records across the fetched pages; empty on error or an invalid
+            ``pages_to_fetch``.
+
+        """
+        if pages_to_fetch == 0 or pages_to_fetch < -1:
+            log.error("pages_to_fetch must be -1 or a positive integer. Received: %s", pages_to_fetch)
+            return []
+
+        records: list = []
+        current_url: str | None = first_url
+        remaining = pages_to_fetch
+        while current_url:
+            try:
+                response = self.session.get(current_url, headers={"Content-Type": "application/json"})
+                self._delay()
+                response.raise_for_status()
+                if response.status_code == HTTPStatus.NO_CONTENT:
+                    log.warning("No content returned for URL %s.", current_url)
+                    break
+                data = response.json()
+            except RequestException:
+                log.exception("Error fetching page %s", current_url)
+                break
+
+            records.extend(extract_records(data))
+
+            if remaining > 0:
+                remaining -= 1
+                if remaining == 0:
+                    break
+            current_url = next_link(data)
+        return records
+
     def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> Any:
-        """Parse raw API response into the requested format."""
-        raise NotImplementedError
+        """Parse raw API response into the requested format.
+
+        Default implementation: guard the input type (unwrapping a niquests
+        ``Response`` into JSON) and delegate field extraction to
+        ``_extract_fields``. Subclasses with response-specific shaping override
+        this method.
+
+        Args:
+            data (Any): Raw data from the API response (dict, list or Response).
+            fields_to_extract (list|dict|None): Fields to keep from the original
+                response.
+                - If list: Keep those keys.
+                - If dict: Maps {desired_name: real_field_name}.
+            **kwargs: Forwarded to ``_extract_fields`` (e.g. `option`).
+
+        Returns:
+            Any: Parsed data with only the specified fields.
+
+        """
+        if not data:
+            log.warning("Tried to parse data but the data is empty or None.")
+            return {}
+
+        if isinstance(data, Response):
+            data = data.json()
+
+        if not isinstance(data, (dict, list)):
+            log.error(
+                "Tried to parse data but the type is not supported. "
+                "Expected a dict, list or niquests.Response object."
+            )
+            return {}
+
+        return self._extract_fields(data, fields_to_extract, **kwargs)

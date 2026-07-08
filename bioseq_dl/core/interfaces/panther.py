@@ -2,13 +2,8 @@
 
 from typing import Any, ClassVar
 
-from requests import Request
-from requests.exceptions import RequestException
-from requests.models import Response
-
 # Add the import for your database in constants
 from bioseq_dl.constants.databases import PANTHER
-from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
 from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
@@ -50,67 +45,14 @@ class PantherInterface(BaseAPIInterface):
         },
     }
 
-    def fetch(self, query: str | dict | list, *, method: str = "geneinfo", **kwargs: Any) -> dict | list:
-        """Fetch gene family or MSA data from PANTHER."""
-        http_method, path_param, parameters, inputs = self.initialize_method_parameters(
-            query, method, self.METHODS, **kwargs
-        )
-
-        # Validate and clean parameters
-        try:
-            validated_params = validate_parameters(inputs, parameters)
-        except ValueError:
-            log.exception("Invalid parameters for method '%s'", method)
-            return {}
-
-        url = f"{PANTHER.API_URL}{method}"
-
-        if path_param:
-            path_value = validated_params.pop(path_param)
-            url += f"{path_value}"
-
-        req = Request(method=http_method, url=url, params=validated_params)
-        prepared = self.session.prepare_request(req)
-        log.debug("Prepared request: %s", prepared.url)
-
-        try:
-            response = self.session.send(prepared)
-            self._delay()
-            response.raise_for_status()
-
-            match method:
-                case "geneinfo":
-                    response = response.json()
-                    response = response.get("search", {}).get("mapped_genes", {}).get("gene", [])
-                case "familyortholog":
-                    response = response.json()
-                    response = response.get("search", {}).get("ortholog_list", {}).get("ortholog", [])
-                case "familymsa":
-                    response = response.json()
-                    response = response.get("search", {}).get("MSA_list", {}).get("sequence_info", [])
-                case _:
-                    response = response.json()
-
-        except RequestException:
-            log.exception("Error fetching %s for method '%s'", query, method)
-            return {}
-        else:
-            return response
-
-    def parse(self, data: list | dict, fields_to_extract: list | dict | None, **_kwargs: Any) -> list | dict:
-        """Parse PANTHER response data."""
-        if not data:
-            log.warning("Tried to parse data but the data is empty or None.")
-            return {}
-
-        if isinstance(data, Response):
-            data = data.json()
-        elif not isinstance(data, dict):
-            log.error(
-                "Tried to parse data but the type is not supported. Response should be a dict or a "
-                "requests.Response "
-                "object."
-            )
-            return {}
-
-        return self._extract_fields(data, fields_to_extract)
+    def _unwrap_response(self, data: Any, **kwargs: Any) -> Any:
+        """Drill into the per-method nested value PANTHER wraps results in."""
+        match kwargs.get("method"):
+            case "geneinfo":
+                return data.get("search", {}).get("mapped_genes", {}).get("gene", [])
+            case "familyortholog":
+                return data.get("search", {}).get("ortholog_list", {}).get("ortholog", [])
+            case "familymsa":
+                return data.get("search", {}).get("MSA_list", {}).get("sequence_info", [])
+            case _:
+                return data

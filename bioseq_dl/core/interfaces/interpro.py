@@ -1,9 +1,6 @@
 """InterPro API interface."""
 
-from http import HTTPStatus
 from typing import Any, ClassVar
-
-import requests
 
 from bioseq_dl.constants.databases import INTERPRO
 from bioseq_dl.constants.interpro import db_types, entry_integration_types, filter_types
@@ -14,9 +11,18 @@ from .base import BaseAPIInterface
 
 log = get_logger("bioseq_dl.interfaces.interpro")
 
-# TODO(diego): add modifiers definitions
-# TODO(diego): Because this API uses an unique type of query
-# I did not updated the METHODS with fetch()
+_NO_DATA_DETAIL = "There is no data associated with the requested URL"
+
+
+def _extract_interpro_records(data: Any) -> list:
+    """Pull the record list out of one InterPro page (empty for a no-data response)."""
+    if not isinstance(data, dict):
+        return [data]
+    if str(data.get("detail", "")).startswith(_NO_DATA_DETAIL):
+        return []
+    if isinstance(data.get("results"), list):
+        return data["results"]
+    return [data]
 
 
 class InterproInterface(BaseAPIInterface):
@@ -106,73 +112,27 @@ class InterproInterface(BaseAPIInterface):
                 log.error(msg)
                 raise ConfigError(msg)
 
-    def fetch_pages(self, next_url: str, method: str, pages_to_fetch: int = 1) -> dict | list:
-        """Fetch the next page of results from the InterPro API.
-
-        Args:
-            next_url (str): The URL for the next page of results.
-            method (str): The method used for the initial request.
-            pages_to_fetch (int): Maximum number of pages to fetch recursively. Default is 1.
-
-        Returns:
-            dict: The fetched data from the next page.
-
-        """
-        responses = []
-        try:
-            response = self.session.get(next_url, headers={"Content-Type": "application/json"})
-            self._delay()
-            response.raise_for_status()
-
-            if response.status_code == HTTPStatus.NO_CONTENT:
-                log.warning("No content returned for URL %s.", next_url)
-                return {}
-
-            data = response.json()
-
-            if (
-                not isinstance(data, dict)
-                and "detail" in data
-                and data["detail"].startswith("There is no data associated with the requested URL")
-            ):
-                return {}
-
-            if "results" in data and isinstance(data["results"], list):
-                responses.extend(data["results"])
-            else:
-                responses.append(data)
-
-            next_page = None
-            if data.get("next"):
-                next_page = (
-                    self.fetch_pages(data["next"], method, pages_to_fetch - 1) if pages_to_fetch > 1 else None
-                )
-                if next_page:
-                    responses.extend(next_page)
-
-        except requests.exceptions.RequestException:
-            log.exception("Error fetching next page for method %s", method)
-            return {}
-        else:
-            return responses
-
-    def fetch(self, query: str | dict | list, *, method: str = "entry", **kwargs: Any) -> dict | list:
+    def fetch(self, query: str | dict | list, *, method: str = "entry", **kwargs: Any) -> list:
         """Fetch data from InterPro API.
 
         Args:
-            query (str|dict|list): The query parameters to fetch data.
+            query (str | dict | list): The query parameters to fetch data; must be a dict.
             method (str): The method to use for the request.
-            **kwargs: Supports `pages_to_fetch` key for pagination depth.
+            **kwargs: Additional parameters. Notable key: ``pages_to_fetch``
+                (pagination depth, default 1).
 
         Returns:
-            dict: The fetched data.
+            dict | list: The fetched data; empty dict on error.
+
+        Raises:
+            ConfigError: If the query parameters are invalid.
 
         """
         pages_to_fetch = kwargs.get("pages_to_fetch", 1)
 
         if method not in self.METHODS:
             log.error("Method %s is not supported. Available methods: %s", method, list(self.METHODS.keys()))
-            return {}
+            return []
 
         if not isinstance(query, dict):
             log.error(
@@ -181,7 +141,7 @@ class InterproInterface(BaseAPIInterface):
                 "'filter_db', and 'filter_value' "
                 "keys."
             )
-            return {}
+            return []
 
         # Validate the query parameters
         self.validate_query(method, query)
@@ -206,7 +166,7 @@ class InterproInterface(BaseAPIInterface):
                         filter_types,
                         db_types[f["type"]],
                     )
-                    return {}
+                    return []
 
         if query.get("modifiers"):
             url += "?"
@@ -217,28 +177,9 @@ class InterproInterface(BaseAPIInterface):
             url = url[:-1]
 
         log.debug("Prepared url: %s", url)
-        return self.fetch_pages(url, method, pages_to_fetch)
-
-    def parse(self, data: Any, fields_to_extract: list | dict | None, **_kwargs: Any) -> dict | list:
-        """Parse the fetched data.
-
-        Args:
-            data (dict): The fetched data.
-            fields_to_extract (List|Dict): Fields to keep from the original response.
-                - If List: Keep those keys.
-                - If Dict: Maps {desired_name: real_field_name}.
-            **kwargs: Additional keyword arguments.
-
-        Returns:
-            dict: The parsed data.
-
-        """
-        if not isinstance(data, (list, dict)):
-            log.error(
-                "Tried to parse data but the type is not supported. Response should be a dict or a list."
-            )
-            return {}
-        if (isinstance(data, dict) and not data) or (isinstance(data, list) and not data):
-            return {}
-
-        return self._extract_fields(data, fields_to_extract)
+        return self._fetch_paginated(
+            url,
+            next_link=lambda data: data.get("next") if isinstance(data, dict) else None,
+            extract_records=_extract_interpro_records,
+            pages_to_fetch=pages_to_fetch,
+        )

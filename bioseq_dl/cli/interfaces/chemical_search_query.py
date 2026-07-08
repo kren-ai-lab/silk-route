@@ -1,27 +1,20 @@
 """Chemical search query CLI commands."""
 
 import json
-import logging
 from pathlib import Path
 from typing import cast
 
-import pandas as pd
+import polars as pl
 import typer
 
 from bioseq_dl import ChEBIInterface, ChEMBLInterface, PubChemInterface
+from bioseq_dl.cli._shared import output_dir_option
+from bioseq_dl.core.export import export_dataframe
 
 # Pending: Uniprot ID
-from bioseq_dl.logging import configure_logging, get_logger
+from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.cli.chemical_search_query")
-
-app = typer.Typer(
-    help=(
-        "Collect data from chemical databases. A general search interface is provided to query compounds by "
-        "name, CID, SMILES, InChI, or gene "
-        "ID."
-    )
-)
 
 AVAILABLE_DATABASES = ["pubchem", "chembl", "chebi"]
 
@@ -30,7 +23,15 @@ _MAX_GENE_QUERY_LEN = 6
 
 
 def detect_query_type(query: str) -> str:
-    """Detect the type of the query string."""
+    """Detect the type of the query string.
+
+    Args:
+        query (str): The raw query string.
+
+    Returns:
+        str: One of ``inchi``, ``smiles``, ``gene``, or ``name``.
+
+    """
     query = query.strip()
 
     if query.startswith("InChI="):
@@ -42,8 +43,20 @@ def detect_query_type(query: str) -> str:
     return "name"
 
 
-def pubchem_search_query(query: str, exact_match: bool = False) -> tuple[pd.DataFrame, dict]:
-    """Fetch compound data from PubChem."""
+def pubchem_search_query(query: str, exact_match: bool = False) -> tuple[pl.DataFrame, dict]:
+    """Fetch compound data from PubChem.
+
+    Detects the query type, resolves CIDs for name/InChI/SMILES queries, then fetches the
+    detailed PUG-View records (compound or gene).
+
+    Args:
+        query (str): The query string (comma-separated values supported).
+        exact_match (bool): Whether to require an exact name match.
+
+    Returns:
+        tuple[pl.DataFrame, dict]: The result DataFrame and the merged fetch metadata.
+
+    """
     metadata = {}
     pug_metadata = {}
     pug_view_metadata = {}
@@ -59,11 +72,11 @@ def pubchem_search_query(query: str, exact_match: bool = False) -> tuple[pd.Data
         cids_df, pug_metadata = instance.fetch_batch(
             queries=query_dict, method="pug/compound", parse=True, format="dataframe"
         )
-        if not isinstance(cids_df, pd.DataFrame) or cids_df.empty:
+        if not isinstance(cids_df, pl.DataFrame) or cids_df.is_empty():
             log.warning("No CIDs found for the given %ss.", query_type.upper())
-            return pd.DataFrame(), metadata
+            return pl.DataFrame(), metadata
 
-        cids = cids_df["cid"].astype(str).tolist()
+        cids = cids_df["cid"].cast(pl.Int64, strict=False).cast(pl.String).to_list()
         log.info("Found CIDs: %s", cids)
         query_dict = [{"cid": cid} for cid in cids]
         export_df, pug_view_metadata = instance.fetch_batch(
@@ -77,21 +90,33 @@ def pubchem_search_query(query: str, exact_match: bool = False) -> tuple[pd.Data
         )
     else:
         log.error("Unsupported query type: %s", query_type)
-        return pd.DataFrame(), metadata
+        return pl.DataFrame(), metadata
 
     if pug_metadata and isinstance(pug_metadata, dict):
         metadata.update(pug_metadata)
     if pug_view_metadata and isinstance(pug_view_metadata, dict):
         metadata.update(pug_view_metadata)
 
-    if isinstance(export_df, pd.DataFrame) and not export_df.empty:
+    if isinstance(export_df, pl.DataFrame) and not export_df.is_empty():
         return export_df, metadata
     log.warning("No PubChem data found for the given query.")
-    return pd.DataFrame(), metadata
+    return pl.DataFrame(), metadata
 
 
-def chembl_search_query(query: str, exact_match: bool = False) -> tuple[pd.DataFrame, dict]:
-    """Fetch compound data from ChEMBL."""
+def chembl_search_query(query: str, exact_match: bool = False) -> tuple[pl.DataFrame, dict]:
+    """Fetch compound data from ChEMBL.
+
+    Detects the query type and runs the matching molecule or target search; InChI queries
+    are unsupported.
+
+    Args:
+        query (str): The query string.
+        exact_match (bool): Whether to use exact matching instead of substring matching.
+
+    Returns:
+        tuple[pl.DataFrame, dict]: The result DataFrame and the fetch metadata.
+
+    """
     filter_type = "iexact" if exact_match else "icontains"
     instance = ChEMBLInterface()
 
@@ -129,19 +154,30 @@ def chembl_search_query(query: str, exact_match: bool = False) -> tuple[pd.DataF
         )
     elif query_type == "inchi":
         log.error("ChEMBL does not support InChI-based searches yet.")
-        return pd.DataFrame(), {}
+        return pl.DataFrame(), {}
     else:
         log.error("Unsupported query type for ChEMBL: %s", query_type)
-        return pd.DataFrame(), {}
+        return pl.DataFrame(), {}
 
-    if isinstance(export_df, pd.DataFrame) and not export_df.empty:
+    if isinstance(export_df, pl.DataFrame) and not export_df.is_empty():
         return export_df, metadata
     log.warning("No ChEMBL data found for the given query.")
-    return pd.DataFrame(), metadata
+    return pl.DataFrame(), metadata
 
 
-def chebi_search_query(query: str) -> tuple[pd.DataFrame, dict]:
-    """Fetch compound data from ChEBI."""
+def chebi_search_query(query: str) -> tuple[pl.DataFrame, dict]:
+    """Fetch compound data from ChEBI.
+
+    Runs an Elasticsearch term search, then fetches the matching compounds by their ChEBI
+    accessions.
+
+    Args:
+        query (str): The search term.
+
+    Returns:
+        tuple[pl.DataFrame, dict]: The result DataFrame and the merged fetch metadata.
+
+    """
     metadata = {}
     instance = ChEBIInterface()
 
@@ -153,7 +189,7 @@ def chebi_search_query(query: str) -> tuple[pd.DataFrame, dict]:
         query=search_query, method="es_search", parse=True, format="dataframe"
     )
     # Make query for every found chebi_id
-    chebi_ids = cast("pd.DataFrame", es_df)["chebi_accession"].tolist()
+    chebi_ids = cast("pl.DataFrame", es_df)["chebi_accession"].to_list()
     compounds_query = {"chebi_ids": chebi_ids}
     export_df, compounds_metadata = instance.fetch_single(
         query=compounds_query, method="compounds", parse=True, format="dataframe"
@@ -164,13 +200,12 @@ def chebi_search_query(query: str) -> tuple[pd.DataFrame, dict]:
     if compounds_metadata and isinstance(compounds_metadata, dict):
         metadata.update(compounds_metadata)
 
-    if isinstance(export_df, pd.DataFrame) and not export_df.empty:
+    if isinstance(export_df, pl.DataFrame) and not export_df.is_empty():
         return export_df, metadata
     log.warning("No ChEBI data found for the given query.")
-    return pd.DataFrame(), metadata
+    return pl.DataFrame(), metadata
 
 
-@app.command("run")
 def run_compound(
     query: str = typer.Argument(
         ...,
@@ -184,22 +219,10 @@ def run_compound(
             "databases."
         ),
     ),
-    output: str = typer.Option(..., help="Output file to save results"),
+    output: str = output_dir_option(),
     exact_match: bool = typer.Option(False, help="Use exact match for name searches"),
-    debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
 ) -> None:
     """Fetch compound data from chemical databases."""
-    logger = log
-    try:
-        if debug:
-            configure_logging(level=logging.DEBUG)
-            logger = get_logger(
-                "bioseq_dl.cli.uniprot_search_query"
-            )  # re-fetch so root handlers pick new level
-            logger.debug("Debug logging enabled")
-    except Exception as e:  # noqa: BLE001  # defensive catch-all
-        logger.warning("Could not configure logging: %s", e)
-
     if databases.lower() != "all":
         db_list = [db.strip().lower() for db in databases.split(",")]
     else:
@@ -208,31 +231,24 @@ def run_compound(
     # Create folder for output if it does not exist
     Path(output).mkdir(parents=True, exist_ok=True)
 
-    for db in db_list:
-        if db == "pubchem":
-            log.info("Searching PubChem for query: %s", query)
-            result, metadata = pubchem_search_query(query, exact_match=exact_match)
-            if isinstance(result, pd.DataFrame) and not result.empty:
-                result.to_csv(f"{output}/pubchem_results.csv", index=False)
-                with (Path(output) / "pubchem_metadata.json").open("w") as f:
-                    json.dump(metadata, f, indent=2, default=str)
-                log.info("Results saved to %s/pubchem_results.csv", output)
+    # Map each database to its display name + search callable. Display name keeps
+    # the capitalized log text ("Searching PubChem/ChEMBL/ChEBI").
+    searchers = {
+        "pubchem": ("PubChem", lambda: pubchem_search_query(query, exact_match=exact_match)),
+        "chembl": ("ChEMBL", lambda: chembl_search_query(query, exact_match=exact_match)),
+        "chebi": ("ChEBI", lambda: chebi_search_query(query)),
+    }
 
-        elif db == "chembl":
-            log.info("Searching ChEMBL for query: %s", query)
-            result, metadata = chembl_search_query(query, exact_match=exact_match)
-            if isinstance(result, pd.DataFrame) and not result.empty:
-                result.to_csv(f"{output}/chembl_results.csv", index=False)
-                with (Path(output) / "chembl_metadata.json").open("w") as f:
-                    json.dump(metadata, f, indent=2, default=str)
-                log.info("Results saved to %s/chembl_results.csv", output)
-        elif db == "chebi":
-            log.info("Searching ChEBI for query: %s", query)
-            result, metadata = chebi_search_query(query)
-            if isinstance(result, pd.DataFrame) and not result.empty:
-                result.to_csv(f"{output}/chebi_results.csv", index=False)
-                with (Path(output) / "chebi_metadata.json").open("w") as f:
-                    json.dump(metadata, f, indent=2, default=str)
-                log.info("Results saved to %s/chebi_results.csv", output)
-        else:
+    for db in db_list:
+        entry = searchers.get(db)
+        if entry is None:
             log.warning("Database '%s' is not supported.", db)
+            continue
+        display_name, search = entry
+        log.info("Searching %s for query: %s", display_name, query)
+        result, metadata = search()
+        if isinstance(result, pl.DataFrame) and not result.is_empty():
+            export_dataframe(result, f"{output}/{db}_results.csv", output_format="csv")
+            with (Path(output) / f"{db}_metadata.json").open("w") as f:
+                json.dump(metadata, f, indent=2, default=str)
+            log.info("Results saved to %s/%s_results.csv", output, db)

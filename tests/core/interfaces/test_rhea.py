@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import pytest
-import responses
+from niquests_mock import startswith
 
 from bioseq_dl.core.interfaces.rhea import RheaInterface
 from tests._helpers import load_fixture
+from tests.core.interfaces._contract import CachingContract, HttpErrorContract
 
 API_URL = "https://www.rhea-db.org/rhea/"
 
@@ -18,9 +19,9 @@ def interface(tmp_path):
     )
 
 
-def test_fetch_builds_url_and_returns_results(interface, mocked_responses):
+def test_fetch_builds_url_and_returns_results(interface, niquests_mock):
     body = load_fixture("rhea", "reaction")
-    mocked_responses.add(responses.GET, API_URL, json=body, status=200)
+    niquests_mock.get(url=startswith(API_URL)).respond(status_code=200, json=body)
 
     result = interface.fetch("RHEA:10000", method="rhea")
 
@@ -28,8 +29,8 @@ def test_fetch_builds_url_and_returns_results(interface, mocked_responses):
     assert result == body["results"]
 
     # Request was built against the right URL with the expected params.
-    assert len(mocked_responses.calls) == 1
-    sent = mocked_responses.calls[0].request.url
+    assert len(niquests_mock.calls) == 1
+    sent = niquests_mock.calls[0].request.url
     assert sent.startswith(API_URL)
     assert "query=RHEA%3A10000" in sent
     assert "format=json" in sent
@@ -45,13 +46,19 @@ def test_parse_returns_records_with_expected_keys(interface):
     assert parsed[0] == {k: record[k] for k in ("id", "equation", "status")}
 
 
-def test_fetch_single_round_trips_through_cache(interface, mocked_responses):
-    body = load_fixture("rhea", "reaction")
-    mocked_responses.add(responses.GET, API_URL, json=body, status=200)
+def test_fetch_single_records_failed_id_on_http_error(interface, niquests_mock):
+    # fetch() raises, but the high-level fetch_single degrades: empty data + failed bucket.
+    niquests_mock.get(url=startswith(API_URL)).respond(status_code=500, json={"error": "boom"})
 
-    first, _ = interface.fetch_single("RHEA:10000", method="rhea")
-    second, _ = interface.fetch_single("RHEA:10000", method="rhea")
+    data, metadata = interface.fetch_single("RHEA:10000", method="rhea")
 
-    # Second call served from cache: only one network request total.
-    assert len(mocked_responses.calls) == 1
-    assert first == second
+    assert not data
+    assert metadata["failed"]["ids"]
+    assert metadata["failed"]["reasons"] == ["request_error"]
+
+
+class TestRheaContract(CachingContract, HttpErrorContract):
+    INTERFACE_URL = API_URL
+    QUERY = "RHEA:10000"
+    METHOD = "rhea"
+    FIXTURE = ("rhea", "reaction")

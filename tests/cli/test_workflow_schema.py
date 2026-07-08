@@ -8,6 +8,7 @@ import pytest
 
 from bioseq_dl.cli.workflows import (
     ALLOWED_DESCRIPTOR_SECTION_NAMES,
+    KNOWN_DESCRIPTOR_SECTIONS,
     WORKFLOW_SCHEMA_VERSION,
     build_metadata_document,
     build_summary_document,
@@ -20,23 +21,6 @@ EXPECTED_TOOL_IDENTITY_KEYS = {
     "import_package_name",
     "version",
 }
-
-EXPECTED_ALLOWED_DESCRIPTOR_SECTIONS = [
-    "schema_version",
-    "dataset",
-    "query",
-    "resources",
-    "execution",
-    "harmonization",
-    "export",
-    "reporting",
-    "interaction_retrieval",
-    "activity_retrieval",
-    "chemical_metadata_integration",
-    "protein_target_integration",
-    "temperature_enrichment",
-    "cross_source_integration",
-]
 
 
 CANONICAL_CORE_DESCRIPTOR_ORDER = [
@@ -115,7 +99,9 @@ def build_preserved_metadata_descriptor() -> dict:
 
 
 def test_allowed_top_level_sections_are_exactly_workflow_v1_sections() -> None:
-    assert ALLOWED_DESCRIPTOR_SECTION_NAMES == EXPECTED_ALLOWED_DESCRIPTOR_SECTIONS
+    # The ordered public list must stay in lockstep with the set used for validation.
+    assert set(ALLOWED_DESCRIPTOR_SECTION_NAMES) == KNOWN_DESCRIPTOR_SECTIONS
+    assert len(ALLOWED_DESCRIPTOR_SECTION_NAMES) == len(KNOWN_DESCRIPTOR_SECTIONS)
 
 
 def test_valid_minimal_workflow_v1_descriptor() -> None:
@@ -317,6 +303,19 @@ def test_query_composition_crossed_pairs_fail_validation() -> None:
     descriptor["query"]["composition"] = [
         {"label": "active", "value": "ic50:10-100"},
         {"label": "inactive", "value": "ic50:0-10"},
+    ]
+
+    with pytest.raises(ValueError, match=r"query\.composition does not match executable query\.value"):
+        validate_workflow_recipe(descriptor)
+
+
+def test_query_composition_cross_matched_pairs_fail_validation() -> None:
+    descriptor = base_workflow_descriptor()
+    descriptor["dataset"]["mode"] = "query_composition"
+    descriptor["query"]["value"] = "gene:TP53=tp53,gene:BRCA1=brca1"
+    # Each label and value exists, but paired with the wrong counterpart.
+    descriptor["query"]["composition"] = [
+        {"label": "tp53", "value": "gene:BRCA1"},
     ]
 
     with pytest.raises(ValueError, match=r"query\.composition does not match executable query\.value"):

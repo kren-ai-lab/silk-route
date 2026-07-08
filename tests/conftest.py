@@ -1,23 +1,10 @@
 """Shared fixtures for the BioSeqDownloader test suite.
 
-Tests run offline. HTTP is mocked behind these fixtures so the rest of the suite
-never touches the network. Keeping the mock isolated here means a future migration
-of the HTTP client (requests -> niquests) only has to touch this file.
+Tests run offline. The library uses `niquests` as its HTTP client, so HTTP is
+mocked with `niquests-mock`, which patches `niquests` natively and exposes the
+`niquests_mock` fixture (a `MockRouter`). Tests register routes with
+`niquests_mock.get(...).respond(...)` and introspect traffic via
+`niquests_mock.calls`.
 """
 
 from __future__ import annotations
-
-from typing import TYPE_CHECKING
-
-import pytest
-import responses
-
-if TYPE_CHECKING:
-    from collections.abc import Iterator
-
-
-@pytest.fixture
-def mocked_responses() -> Iterator[responses.RequestsMock]:
-    """Activate `responses` for a test, asserting all registered mocks are used."""
-    with responses.RequestsMock() as rsps:
-        yield rsps
