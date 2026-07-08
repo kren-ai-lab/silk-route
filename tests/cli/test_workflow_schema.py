@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
+import pandas as pd
 import pytest
+import yaml
+from typer.testing import CliRunner
 
+import bioseq_dl.cli.workflows as workflows_cli
 from bioseq_dl.cli.workflows import (
     ALLOWED_DESCRIPTOR_SECTION_NAMES,
     WORKFLOW_SCHEMA_VERSION,
@@ -13,6 +18,9 @@ from bioseq_dl.cli.workflows import (
     build_summary_document,
     split_pair,
     validate_workflow_recipe,
+)
+from bioseq_dl.cli.workflows import (
+    app as workflow_app,
 )
 
 EXPECTED_TOOL_IDENTITY_KEYS = {
@@ -50,6 +58,27 @@ CANONICAL_CORE_DESCRIPTOR_ORDER = [
     "export",
     "reporting",
 ]
+CAPTURED_WORKFLOW_KWARGS: dict[str, Any] = {}
+
+
+class CapturingWorkflow:
+    """Capture workflow execution kwargs without API calls."""
+
+    def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+        """Initialize the fake workflow."""
+
+    def run(self, **kwargs: Any) -> tuple[dict[str, pd.DataFrame], dict[str, Any]]:
+        """Return deterministic tabular output while recording kwargs."""
+        CAPTURED_WORKFLOW_KWARGS.clear()
+        CAPTURED_WORKFLOW_KWARGS.update(kwargs)
+        return {"uniprot": pd.DataFrame([{"accession": "P02776"}])}, {}
+
+
+class PlaceholderUniprotInterface:
+    """Placeholder UniProt interface for CLI construction."""
+
+    def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+        """Initialize the fake UniProt interface."""
 
 
 def base_workflow_descriptor() -> dict:
@@ -128,6 +157,23 @@ def test_valid_minimal_workflow_v1_descriptor() -> None:
     assert values["schema_version"] == WORKFLOW_SCHEMA_VERSION
     assert values["query"] == "reviewed:true"
     assert values["query_descriptor"] == {"value": "reviewed:true", "include_isoform": False}
+    assert values["download_alphafold_structures"] is True
+    assert values["download_pdb_structures"] is True
+    assert values["execution"]["download_alphafold_structures"] is True
+    assert values["execution"]["download_pdb_structures"] is True
+
+
+def test_workflow_v1_preserves_explicit_structure_download_flags() -> None:
+    descriptor = base_workflow_descriptor()
+    descriptor["execution"]["download_alphafold_structures"] = False
+    descriptor["execution"]["download_pdb_structures"] = False
+
+    values = validate_workflow_recipe(descriptor)
+
+    assert values["download_alphafold_structures"] is False
+    assert values["download_pdb_structures"] is False
+    assert values["execution"]["download_alphafold_structures"] is False
+    assert values["execution"]["download_pdb_structures"] is False
 
 
 def test_schema_version_is_required() -> None:
@@ -439,6 +485,8 @@ def test_schema_version_and_gui_query_metadata_are_preserved_in_outputs() -> Non
     assert normalized_descriptor["query"]["builder"] == descriptor["query"]["builder"]
     assert normalized_descriptor["query"]["composition"] == descriptor["query"]["composition"]
     assert metadata["normalized_workflow_values"]["schema_version"] == WORKFLOW_SCHEMA_VERSION
+    assert metadata["normalized_workflow_values"]["download_alphafold_structures"] is True
+    assert metadata["normalized_workflow_values"]["download_pdb_structures"] is True
     assert set(metadata["tool"]) == EXPECTED_TOOL_IDENTITY_KEYS
     assert metadata["tool"]["tool_name"] == "BioSeqDownloader"
     assert metadata["tool"]["distribution_name"] == "bioseqdownloader"
@@ -449,3 +497,32 @@ def test_schema_version_and_gui_query_metadata_are_preserved_in_outputs() -> Non
     assert summary["schema_version"] == WORKFLOW_SCHEMA_VERSION
     assert summary["query"]["builder"] == descriptor["query"]["builder"]
     assert summary["query"]["composition"] == descriptor["query"]["composition"]
+    assert summary["execution"]["download_alphafold_structures"] is True
+    assert summary["execution"]["download_pdb_structures"] is True
+
+
+def test_cli_workflow_run_passes_structure_download_flags(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    descriptor = base_workflow_descriptor()
+    descriptor["execution"]["download_alphafold_structures"] = False
+    descriptor["execution"]["download_pdb_structures"] = False
+    descriptor["export"]["output_dir"] = str(tmp_path / "out")
+    config_path = tmp_path / "workflow.yml"
+    config_path.write_text(yaml.safe_dump(descriptor), encoding="utf-8")
+    CAPTURED_WORKFLOW_KWARGS.clear()
+    monkeypatch.setattr(workflows_cli, "MainWorkflow", CapturingWorkflow)
+    monkeypatch.setattr(workflows_cli, "UniprotInterface", PlaceholderUniprotInterface)
+
+    result = CliRunner().invoke(workflow_app, ["--config", str(config_path)])
+
+    assert result.exit_code == 0, result.output
+    assert CAPTURED_WORKFLOW_KWARGS["download_alphafold_structures"] is False
+    assert CAPTURED_WORKFLOW_KWARGS["download_pdb_structures"] is False
+    metadata = workflows_cli.load_workflow_recipe(tmp_path / "out" / "metadata.json")
+    summary = yaml.safe_load((tmp_path / "out" / "run_summary.yml").read_text(encoding="utf-8"))
+    assert metadata["normalized_workflow_values"]["download_alphafold_structures"] is False
+    assert metadata["normalized_workflow_values"]["download_pdb_structures"] is False
+    assert summary["execution"]["download_alphafold_structures"] is False
+    assert summary["execution"]["download_pdb_structures"] is False

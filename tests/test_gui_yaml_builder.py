@@ -159,6 +159,8 @@ def minimal_form_values() -> dict[str, object]:
         "execution.total_retries": 3,
         "execution.chembl_pages_to_fetch": 1,
         "execution.debug": False,
+        "execution.download_alphafold_structures": False,
+        "execution.download_pdb_structures": False,
         "export.output_dir": "examples/results/example_dataset",
         "export.format": "csv",
         "export.include_metadata": True,
@@ -194,6 +196,8 @@ execution:
   chembl_pages_to_fetch: 1
   uniprot_timeout: 12.5
   debug: true
+  download_alphafold_structures: true
+  download_pdb_structures: false
 harmonization:
   id_column: "_id"
   label_column: "_label"
@@ -263,6 +267,8 @@ def test_default_form_disables_enrichment_and_selects_no_sources() -> None:
 
     assert form_values["execution.enrich"] is False
     assert form_values["execution.enrichment_sources"] == []
+    assert form_values["execution.download_alphafold_structures"] is False
+    assert form_values["execution.download_pdb_structures"] is False
 
 
 def test_enrichment_source_options_map_labels_to_executable_keys() -> None:
@@ -307,6 +313,36 @@ def test_selected_enrichment_sources_generate_crossref_fields() -> None:
     assert descriptor["execution"]["enrich"] is True
     assert "enrichment_sources" not in descriptor["execution"]
     assert descriptor["query"]["crossref_fields"] == ["chembl", "pdb", "string"]
+
+
+def test_structure_download_checkboxes_generate_false_execution_options() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "execution.enrich": True,
+            "execution.enrichment_sources": ["alphafold", "pdb"],
+            "execution.download_alphafold_structures": False,
+            "execution.download_pdb_structures": False,
+        }
+    )
+
+    assert descriptor["execution"]["download_alphafold_structures"] is False
+    assert descriptor["execution"]["download_pdb_structures"] is False
+
+
+def test_structure_download_checkboxes_generate_true_execution_options() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "execution.enrich": True,
+            "execution.enrichment_sources": ["alphafold", "pdb"],
+            "execution.download_alphafold_structures": True,
+            "execution.download_pdb_structures": True,
+        }
+    )
+
+    assert descriptor["execution"]["download_alphafold_structures"] is True
+    assert descriptor["execution"]["download_pdb_structures"] is True
 
 
 @pytest.mark.parametrize(
@@ -1208,6 +1244,8 @@ def test_descriptor_to_form_values_loads_supported_fields() -> None:
     assert form_values["execution.chembl_pages_to_fetch"] == 1
     assert form_values["execution.uniprot_timeout"] == 12.5
     assert form_values["execution.debug"] is True
+    assert form_values["execution.download_alphafold_structures"] is True
+    assert form_values["execution.download_pdb_structures"] is False
     assert form_values["harmonization.id_column"] == "_id"
     assert form_values["harmonization.label_column"] == "_label"
     assert form_values["harmonization.sequence_column"] == "sequence"

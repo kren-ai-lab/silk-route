@@ -53,6 +53,17 @@ def get_crossref_interface_kwargs(database_name: str) -> dict[str, Any]:
     return {}
 
 
+def merge_interface_options(
+    database_name: str,
+    interface_options: dict[str, dict[str, Any]] | None,
+) -> dict[str, Any]:
+    """Merge database-specific interface defaults with caller-provided options."""
+    merged_options = get_crossref_interface_kwargs(database_name)
+    if interface_options and database_name in interface_options:
+        merged_options.update(interface_options[database_name])
+    return merged_options
+
+
 @dataclass
 class EndpointSpec:
     """Declarative specification for a single endpoint.
@@ -222,12 +233,14 @@ class CrossRefEnricher:
         config_path: str | None = None,
         max_workers: int = 4,
         total_retries: int = 3,
+        interface_options: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         """Initialize with a single endpoint specification."""
         self.endpoint_specs = endpoint_specs or []
         self.config_path = config_path
         self.max_workers = max_workers
         self.total_retries = total_retries
+        self.interface_options = interface_options or {}
 
     def _check_interface_availability(self, database: str) -> bool:
         """Check if the interface class for the given database is available."""
@@ -259,7 +272,7 @@ class CrossRefEnricher:
             msg = f"Unsupported database: {database_name}"
             raise ValueError(msg)
 
-        interface_kwargs = get_crossref_interface_kwargs(database_name)
+        interface_kwargs = merge_interface_options(database_name, self.interface_options)
         return INTERFACE_CLASSES[database_name](
             max_workers=self.max_workers,
             total_retries=self.total_retries,

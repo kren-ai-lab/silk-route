@@ -72,6 +72,8 @@ EXECUTION_KEYS = {
     "merge_results",
     "uniprot_timeout",
     "debug",
+    "download_alphafold_structures",
+    "download_pdb_structures",
 }
 HARMONIZATION_KEYS = {
     "id_column",
@@ -286,6 +288,24 @@ _WORKFLOW_V1_SCHEMA_DEFINITION: dict[str, object] = {
         "allowed_values": None,
         "role": "optional_input",
         "description": "Enable debug logging.",
+        "gui_visible": True,
+    },
+    "execution.download_alphafold_structures": {
+        "type": "boolean",
+        "required": False,
+        "default": True,
+        "allowed_values": None,
+        "role": "optional_input",
+        "description": "Download AlphaFold PDB structure files during AlphaFold enrichment.",
+        "gui_visible": True,
+    },
+    "execution.download_pdb_structures": {
+        "type": "boolean",
+        "required": False,
+        "default": True,
+        "allowed_values": None,
+        "role": "optional_input",
+        "description": "Download local PDB structure files during PDB enrichment.",
         "gui_visible": True,
     },
     "harmonization.id_column": {
@@ -802,6 +822,14 @@ def validate_execution_section(execution: dict[str, object]) -> dict[str, object
         validate_numeric_or_null("execution", "uniprot_timeout", execution["uniprot_timeout"])
     if "debug" in execution:
         validate_bool("execution", "debug", execution["debug"])
+    if "download_alphafold_structures" in execution:
+        validate_bool(
+            "execution",
+            "download_alphafold_structures",
+            execution["download_alphafold_structures"],
+        )
+    if "download_pdb_structures" in execution:
+        validate_bool("execution", "download_pdb_structures", execution["download_pdb_structures"])
     return dict(execution)
 
 

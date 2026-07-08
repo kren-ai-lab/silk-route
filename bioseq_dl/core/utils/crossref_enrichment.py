@@ -64,12 +64,27 @@ def has_enrichment_result_value(value: object) -> bool:
     return True
 
 
+def build_structure_download_interface_options(
+    *,
+    download_alphafold_structures: bool = True,
+    download_pdb_structures: bool = True,
+) -> dict[str, dict[str, Any]]:
+    """Return interface options controlling local structure-file downloads."""
+    return {
+        "alphafold": {"structures": ["pdb"] if download_alphafold_structures else None},
+        "pdb": {"download_structures": download_pdb_structures},
+    }
+
+
 def run_crossref_enrichment(
     data: Any,
     crossref_fields: list,
     format: Literal["dataframe", "json", "xml"] = "json",  # noqa: A002
     max_workers: int = 4,
     total_retries: int = 3,
+    *,
+    download_alphafold_structures: bool = True,
+    download_pdb_structures: bool = True,
 ) -> tuple[Any, dict | list[dict]]:
     """Run cross-reference enrichment for all configured endpoint specs."""
     crossref_fields = normalize_crossref_fields(crossref_fields)
@@ -180,7 +195,13 @@ def run_crossref_enrichment(
         return {}, {"skipped": True, "reason": "no_endpoint_specs"}
 
     enricher = CrossRefEnricher(
-        endpoint_specs=endpoint_specs, max_workers=max_workers, total_retries=total_retries
+        endpoint_specs=endpoint_specs,
+        max_workers=max_workers,
+        total_retries=total_retries,
+        interface_options=build_structure_download_interface_options(
+            download_alphafold_structures=download_alphafold_structures,
+            download_pdb_structures=download_pdb_structures,
+        ),
     )
     enriched_data, enriched_metadata = enricher.enrich(data, format=format)
 

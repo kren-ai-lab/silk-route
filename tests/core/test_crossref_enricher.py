@@ -28,6 +28,15 @@ class StubAlphafoldInterface(AlphafoldInterface):
         self.constructor_kwargs = kwargs
 
 
+class StubPDBInterface:
+    """Capture PDB constructor values without creating output directories."""
+
+    def __init__(self, download_structures: bool = True, **kwargs: object) -> None:
+        """Store the constructor values supplied by CrossRefEnricher."""
+        self.download_structures = download_structures
+        self.constructor_kwargs = kwargs
+
+
 class StubCrossRefInterface:
     """Return a configured result from a cross-reference fetch call."""
 
@@ -97,6 +106,50 @@ def test_crossref_alphafold_interface_enables_pdb_downloads(
     assert isinstance(interface, AlphafoldInterface)
     assert interface.structures == ["pdb"]
     assert interface.constructor_kwargs == {"max_workers": 2, "total_retries": 4}
+
+
+def test_crossref_alphafold_interface_can_disable_pdb_downloads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(INTERFACE_CLASSES, "alphafold", StubAlphafoldInterface)
+    enricher = CrossRefEnricher(interface_options={"alphafold": {"structures": None}})
+
+    interface = enricher._build_interface("alphafold")
+
+    assert interface.structures is None
+
+
+def test_crossref_alphafold_interface_can_explicitly_enable_pdb_downloads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(INTERFACE_CLASSES, "alphafold", StubAlphafoldInterface)
+    enricher = CrossRefEnricher(interface_options={"alphafold": {"structures": ["pdb"]}})
+
+    interface = enricher._build_interface("alphafold")
+
+    assert interface.structures == ["pdb"]
+
+
+def test_crossref_pdb_interface_can_disable_structure_downloads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(INTERFACE_CLASSES, "pdb", StubPDBInterface)
+    enricher = CrossRefEnricher(interface_options={"pdb": {"download_structures": False}})
+
+    interface = enricher._build_interface("pdb")
+
+    assert interface.download_structures is False
+
+
+def test_crossref_pdb_interface_can_enable_structure_downloads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(INTERFACE_CLASSES, "pdb", StubPDBInterface)
+    enricher = CrossRefEnricher(interface_options={"pdb": {"download_structures": True}})
+
+    interface = enricher._build_interface("pdb")
+
+    assert interface.download_structures is True
 
 
 def test_crossref_interface_kwargs_do_not_change_other_databases() -> None:

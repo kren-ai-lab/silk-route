@@ -235,6 +235,8 @@ DEFAULT_FORM_VALUES: dict[str, object] = {
     "execution.chembl_pages_to_fetch": DEFAULT_CHEMBL_PAGES_TO_FETCH,
     "execution.uniprot_timeout": None,
     "execution.debug": False,
+    "execution.download_alphafold_structures": False,
+    "execution.download_pdb_structures": False,
     "harmonization.id_column": "",
     "harmonization.label_column": "",
     "harmonization.sequence_column": "",
@@ -274,6 +276,8 @@ FORM_VALUE_ALIASES: dict[str, tuple[str, ...]] = {
     "execution.chembl_pages_to_fetch": ("execution_chembl_pages_to_fetch",),
     "execution.uniprot_timeout": ("execution_uniprot_timeout",),
     "execution.debug": ("execution_debug",),
+    "execution.download_alphafold_structures": ("execution_download_alphafold_structures",),
+    "execution.download_pdb_structures": ("execution_download_pdb_structures",),
     "harmonization.id_column": ("harmonization_id_column",),
     "harmonization.label_column": ("harmonization_label_column",),
     "harmonization.sequence_column": ("harmonization_sequence_column",),
@@ -293,7 +297,13 @@ def workflow_yaml_form_defaults() -> dict[str, object]:
     """Return mutable default form values for GUI binding."""
     schema = get_workflow_v1_schema_definition()
     defaults = deepcopy(DEFAULT_FORM_VALUES)
+    gui_only_defaults = {
+        "execution.download_alphafold_structures",
+        "execution.download_pdb_structures",
+    }
     for field_name in defaults:
+        if field_name in gui_only_defaults:
+            continue
         schema_default = schema.get(field_name, {}).get("default")
         if schema_default is not None:
             defaults[field_name] = schema_default
@@ -327,6 +337,8 @@ def workflow_yaml_gui_form_defaults() -> dict[str, object]:
         defaults["export.format"],
         EXPORT_FORMAT_LABEL_TO_VALUE,
     )
+    defaults["execution.download_alphafold_structures"] = False
+    defaults["execution.download_pdb_structures"] = False
     return defaults
 
 
@@ -722,6 +734,8 @@ def descriptor_to_form_values(descriptor: Mapping[str, object]) -> dict[str, obj
         "chembl_pages_to_fetch",
         "uniprot_timeout",
         "debug",
+        "download_alphafold_structures",
+        "download_pdb_structures",
     ):
         field_name = f"execution.{key}"
         if key in execution:
@@ -1470,6 +1484,12 @@ def build_execution_section(form_values: Mapping[str, object]) -> dict[str, obje
             "execution.chembl_pages_to_fetch",
         ),
         "debug": parse_bool(get_form_value(form_values, "execution.debug")),
+        "download_alphafold_structures": parse_bool(
+            get_form_value(form_values, "execution.download_alphafold_structures")
+        ),
+        "download_pdb_structures": parse_bool(
+            get_form_value(form_values, "execution.download_pdb_structures")
+        ),
     }
     uniprot_timeout = parse_optional_number(
         get_form_value(form_values, "execution.uniprot_timeout"),

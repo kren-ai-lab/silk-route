@@ -614,6 +614,8 @@ class MainWorkflow:
         parse_format = normalize_parse_format(export_format) or "dataframe"
         max_workers = kwargs.get("max_workers", 4)
         total_retries = kwargs.get("total_retries", 3)
+        download_alphafold_structures = kwargs.get("download_alphafold_structures", True)
+        download_pdb_structures = kwargs.get("download_pdb_structures", True)
 
         if not enrich_flag:
             self.log.info("Pipeline: enrichment skipped (enrich=False)")
@@ -637,6 +639,8 @@ class MainWorkflow:
             format=cast("Literal['json', 'dataframe', 'xml']", parse_format),
             max_workers=max_workers,
             total_retries=total_retries,
+            download_alphafold_structures=download_alphafold_structures,
+            download_pdb_structures=download_pdb_structures,
         )
         enrich_elapsed = time.time() - enrich_started
         context["data"].setdefault("uniprot_enrichment", enriched)

@@ -25,6 +25,8 @@ REQUIRED_GUI_FIELDS = {
     "execution.chembl_pages_to_fetch",
     "execution.uniprot_timeout",
     "execution.debug",
+    "execution.download_alphafold_structures",
+    "execution.download_pdb_structures",
     "harmonization.id_column",
     "harmonization.label_column",
     "harmonization.sequence_column",
@@ -113,6 +115,42 @@ def test_workflow_validator_accepts_complete_harmonization_section() -> None:
     validated = validate_workflow_v1_descriptor(descriptor)
 
     assert validated["harmonization"] == descriptor["harmonization"]
+
+
+def test_workflow_validator_accepts_structure_download_execution_flags() -> None:
+    from bioseq_dl.workflow_schema_definition import validate_workflow_v1_descriptor
+
+    descriptor = minimal_workflow_descriptor()
+    descriptor["execution"] = {
+        "download_alphafold_structures": False,
+        "download_pdb_structures": True,
+    }
+
+    validated = validate_workflow_v1_descriptor(descriptor)
+
+    assert validated["execution"]["download_alphafold_structures"] is False
+    assert validated["execution"]["download_pdb_structures"] is True
+
+
+@pytest.mark.parametrize("key", ["download_alphafold_structures", "download_pdb_structures"])
+def test_workflow_validator_rejects_non_boolean_structure_download_flags(key: str) -> None:
+    from bioseq_dl.workflow_schema_definition import validate_workflow_v1_descriptor
+
+    descriptor = minimal_workflow_descriptor()
+    descriptor["execution"] = {key: "false"}
+
+    with pytest.raises(TypeError, match=rf"execution\.{key}"):
+        validate_workflow_v1_descriptor(descriptor)
+
+
+def test_workflow_validator_still_rejects_unknown_execution_keys() -> None:
+    from bioseq_dl.workflow_schema_definition import validate_workflow_v1_descriptor
+
+    descriptor = minimal_workflow_descriptor()
+    descriptor["execution"] = {"download_structures": False}
+
+    with pytest.raises(ValueError, match="Unknown execution YAML key 'download_structures'"):
+        validate_workflow_v1_descriptor(descriptor)
 
 
 def test_workflow_validator_accepts_optional_query_builder_metadata() -> None:

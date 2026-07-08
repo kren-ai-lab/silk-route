@@ -81,6 +81,8 @@ def build_default_workflow_values() -> dict:
         "include_isoform": False,
         "uniprot_timeout": None,
         "debug": False,
+        "download_alphafold_structures": True,
+        "download_pdb_structures": True,
         "id_column": None,
         "include_metadata": True,
         "include_summary": True,
@@ -145,6 +147,8 @@ def sync_descriptor_from_workflow_values(values: dict) -> dict:
     if synced.get("uniprot_timeout") is not None:
         execution["uniprot_timeout"] = synced["uniprot_timeout"]
     execution["debug"] = synced.get("debug")
+    execution["download_alphafold_structures"] = synced.get("download_alphafold_structures")
+    execution["download_pdb_structures"] = synced.get("download_pdb_structures")
     synced["execution"] = execution
 
     harmonization = dict(synced.get("harmonization") or {})
@@ -248,6 +252,8 @@ def validate_workflow_recipe(recipe: dict) -> dict:
             "include_isoform": query_descriptor.get("include_isoform", False),
             "uniprot_timeout": execution.get("uniprot_timeout"),
             "debug": execution.get("debug", False),
+            "download_alphafold_structures": execution.get("download_alphafold_structures", True),
+            "download_pdb_structures": execution.get("download_pdb_structures", True),
             "id_column": harmonization.get("id_column"),
             "include_metadata": export_section.get("include_metadata", True),
             "include_summary": export_section.get("include_summary", True),
@@ -745,6 +751,8 @@ def build_normalized_workflow_metadata(values: dict) -> dict:
         "include_isoform",
         "uniprot_timeout",
         "debug",
+        "download_alphafold_structures",
+        "download_pdb_structures",
         "id_column",
         "include_metadata",
         "include_summary",
@@ -860,6 +868,10 @@ def build_summary_document(
         execution_summary["uniprot_timeout"] = workflow_values.get("uniprot_timeout")
     if workflow_values.get("debug"):
         execution_summary["debug"] = workflow_values.get("debug")
+    execution_summary["download_alphafold_structures"] = workflow_values.get(
+        "download_alphafold_structures"
+    )
+    execution_summary["download_pdb_structures"] = workflow_values.get("download_pdb_structures")
     if source_metadata.get("number_of_records") is not None:
         execution_summary["number_of_records"] = source_metadata["number_of_records"]
 
@@ -1105,6 +1117,8 @@ def run_workflow(
                 include_isoform=workflow_values["include_isoform"],
                 interaction_type=workflow_values["interaction_type"],
                 crossref_fields=workflow_values["crossref_fields"],
+                download_alphafold_structures=workflow_values["download_alphafold_structures"],
+                download_pdb_structures=workflow_values["download_pdb_structures"],
             )
         elif workflow_values["mode"] == "query_composition":
             if "," not in workflow_values["query"]:
@@ -1126,6 +1140,8 @@ def run_workflow(
                 include_isoform=workflow_values["include_isoform"],
                 interaction_type=workflow_values["interaction_type"],
                 crossref_fields=workflow_values["crossref_fields"],
+                download_alphafold_structures=workflow_values["download_alphafold_structures"],
+                download_pdb_structures=workflow_values["download_pdb_structures"],
             )
         else:
             msg = f"Unsupported workflow mode '{workflow_values['mode']}'."

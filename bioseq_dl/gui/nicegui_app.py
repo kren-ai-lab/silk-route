@@ -2318,6 +2318,23 @@ class WorkflowYamlBuilderApp:
                     "Advanced comma-separated source keys or endpoint-specific fields."
                 )
             )
+            with ui.grid(columns=2).classes("w-full gap-3"):
+                (
+                    ui.checkbox("Download AlphaFold PDB files")
+                    .bind_value(self.form_values, "execution.download_alphafold_structures")
+                    .tooltip(
+                        "When enabled, BioSeqDownloader downloads AlphaFold PDB structure files. "
+                        "When disabled, only AlphaFold prediction metadata is exported."
+                    )
+                )
+                (
+                    ui.checkbox("Download PDB structure files")
+                    .bind_value(self.form_values, "execution.download_pdb_structures")
+                    .tooltip(
+                        "When enabled, BioSeqDownloader downloads local PDB structure files. "
+                        "When disabled, only PDB entry metadata is exported."
+                    )
+                )
             ui.label(
                 "Selected sources are stored in query.crossref_fields and are used only by "
                 "workflows and endpoints that support cross-reference enrichment."
