@@ -7,7 +7,7 @@ from typing import Any, ClassVar
 import pandas as pd
 import requests
 from requests import Request
-from requests.exceptions import RequestException
+from requests.exceptions import HTTPError, RequestException
 
 from bioseq_dl.constants.databases import PDB
 from bioseq_dl.core.interfacesconfig import load_packaged_config
@@ -161,6 +161,13 @@ class PDBInterface(BaseAPIInterface):
             with file_path.open("wb") as f:
                 f.write(response.content)
             return str(file_path)
+        except HTTPError as exc:
+            response = exc.response
+            if response is not None and response.status_code == 404:  # noqa: PLR2004
+                log.warning("PDB structure file not found for %s in %s format.", pdb_id, file_format)
+            else:
+                log.exception("Error downloading structure for %s", pdb_id)
+            return ""
         except requests.exceptions.RequestException:
             log.exception("Error downloading structure for %s", pdb_id)
             return ""
@@ -177,12 +184,14 @@ class PDBInterface(BaseAPIInterface):
         self, queries: Sequence[str | dict], parse: bool = False, *args: Any, **kwargs: Any
     ) -> tuple[list | pd.DataFrame | bytes | str, dict]:
         """Fetch a batch of PDB entries and optionally download structure files."""
-        results = super().fetch_batch(queries, parse, *args, **kwargs)
+        results, metadata = super().fetch_batch(queries, parse, *args, **kwargs)
         if self.download_structures:
-            for query in queries:
-                if isinstance(query, str):
-                    self.fetch_structure(query)
-        return results
+            cached_queries = [
+                query for query in metadata.get("cached_subqueries", []) if isinstance(query, str)
+            ]
+            for query in cached_queries:
+                self.fetch_structure(query)
+        return results, metadata
 
     def parse(self, data: Any, fields_to_extract: list | dict | None, **_kwargs: Any) -> dict | list:
         """Parse data by extracting specified fields or returning the entire structure.

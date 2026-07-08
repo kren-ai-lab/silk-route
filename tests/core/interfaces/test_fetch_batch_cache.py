@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Any, ClassVar
 
+import pandas as pd
 import pytest
 
 from bioseq_dl.core.interfaces.base import BaseAPIInterface
@@ -29,12 +30,17 @@ class FakeInterface(BaseAPIInterface):
     def __init__(self, **kwargs):
         super().__init__(min_wait=0, max_wait=0, use_config=False, **kwargs)
         self.fetch_calls: list[list[str]] = []
+        self.fetch_single_formats: list[str | None] = []
 
     def fetch(self, query, *, method="get", **kwargs):
         raw = query["id"] if isinstance(query, dict) else query
         ids = raw.split(",") if isinstance(raw, str) else list(raw)
         self.fetch_calls.append(ids)
         return [{"id": x, "value": f"val{x}"} for x in ids]
+
+    def fetch_single(self, query, parse=False, *args, **kwargs):
+        self.fetch_single_formats.append(kwargs.get("format"))
+        return super().fetch_single(query, parse, *args, **kwargs)
 
     def parse(self, data, fields_to_extract, **kwargs):
         return data
@@ -75,3 +81,37 @@ def test_partial_cache_does_not_duplicate_or_refetch(interface):
 
     # Every id appears exactly once -- no duplication of the cached subqueries.
     assert sorted(_collect_ids(batch)) == ["a", "b", "c"]
+
+
+def test_fetch_batch_forwards_dataframe_format_to_uncached_queries(interface):
+    # Warm the cache for one query.
+    cached, _ = interface.fetch_single("cached", parse=True, method="get", format="dataframe")
+    assert isinstance(cached, pd.DataFrame)
+
+    interface.fetch_calls.clear()
+    interface.fetch_single_formats.clear()
+
+    batch, metadata = interface.fetch_batch(
+        ["cached", "uncached"],
+        parse=True,
+        method="get",
+        format="dataframe",
+    )
+
+    assert interface.fetch_single_formats == ["dataframe"]
+    assert interface.fetch_calls == [["uncached"]]
+    assert isinstance(batch, pd.DataFrame)
+    assert sorted(batch["id"].tolist()) == ["cached", "uncached"]
+    assert metadata["data_info"]["total_entries"] == 2
+
+
+def test_build_data_info_normalizes_mixed_batch_records():
+    data_info = BaseAPIInterface._build_data_info(
+        [
+            pd.DataFrame([{"id": "cached", "value": "from-cache"}]),
+            {"id": "uncached", "value": "from-api"},
+        ]
+    )
+
+    assert data_info["total_entries"] == 2
+    assert {column["name"] for column in data_info["columns"]} == {"id", "value"}

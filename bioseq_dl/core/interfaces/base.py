@@ -61,6 +61,19 @@ def _extract_nested_values(value: object) -> list[str]:
     return result
 
 
+def normalize_metadata_records(data: list[Any]) -> list[Any]:
+    """Normalize mixed batch results before metadata summarization."""
+    records = []
+    for item in data:
+        if isinstance(item, pd.DataFrame):
+            records.extend(item.to_dict(orient="records"))
+        elif isinstance(item, list):
+            records.extend(item)
+        else:
+            records.append(item)
+    return records
+
+
 class BaseAPIInterface(ABC):
     """Abstract base class for all BioSeqDownloader API interfaces."""
 
@@ -241,7 +254,8 @@ class BaseAPIInterface(ABC):
         if isinstance(data, pd.DataFrame):
             df = data
         elif isinstance(data, list):
-            df = pd.DataFrame(data) if len(data) > 0 else pd.DataFrame()
+            metadata_records = normalize_metadata_records(data)
+            df = pd.DataFrame(metadata_records) if len(metadata_records) > 0 else pd.DataFrame()
         elif isinstance(data, dict):
             df = pd.DataFrame([data]) if len(data) > 0 else pd.DataFrame()
         elif data is None:
@@ -250,7 +264,7 @@ class BaseAPIInterface(ABC):
             df = pd.DataFrame([data])
 
         if isinstance(data, list):
-            total_entries = len(data)
+            total_entries = len(normalize_metadata_records(data))
         elif isinstance(data, pd.DataFrame):
             total_entries = data.shape[0]
         elif data is None:
@@ -904,6 +918,7 @@ class BaseAPIInterface(ABC):
         metadata = self._empty_metadata()
         method = kwargs.get("method", "NOT_GIVEN")
         fmt = kwargs.pop("format", "json")
+        single_fetch_kwargs = {**kwargs, "format": fmt}
         option = kwargs.get("option")
         results: list[Any] = []
 
@@ -976,7 +991,7 @@ class BaseAPIInterface(ABC):
         t0 = time.time()
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             future_to_index = {
-                executor.submit(self.fetch_single, query, parse, *args, **kwargs): i
+                executor.submit(self.fetch_single, query, parse, *args, **single_fetch_kwargs): i
                 # Change it to index_query_map.items() if That part is needed
                 for i, query in index_query_map.items()
             }
