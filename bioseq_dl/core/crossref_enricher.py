@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, cast
 from xml.etree.ElementTree import Element, ElementTree, fromstring
@@ -16,6 +17,33 @@ from bioseq_dl.core.utils.xmlhandler import elementtree_to_dataframe
 from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.interfaces.crossref_enricher")
+
+GRAPH_LIKE_ENRICHMENT_OUTPUTS = {
+    "pathwaycommons_fetch": "jsonld",
+    "pathwaycommons_neighborhood": "jsonld",
+}
+GRAPH_OUTPUT_NOTE = (
+    "graph_json is intentionally preserved as raw graph data and is not interpreted by "
+    "BioSeqDownloader."
+)
+
+CrossRefInternalFormat = Literal["dataframe", "json", "xml"]
+CrossRefFormat = Literal["csv", "dataframe", "json", "xml"]
+
+
+def normalize_crossref_format(format_value: str) -> CrossRefInternalFormat:
+    """Normalize user-facing enrichment formats to internal CrossRefEnricher formats."""
+    normalized_format = str(format_value).strip().lower()
+    if normalized_format == "csv":
+        return "dataframe"
+    if normalized_format in {"dataframe", "json", "xml"}:
+        return cast("CrossRefInternalFormat", normalized_format)
+    supported_formats = "csv, dataframe, json, xml"
+    msg = (
+        f"Unsupported cross-reference format '{format_value}'. "
+        f"Supported formats: {supported_formats}."
+    )
+    raise ValueError(msg)
 
 
 def get_crossref_interface_kwargs(database_name: str) -> dict[str, Any]:
@@ -55,6 +83,80 @@ def get_source_context_value(row: pd.Series, column: str) -> Any | None:
     return value
 
 
+def build_source_context(
+    row: pd.Series,
+    source_query: dict[str, Any] | list[Any],
+    *,
+    source_database: str,
+    source_endpoint: str,
+) -> dict[str, Any]:
+    """Return source-row and endpoint provenance for an enrichment result."""
+    return {
+        "source_accession": get_source_context_value(row, "accession"),
+        "source_protein_name": get_source_context_value(row, "protein_name"),
+        "source_organism_id": get_source_context_value(row, "organism_id"),
+        "source_query": source_query,
+        "source_database": source_database,
+        "source_endpoint": source_endpoint,
+    }
+
+
+def get_enrichment_output_key(database_name: str, endpoint_name: str) -> str:
+    """Return the stable output key used to classify enrichment results."""
+    return f"{database_name}_{endpoint_name}"
+
+
+def is_graph_like_enrichment(database_name: str, endpoint_name: str) -> bool:
+    """Return whether an enrichment endpoint must preserve a raw graph payload."""
+    output_key = get_enrichment_output_key(database_name, endpoint_name)
+    return output_key in GRAPH_LIKE_ENRICHMENT_OUTPUTS
+
+
+def normalize_graph_payload(raw_result: Any) -> dict[str, Any] | list[Any] | Any:
+    """Return a JSON-serializable graph payload without interpreting graph semantics."""
+    if isinstance(raw_result, pd.DataFrame):
+        return raw_result.to_dict(orient="records")
+    if raw_result is None or (isinstance(raw_result, (dict, list)) and not raw_result):
+        return []
+    return raw_result
+
+
+def count_graph_records(graph_payload: Any) -> int:
+    """Count top-level records in a preserved graph payload."""
+    if isinstance(graph_payload, dict):
+        graph_records = graph_payload.get("@graph")
+        if isinstance(graph_records, list):
+            return len(graph_records)
+        return 1 if graph_payload else 0
+    if isinstance(graph_payload, list):
+        return len(graph_payload)
+    return 0 if graph_payload is None else 1
+
+
+def build_graph_output_row(
+    raw_result: Any,
+    row: pd.Series,
+    source_query: dict[str, Any] | list[Any],
+    *,
+    source_database: str,
+    source_endpoint: str,
+) -> dict[str, Any]:
+    """Build one compact provenance row containing a serialized raw graph payload."""
+    output_key = get_enrichment_output_key(source_database, source_endpoint)
+    graph_payload = normalize_graph_payload(raw_result)
+    return {
+        **build_source_context(
+            row,
+            source_query,
+            source_database=source_database,
+            source_endpoint=source_endpoint,
+        ),
+        "graph_format": GRAPH_LIKE_ENRICHMENT_OUTPUTS[output_key],
+        "graph_record_count": count_graph_records(graph_payload),
+        "graph_json": json.dumps(graph_payload, ensure_ascii=False, default=str),
+    }
+
+
 def attach_source_context(
     result: Any,
     row: pd.Series,
@@ -69,14 +171,12 @@ def attach_source_context(
     if isinstance(result, (list, dict)) and not result:
         return result
 
-    context = {
-        "source_accession": get_source_context_value(row, "accession"),
-        "source_protein_name": get_source_context_value(row, "protein_name"),
-        "source_organism_id": get_source_context_value(row, "organism_id"),
-        "source_query": source_query,
-        "source_database": source_database,
-        "source_endpoint": source_endpoint,
-    }
+    context = build_source_context(
+        row,
+        source_query,
+        source_database=source_database,
+        source_endpoint=source_endpoint,
+    )
     context = {key: value for key, value in context.items() if value is not None}
 
     if isinstance(result, pd.DataFrame):
@@ -94,13 +194,13 @@ def attach_source_context(
 def add_endpoint_result_metadata(metadata: dict, spec: EndpointSpec) -> dict:
     """Add endpoint semantics needed to interpret exported enrichment results."""
     enriched_metadata = dict(metadata) if isinstance(metadata, dict) else {}
-    if spec.database == "pathwaycommons" and spec.endpoint == "neighborhood":
+    if is_graph_like_enrichment(spec.database, spec.endpoint):
         enriched_metadata.update(
             {
-                "result_kind": "graph_neighborhood",
-                "result_description": (
-                    "Raw PathwayCommons graph neighborhood; rows are not compact pathway annotations."
-                ),
+                "output_kind": "raw_graph",
+                "graph_serialization": "json",
+                "graph_tabularization": "one_row_per_source",
+                "note": GRAPH_OUTPUT_NOTE,
             }
         )
     return enriched_metadata
@@ -187,7 +287,7 @@ class CrossRefEnricher:
         instance: Any,
         spec: EndpointSpec,
         params: dict[str, Any],
-        fmt: Literal["dataframe", "json", "xml"] = "dataframe",
+        fmt: CrossRefInternalFormat = "dataframe",
     ) -> tuple[pd.DataFrame | list[dict[str, Any]] | dict[str, Any], dict]:
         """Build query from row using the registered query-builder.
 
@@ -200,7 +300,12 @@ class CrossRefEnricher:
 
         query_params = qb(row, params)
 
-        method_params = {"method": spec.endpoint, "parse": True, "format": fmt}
+        graph_like = is_graph_like_enrichment(spec.database, spec.endpoint)
+        method_params = {
+            "method": spec.endpoint,
+            "parse": not graph_like,
+            "format": "json" if graph_like else fmt,
+        }
 
         if spec.option:
             method_params["option"] = spec.option
@@ -226,13 +331,23 @@ class CrossRefEnricher:
         else:
             result = []
 
-        result = attach_source_context(
-            result,
-            row,
-            query_params,
-            source_database=spec.database,
-            source_endpoint=spec.endpoint,
-        )
+        if graph_like:
+            graph_row = build_graph_output_row(
+                result,
+                row,
+                query_params,
+                source_database=spec.database,
+                source_endpoint=spec.endpoint,
+            )
+            result = pd.DataFrame([graph_row]) if fmt == "dataframe" else [graph_row]
+        else:
+            result = attach_source_context(
+                result,
+                row,
+                query_params,
+                source_database=spec.database,
+                source_endpoint=spec.endpoint,
+            )
         return result, add_endpoint_result_metadata(metadata, spec)
 
     def _merge_metadata(self, meta1: dict, meta2: dict) -> dict:
@@ -276,7 +391,7 @@ class CrossRefEnricher:
         instance: Any,
         spec: EndpointSpec,
         params: dict[str, Any],
-        fmt: Literal["dataframe", "json", "xml"] = "dataframe",
+        fmt: CrossRefInternalFormat = "dataframe",
     ) -> tuple[pd.DataFrame | list | ElementTree[Element[str] | None], dict]:
         """Apply search-then-merge for every row and vertically concatenate all row-expansions."""
         # Apply row-wise; collect per-row DataFrames
@@ -380,9 +495,10 @@ class CrossRefEnricher:
     def enrich(
         self,
         data: Any,
-        format: Literal["dataframe", "json", "xml"] = "dataframe",  # noqa: A002
+        format: CrossRefFormat | str = "dataframe",  # noqa: A002
     ) -> tuple[dict, dict]:
         """Enrich the input DataFrame with cross-references from specified endpoints."""
+        internal_format = normalize_crossref_format(format)
         # For an easier handling, convert input data to DataFrame if needed
         if isinstance(data, (list, dict)):
             df = pd.DataFrame(data)
@@ -426,16 +542,22 @@ class CrossRefEnricher:
                 params,
             )
 
-            processed_data, processed_metadata = self._process_dataframe(df, instance, spec, params, format)
+            processed_data, processed_metadata = self._process_dataframe(
+                df,
+                instance,
+                spec,
+                params,
+                internal_format,
+            )
             results.update(
                 {f"{spec.database}_{spec.endpoint}{'_' + spec.option if spec.option else ''}": processed_data}
             )
             metadata_key = f"{spec.database}_{spec.endpoint}{'_' + spec.option if spec.option else ''}"
             metadata.update({metadata_key: processed_metadata})
 
-        if format == "dataframe":
+        if internal_format == "dataframe":
             return results, metadata
-        if format in ["json", "xml"]:
+        if internal_format in ["json", "xml"]:
             return results, metadata
-        msg = f"Unsupported format: {format}"
+        msg = f"Unsupported format: {internal_format}"
         raise ValueError(msg)

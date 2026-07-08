@@ -3,7 +3,7 @@
 from typing import Any, ClassVar
 
 from requests import Request
-from requests.exceptions import RequestException
+from requests.exceptions import HTTPError, RequestException
 
 from bioseq_dl.constants.databases import STRING
 from bioseq_dl.constants.stringdb import METHOD_FORMATS
@@ -105,6 +105,13 @@ class StringInterface(BaseAPIInterface):
             response.raise_for_status()
 
             return response.json()
+        except HTTPError as exc:
+            if exc.response is not None and exc.response.status_code == 404:  # noqa: PLR2004
+                identifier = query.get("identifiers") if isinstance(query, dict) else query
+                log.warning("STRING identifier not found for method '%s': %s", method, identifier)
+            else:
+                log.exception("Error fetching %s for method '%s'", query, method)
+            return {}
         except RequestException:
             log.exception("Error fetching %s for method '%s'", query, method)
             return {}

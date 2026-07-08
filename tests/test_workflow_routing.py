@@ -7,6 +7,7 @@ from typing import Any
 import pandas as pd
 import pytest
 
+from bioseq_dl.cli.workflows import WORKFLOW_SCHEMA_VERSION, validate_workflow_recipe
 from bioseq_dl.core.workflow.chembl_query_parser import is_chembl_prefixed_query
 from bioseq_dl.core.workflow.main_workflow import (
     PLI_SOURCE_QUERY_ERROR,
@@ -91,6 +92,20 @@ class CompoundNoMappingWorkflow(RoutingProbeWorkflow):
         """Fail if compound workflows call ChEMBL-to-UniProt mapping."""
         msg = "Compound workflows must not map ChEMBL IDs to UniProt."
         raise AssertionError(msg)
+
+
+class CsvPpiWorkflow(MainWorkflow):
+    """Run the real PPI enrichment step with offline UniProt data."""
+
+    def _step_fetch_uniprot(self, context: dict[str, Any]) -> None:
+        """Provide a placeholder UniProt response without network access."""
+        context.setdefault("data", {})["uniprot"] = {"results": []}
+
+    def _step_parse_uniprot(self, context: dict[str, Any]) -> None:
+        """Provide tabular protein data without external PPI identifiers."""
+        context.setdefault("data", {})["uniprot"] = pd.DataFrame(
+            [{"accession": "P04637", "organism_id": "9606"}]
+        )
 
 
 @pytest.mark.parametrize(
@@ -284,6 +299,34 @@ def test_protein_protein_interaction_preserves_uniprot_oriented_behavior() -> No
     assert "parse_uniprot" in workflow.calls
     assert "fetch_ppi_sources" in workflow.calls
     assert not any(call.startswith("fetch_chembl") for call in workflow.calls)
+
+
+def test_workflow_v1_ppi_csv_format_completes_crossref_enrichment() -> None:
+    descriptor = {
+        "schema_version": WORKFLOW_SCHEMA_VERSION,
+        "dataset": {
+            "name": "ppi_dataset",
+            "modality": "interaction",
+            "mode": "query_first",
+            "interaction_type": "protein-protein",
+        },
+        "query": {"value": "reviewed:true"},
+        "execution": {"enrich": True},
+        "export": {"output_dir": "results/ppi_dataset", "format": "csv"},
+    }
+    workflow_values = validate_workflow_recipe(descriptor)
+    workflow = CsvPpiWorkflow()
+
+    data, metadata = workflow.run(
+        modality=workflow_values["modality"],
+        mode=workflow_values["mode"],
+        interaction_type=workflow_values["interaction_type"],
+        query=workflow_values["query"],
+        export_format=workflow_values["export_format"],
+    )
+
+    assert data["uniprot_enrichment"] == {}
+    assert metadata["uniprot_enrichment"] == {}
 
 
 def test_protein_protein_interaction_rejects_chembl_prefixed_query() -> None:

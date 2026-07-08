@@ -9,6 +9,7 @@ import pytest
 from bioseq_dl.core.utils.query_builders import (
     QUERY_BUILDERS,
     get_query_builder,
+    to_optional_int,
     to_str_list,
 )
 
@@ -26,6 +27,15 @@ def test_to_str_list_parses_literal_list_string():
 def test_to_str_list_list_and_ndarray():
     assert to_str_list(["a", " b ", ""]) == ["a", "b"]
     assert to_str_list(np.array(["x", "y"])) == ["x", "y"]
+
+
+@pytest.mark.parametrize(("value", "expected"), [("9606", 9606), (9606, 9606), (None, None)])
+def test_to_optional_int(value, expected):
+    assert to_optional_int(value) == expected
+
+
+def test_to_optional_int_returns_none_for_invalid_values():
+    assert to_optional_int("not-a-taxonomy-id") is None
 
 
 def test_get_query_builder_unknown_raises():
@@ -134,6 +144,88 @@ def test_build_query_pathwaycommons_fetch_uses_reactome_as_last_fallback():
     out = builder(pd.Series({"reactome_ids": ["R-HSA-69541"]}), {})
 
     assert out == [{"uri": ["reactome:R-HSA-69541"]}]
+
+
+@pytest.mark.parametrize("organism_id", ["9606", 9606])
+def test_build_query_stringdb_gene_queries_use_integer_species(organism_id):
+    builder = get_query_builder("string", "get_string_ids")
+
+    out = builder(pd.Series({"gene_primary": ["TP53"], "organism_id": organism_id}), {})
+
+    assert out == [{"identifiers": "TP53", "species": 9606}]
+
+
+def test_build_query_stringdb_ids_include_integer_species_when_available():
+    builder = get_query_builder("string", "interaction_partners")
+
+    out = builder(
+        pd.Series({"string_ids": ["9606.ENSP00000269305"], "organism_id": "9606"}),
+        {},
+    )
+
+    assert out == [{"identifiers": "9606.ENSP00000269305", "species": 9606}]
+
+
+def test_build_query_stringdb_ids_do_not_require_species():
+    builder = get_query_builder("string", "interaction_partners")
+
+    out = builder(pd.Series({"string_ids": ["9606.ENSP00000269305"]}), {})
+
+    assert out == [{"identifiers": "9606.ENSP00000269305"}]
+
+
+def test_build_query_stringdb_gene_queries_require_valid_species():
+    builder = get_query_builder("string", "get_string_ids")
+
+    assert builder(pd.Series({"gene_primary": ["TP53"]}), {}) == []
+    assert builder(
+        pd.Series({"gene_primary": ["TP53"], "organism_id": "not-a-taxonomy-id"}),
+        {},
+    ) == []
+
+
+def test_build_query_stringdb_prefers_string_ids_over_gene_primary():
+    builder = get_query_builder("string", "interaction_partners")
+
+    out = builder(
+        pd.Series(
+            {
+                "string_ids": ["9606.ENSP000001"],
+                "gene_primary": ["TP53"],
+                "organism_id": "9606",
+            }
+        ),
+        {},
+    )
+
+    assert out == [{"identifiers": "9606.ENSP000001", "species": 9606}]
+
+
+def test_build_query_stringdb_falls_back_to_deduplicated_gene_primary():
+    builder = get_query_builder("string", "interaction_partners")
+
+    out = builder(
+        pd.Series({"string_ids": [], "gene_primary": ["TP53", "TP53"], "organism_id": 9606}),
+        {},
+    )
+
+    assert out == [{"identifiers": "TP53", "species": 9606}]
+
+
+def test_build_query_stringdb_deduplicates_string_ids():
+    builder = get_query_builder("string", "interaction_partners")
+
+    out = builder(
+        pd.Series(
+            {
+                "string_ids": ["9606.ENSP000001", "9606.ENSP000001"],
+                "organism_id": 9606,
+            }
+        ),
+        {},
+    )
+
+    assert out == [{"identifiers": "9606.ENSP000001", "species": 9606}]
 
 
 def test_chebi_compounds_chunks_in_groups_of_five():

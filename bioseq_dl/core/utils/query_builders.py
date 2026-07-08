@@ -99,6 +99,17 @@ def to_str_list(value: Any) -> list[str]:
     return [str(value).strip()] if str(value).strip() else []
 
 
+def to_optional_int(value: Any) -> int | None:
+    """Convert a scalar-like value to int when possible."""
+    values = to_str_list(value)
+    if not values:
+        return None
+    try:
+        return int(values[0])
+    except (TypeError, ValueError):
+        return None
+
+
 def add_database_prefix(identifier: str, database: str) -> str:
     """Return an identifier with a PathwayCommons-compatible database prefix."""
     cleaned_identifier = identifier.strip()
@@ -432,11 +443,15 @@ def build_query_sabiork_kineticlaws(row: pd.Series, params: dict) -> list:
 @register_query_builder("string", "get_string_ids")
 def build_query_stringdb(row: pd.Series, params: dict) -> list:
     """Build STRING interaction queries from 'string_ids' or 'gene_primary'+'organism_id' columns."""
-    string_ids = to_str_list(row.get("string_ids"))
-    organism = to_str_list(row.get("organism_id"))[0]
-    gene_primary = to_str_list(row.get("gene_primary"))
+    string_ids = list(dict.fromkeys(to_str_list(row.get("string_ids"))))
+    organism = to_optional_int(row.get("organism_id"))
+    gene_primary = list(dict.fromkeys(to_str_list(row.get("gene_primary"))))
     if string_ids:
-        return [{"identifiers": string_id, **params} for string_id in string_ids]
-    if gene_primary and organism:
-        return [{"identifiers": gene, "species": organism, **params} for gene in gene_primary]
+        queries = [{"identifiers": string_id, **params} for string_id in string_ids]
+        if organism is not None:
+            for query in queries:
+                query["species"] = organism
+        return queries
+    if gene_primary and organism is not None:
+        return [{"identifiers": gene, **params, "species": organism} for gene in gene_primary]
     return []
