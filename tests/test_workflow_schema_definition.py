@@ -34,6 +34,8 @@ REQUIRED_GUI_FIELDS = {
     "harmonization.metadata_fields",
     "export.output_dir",
     "export.format",
+    "export.graph_payload_storage",
+    "export.graph_payload_compression",
     "export.include_metadata",
     "export.include_summary",
     "export.manifest_file",

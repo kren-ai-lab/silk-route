@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import datetime as dt
+import gzip
+import hashlib
 import json
 import logging
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -28,6 +31,8 @@ from bioseq_dl.workflow_schema_definition import (
 from bioseq_dl.workflow_schema_definition import (
     DESCRIPTIVE_DESCRIPTOR_SECTIONS,
     FORMATS,
+    GRAPH_PAYLOAD_COMPRESSION_OPTIONS,
+    GRAPH_PAYLOAD_STORAGE_OPTIONS,
     INTERACTION_TYPES,
     MODALITIES,
     MODES,
@@ -50,6 +55,8 @@ PRIMARY_RESULT_LABELS = {
     "compound": "chembl",
     "interaction": "data",
 }
+GRAPH_JSON_COLUMN = "graph_json"
+GRAPH_FILE_COLUMNS = ("graph_file", "graph_file_size_bytes", "graph_sha256")
 
 
 def build_default_workflow_values() -> dict:
@@ -88,6 +95,8 @@ def build_default_workflow_values() -> dict:
         "include_summary": True,
         "manifest_file": "metadata.json",
         "summary_file": "run_summary.yml",
+        "graph_payload_storage": "inline",
+        "graph_payload_compression": "gzip",
     }
 
 
@@ -164,8 +173,31 @@ def sync_descriptor_from_workflow_values(values: dict) -> dict:
     export_section["include_summary"] = synced.get("include_summary")
     export_section["manifest_file"] = synced.get("manifest_file")
     export_section["summary_file"] = synced.get("summary_file")
+    export_section["graph_payload_storage"] = synced.get("graph_payload_storage")
+    export_section["graph_payload_compression"] = synced.get("graph_payload_compression")
     synced["export"] = export_section
     return synced
+
+
+def normalize_graph_payload_storage(value: object) -> str:
+    """Normalize graph payload storage mode."""
+    normalized = str(value or "inline").strip().lower()
+    if normalized not in GRAPH_PAYLOAD_STORAGE_OPTIONS:
+        allowed = ", ".join(GRAPH_PAYLOAD_STORAGE_OPTIONS)
+        msg = f"Unsupported graph_payload_storage '{value}'. Supported values are: {allowed}."
+        raise ValueError(msg)
+    return normalized
+
+
+def normalize_graph_payload_compression(value: object, _storage_mode: str) -> str:
+    """Normalize graph payload compression mode for the selected storage mode."""
+    default = "gzip"
+    normalized = str(default if value is None else value).strip().lower()
+    if normalized not in GRAPH_PAYLOAD_COMPRESSION_OPTIONS:
+        allowed = ", ".join(GRAPH_PAYLOAD_COMPRESSION_OPTIONS)
+        msg = f"Unsupported graph_payload_compression '{value}'. Supported values are: {allowed}."
+        raise ValueError(msg)
+    return normalized
 
 
 def load_workflow_recipe(config_path: str | Path) -> dict:
@@ -223,6 +255,13 @@ def validate_workflow_recipe(recipe: dict) -> dict:
     normalized = build_default_workflow_values()
     manifest_file = export_section.get("manifest_file") or "metadata.json"
     summary_file = export_section.get("summary_file") or "run_summary.yml"
+    graph_payload_storage = normalize_graph_payload_storage(
+        export_section.get("graph_payload_storage", "inline")
+    )
+    graph_payload_compression = normalize_graph_payload_compression(
+        export_section.get("graph_payload_compression"),
+        graph_payload_storage,
+    )
 
     normalized.update(
         {
@@ -259,6 +298,8 @@ def validate_workflow_recipe(recipe: dict) -> dict:
             "include_summary": export_section.get("include_summary", True),
             "manifest_file": manifest_file,
             "summary_file": summary_file,
+            "graph_payload_storage": graph_payload_storage,
+            "graph_payload_compression": graph_payload_compression,
         }
     )
     return sync_descriptor_from_workflow_values(normalized)
@@ -356,6 +397,12 @@ def validate_merged_workflow_values(values: dict) -> None:
         )
         raise ValueError(msg)
     values["export_format"] = export_format
+    graph_payload_storage = normalize_graph_payload_storage(values.get("graph_payload_storage", "inline"))
+    values["graph_payload_storage"] = graph_payload_storage
+    values["graph_payload_compression"] = normalize_graph_payload_compression(
+        values.get("graph_payload_compression"),
+        graph_payload_storage,
+    )
 
 
 def is_valid_export_label(label: object) -> bool:
@@ -442,6 +489,130 @@ def write_text_file(path: Path, content: object) -> None:
         handle.write(str(content))
 
 
+def has_externalizable_graph_payloads(content: object) -> bool:
+    """Return whether tabular content contains raw graph payloads."""
+    return isinstance(content, pd.DataFrame) and GRAPH_JSON_COLUMN in content.columns
+
+
+def is_empty_graph_payload(value: object, graph_record_count: object = None) -> bool:
+    """Return whether a raw graph payload should be treated as empty."""
+    if (
+        isinstance(graph_record_count, (int, float))
+        and not isinstance(graph_record_count, bool)
+        and int(graph_record_count) == 0
+    ):
+        return True
+    if value is None:
+        return True
+    if isinstance(value, float) and pd.isna(value):
+        return True
+    text = str(value).strip()
+    if not text or text in {"[]", "{}"}:
+        return True
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return False
+    return payload in ({}, [])
+
+
+def normalize_graph_payload_text(value: object) -> str:
+    """Return a JSON text representation for a graph payload."""
+    if isinstance(value, str):
+        try:
+            payload = json.loads(value)
+        except json.JSONDecodeError:
+            return json.dumps(value, ensure_ascii=False)
+        return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return json.dumps(to_json_compatible(value), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def safe_graph_filename_part(value: object) -> str:
+    """Return a filesystem-safe filename component."""
+    text = str(value or "").strip()
+    text = re.sub(r"[^A-Za-z0-9._-]+", "_", text)
+    text = text.strip("._-")
+    return text[:120]
+
+
+def graph_payload_stem(row: pd.Series, export_label: str) -> str:
+    """Return a deterministic graph payload filename stem for one row."""
+    source_accession = row.get("source_accession")
+    accession_part = safe_graph_filename_part(source_accession)
+    if accession_part:
+        return f"{accession_part}__{export_label}"
+    source_query = row.get("source_query")
+    source_query_text = json.dumps(to_json_compatible(source_query), sort_keys=True, default=str)
+    query_hash = hashlib.sha256(source_query_text.encode("utf-8")).hexdigest()[:16]
+    return f"query_{query_hash}__{export_label}"
+
+
+def graph_payload_suffix(compression: str) -> str:
+    """Return the file suffix for graph payload storage."""
+    return ".json.gz" if compression == "gzip" else ".json"
+
+
+def write_graph_payload_bytes(path: Path, payload_bytes: bytes, compression: str) -> None:
+    """Write graph payload bytes with optional gzip compression."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if compression == "gzip":
+        with (
+            path.open("wb") as raw_handle,
+            gzip.GzipFile(filename="", mode="wb", fileobj=raw_handle, mtime=0) as gzip_handle,
+        ):
+            gzip_handle.write(payload_bytes)
+        return
+    path.write_bytes(payload_bytes)
+
+
+def externalize_graph_payloads(
+    content: pd.DataFrame,
+    *,
+    output_dir: Path,
+    export_label: str,
+    graph_payload_storage: str,
+    graph_payload_compression: str,
+) -> tuple[pd.DataFrame, dict[str, object]]:
+    """Return a graph-light DataFrame after writing raw graph payload files."""
+    if graph_payload_storage == "inline" or GRAPH_JSON_COLUMN not in content.columns:
+        return content, {}
+
+    export_df = content.copy()
+    graph_dir = Path("graphs") / export_label
+    graph_output_dir = output_dir / graph_dir
+    for column in GRAPH_FILE_COLUMNS:
+        if column not in export_df.columns:
+            export_df[column] = None
+
+    files_written = 0
+    for index, row in export_df.iterrows():
+        payload_value = row.get(GRAPH_JSON_COLUMN)
+        graph_record_count = row.get("graph_record_count")
+        if is_empty_graph_payload(payload_value, graph_record_count):
+            continue
+        payload_text = normalize_graph_payload_text(payload_value)
+        payload_bytes = payload_text.encode("utf-8")
+        payload_hash = hashlib.sha256(payload_bytes).hexdigest()
+        file_name = (
+            f"{graph_payload_stem(row, export_label)}"
+            f"{graph_payload_suffix(graph_payload_compression)}"
+        )
+        file_path = graph_output_dir / file_name
+        write_graph_payload_bytes(file_path, payload_bytes, graph_payload_compression)
+        export_df.loc[index, "graph_file"] = str((graph_dir / file_name).as_posix())
+        export_df.loc[index, "graph_file_size_bytes"] = file_path.stat().st_size
+        export_df.loc[index, "graph_sha256"] = payload_hash
+        files_written += 1
+
+    if graph_payload_storage == "file":
+        export_df = export_df.drop(columns=[GRAPH_JSON_COLUMN])
+
+    return export_df, {
+        "graph_payload_directory": str(graph_dir.as_posix()),
+        "graph_payload_files_written": files_written,
+    }
+
+
 def build_output_info(
     label: str,
     output_path: Path,
@@ -472,6 +643,8 @@ def export_single_result(
     export_format: str,
     id_column: str | None,
     suffix_results: bool,
+    graph_payload_storage: str = "inline",
+    graph_payload_compression: str = "gzip",
 ) -> dict | None:
     """Export one workflow result and return output metadata."""
     if not is_valid_export_label(label) or is_empty_export_content(content):
@@ -484,9 +657,26 @@ def export_single_result(
 
     if isinstance(content, pd.DataFrame) and tabular_format in {"csv", "parquet"}:
         export_df = add_id_column_for_export(content, export_label, id_column)
+        graph_metadata = {}
+        if has_externalizable_graph_payloads(export_df):
+            graph_metadata = {
+                "graph_payload_storage": graph_payload_storage,
+                "graph_payload_compression": graph_payload_compression,
+            }
+            if graph_payload_storage != "inline":
+                export_df, file_graph_metadata = externalize_graph_payloads(
+                    export_df,
+                    output_dir=output_dir,
+                    export_label=export_label,
+                    graph_payload_storage=graph_payload_storage,
+                    graph_payload_compression=graph_payload_compression,
+                )
+                graph_metadata.update(file_graph_metadata)
         output_path = output_dir / f"{file_stem}.{tabular_format}"
         exported_path = export_dataframe(export_df, output_path, output_format=tabular_format)
-        return build_output_info(export_label, exported_path, content, export_df, output_category)
+        info = build_output_info(export_label, exported_path, content, export_df, output_category)
+        info.update(graph_metadata)
+        return info
 
     if export_format == "json":
         output_path = output_dir / f"{file_stem}.json"
@@ -509,6 +699,10 @@ def export_workflow_outputs(
     output_dir: Path,
     export_format: str,
     id_column: str | None,
+    *,
+    graph_payload_storage: str = "inline",
+    graph_payload_compression: str = "gzip",
+    workflow_metadata: dict | None = None,
 ) -> list[dict]:
     """Export workflow outputs and return output-file metadata."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -526,6 +720,8 @@ def export_workflow_outputs(
             export_format,
             id_column,
             suffix_results=True,
+            graph_payload_storage=graph_payload_storage,
+            graph_payload_compression=graph_payload_compression,
         )
         if info:
             output_infos.append(info)
@@ -534,12 +730,53 @@ def export_workflow_outputs(
     if isinstance(enrichment_data, dict):
         for label, content in enrichment_data.items():
             info = export_single_result(
-                label, content, output_dir, export_format, id_column, suffix_results=False
+                label,
+                content,
+                output_dir,
+                export_format,
+                id_column,
+                suffix_results=False,
+                graph_payload_storage=graph_payload_storage,
+                graph_payload_compression=graph_payload_compression,
             )
             if info:
+                annotate_graph_payload_metadata(
+                    workflow_metadata,
+                    label,
+                    info,
+                    graph_payload_storage=graph_payload_storage,
+                    graph_payload_compression=graph_payload_compression,
+                )
                 output_infos.append(info)
 
     return output_infos
+
+
+def annotate_graph_payload_metadata(
+    workflow_metadata: dict | None,
+    label: str,
+    output_info: dict,
+    *,
+    graph_payload_storage: str,
+    graph_payload_compression: str,
+) -> None:
+    """Annotate raw-graph enrichment metadata with graph payload export policy."""
+    if workflow_metadata is None or "graph_payload_storage" not in output_info:
+        return
+    enrichment_metadata = workflow_metadata.get("uniprot_enrichment")
+    if not isinstance(enrichment_metadata, dict):
+        return
+    label_metadata = enrichment_metadata.setdefault(label, {})
+    if not isinstance(label_metadata, dict):
+        return
+    label_metadata.update(
+        {
+            "graph_payload_storage": graph_payload_storage,
+            "graph_payload_compression": graph_payload_compression,
+        }
+    )
+    if output_info.get("graph_payload_directory") is not None:
+        label_metadata["graph_payload_directory"] = output_info.get("graph_payload_directory")
 
 
 def count_unique_sequences(data: object, sequence_column: str | None) -> int | None:
@@ -758,6 +995,8 @@ def build_normalized_workflow_metadata(values: dict) -> dict:
         "include_summary",
         "manifest_file",
         "summary_file",
+        "graph_payload_storage",
+        "graph_payload_compression",
     ]
     return {key: values.get(key) for key in metadata_keys}
 
@@ -878,6 +1117,8 @@ def build_summary_document(
     export_summary = {
         "output_dir": workflow_values.get("output"),
         "format": workflow_values.get("export_format"),
+        "graph_payload_storage": workflow_values.get("graph_payload_storage"),
+        "graph_payload_compression": workflow_values.get("graph_payload_compression"),
         "summary_path": summary_path.name,
     }
     if metadata_path:
@@ -1161,17 +1402,20 @@ def run_workflow(
 
     output_dir = Path(workflow_values["output"])
     logger.info("Exporting workflow results to %s", output_dir)
+    workflow_metadata = meta if isinstance(meta, dict) else {"metadata": meta}
     output_infos = export_workflow_outputs(
         data=data,
         output_dir=output_dir,
         export_format=workflow_values["export_format"],
         id_column=workflow_values["id_column"],
+        graph_payload_storage=workflow_values["graph_payload_storage"],
+        graph_payload_compression=workflow_values["graph_payload_compression"],
+        workflow_metadata=workflow_metadata,
     )
 
     finished_at = dt.datetime.now(tz=dt.UTC).replace(microsecond=0).isoformat()
     duration_seconds = time.perf_counter() - start_time
     reporting = calculate_reporting_metrics(workflow_values, data, output_infos, duration_seconds)
-    workflow_metadata = meta if isinstance(meta, dict) else {"metadata": meta}
     execution_status, execution_error = determine_execution_status(workflow_metadata, output_infos)
 
     metadata_path = None

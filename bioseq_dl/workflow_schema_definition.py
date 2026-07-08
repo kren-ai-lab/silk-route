@@ -10,6 +10,8 @@ MODALITIES = ["protein", "compound", "interaction"]
 MODES = ["query_first", "query_composition"]
 INTERACTION_TYPES = ["protein-protein", "protein-ligand"]
 FORMATS = ["csv", "json", "xml", "parquet"]
+GRAPH_PAYLOAD_STORAGE_OPTIONS = ["inline", "file", "both"]
+GRAPH_PAYLOAD_COMPRESSION_OPTIONS = ["none", "gzip"]
 
 REQUIRED_DESCRIPTOR_SECTIONS = {"dataset", "query", "execution", "export"}
 CORE_DESCRIPTOR_SECTIONS = REQUIRED_DESCRIPTOR_SECTIONS | {
@@ -85,6 +87,8 @@ HARMONIZATION_KEYS = {
 EXPORT_KEYS = {
     "output_dir",
     "format",
+    "graph_payload_storage",
+    "graph_payload_compression",
     "include_metadata",
     "include_summary",
     "manifest_file",
@@ -353,6 +357,24 @@ _WORKFLOW_V1_SCHEMA_DEFINITION: dict[str, object] = {
         "description": "Output format.",
         "gui_visible": True,
     },
+    "export.graph_payload_storage": {
+        "type": "enum",
+        "required": False,
+        "default": "inline",
+        "allowed_values": GRAPH_PAYLOAD_STORAGE_OPTIONS,
+        "role": "optional_input",
+        "description": "How raw graph payloads are stored in tabular exports.",
+        "gui_visible": True,
+    },
+    "export.graph_payload_compression": {
+        "type": "enum",
+        "required": False,
+        "default": "gzip",
+        "allowed_values": GRAPH_PAYLOAD_COMPRESSION_OPTIONS,
+        "role": "optional_input",
+        "description": "Compression used when raw graph payloads are stored as files.",
+        "gui_visible": True,
+    },
     "export.include_metadata": {
         "type": "boolean",
         "required": False,
@@ -589,6 +611,24 @@ def validate_optional_string(section_name: str, key: str, value: object) -> None
     """Validate an optional string field."""
     if value is not None and not isinstance(value, str):
         msg = f"Workflow YAML key '{section_name}.{key}' must be a string or null."
+        raise ValueError(msg)
+
+
+def validate_allowed_enum(
+    section_name: str,
+    key: str,
+    value: object,
+    allowed_values: list[str],
+) -> None:
+    """Validate an optional enum string value."""
+    if value is None:
+        return
+    if not isinstance(value, str):
+        msg = f"Workflow YAML key '{section_name}.{key}' must be a string."
+        raise TypeError(msg)
+    if value not in allowed_values:
+        allowed = ", ".join(allowed_values)
+        msg = f"Workflow YAML key '{section_name}.{key}' must be one of: {allowed}."
         raise ValueError(msg)
 
 
@@ -867,6 +907,18 @@ def validate_export_section(export_section: dict[str, object]) -> dict[str, obje
         raw_format = export_section.get("format", "csv")
         msg = f"Unsupported export format '{raw_format}'. Supported formats are: {', '.join(FORMATS)}."
         raise ValueError(msg)
+    validate_allowed_enum(
+        "export",
+        "graph_payload_storage",
+        export_section.get("graph_payload_storage"),
+        GRAPH_PAYLOAD_STORAGE_OPTIONS,
+    )
+    validate_allowed_enum(
+        "export",
+        "graph_payload_compression",
+        export_section.get("graph_payload_compression"),
+        GRAPH_PAYLOAD_COMPRESSION_OPTIONS,
+    )
 
     for key in ("include_metadata", "include_summary"):
         if key in export_section:

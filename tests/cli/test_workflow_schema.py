@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import gzip
+import json
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +18,7 @@ from bioseq_dl.cli.workflows import (
     WORKFLOW_SCHEMA_VERSION,
     build_metadata_document,
     build_summary_document,
+    export_workflow_outputs,
     split_pair,
     validate_workflow_recipe,
 )
@@ -79,6 +82,53 @@ class PlaceholderUniprotInterface:
 
     def __init__(self, *_args: Any, **_kwargs: Any) -> None:
         """Initialize the fake UniProt interface."""
+
+
+def graph_enrichment_data() -> dict[str, dict[str, pd.DataFrame]]:
+    """Return graph enrichment output with one non-empty and one empty graph."""
+    return {
+        "uniprot_enrichment": {
+            "pathwaycommons_neighborhood": pd.DataFrame(
+                [
+                    {
+                        "source_accession": "P02776",
+                        "source_protein_name": "Platelet factor 4",
+                        "source_organism_id": "9606",
+                        "source_query": {"source": "uniprot:P02776"},
+                        "source_database": "pathwaycommons",
+                        "source_endpoint": "neighborhood",
+                        "graph_format": "jsonld",
+                        "graph_record_count": 1,
+                        "graph_json": json.dumps({"@graph": [{"id": "node-1"}]}),
+                    },
+                    {
+                        "source_accession": "P31151",
+                        "source_protein_name": "S100-A7",
+                        "source_organism_id": "9606",
+                        "source_query": {"source": "uniprot:P31151"},
+                        "source_database": "pathwaycommons",
+                        "source_endpoint": "neighborhood",
+                        "graph_format": "jsonld",
+                        "graph_record_count": 0,
+                        "graph_json": "[]",
+                    },
+                ]
+            )
+        }
+    }
+
+
+def graph_enrichment_metadata() -> dict[str, Any]:
+    """Return raw-graph enrichment metadata."""
+    return {
+        "uniprot_enrichment": {
+            "pathwaycommons_neighborhood": {
+                "output_kind": "raw_graph",
+                "graph_serialization": "json",
+                "graph_tabularization": "one_row_per_source",
+            }
+        }
+    }
 
 
 def base_workflow_descriptor() -> dict:
@@ -161,6 +211,10 @@ def test_valid_minimal_workflow_v1_descriptor() -> None:
     assert values["download_pdb_structures"] is True
     assert values["execution"]["download_alphafold_structures"] is True
     assert values["execution"]["download_pdb_structures"] is True
+    assert values["graph_payload_storage"] == "inline"
+    assert values["graph_payload_compression"] == "gzip"
+    assert values["export"]["graph_payload_storage"] == "inline"
+    assert values["export"]["graph_payload_compression"] == "gzip"
 
 
 def test_workflow_v1_preserves_explicit_structure_download_flags() -> None:
@@ -174,6 +228,45 @@ def test_workflow_v1_preserves_explicit_structure_download_flags() -> None:
     assert values["download_pdb_structures"] is False
     assert values["execution"]["download_alphafold_structures"] is False
     assert values["execution"]["download_pdb_structures"] is False
+
+
+@pytest.mark.parametrize("storage_mode", ["inline", "file", "both"])
+def test_workflow_v1_accepts_graph_payload_storage_modes(storage_mode: str) -> None:
+    descriptor = base_workflow_descriptor()
+    descriptor["export"]["graph_payload_storage"] = storage_mode
+
+    values = validate_workflow_recipe(descriptor)
+
+    assert values["graph_payload_storage"] == storage_mode
+    assert values["export"]["graph_payload_storage"] == storage_mode
+
+
+def test_workflow_v1_rejects_invalid_graph_payload_storage_mode() -> None:
+    descriptor = base_workflow_descriptor()
+    descriptor["export"]["graph_payload_storage"] = "database"
+
+    with pytest.raises(ValueError, match=r"export\.graph_payload_storage"):
+        validate_workflow_recipe(descriptor)
+
+
+@pytest.mark.parametrize("compression", ["none", "gzip"])
+def test_workflow_v1_accepts_graph_payload_compression_modes(compression: str) -> None:
+    descriptor = base_workflow_descriptor()
+    descriptor["export"]["graph_payload_storage"] = "file"
+    descriptor["export"]["graph_payload_compression"] = compression
+
+    values = validate_workflow_recipe(descriptor)
+
+    assert values["graph_payload_compression"] == compression
+    assert values["export"]["graph_payload_compression"] == compression
+
+
+def test_workflow_v1_rejects_invalid_graph_payload_compression_mode() -> None:
+    descriptor = base_workflow_descriptor()
+    descriptor["export"]["graph_payload_compression"] = "zip"
+
+    with pytest.raises(ValueError, match=r"export\.graph_payload_compression"):
+        validate_workflow_recipe(descriptor)
 
 
 def test_schema_version_is_required() -> None:
@@ -487,6 +580,8 @@ def test_schema_version_and_gui_query_metadata_are_preserved_in_outputs() -> Non
     assert metadata["normalized_workflow_values"]["schema_version"] == WORKFLOW_SCHEMA_VERSION
     assert metadata["normalized_workflow_values"]["download_alphafold_structures"] is True
     assert metadata["normalized_workflow_values"]["download_pdb_structures"] is True
+    assert metadata["normalized_workflow_values"]["graph_payload_storage"] == "inline"
+    assert metadata["normalized_workflow_values"]["graph_payload_compression"] == "gzip"
     assert set(metadata["tool"]) == EXPECTED_TOOL_IDENTITY_KEYS
     assert metadata["tool"]["tool_name"] == "BioSeqDownloader"
     assert metadata["tool"]["distribution_name"] == "bioseqdownloader"
@@ -499,6 +594,8 @@ def test_schema_version_and_gui_query_metadata_are_preserved_in_outputs() -> Non
     assert summary["query"]["composition"] == descriptor["query"]["composition"]
     assert summary["execution"]["download_alphafold_structures"] is True
     assert summary["execution"]["download_pdb_structures"] is True
+    assert summary["export"]["graph_payload_storage"] == "inline"
+    assert summary["export"]["graph_payload_compression"] == "gzip"
 
 
 def test_cli_workflow_run_passes_structure_download_flags(
@@ -526,3 +623,77 @@ def test_cli_workflow_run_passes_structure_download_flags(
     assert metadata["normalized_workflow_values"]["download_pdb_structures"] is False
     assert summary["execution"]["download_alphafold_structures"] is False
     assert summary["execution"]["download_pdb_structures"] is False
+
+
+def test_graph_payload_file_mode_writes_files_and_lightweight_csv(tmp_path: Path) -> None:
+    metadata = graph_enrichment_metadata()
+
+    output_infos = export_workflow_outputs(
+        graph_enrichment_data(),
+        tmp_path,
+        "csv",
+        None,
+        graph_payload_storage="file",
+        graph_payload_compression="gzip",
+        workflow_metadata=metadata,
+    )
+
+    assert output_infos[0]["graph_payload_directory"] == "graphs/pathwaycommons_neighborhood"
+    csv_df = pd.read_csv(tmp_path / "pathwaycommons_neighborhood.csv")
+    assert "graph_json" not in csv_df.columns
+    assert {"graph_file", "graph_file_size_bytes", "graph_sha256"} <= set(csv_df.columns)
+    non_empty_row = csv_df.loc[csv_df["graph_record_count"] == 1].iloc[0]
+    graph_file = tmp_path / str(non_empty_row["graph_file"])
+    assert graph_file.suffixes[-2:] == [".json", ".gz"]
+    assert graph_file.exists()
+    assert int(non_empty_row["graph_file_size_bytes"]) == graph_file.stat().st_size
+    with gzip.open(graph_file, "rt", encoding="utf-8") as handle:
+        assert json.load(handle) == {"@graph": [{"id": "node-1"}]}
+    empty_row = csv_df.loc[csv_df["graph_record_count"] == 0].iloc[0]
+    assert pd.isna(empty_row["graph_file"])
+    assert output_infos[0]["graph_payload_files_written"] == 1
+    label_metadata = metadata["uniprot_enrichment"]["pathwaycommons_neighborhood"]
+    assert label_metadata["graph_payload_storage"] == "file"
+    assert label_metadata["graph_payload_compression"] == "gzip"
+    assert label_metadata["graph_payload_directory"] == "graphs/pathwaycommons_neighborhood"
+
+
+def test_graph_payload_inline_mode_preserves_graph_json(tmp_path: Path) -> None:
+    metadata = graph_enrichment_metadata()
+
+    output_infos = export_workflow_outputs(
+        graph_enrichment_data(),
+        tmp_path,
+        "csv",
+        None,
+        graph_payload_storage="inline",
+        graph_payload_compression="gzip",
+        workflow_metadata=metadata,
+    )
+
+    csv_df = pd.read_csv(tmp_path / "pathwaycommons_neighborhood.csv")
+    assert "graph_json" in csv_df.columns
+    assert "graph_file" not in csv_df.columns
+    assert "graph_payload_directory" not in output_infos[0]
+    assert not (tmp_path / "graphs").exists()
+    label_metadata = metadata["uniprot_enrichment"]["pathwaycommons_neighborhood"]
+    assert label_metadata["graph_payload_storage"] == "inline"
+
+
+def test_graph_payload_both_mode_keeps_inline_and_file_metadata(tmp_path: Path) -> None:
+    output_infos = export_workflow_outputs(
+        graph_enrichment_data(),
+        tmp_path,
+        "csv",
+        None,
+        graph_payload_storage="both",
+        graph_payload_compression="none",
+    )
+
+    csv_df = pd.read_csv(tmp_path / "pathwaycommons_neighborhood.csv")
+    assert "graph_json" in csv_df.columns
+    assert "graph_file" in csv_df.columns
+    graph_file = tmp_path / str(csv_df.loc[csv_df["graph_record_count"] == 1, "graph_file"].iloc[0])
+    assert graph_file.suffix == ".json"
+    assert json.loads(graph_file.read_text(encoding="utf-8")) == {"@graph": [{"id": "node-1"}]}
+    assert output_infos[0]["graph_payload_files_written"] == 1

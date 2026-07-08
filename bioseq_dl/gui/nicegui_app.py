@@ -2466,6 +2466,14 @@ class WorkflowYamlBuilderApp:
                 .tooltip("File format to use when the workflow is executed later.")
             )
             (
+                ui.checkbox("Store graph payloads as separate files")
+                .bind_value(self.form_values, "export.store_graph_payloads_as_files")
+                .tooltip(
+                    "Recommended for PathwayCommons. Stores large graph payloads as separate "
+                    "compressed JSON files and keeps the CSV lightweight."
+                )
+            )
+            (
                 ui.input("Metadata manifest filename")
                 .props("clearable")
                 .bind_value(self.form_values, "export.manifest_file")

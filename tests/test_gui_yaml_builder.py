@@ -163,6 +163,7 @@ def minimal_form_values() -> dict[str, object]:
         "execution.download_pdb_structures": False,
         "export.output_dir": "examples/results/example_dataset",
         "export.format": "csv",
+        "export.store_graph_payloads_as_files": True,
         "export.include_metadata": True,
         "export.include_summary": True,
         "export.manifest_file": "metadata.json",
@@ -208,6 +209,8 @@ harmonization:
     - protein_name
 export:
 {export_output_dir}  format: csv
+  graph_payload_storage: file
+  graph_payload_compression: gzip
   include_metadata: true
   include_summary: true
   manifest_file: "metadata.json"
@@ -269,6 +272,7 @@ def test_default_form_disables_enrichment_and_selects_no_sources() -> None:
     assert form_values["execution.enrichment_sources"] == []
     assert form_values["execution.download_alphafold_structures"] is False
     assert form_values["execution.download_pdb_structures"] is False
+    assert form_values["export.store_graph_payloads_as_files"] is True
 
 
 def test_enrichment_source_options_map_labels_to_executable_keys() -> None:
@@ -313,6 +317,24 @@ def test_selected_enrichment_sources_generate_crossref_fields() -> None:
     assert descriptor["execution"]["enrich"] is True
     assert "enrichment_sources" not in descriptor["execution"]
     assert descriptor["query"]["crossref_fields"] == ["chembl", "pdb", "string"]
+
+
+def test_graph_payload_checkbox_generates_file_storage_options() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values() | {"export.store_graph_payloads_as_files": True}
+    )
+
+    assert descriptor["export"]["graph_payload_storage"] == "file"
+    assert descriptor["export"]["graph_payload_compression"] == "gzip"
+
+
+def test_graph_payload_checkbox_can_disable_file_storage() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values() | {"export.store_graph_payloads_as_files": False}
+    )
+
+    assert descriptor["export"]["graph_payload_storage"] == "inline"
+    assert descriptor["export"]["graph_payload_compression"] == "gzip"
 
 
 def test_structure_download_checkboxes_generate_false_execution_options() -> None:
@@ -1251,6 +1273,7 @@ def test_descriptor_to_form_values_loads_supported_fields() -> None:
     assert form_values["harmonization.sequence_column"] == "sequence"
     assert form_values["harmonization.unique_sequence_strategy"] == "exact"
     assert form_values["export.format"] == "CSV"
+    assert form_values["export.store_graph_payloads_as_files"] is True
     assert form_values["export.include_metadata"] is True
     assert form_values["export.include_summary"] is True
 
@@ -1285,6 +1308,39 @@ def test_loading_unknown_crossref_fields_preserves_text_without_selecting_them()
 
     assert form_values["query.crossref_fields"] == "pdb, custom_source"
     assert form_values["execution.enrichment_sources"] == ["pdb"]
+
+
+def test_loading_inline_graph_payload_storage_restores_checkbox_state() -> None:
+    yaml_text = minimal_workflow_yaml().replace(
+        "  graph_payload_storage: file",
+        "  graph_payload_storage: inline",
+    )
+
+    form_values, _warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert form_values["export.store_graph_payloads_as_files"] is False
+
+
+def test_loading_both_graph_payload_storage_restores_checkbox_state() -> None:
+    yaml_text = minimal_workflow_yaml().replace(
+        "  graph_payload_storage: file",
+        "  graph_payload_storage: both",
+    )
+
+    form_values, _warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert form_values["export.store_graph_payloads_as_files"] is True
+
+
+def test_loading_missing_graph_payload_storage_defaults_checkbox_to_true() -> None:
+    yaml_text = minimal_workflow_yaml().replace("  graph_payload_storage: file\n", "").replace(
+        "  graph_payload_compression: gzip\n",
+        "",
+    )
+
+    form_values, _warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert form_values["export.store_graph_payloads_as_files"] is True
 
 
 def test_missing_optional_list_fields_become_empty_strings() -> None:
