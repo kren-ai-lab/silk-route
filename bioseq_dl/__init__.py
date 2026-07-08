@@ -5,9 +5,7 @@ from __future__ import annotations
 from importlib import import_module
 from typing import TYPE_CHECKING
 
-from ._version import get_runtime_version
-
-__version__ = get_runtime_version()
+__version__ = "0.1.0"
 
 # Map public name -> module path (relative to this package). Loaded lazily via
 # __getattr__ (PEP 562) so `import bioseq_dl` does not pull every interface and

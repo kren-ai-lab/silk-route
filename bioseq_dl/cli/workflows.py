@@ -15,7 +15,7 @@ import polars as pl
 import typer
 import yaml
 
-from bioseq_dl._version import build_tool_identity
+from bioseq_dl import __version__
 from bioseq_dl.core.export import (
     USER_EXPORT_FORMATS,
     export_dataframe,
@@ -25,13 +25,13 @@ from bioseq_dl.core.export import (
 from bioseq_dl.core.interfaces.uniprot import UniprotInterface
 from bioseq_dl.core.workflow.main_workflow import MainWorkflow
 from bioseq_dl.logging import configure_logging, get_logger
+from bioseq_dl.workflow_schema_definition import WORKFLOW_SCHEMA_VERSION
 
 log = get_logger("bioseq_dl.cli.workflows")
 
 
 MODALITIES = ["protein", "compound", "interaction"]
 MODES = ["query_first", "query_composition"]
-WORKFLOW_SCHEMA_VERSION = "workflow-v1"
 INTERACTION_TYPES = ["protein-protein", "protein-ligand"]
 FORMATS = list(USER_EXPORT_FORMATS)
 QUERY_COMPOSITION_LABEL_COLUMN = "_label"
@@ -149,6 +149,7 @@ FORBIDDEN_CREDENTIAL_KEYS = {
     "bioseq_dl_refseq_email",
 }
 CREDENTIAL_ERROR = "Credentials must be provided through environment variables or .env, not workflow YAML."
+QUERY_COMPOSITION_MISMATCH_ERROR = "query.composition does not match executable query.value."
 
 
 def build_default_workflow_values() -> dict:
@@ -465,19 +466,15 @@ def parse_query_composition_value(query_value: str) -> list[tuple[str, str]]:
         query_part = raw_part.strip()
         if not query_part:
             continue
-        if "=" not in query_part:
-            msg = "query.composition does not match executable query.value."
-            raise ValueError(msg)
-        query_text, label = query_part.split("=", 1)
-        query_text = query_text.strip()
-        label = label.strip()
+        try:
+            query_text, label = split_pair(query_part)
+        except ValueError:
+            raise ValueError(QUERY_COMPOSITION_MISMATCH_ERROR) from None
         if not query_text or not label:
-            msg = "query.composition does not match executable query.value."
-            raise ValueError(msg)
+            raise ValueError(QUERY_COMPOSITION_MISMATCH_ERROR)
         pairs.append((query_text, label))
     if not pairs:
-        msg = "query.composition does not match executable query.value."
-        raise ValueError(msg)
+        raise ValueError(QUERY_COMPOSITION_MISMATCH_ERROR)
     return pairs
 
 
@@ -492,8 +489,7 @@ def validate_query_composition_matches_query_value(query_descriptor: dict, mode:
     executable_labels = {label for _query, label in executable_pairs}
     for item in composition:
         if item["label"] not in executable_labels or item["value"] not in executable_queries:
-            msg = "query.composition does not match executable query.value."
-            raise ValueError(msg)
+            raise ValueError(QUERY_COMPOSITION_MISMATCH_ERROR)
 
 
 def normalize_optional_field_list(section_name: str, key: str, value: object) -> str | None:
@@ -561,6 +557,36 @@ def validate_reporting_section(reporting: dict) -> None:
             raise ValueError(msg)
 
 
+def validate_interaction_type(
+    modality: object,
+    interaction_type: object,
+    field_label: str,
+    modality_label: str,
+) -> None:
+    """Validate the interaction type against the selected modality.
+
+    Args:
+        modality (object): The selected modality.
+        interaction_type (object): The interaction type to validate.
+        field_label (str): Interaction-type field name used in error messages.
+        modality_label (str): Modality field name used in error messages.
+
+    Raises:
+        ValueError: If the modality is ``interaction`` without an interaction type,
+            or the interaction type is not supported.
+
+    """
+    if modality == "interaction" and not interaction_type:
+        msg = f"{field_label} is required when {modality_label} is 'interaction'."
+        raise ValueError(msg)
+    if interaction_type is not None and interaction_type not in INTERACTION_TYPES:
+        msg = (
+            f"Unsupported {field_label} '{interaction_type}'. "
+            f"Supported interaction types are: {', '.join(INTERACTION_TYPES)}."
+        )
+        raise ValueError(msg)
+
+
 def validate_dataset_section(dataset: dict, export_section: dict) -> dict:
     """Validate and return the dataset descriptor section.
 
@@ -595,16 +621,9 @@ def validate_dataset_section(dataset: dict, export_section: dict) -> dict:
     for key in ("name", "description", "primary_data_source", "interaction_type"):
         validate_optional_string("dataset", key, dataset.get(key))
 
-    interaction_type = dataset.get("interaction_type")
-    if modality == "interaction" and not interaction_type:
-        msg = "dataset.interaction_type is required when dataset.modality is 'interaction'."
-        raise ValueError(msg)
-    if interaction_type is not None and interaction_type not in INTERACTION_TYPES:
-        msg = (
-            f"Unsupported dataset.interaction_type '{interaction_type}'. "
-            f"Supported interaction types are: {', '.join(INTERACTION_TYPES)}."
-        )
-        raise ValueError(msg)
+    validate_interaction_type(
+        modality, dataset.get("interaction_type"), "dataset.interaction_type", "dataset.modality"
+    )
 
     if not export_section.get("output_dir") and not dataset.get("name"):
         msg = "dataset.name is required when export.output_dir is not provided."
@@ -1193,16 +1212,9 @@ def validate_merged_workflow_values(values: dict) -> None:
         msg = f"Unsupported workflow mode '{values['mode']}'. Supported modes are: {', '.join(MODES)}."
         raise ValueError(msg)
 
-    interaction_type = values.get("interaction_type")
-    if values["modality"] == "interaction" and not interaction_type:
-        msg = "interaction_type is required when modality is 'interaction'."
-        raise ValueError(msg)
-    if interaction_type is not None and interaction_type not in INTERACTION_TYPES:
-        msg = (
-            f"Unsupported interaction_type '{interaction_type}'. "
-            f"Supported interaction types are: {', '.join(INTERACTION_TYPES)}."
-        )
-        raise ValueError(msg)
+    validate_interaction_type(
+        values["modality"], values.get("interaction_type"), "interaction_type", "modality"
+    )
 
     chembl_pages_to_fetch = values.get("chembl_pages_to_fetch", -1)
     if not isinstance(chembl_pages_to_fetch, int) or isinstance(chembl_pages_to_fetch, bool):
@@ -1854,6 +1866,16 @@ def build_normalized_workflow_metadata(values: dict) -> dict:
         "summary_file",
     ]
     return {key: values.get(key) for key in metadata_keys}
+
+
+def build_tool_identity() -> dict[str, str]:
+    """Return stable tool identity metadata for run provenance."""
+    return {
+        "tool_name": "BioSeqDownloader",
+        "distribution_name": "bioseqdownloader",
+        "import_package_name": "bioseq_dl",
+        "version": __version__,
+    }
 
 
 def build_metadata_document(

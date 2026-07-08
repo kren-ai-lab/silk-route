@@ -59,8 +59,7 @@ Homepage = "https://github.com/kren-ai-lab/BioSeqDownloader"
 Issues = "https://github.com/kren-ai-lab/BioSeqDownloader/issues"
 
 [tool.hatch.version]
-path = "bioseq_dl/_version.py"
-pattern = 'SOURCE_VERSION = "(?P<version>[^"]+)"'
+path = "bioseq_dl/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["bioseq_dl"]
