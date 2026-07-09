@@ -408,8 +408,5 @@ def get_chembl_query_builder_field_catalog(resource_key: str) -> dict[str, ChEMB
         msg = f"Unsupported ChEMBL query resource '{resource_key}'."
         raise ValueError(msg)
     return {
-        key: field
-        for key, field in resources[resource_key].fields.items()
-        if field.query_builder_visible
+        key: field for key, field in resources[resource_key].fields.items() if field.query_builder_visible
     }
-

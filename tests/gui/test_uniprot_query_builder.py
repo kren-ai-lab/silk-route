@@ -27,10 +27,7 @@ def test_multiple_rows_with_and_build_friendly_query():
         UniProtQueryBuilderRow("AND", "temperature", "20-30,50-60", "any"),
     ]
 
-    assert (
-        build_uniprot_friendly_query(rows)
-        == 'organism_any:"Homo sapiens" AND temperature_any:20-30,50-60'
-    )
+    assert build_uniprot_friendly_query(rows) == 'organism_any:"Homo sapiens" AND temperature_any:20-30,50-60'
 
 
 def test_multiple_rows_with_or_build_friendly_query():

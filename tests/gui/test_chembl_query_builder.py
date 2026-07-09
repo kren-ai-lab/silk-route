@@ -137,4 +137,3 @@ if "nicegui" in sys.modules:
         capture_output=True,
         text=True,
     )
-

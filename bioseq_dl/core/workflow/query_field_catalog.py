@@ -237,7 +237,5 @@ def get_uniprot_query_field_catalog() -> dict[str, UniProtQueryFieldCatalogEntry
 def get_uniprot_query_builder_field_catalog() -> dict[str, UniProtQueryFieldCatalogEntry]:
     """Return fields enabled for the future UniProt GUI query builder."""
     return {
-        key: entry
-        for key, entry in get_uniprot_query_field_catalog().items()
-        if entry.query_builder_visible
+        key: entry for key, entry in get_uniprot_query_field_catalog().items() if entry.query_builder_visible
     }

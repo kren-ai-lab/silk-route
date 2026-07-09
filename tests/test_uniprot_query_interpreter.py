@@ -26,10 +26,7 @@ def test_uniprot_interpreter_resolves_quoted_keyword_values():
 def test_uniprot_interpreter_resolves_quoted_go_values():
     interpreter = build_default_uniprot_interpreter()
 
-    assert (
-        interpreter.interpret('go_any:"DNA repair","protein folding"')
-        == "(go:0006281 OR go:0006457)"
-    )
+    assert interpreter.interpret('go_any:"DNA repair","protein folding"') == "(go:0006281 OR go:0006457)"
 
 
 def test_uniprot_interpreter_keeps_temperature_ranges_working():

@@ -90,4 +90,3 @@ def test_chembl_field_operator_expectations():
     assert {"gt", "gte", "lt", "lte", "range"} <= set(
         catalog["activity"].fields["pchembl_value"].allowed_operators
     )
-

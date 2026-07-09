@@ -164,7 +164,4 @@ def get_compatible_query_builder_choices(
     interaction_type: str | None,
 ) -> dict[str, str]:
     """Return compatible query-builder choices as key-to-label mappings."""
-    return {
-        spec.key: spec.label
-        for spec in get_compatible_query_builder_specs(modality, interaction_type)
-    }
+    return {spec.key: spec.label for spec in get_compatible_query_builder_specs(modality, interaction_type)}

@@ -41,9 +41,7 @@ ALLOWED_DESCRIPTOR_SECTION_NAMES = [
     "temperature_enrichment",
     "cross_source_integration",
 ]
-KNOWN_DESCRIPTOR_SECTIONS = CORE_DESCRIPTOR_SECTIONS | DESCRIPTIVE_DESCRIPTOR_SECTIONS | {
-    "schema_version"
-}
+KNOWN_DESCRIPTOR_SECTIONS = CORE_DESCRIPTOR_SECTIONS | DESCRIPTIVE_DESCRIPTOR_SECTIONS | {"schema_version"}
 
 DATASET_KEYS = {
     "name",
@@ -91,9 +89,7 @@ EXPORT_KEYS = {
 }
 
 OLD_ROOT_KEY_ERRORS = {
-    "version": (
-        f'Unknown workflow YAML key \'version\'. Use schema_version: "{WORKFLOW_SCHEMA_VERSION}".'
-    ),
+    "version": (f"Unknown workflow YAML key 'version'. Use schema_version: \"{WORKFLOW_SCHEMA_VERSION}\"."),
     "kind": "Unknown workflow YAML key 'kind'. Use the structured dataset/query/execution/export schema.",
     "workflow": (
         "Unknown workflow YAML key 'workflow'. Use the structured dataset/query/execution/export schema."
@@ -869,9 +865,7 @@ def validate_workflow_v1_descriptor(recipe: object) -> dict[str, object]:
     )
     query = validate_query_section(require_mapping("query", workflow_descriptor["query"]))
     validate_query_composition_matches_query_value(query, dataset["mode"])
-    execution = validate_execution_section(
-        require_mapping("execution", workflow_descriptor["execution"])
-    )
+    execution = validate_execution_section(require_mapping("execution", workflow_descriptor["execution"]))
 
     validated: dict[str, object] = {
         "schema_version": schema_version,

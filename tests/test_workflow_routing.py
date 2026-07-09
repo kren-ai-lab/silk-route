@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-import pandas as pd
+import polars as pl
 import pytest
 
 from bioseq_dl.core.workflow.chembl_query_parser import is_chembl_prefixed_query
@@ -32,7 +32,7 @@ class RoutingProbeWorkflow(MainWorkflow):
     def _step_parse_uniprot(self, context: dict[str, Any]) -> None:
         """Record UniProt parse calls."""
         self.calls.append("parse_uniprot")
-        context.setdefault("data", {})["uniprot"] = pd.DataFrame()
+        context.setdefault("data", {})["uniprot"] = pl.DataFrame()
 
     def _step_crossref_enrich(self, context: dict[str, Any], **_kwargs: Any) -> None:
         """Record cross-reference enrichment calls."""
@@ -46,7 +46,7 @@ class RoutingProbeWorkflow(MainWorkflow):
         """Record ChEMBL fetch calls."""
         self.calls.append(f"fetch_chembl:{search_type}")
         self.last_chembl_context = context
-        context.setdefault("data", {})["chembl"] = pd.DataFrame(
+        context.setdefault("data", {})["chembl"] = pl.DataFrame(
             [{"target_chembl_id": "CHEMBL279", "molecule_chembl_id": "CHEMBL25"}]
         )
         context.setdefault("metadata", {})["chembl"] = {"mocked": True}
@@ -58,9 +58,7 @@ class RoutingProbeWorkflow(MainWorkflow):
     ) -> None:
         """Record ChEMBL-to-UniProt mapping calls."""
         self.calls.append(f"chembl_to_uniprot:{keep_original_query}")
-        context.setdefault("searches", {}).setdefault("uniprot", {})["query"] = (
-            "xref:chembl-CHEMBL279"
-        )
+        context.setdefault("searches", {}).setdefault("uniprot", {})["query"] = "xref:chembl-CHEMBL279"
 
     def _step_fetch_additional_ppi_interaction_sources(
         self,
@@ -69,7 +67,7 @@ class RoutingProbeWorkflow(MainWorkflow):
     ) -> None:
         """Record PPI enrichment source calls."""
         self.calls.append("fetch_ppi_sources")
-        context.setdefault("data", {})["ppi"] = pd.DataFrame()
+        context.setdefault("data", {})["ppi"] = pl.DataFrame()
 
 
 class CompoundNoMappingWorkflow(RoutingProbeWorkflow):

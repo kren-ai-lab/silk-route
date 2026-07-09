@@ -302,9 +302,7 @@ class WorkflowYamlBuilderApp:
     def __init__(self) -> None:
         """Initialize app state for form binding and status output."""
         self.form_values = workflow_yaml_gui_form_defaults()
-        self.form_values["query.builder.key"] = get_query_builder_label(
-            self.form_values["query.builder.key"]
-        )
+        self.form_values["query.builder.key"] = get_query_builder_label(self.form_values["query.builder.key"])
         self.uniprot_builder_rows = [make_uniprot_builder_ui_row()]
         self.chembl_builder_rows = [make_chembl_builder_ui_row(get_query_builder_label("chembl_target"))]
         self.friendly_query_preview: Any = None
@@ -345,8 +343,7 @@ class WorkflowYamlBuilderApp:
                 "When a file is loaded, the saved query text is shown in Manual query mode."
             ).classes("text-sm text-gray-700")
             ui.label(
-                "Upload one .yml or .yaml file. Uploading another file replaces the current "
-                "loaded workflow."
+                "Upload one .yml or .yaml file. Uploading another file replaces the current loaded workflow."
             ).classes("text-sm text-gray-700")
             self.workflow_upload = (
                 ui.upload(
@@ -368,17 +365,13 @@ class WorkflowYamlBuilderApp:
         is_success = self.loaded_workflow_upload_status == "success"
         title = "Loaded workflow YAML" if is_success else "Could not load workflow YAML"
         tone_classes = (
-            "border-l-4 border-green-500 bg-green-50"
-            if is_success
-            else "border-l-4 border-red-500 bg-red-50"
+            "border-l-4 border-green-500 bg-green-50" if is_success else "border-l-4 border-red-500 bg-red-50"
         )
         with ui.card().classes(f"w-full gap-2 rounded-md {tone_classes}"):
             ui.label(title).classes("text-base font-semibold")
             filename = self.loaded_workflow_filename or "workflow YAML file"
             status_text = (
-                f"{filename} loaded successfully."
-                if is_success
-                else f"{filename} could not be loaded."
+                f"{filename} loaded successfully." if is_success else f"{filename} could not be loaded."
             )
             ui.label(status_text).classes("text-sm font-medium")
             if self.loaded_workflow_upload_message:
@@ -460,8 +453,7 @@ class WorkflowYamlBuilderApp:
 
             with ui.column().classes("w-full gap-3") as builder_panel:
                 ui.label(
-                    "Available builders depend on the selected dataset modality and "
-                    "interaction type."
+                    "Available builders depend on the selected dataset modality and interaction type."
                 ).classes("text-sm text-gray-700")
                 self.builder_availability_message = ui.label("").classes("text-sm text-orange-700")
                 self.query_builder_select = (
@@ -485,9 +477,7 @@ class WorkflowYamlBuilderApp:
                     backward=is_chembl_builder_key,
                 )
                 self.friendly_query_preview = (
-                    ui.textarea("Friendly query preview")
-                    .classes("w-full font-mono")
-                    .props("readonly rows=3")
+                    ui.textarea("Friendly query preview").classes("w-full font-mono").props("readonly rows=3")
                 )
                 self.interpreted_query_preview = (
                     ui.textarea("Interpreted query.value preview")
@@ -524,36 +514,34 @@ class WorkflowYamlBuilderApp:
                 (
                     ui.checkbox("Include UniProt isoforms")
                     .bind_value(self.form_values, "query.include_isoform")
-                    .tooltip(
-                        "Whether UniProt isoforms should be included when supported by the workflow."
-                    )
+                    .tooltip("Whether UniProt isoforms should be included when supported by the workflow.")
                 )
 
     def build_uniprot_builder_controls(self) -> None:
         """Build UniProt-specific advanced builder controls."""
         with ui.column().classes("w-full gap-3"):
-                ui.label(
-                    "Build a UniProt-style query using rows. Each row selects a query field, "
-                    "one or more comma-separated values, and how those values are matched. "
-                    "The final interpreted query is stored as query.value in the YAML."
-                ).classes("text-sm text-gray-700")
-                ui.label(
-                    "The builder prepares the query text only. UniProt validation happens later "
-                    "when the workflow runs."
-                ).classes("text-sm text-gray-700")
-                ui.label(
-                    "Connector combines this row with the previous row. Use AND when both "
-                    "conditions should be required; use OR when either condition can match."
-                ).classes("text-sm text-gray-700")
-                ui.label(
-                    "Match mode combines comma-separated values inside one row. Any means at "
-                    "least one value can match. All means every value must match. Not means the "
-                    "values are excluded."
-                ).classes("text-sm text-gray-700")
-                self.build_uniprot_builder_rows()
-                with ui.row().classes("items-center gap-3"):
-                    ui.button("Add condition", on_click=self.add_uniprot_builder_row)
-                    ui.button("Update query preview", on_click=self.update_builder_previews)
+            ui.label(
+                "Build a UniProt-style query using rows. Each row selects a query field, "
+                "one or more comma-separated values, and how those values are matched. "
+                "The final interpreted query is stored as query.value in the YAML."
+            ).classes("text-sm text-gray-700")
+            ui.label(
+                "The builder prepares the query text only. UniProt validation happens later "
+                "when the workflow runs."
+            ).classes("text-sm text-gray-700")
+            ui.label(
+                "Connector combines this row with the previous row. Use AND when both "
+                "conditions should be required; use OR when either condition can match."
+            ).classes("text-sm text-gray-700")
+            ui.label(
+                "Match mode combines comma-separated values inside one row. Any means at "
+                "least one value can match. All means every value must match. Not means the "
+                "values are excluded."
+            ).classes("text-sm text-gray-700")
+            self.build_uniprot_builder_rows()
+            with ui.row().classes("items-center gap-3"):
+                ui.button("Add condition", on_click=self.add_uniprot_builder_row)
+                ui.button("Update query preview", on_click=self.update_builder_previews)
 
     @ui.refreshable
     def build_uniprot_builder_rows(self) -> None:
@@ -570,9 +558,7 @@ class WorkflowYamlBuilderApp:
                         .bind_value(row, "connector")
                         .on_value_change(self.update_builder_previews)
                         .classes("w-28")
-                        .tooltip(
-                            "Connector controls how this row is combined with the previous row."
-                        )
+                        .tooltip("Connector controls how this row is combined with the previous row.")
                     )
                 (
                     ui.select(list(UNIPROT_BUILDER_FIELD_LABEL_TO_VALUE), label="Field")
@@ -594,10 +580,7 @@ class WorkflowYamlBuilderApp:
                     .bind_value(row, "match_mode")
                     .on_value_change(self.update_builder_previews)
                     .classes("w-32")
-                    .tooltip(
-                        "Match mode controls how comma-separated values inside this row are "
-                        "combined."
-                    )
+                    .tooltip("Match mode controls how comma-separated values inside this row are combined.")
                 )
                 if index > 0:
                     ui.button("Remove", on_click=partial(self.remove_uniprot_builder_row, index))
@@ -680,9 +663,7 @@ class WorkflowYamlBuilderApp:
 
     def add_chembl_builder_row(self) -> None:
         """Add one ChEMBL builder condition row."""
-        self.chembl_builder_rows.append(
-            make_chembl_builder_ui_row(self.form_values["query.builder.key"])
-        )
+        self.chembl_builder_rows.append(make_chembl_builder_ui_row(self.form_values["query.builder.key"]))
         self.sync_builder_rows_to_form()
         self.build_chembl_builder_rows.refresh()
         self.update_builder_previews()
@@ -741,9 +722,7 @@ class WorkflowYamlBuilderApp:
             if self.builder_availability_message is not None:
                 self.builder_availability_message.text = ""
             if is_chembl_builder_key(self.form_values["query.builder.key"]):
-                self.chembl_builder_rows = [
-                    make_chembl_builder_ui_row(self.form_values["query.builder.key"])
-                ]
+                self.chembl_builder_rows = [make_chembl_builder_ui_row(self.form_values["query.builder.key"])]
                 if refresh_rows:
                     self.build_chembl_builder_rows.refresh()
             if refresh_rows:
@@ -816,8 +795,9 @@ class WorkflowYamlBuilderApp:
 
     def build_execution_controls(self) -> None:
         """Build execution form controls."""
-        with ui.expansion("Execution", value=True).classes("w-full"), ui.grid(columns=3).classes(
-            "w-full gap-3"
+        with (
+            ui.expansion("Execution", value=True).classes("w-full"),
+            ui.grid(columns=3).classes("w-full gap-3"),
         ):
             (
                 ui.checkbox("Enable enrichment")
@@ -827,9 +807,7 @@ class WorkflowYamlBuilderApp:
             (
                 ui.checkbox("Enable debug logging")
                 .bind_value(self.form_values, "execution.debug")
-                .tooltip(
-                    "Enable more verbose debugging information in supported workflow operations."
-                )
+                .tooltip("Enable more verbose debugging information in supported workflow operations.")
             )
             (
                 ui.number("Max workers", min=1, step=1)
@@ -911,9 +889,7 @@ class WorkflowYamlBuilderApp:
 
     def build_export_controls(self) -> None:
         """Build export form controls."""
-        with ui.expansion("Export", value=True).classes("w-full"), ui.grid(columns=2).classes(
-            "w-full gap-3"
-        ):
+        with ui.expansion("Export", value=True).classes("w-full"), ui.grid(columns=2).classes("w-full gap-3"):
             (
                 ui.select(
                     list(OUTPUT_DIRECTORY_MODE_LABEL_TO_VALUE),

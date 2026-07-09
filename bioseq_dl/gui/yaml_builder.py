@@ -21,12 +21,9 @@ DEFAULT_TOTAL_RETRIES = 3
 DEFAULT_CHEMBL_PAGES_TO_FETCH = -1
 DEFAULT_WORKFLOW_FILENAME = "workflow-v1.yml"
 DEFAULT_OUTPUT_DIRECTORY_NAME_ERROR = (
-    "Dataset name is required because the default output folder is generated as "
-    "results/{dataset.name}."
+    "Dataset name is required because the default output folder is generated as results/{dataset.name}."
 )
-LEGACY_OUTPUT_DIRECTORY_NAME_ERROR = (
-    "dataset.name is required when export.output_dir is not provided."
-)
+LEGACY_OUTPUT_DIRECTORY_NAME_ERROR = "dataset.name is required when export.output_dir is not provided."
 LOADED_QUERY_VALUE_WARNING = (
     "Loaded the saved query text in Manual query mode. Builder rows can be restored "
     "in a later version when GUI builder metadata is saved."
@@ -377,9 +374,7 @@ def descriptor_to_form_values(descriptor: Mapping[str, object]) -> dict[str, obj
 
     for key in ("id_column", "label_column", "sequence_column", "unique_sequence_strategy"):
         form_values[f"harmonization.{key}"] = str(harmonization.get(key) or "")
-    form_values["harmonization.metadata_fields"] = csv_text_from_value(
-        harmonization.get("metadata_fields")
-    )
+    form_values["harmonization.metadata_fields"] = csv_text_from_value(harmonization.get("metadata_fields"))
 
     output_dir = str(export.get("output_dir") or "").strip()
     if output_dir:
@@ -413,7 +408,6 @@ def load_workflow_yaml_to_form_values(yaml_text: str) -> tuple[dict[str, object]
     form_values = descriptor_to_form_values(validated_descriptor)
     warnings = collect_load_warnings(validated_descriptor)
     return form_values, warnings
-
 
 
 def normalize_query_input_mode(value: object) -> str:
@@ -473,9 +467,7 @@ def build_uniprot_builder_rows_from_form(form_values: Mapping[str, object]) -> l
             connector = None
         field = get_builder_row_value(raw_row, "field", "")
         values = get_builder_row_value(raw_row, "values", "")
-        match_mode = normalize_uniprot_builder_match_mode(
-            get_builder_row_value(raw_row, "match_mode", "any")
-        )
+        match_mode = normalize_uniprot_builder_match_mode(get_builder_row_value(raw_row, "match_mode", "any"))
         rows.append(
             UniProtQueryBuilderRow(
                 connector=cast("str | None", connector),
@@ -788,9 +780,7 @@ def build_harmonization_section(form_values: Mapping[str, object]) -> dict[str, 
             form_values,
             "harmonization.unique_sequence_strategy",
         ),
-        "metadata_fields": parse_csv_list(
-            get_form_value(form_values, "harmonization.metadata_fields")
-        ),
+        "metadata_fields": parse_csv_list(get_form_value(form_values, "harmonization.metadata_fields")),
     }
     return cast("dict[str, object]", remove_empty_values(harmonization))
 

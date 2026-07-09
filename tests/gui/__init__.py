@@ -1,2 +1,1 @@
 """GUI test package."""
-

@@ -17,22 +17,14 @@ MIN_QUOTED_VALUE_LENGTH = 2
 def strip_surrounding_quotes(value: str) -> str:
     """Strip one matching pair of surrounding single or double quotes."""
     stripped = value.strip()
-    if (
-        len(stripped) >= MIN_QUOTED_VALUE_LENGTH
-        and stripped[0] == stripped[-1]
-        and stripped[0] in {"'", '"'}
-    ):
+    if len(stripped) >= MIN_QUOTED_VALUE_LENGTH and stripped[0] == stripped[-1] and stripped[0] in {"'", '"'}:
         return stripped[1:-1]
     return stripped
 
 
 def split_quoted_csv_values(value: str) -> list[str]:
     """Split comma-separated values while preserving commas inside quotes."""
-    return [
-        item.strip()
-        for item in QUOTED_CSV_VALUE_PATTERN.findall(value)
-        if item and item.strip()
-    ]
+    return [item.strip() for item in QUOTED_CSV_VALUE_PATTERN.findall(value) if item and item.strip()]
 
 
 def compact_parentheses_spacing(value: str) -> str:
