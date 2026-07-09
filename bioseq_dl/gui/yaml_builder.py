@@ -166,39 +166,10 @@ DEFAULT_FORM_VALUES: dict[str, object] = {
     "export.summary_file": "run_summary.yml",
 }
 
-FORM_VALUE_ALIASES: dict[str, tuple[str, ...]] = {
-    "dataset.name": ("dataset_name",),
-    "dataset.description": ("dataset_description",),
-    "dataset.modality": ("dataset_modality",),
-    "dataset.mode": ("dataset_mode",),
-    "dataset.interaction_type": ("dataset_interaction_type",),
-    "query.input_mode": ("query_input_mode",),
-    "query.builder.key": ("query_builder_key",),
-    "query.value": ("query_value",),
-    "query.uniprot_builder.rows": ("query_uniprot_builder_rows",),
-    "query.chembl_builder.rows": ("query_chembl_builder_rows",),
-    "query.fields": ("query_fields",),
-    "query.crossref_fields": ("query_crossref_fields",),
-    "query.include_isoform": ("query_include_isoform",),
-    "execution.enrich": ("execution_enrich",),
-    "execution.max_workers": ("execution_max_workers",),
-    "execution.total_retries": ("execution_total_retries",),
-    "execution.chembl_pages_to_fetch": ("execution_chembl_pages_to_fetch",),
-    "execution.uniprot_timeout": ("execution_uniprot_timeout",),
-    "execution.debug": ("execution_debug",),
-    "harmonization.id_column": ("harmonization_id_column",),
-    "harmonization.label_column": ("harmonization_label_column",),
-    "harmonization.sequence_column": ("harmonization_sequence_column",),
-    "harmonization.unique_sequence_strategy": ("harmonization_unique_sequence_strategy",),
-    "harmonization.metadata_fields": ("harmonization_metadata_fields",),
-    "export.output_dir_mode": ("export_output_dir_mode",),
-    "export.output_dir": ("export_output_dir",),
-    "export.format": ("export_format",),
-    "export.include_metadata": ("export_include_metadata",),
-    "export.include_summary": ("export_include_summary",),
-    "export.manifest_file": ("export_manifest_file",),
-    "export.summary_file": ("export_summary_file",),
-}
+
+def form_value_alias(field_name: str) -> str:
+    """Return the legacy underscore form key for a canonical dotted field name."""
+    return field_name.replace(".", "_")
 
 
 def workflow_yaml_form_defaults() -> dict[str, object]:
@@ -246,9 +217,9 @@ def get_form_value(form_values: Mapping[str, object], field_name: str) -> object
     """Return a form value using canonical dotted names with legacy aliases."""
     if field_name in form_values:
         return form_values[field_name]
-    for alias in FORM_VALUE_ALIASES.get(field_name, ()):
-        if alias in form_values:
-            return form_values[alias]
+    alias = form_value_alias(field_name)
+    if alias in form_values:
+        return form_values[alias]
     return workflow_yaml_form_defaults()[field_name]
 
 
@@ -256,7 +227,7 @@ def has_form_value(form_values: Mapping[str, object], field_name: str) -> bool:
     """Return whether canonical or legacy form data explicitly contains a field."""
     if field_name in form_values:
         return True
-    return any(alias in form_values for alias in FORM_VALUE_ALIASES.get(field_name, ()))
+    return form_value_alias(field_name) in form_values
 
 
 def normalize_labeled_value(value: object, label_to_value: Mapping[str, object]) -> object:

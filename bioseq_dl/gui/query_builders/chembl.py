@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from bioseq_dl.core.workflow.chembl_query_catalog import (
-    FLAT_PARAMETERS_MODEL,
     OPERATOR_SUFFIXES,
     get_chembl_query_builder_field_catalog,
     get_chembl_query_builder_resource_catalog,
@@ -131,18 +130,3 @@ def build_chembl_interpreted_query(rows: Sequence[ChEMBLFilterQueryBuilderRow]) 
     resource = normalize_chembl_resource(rows[0].resource)
     fragments = [build_chembl_parameter_fragment(row) for row in rows]
     return f"chembl.{resource}:" + " AND ".join(fragments)
-
-
-def get_chembl_builder_query_model(resource: str) -> str:
-    """Return the ChEMBL query model for one builder resource."""
-    resources = get_chembl_query_builder_resource_catalog()
-    normalized_resource = normalize_chembl_resource(resource)
-    if normalized_resource not in resources:
-        msg = f"Unsupported ChEMBL query resource '{resource}'."
-        raise ValueError(msg)
-    return resources[normalized_resource].query_model
-
-
-def is_chembl_flat_parameter_resource(resource: str) -> bool:
-    """Return whether a ChEMBL resource uses flat parameters."""
-    return get_chembl_builder_query_model(resource) == FLAT_PARAMETERS_MODEL

@@ -640,20 +640,6 @@ class ChEMBLQueryInterpreter(BaseQueryInterpreter):
 
         return prefix, value
 
-    def interpret(self, query: str) -> str:
-        """Interpret a query string into a ChEMBL-compatible query string."""
-        # Replace field aliases
-        processed_query = self._expand_field_aliases(query)
-        # Remove ignored fields
-        if self.config.extras and self.config.extras.get("ignore_all_fields", False):
-            processed_query = self._remove_all_fields(processed_query)
-        else:
-            processed_query = self._remove_ignored_fields(processed_query)
-        # Clean additional whitespace
-        processed_query = self._cleanup_whitespace(processed_query)
-        # Resolve item values as needed
-        return self._resolve_query_items(processed_query)
-
     def parse_query_builder_string(self, query: str) -> dict[str, object]:
         """Parse a ChEMBL query-builder string into an internal query structure."""
         return parse_chembl_query_builder_string(query)

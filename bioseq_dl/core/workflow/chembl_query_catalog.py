@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import cache
 
 FILTER_LIST_MODEL = "filter_list"
 FLAT_PARAMETERS_MODEL = "flat_parameters"
@@ -94,6 +95,7 @@ def build_chembl_resource(
     )
 
 
+@cache
 def get_chembl_query_resource_catalog() -> dict[str, ChEMBLQueryResourceCatalogEntry]:
     """Return the conservative ChEMBL query resource catalog."""
     text_operators = ("iexact", "icontains", "istartswith", "exact", "contains", "startswith", "in")
@@ -392,6 +394,7 @@ def get_chembl_query_resource_catalog() -> dict[str, ChEMBLQueryResourceCatalogE
     return {resource.key: resource for resource in resources}
 
 
+@cache
 def get_chembl_query_builder_resource_catalog() -> dict[str, ChEMBLQueryResourceCatalogEntry]:
     """Return ChEMBL resources enabled for query-builder foundations."""
     return {
@@ -401,6 +404,7 @@ def get_chembl_query_builder_resource_catalog() -> dict[str, ChEMBLQueryResource
     }
 
 
+@cache
 def get_chembl_query_builder_field_catalog(resource_key: str) -> dict[str, ChEMBLQueryFieldCatalogEntry]:
     """Return visible ChEMBL fields for one query-builder resource."""
     resources = get_chembl_query_builder_resource_catalog()

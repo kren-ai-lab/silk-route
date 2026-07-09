@@ -86,11 +86,6 @@ def is_manual_query_mode(value: object) -> bool:
     return normalize_query_input_mode(value) == "manual"
 
 
-def is_uniprot_builder_query_mode(value: object) -> bool:
-    """Return whether a GUI query mode value means advanced UniProt builder entry."""
-    return normalize_query_input_mode(value) == "advanced_builder"
-
-
 def is_advanced_builder_query_mode(value: object) -> bool:
     """Return whether a GUI query mode value means advanced builder entry."""
     return normalize_query_input_mode(value) == "advanced_builder"

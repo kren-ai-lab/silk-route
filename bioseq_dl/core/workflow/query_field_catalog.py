@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import cache
 
 from bioseq_dl.constants.uniprot import XREF_MAPPING
 
@@ -113,6 +114,7 @@ def make_uniprot_query_field_entry(
     )
 
 
+@cache
 def get_uniprot_query_field_catalog() -> dict[str, UniProtQueryFieldCatalogEntry]:
     """Return the shared catalog of friendly UniProt query fields."""
     database_map = build_uniprot_database_value_map()
@@ -234,6 +236,7 @@ def get_uniprot_query_field_catalog() -> dict[str, UniProtQueryFieldCatalogEntry
     return {entry.key: entry for entry in entries}
 
 
+@cache
 def get_uniprot_query_builder_field_catalog() -> dict[str, UniProtQueryFieldCatalogEntry]:
     """Return fields enabled for the future UniProt GUI query builder."""
     return {
