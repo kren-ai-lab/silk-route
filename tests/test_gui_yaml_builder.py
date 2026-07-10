@@ -6,6 +6,7 @@ import asyncio
 import importlib
 import subprocess
 import sys
+from typing import cast
 
 import pytest
 import yaml
@@ -1059,6 +1060,47 @@ def test_query_composition_metadata_warns_and_is_not_exposed_as_editable_form_va
 
     assert QUERY_COMPOSITION_NOT_EDITABLE_WARNING in warnings
     assert "query.composition" not in form_values
+
+
+def workflow_yaml_with_preserved_sections() -> str:
+    """Return workflow YAML carrying read-only sections the GUI cannot edit."""
+    with_builder = minimal_workflow_yaml().replace(
+        "  include_isoform: true\n",
+        "  include_isoform: true\n  builder:\n    name: uniprot\n",
+    )
+    return with_builder + "resources:\n  primary:\n    - uniprot\nreporting:\n  total_records: 10\n"
+
+
+def test_preserved_sections_survive_load_then_regeneration() -> None:
+    # Regression: read-only metadata promised as "kept with the descriptor" must not
+    # be dropped when the preview is regenerated from loaded form values (Codex #3).
+    form_values, _warnings = load_workflow_yaml_to_form_values(workflow_yaml_with_preserved_sections())
+
+    descriptor = build_workflow_descriptor(form_values)
+
+    assert descriptor["resources"] == {"primary": ["uniprot"]}
+    assert descriptor["reporting"] == {"total_records": 10}
+    assert descriptor["query"]["builder"] == {"name": "uniprot"}
+    assert validate_generated_descriptor(descriptor) == []
+
+
+def test_regenerated_preserved_sections_are_not_aliased_to_loaded_values() -> None:
+    # Mutating the regenerated descriptor must not corrupt the stashed sections.
+    form_values, _warnings = load_workflow_yaml_to_form_values(workflow_yaml_with_preserved_sections())
+
+    first = build_workflow_descriptor(form_values)
+    cast("dict", first["resources"])["primary"].append("mutated")
+    second = build_workflow_descriptor(form_values)
+
+    assert second["resources"] == {"primary": ["uniprot"]}
+
+
+def test_fresh_descriptor_has_no_preserved_sections() -> None:
+    descriptor = build_workflow_descriptor(minimal_form_values())
+
+    assert "resources" not in descriptor
+    assert "reporting" not in descriptor
+    assert "builder" not in descriptor["query"]
 
 
 def test_builder_does_not_require_nicegui_to_be_installed() -> None:

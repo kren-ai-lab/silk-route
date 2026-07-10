@@ -78,6 +78,13 @@ NON_EDITABLE_METADATA_WARNINGS = {
 UNSAFE_FILENAME_CHARACTERS = re.compile(r"[^a-z0-9_-]+")
 REPEATED_FILENAME_SEPARATOR = re.compile(r"_+")
 
+# Top-level descriptor sections the GUI cannot edit but must carry through a
+# load -> regenerate -> save round-trip unchanged (kept in sync with the
+# read-only warnings above).
+PRESERVED_TOP_LEVEL_SECTIONS = tuple(NON_EDITABLE_METADATA_WARNINGS)
+# Non-widget slot in the form-values dict that carries the preserved sections.
+PRESERVED_SECTIONS_FORM_KEY = "__preserved_sections__"
+
 MODALITY_LABEL_TO_VALUE = {
     "Protein": "protein",
     "Compound": "compound",
@@ -210,6 +217,7 @@ def workflow_yaml_gui_form_defaults() -> dict[str, object]:
         defaults["export.format"],
         EXPORT_FORMAT_LABEL_TO_VALUE,
     )
+    defaults[PRESERVED_SECTIONS_FORM_KEY] = {}
     return defaults
 
 
@@ -283,6 +291,39 @@ def collect_load_warnings(descriptor: Mapping[str, object]) -> list[str]:
         if section_name in descriptor:
             warnings.append(warning)
     return warnings
+
+
+def extract_preserved_workflow_sections(descriptor: Mapping[str, object]) -> dict[str, object]:
+    """Capture descriptor sections the GUI shows read-only but must not drop on save.
+
+    Covers the non-editable top-level sections plus ``query.builder`` /
+    ``query.composition``, which the form controls cannot round-trip yet.
+    """
+    preserved: dict[str, object] = {
+        key: deepcopy(descriptor[key]) for key in PRESERVED_TOP_LEVEL_SECTIONS if key in descriptor
+    }
+    query = get_mapping_section(descriptor, "query")
+    query_preserved = {key: deepcopy(query[key]) for key in ("builder", "composition") if key in query}
+    if query_preserved:
+        preserved["query"] = query_preserved
+    return preserved
+
+
+def merge_preserved_workflow_sections(
+    descriptor: dict[str, object], preserved: Mapping[str, object]
+) -> dict[str, object]:
+    """Re-attach preserved read-only sections onto a regenerated descriptor."""
+    for key, value in preserved.items():
+        if key == "query" and isinstance(value, Mapping):
+            query = descriptor.get("query")
+            if not isinstance(query, dict):
+                query = {}
+                descriptor["query"] = query
+            for sub_key, sub_value in value.items():
+                query[sub_key] = deepcopy(sub_value)
+        else:
+            descriptor[key] = deepcopy(value)
+    return descriptor
 
 
 def load_workflow_yaml_text(yaml_text: str) -> dict[str, object]:
@@ -369,6 +410,7 @@ def descriptor_to_form_values(descriptor: Mapping[str, object]) -> dict[str, obj
         if key in export:
             form_values[field_name] = export[key]
 
+    form_values[PRESERVED_SECTIONS_FORM_KEY] = extract_preserved_workflow_sections(descriptor)
     return form_values
 
 
@@ -784,6 +826,9 @@ def build_workflow_descriptor(form_values: dict[str, object]) -> dict[str, objec
     if harmonization:
         descriptor["harmonization"] = harmonization
     descriptor["export"] = build_export_section(form_values)
+    preserved = form_values.get(PRESERVED_SECTIONS_FORM_KEY)
+    if isinstance(preserved, Mapping) and preserved:
+        merge_preserved_workflow_sections(descriptor, preserved)
     return descriptor
 
 
