@@ -728,7 +728,7 @@ class MainWorkflow:
         instance = ChEMBLInterface()
         activity_filter = None
         fetch_query = query
-        fetch_method = f"{search_type}-search" or "activity-search"
+        fetch_method = f"{search_type}-search" if search_type else "activity-search"
         if isinstance(query_structure, dict):
             resource = str(query_structure.get("resource") or "")
             fetch_method = resource
@@ -767,8 +767,8 @@ class MainWorkflow:
                 }
                 meta["post_fetch_filter"] = post_filter_meta
                 meta["data_info"] = instance._build_data_info(result)  # noqa: SLF001  # library-internal helper
-        context["data"].setdefault("chembl", result)
-        context["metadata"].setdefault("chembl", meta)
+        context["data"]["chembl"] = result
+        context["metadata"]["chembl"] = meta
         self.log.debug("Pipeline ChEMBL fetch metadata: %s", meta)
 
     def _step_chembl_to_uniprot_query(

@@ -672,18 +672,6 @@ def parse_required_int(value: object, field_name: str) -> int:
     return int(normalized)
 
 
-def parse_optional_int(value: object, field_name: str) -> int | None:
-    """Parse an optional integer GUI value."""
-    if value is None:
-        return None
-    try:
-        return parse_required_int(value, field_name)
-    except ValueError:
-        if isinstance(value, str) and not value.strip():
-            return None
-        raise
-
-
 def parse_optional_number(value: object, field_name: str) -> float | int | None:
     """Parse an optional integer or float form value."""
     if value is None:

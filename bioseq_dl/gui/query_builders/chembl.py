@@ -100,9 +100,6 @@ def validate_chembl_builder_rows(rows: Sequence[ChEMBLFilterQueryBuilderRow]) ->
         if filter_type == "range" and len(values) != RANGE_VALUE_COUNT:
             msg = format_chembl_builder_row_error(index, "range requires exactly two comma-separated values.")
             raise ValueError(msg)
-        if filter_type == "in" and not values:
-            msg = format_chembl_builder_row_error(index, "in requires at least one value.")
-            raise ValueError(msg)
 
 
 def build_chembl_parameter_fragment(row: ChEMBLFilterQueryBuilderRow) -> str:
