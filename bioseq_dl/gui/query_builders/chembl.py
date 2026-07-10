@@ -97,6 +97,11 @@ def validate_chembl_builder_rows(rows: Sequence[ChEMBLFilterQueryBuilderRow]) ->
         if not values:
             msg = format_chembl_builder_row_error(index, "value is required.")
             raise ValueError(msg)
+        if any(" AND " in value for value in values):
+            msg = format_chembl_builder_row_error(
+                index, "value cannot contain ' AND ', which separates ChEMBL query conditions."
+            )
+            raise ValueError(msg)
         if filter_type == "range" and len(values) != RANGE_VALUE_COUNT:
             msg = format_chembl_builder_row_error(index, "range requires exactly two comma-separated values.")
             raise ValueError(msg)

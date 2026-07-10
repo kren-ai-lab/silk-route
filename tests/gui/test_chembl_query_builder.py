@@ -109,6 +109,14 @@ def test_chembl_builder_rejects_range_with_one_value():
         build_chembl_interpreted_query(rows)
 
 
+def test_chembl_builder_rejects_value_with_condition_separator():
+    # ' AND ' in a value would mis-parse into extra conditions downstream.
+    rows = [ChEMBLFilterQueryBuilderRow("molecule", "name", "icontains", "foo AND bar")]
+
+    with pytest.raises(ValueError, match="value cannot contain ' AND '"):
+        build_chembl_interpreted_query(rows)
+
+
 def test_chembl_builder_output_is_suitable_for_query_value():
     rows = [
         ChEMBLFilterQueryBuilderRow("activity", "standard_type", "exact", "IC50"),
