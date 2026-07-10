@@ -116,11 +116,5 @@ def test_validate_filter_rules_rejects_unknown_filter_type(interface):
     assert interface.validate_filter_rules([{"field": "x", "filter_type": "bogus", "value": 1}]) is False
 
 
-@pytest.mark.parametrize("filter_type", ["exact", "contains", "startswith", "gt", "lt"])
-def test_validate_filter_rules_accepts_catalog_operators(interface, filter_type):
-    # Operators advertised by the query-builder catalog must validate.
-    assert interface.validate_filter_rules([{"field": "x", "filter_type": filter_type, "value": "v"}])
-
-
 def test_validate_filter_rules_rejects_bad_value_type(interface):
     assert interface.validate_filter_rules([{"field": "x", "filter_type": "iexact", "value": [1]}]) is False

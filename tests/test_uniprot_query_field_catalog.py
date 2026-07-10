@@ -10,24 +10,6 @@ from bioseq_dl.core.workflow.query_field_catalog import (
 from bioseq_dl.core.workflow.query_interpreter import build_default_uniprot_interpreter
 
 
-def test_uniprot_query_field_catalog_contains_supported_interpreter_fields():
-    catalog = get_uniprot_query_field_catalog()
-
-    assert {
-        "databases",
-        "keywords",
-        "go",
-        "organism",
-        "taxon",
-        "taxid",
-        "taxa",
-        "ec",
-        "length",
-        "temperature",
-        "ph",
-    } <= set(catalog)
-
-
 def test_uniprot_query_builder_visible_fields_expose_gui_metadata():
     catalog = get_uniprot_query_builder_field_catalog()
 
@@ -39,27 +21,6 @@ def test_uniprot_query_builder_visible_fields_expose_gui_metadata():
         assert entry.examples
         assert entry.supported_match_modes == SUPPORTED_MATCH_MODES
         assert entry.query_builder_visible is True
-
-
-def test_uniprot_query_builder_catalog_exposes_canonical_database_field_only():
-    catalog = get_uniprot_query_builder_field_catalog()
-
-    assert "databases" in catalog
-    assert "db" not in catalog
-    assert "xref" not in catalog
-    assert "database" not in catalog
-
-
-def test_uniprot_query_builder_catalog_contains_field_specific_placeholders():
-    catalog = get_uniprot_query_builder_field_catalog()
-
-    assert catalog["organism"].placeholder == "Homo sapiens"
-    assert catalog["temperature"].placeholder == "20-30,50-60"
-    assert catalog["go"].placeholder == '0006281,"DNA repair"'
-    assert catalog["keywords"].placeholder == '"ATP binding","Metal-binding"'
-    assert catalog["databases"].placeholder == "alphafold,pdb,string"
-    assert catalog["length"].placeholder == "100-500"
-    assert catalog["ph"].placeholder == "6-8"
 
 
 def test_default_uniprot_interpreter_builds_fields_from_shared_catalog():

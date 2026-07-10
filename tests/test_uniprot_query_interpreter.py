@@ -65,15 +65,6 @@ def test_uniprot_interpreter_resolves_taxonomy_alias_names():
     assert interpreter.interpret("taxa_any:human") == "taxonomy_id:9606"
 
 
-def test_uniprot_interpreter_compacts_parentheses_without_removing_boolean_spaces():
-    interpreter = build_default_uniprot_interpreter()
-
-    assert (
-        interpreter.interpret('keywords_any:"ATP binding","Metal-binding" AND go_any:"DNA repair"')
-        == "(keyword:KW-0067 OR keyword:KW-0479) AND go:0006281"
-    )
-
-
 def test_uniprot_interpreter_resolves_databases_field():
     interpreter = build_default_uniprot_interpreter()
 

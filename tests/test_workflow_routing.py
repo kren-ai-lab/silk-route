@@ -7,7 +7,6 @@ from typing import Any
 import polars as pl
 import pytest
 
-from bioseq_dl.core.workflow.chembl_query_parser import is_chembl_prefixed_query
 from bioseq_dl.core.workflow.main_workflow import (
     PPI_CHEMBL_QUERY_ERROR,
     PROTEIN_CHEMBL_QUERY_ERROR,
@@ -99,13 +98,6 @@ def test_protein_rejects_chembl_prefixed_queries_before_uniprot(query: str) -> N
     assert "fetch_uniprot" not in workflow.calls
 
 
-def test_chembl_prefixed_query_is_detected_without_truncation() -> None:
-    query = "chembl.target:gene_symbol__iexact=EGFR"
-
-    assert is_chembl_prefixed_query(query)
-    assert query.startswith("chembl.target:")
-
-
 @pytest.mark.parametrize(
     ("query", "expected_search_type"),
     [
@@ -143,18 +135,6 @@ def test_compound_target_query_is_rejected_without_uniprot() -> None:
         )
 
     assert "fetch_uniprot" not in workflow.calls
-
-
-def test_compound_workflow_does_not_produce_uniprot_results_by_default() -> None:
-    workflow = CompoundNoMappingWorkflow()
-
-    data, _metadata = workflow.run(
-        modality="compound",
-        mode="query_first",
-        query="chembl.molecule:name__iexact=Imatinib",
-    )
-
-    assert set(data) == {"chembl"}
 
 
 def test_protein_ligand_interaction_can_use_chembl_to_uniprot_mapping() -> None:

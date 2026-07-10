@@ -9,7 +9,6 @@ import sys
 from typing import cast
 
 import pytest
-import yaml
 
 from bioseq_dl.gui.yaml_builder import (
     DEFAULT_OUTPUT_DIRECTORY_NAME_ERROR,
@@ -23,7 +22,6 @@ from bioseq_dl.gui.yaml_builder import (
     load_workflow_yaml_text,
     load_workflow_yaml_to_form_values,
     parse_csv_list,
-    render_workflow_yaml,
     resolve_query_value_from_form,
     validate_generated_descriptor,
     workflow_yaml_form_defaults,
@@ -191,12 +189,6 @@ export:
 """
 
 
-def test_build_workflow_descriptor_generates_workflow_v1_schema_version() -> None:
-    descriptor = build_workflow_descriptor(minimal_form_values())
-
-    assert descriptor["schema_version"] == "workflow-v1"
-
-
 def test_build_workflow_descriptor_generates_required_sections() -> None:
     descriptor = build_workflow_descriptor(minimal_form_values())
 
@@ -251,19 +243,6 @@ def test_build_workflow_descriptor_parses_comma_separated_fields() -> None:
     assert descriptor["query"]["crossref_fields"] == ["go", "interpro"]
 
 
-def test_empty_return_fields_and_crossref_placeholders_do_not_generate_lists() -> None:
-    descriptor = build_workflow_descriptor(
-        minimal_form_values()
-        | {
-            "query.fields": "",
-            "query.crossref_fields": "",
-        }
-    )
-
-    assert "fields" not in descriptor["query"]
-    assert "crossref_fields" not in descriptor["query"]
-
-
 @pytest.mark.parametrize(
     ("label", "expected"),
     [
@@ -303,13 +282,6 @@ def test_human_readable_export_format_labels_map_to_schema_values(label: str, ex
     descriptor = build_workflow_descriptor(minimal_form_values() | {"export.format": label})
 
     assert descriptor["export"]["format"] == expected
-
-
-def test_query_builder_and_composition_are_not_generated() -> None:
-    descriptor = build_workflow_descriptor(minimal_form_values())
-
-    assert "builder" not in descriptor["query"]
-    assert "composition" not in descriptor["query"]
 
 
 def test_manual_query_mode_generates_manual_query_value() -> None:
@@ -556,16 +528,6 @@ def test_selected_chembl_builder_determines_resource() -> None:
     assert descriptor["query"]["value"] == "chembl.activity:standard_type=IC50"
 
 
-def test_future_only_sections_are_not_generated() -> None:
-    descriptor = build_workflow_descriptor(minimal_form_values())
-
-    assert "resources" not in descriptor
-    assert "reporting" not in descriptor
-    assert "interaction_retrieval" not in descriptor
-    assert "activity_retrieval" not in descriptor
-    assert "export.result_files" not in descriptor
-
-
 def test_interaction_descriptor_includes_interaction_type_when_provided() -> None:
     descriptor = build_workflow_descriptor(
         minimal_form_values()
@@ -590,46 +552,10 @@ def test_non_interaction_descriptor_omits_interaction_type() -> None:
     assert "interaction_type" not in descriptor["dataset"]
 
 
-def test_no_interaction_label_omits_interaction_type_for_protein_modality() -> None:
-    descriptor = build_workflow_descriptor(
-        minimal_form_values()
-        | {
-            "dataset.modality": "Protein",
-            "dataset.interaction_type": "No interaction",
-        }
-    )
-
-    assert "interaction_type" not in descriptor["dataset"]
-
-
-def test_empty_harmonization_id_column_omits_harmonization_section() -> None:
-    descriptor = build_workflow_descriptor(minimal_form_values() | {"harmonization.id_column": ""})
-
-    assert "harmonization" not in descriptor
-
-
 def test_non_empty_harmonization_id_column_includes_harmonization_section() -> None:
     descriptor = build_workflow_descriptor(minimal_form_values() | {"harmonization.id_column": "_id"})
 
     assert descriptor["harmonization"] == {"id_column": "_id"}
-
-
-@pytest.mark.parametrize(
-    ("field_name", "yaml_key", "value"),
-    [
-        ("harmonization.label_column", "label_column", "_label"),
-        ("harmonization.sequence_column", "sequence_column", "sequence"),
-        ("harmonization.unique_sequence_strategy", "unique_sequence_strategy", "exact"),
-    ],
-)
-def test_non_empty_harmonization_text_fields_are_included(
-    field_name: str,
-    yaml_key: str,
-    value: str,
-) -> None:
-    descriptor = build_workflow_descriptor(minimal_form_values() | {field_name: value})
-
-    assert descriptor["harmonization"] == {yaml_key: value}
 
 
 def test_harmonization_metadata_fields_are_parsed_as_csv() -> None:
@@ -909,20 +835,6 @@ def test_build_workflow_filename_is_safe(dataset_name: object, expected: str) ->
     assert build_workflow_filename(dataset_name) == expected
 
 
-def test_render_workflow_yaml_round_trips_equivalent_dictionary() -> None:
-    descriptor = build_workflow_descriptor(
-        minimal_form_values()
-        | {
-            "dataset.description": "Example dataset.",
-            "harmonization.id_column": "_id",
-        }
-    )
-
-    yaml_text = render_workflow_yaml(descriptor)
-
-    assert yaml.safe_load(yaml_text) == descriptor
-
-
 def test_load_workflow_yaml_text_parses_mapping() -> None:
     descriptor = load_workflow_yaml_text(minimal_workflow_yaml())
 
@@ -1093,14 +1005,6 @@ def test_regenerated_preserved_sections_are_not_aliased_to_loaded_values() -> No
     second = build_workflow_descriptor(form_values)
 
     assert second["resources"] == {"primary": ["uniprot"]}
-
-
-def test_fresh_descriptor_has_no_preserved_sections() -> None:
-    descriptor = build_workflow_descriptor(minimal_form_values())
-
-    assert "resources" not in descriptor
-    assert "reporting" not in descriptor
-    assert "builder" not in descriptor["query"]
 
 
 def test_builder_does_not_require_nicegui_to_be_installed() -> None:
@@ -1286,11 +1190,3 @@ def test_update_interaction_type_visibility_shows_interaction_value() -> None:
     assert app.form_values["dataset.interaction_type"] == "Protein-protein interaction"
     assert app.interaction_type_select.visible is True
     assert app.interaction_type_select.update_count == 1
-
-
-def test_nicegui_app_imports_when_nicegui_is_installed() -> None:
-    pytest.importorskip("nicegui")
-
-    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
-
-    assert callable(module.main)

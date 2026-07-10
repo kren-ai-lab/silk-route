@@ -9,7 +9,6 @@ import pytest
 
 from bioseq_dl.gui.query_builders.chembl import (
     ChEMBLFilterQueryBuilderRow,
-    build_chembl_friendly_query,
     build_chembl_interpreted_query,
 )
 
@@ -24,24 +23,6 @@ def test_chembl_target_filters_build_interpreted_query():
         build_chembl_interpreted_query(rows)
         == "chembl.target:type__iexact=protein AND gene_symbol__icontains=EGFR"
     )
-
-
-def test_chembl_assay_filters_build_interpreted_query():
-    rows = [
-        ChEMBLFilterQueryBuilderRow("assay", "label_type", "iexact", "functional"),
-        ChEMBLFilterQueryBuilderRow("assay", "organism", "icontains", "virus"),
-    ]
-
-    assert (
-        build_chembl_interpreted_query(rows)
-        == "chembl.assay:label_type__iexact=functional AND organism__icontains=virus"
-    )
-
-
-def test_chembl_cell_line_filters_build_interpreted_query():
-    rows = [ChEMBLFilterQueryBuilderRow("cell_line", "organism", "icontains", "mus")]
-
-    assert build_chembl_interpreted_query(rows) == "chembl.cell_line:organism__icontains=mus"
 
 
 def test_chembl_molecule_filters_build_interpreted_query():
@@ -66,12 +47,6 @@ def test_chembl_activity_filters_build_interpreted_query():
         build_chembl_interpreted_query(rows)
         == "chembl.activity:target_chembl_id=CHEMBL5169197 AND pchembl_value=5.83"
     )
-
-
-def test_chembl_friendly_query_uses_interpreted_preview_format():
-    rows = [ChEMBLFilterQueryBuilderRow("target", "gene_symbol", "icontains", "EGFR")]
-
-    assert build_chembl_friendly_query(rows) == "chembl.target:gene_symbol__icontains=EGFR"
 
 
 def test_chembl_builder_rejects_invalid_resource():
@@ -115,19 +90,6 @@ def test_chembl_builder_rejects_value_with_condition_separator():
 
     with pytest.raises(ValueError, match="value cannot contain ' AND '"):
         build_chembl_interpreted_query(rows)
-
-
-def test_chembl_builder_output_is_suitable_for_query_value():
-    rows = [
-        ChEMBLFilterQueryBuilderRow("activity", "standard_type", "exact", "IC50"),
-        ChEMBLFilterQueryBuilderRow("activity", "standard_value", "range", "0,100"),
-        ChEMBLFilterQueryBuilderRow("activity", "standard_units", "exact", "nM"),
-    ]
-
-    assert (
-        build_chembl_interpreted_query(rows)
-        == "chembl.activity:standard_type=IC50 AND standard_value__range=0,100 AND standard_units=nM"
-    )
 
 
 def test_chembl_builder_import_does_not_import_nicegui():

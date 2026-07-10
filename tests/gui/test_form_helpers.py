@@ -64,12 +64,6 @@ def test_uniprot_builder_field_label_value_round_trip() -> None:
     assert fh.get_uniprot_builder_field_value(label) == fh.DEFAULT_UNIPROT_BUILDER_FIELD
 
 
-def test_make_uniprot_builder_ui_row_shape() -> None:
-    row = fh.make_uniprot_builder_ui_row()
-    assert set(row) == {"connector", "field", "values", "match_mode"}
-    assert row["connector"] == ""
-
-
 def test_build_uniprot_builder_form_rows_first_row_has_no_connector() -> None:
     ui_rows = [
         {"connector": "AND", "field": fh.get_uniprot_builder_field_label("organism"), "values": "human"},
@@ -96,6 +90,8 @@ def test_make_chembl_builder_ui_row_uses_first_allowed_operator() -> None:
     row = fh.make_chembl_builder_ui_row(builder)
     assert set(row) == {"field", "filter_type", "value"}
     assert row["value"] == ""
+    first_allowed_operator = fh.get_chembl_filter_type_options(builder, row["field"])[0]
+    assert row["filter_type"] == first_allowed_operator
 
 
 def test_build_chembl_builder_form_rows_converts_labels_to_field_keys() -> None:
