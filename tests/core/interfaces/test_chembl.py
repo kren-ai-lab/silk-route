@@ -10,6 +10,7 @@ from tests._helpers import load_fixture
 from tests.core.interfaces._contract import CachingContract
 
 ACTIVITY_URL = "https://www.ebi.ac.uk/chembl/api/data/activity"
+MOLECULE_URL = "https://www.ebi.ac.uk/chembl/api/data/molecule"
 
 
 @pytest.fixture
@@ -31,6 +32,67 @@ def test_fetch_unwraps_activities_list(interface, niquests_mock):
     sent = niquests_mock.calls[0].request.url
     assert sent.startswith(ACTIVITY_URL)
     assert "target_chembl_id=CHEMBL279" in sent
+
+
+def test_fetch_activity_accepts_catalog_flat_filters(interface, niquests_mock):
+    # GUI-built activity queries carry catalog fields with operator suffixes.
+    body = load_fixture("chembl", "activity")
+    niquests_mock.get(url=startswith(ACTIVITY_URL)).respond(status_code=200, json=body)
+
+    interface.fetch({"standard_type": "IC50", "standard_value__lte": "100"}, method="activity")
+
+    sent = niquests_mock.calls[0].request.url
+    assert "standard_type=IC50" in sent
+    assert "standard_value__lte=100" in sent
+
+
+def test_fetch_activity_rejects_field_outside_catalog(interface, niquests_mock):
+    # Unknown activity fields must fail validation and short-circuit to an empty result.
+    result = interface.fetch({"bogus_field": "x"}, method="activity")
+
+    assert result == []
+    assert len(niquests_mock.calls) == 0
+
+
+def test_fetch_molecule_filters_builds_filtered_url(interface, niquests_mock):
+    # Filter-list resources must serialize catalog operators into a well-formed URL.
+    niquests_mock.get(url=startswith(MOLECULE_URL)).respond(status_code=200, json={"molecules": []})
+
+    interface.fetch(
+        {"filters": [{"field": "molecular_weight", "filter_type": "gt", "value": "300"}]},
+        method="molecule",
+    )
+
+    sent = niquests_mock.calls[0].request.url
+    assert "molecular_weight__gt=300" in sent
+    # Filters and pagination params must be joined with '&', not concatenated.
+    assert "&limit=" in sent
+    assert "&format=json" in sent
+
+
+def test_fetch_single_activity_preserves_flat_filters(interface, niquests_mock):
+    # fetch_single strips undeclared keys via _prepare_params; catalog filters must survive.
+    body = load_fixture("chembl", "activity")
+    niquests_mock.get(url=startswith(ACTIVITY_URL)).respond(status_code=200, json=body)
+
+    interface.fetch_single(
+        {"standard_type": "IC50", "standard_value__lte": "100"}, method="activity", format="json"
+    )
+
+    sent = niquests_mock.calls[0].request.url
+    assert "standard_type=IC50" in sent
+    assert "standard_value__lte=100" in sent
+
+
+def test_fetch_single_activity_filters_do_not_collide_in_cache(interface, niquests_mock):
+    # Distinct flat-filter sets must yield distinct cache identifiers (not one shared key).
+    body = load_fixture("chembl", "activity")
+    niquests_mock.get(url=startswith(ACTIVITY_URL)).respond(status_code=200, json=body)
+
+    interface.fetch_single({"standard_type": "IC50"}, method="activity", format="json")
+    interface.fetch_single({"standard_type": "Ki"}, method="activity", format="json")
+
+    assert len(niquests_mock.calls) == 2
 
 
 def test_parse_extracts_requested_fields(interface):
