@@ -230,7 +230,7 @@ def test_workflow_v1_preserves_explicit_structure_download_flags() -> None:
     assert values["execution"]["download_pdb_structures"] is False
 
 
-@pytest.mark.parametrize("storage_mode", ["inline", "file", "both"])
+@pytest.mark.parametrize("storage_mode", ["inline", "file", "both", "none"])
 def test_workflow_v1_accepts_graph_payload_storage_modes(storage_mode: str) -> None:
     descriptor = base_workflow_descriptor()
     descriptor["export"]["graph_payload_storage"] = storage_mode
@@ -617,6 +617,7 @@ def test_cli_workflow_run_passes_structure_download_flags(
     assert result.exit_code == 0, result.output
     assert CAPTURED_WORKFLOW_KWARGS["download_alphafold_structures"] is False
     assert CAPTURED_WORKFLOW_KWARGS["download_pdb_structures"] is False
+    assert CAPTURED_WORKFLOW_KWARGS["output_dir"] == str(tmp_path / "out")
     metadata = workflows_cli.load_workflow_recipe(tmp_path / "out" / "metadata.json")
     summary = yaml.safe_load((tmp_path / "out" / "run_summary.yml").read_text(encoding="utf-8"))
     assert metadata["normalized_workflow_values"]["download_alphafold_structures"] is False
@@ -678,6 +679,28 @@ def test_graph_payload_inline_mode_preserves_graph_json(tmp_path: Path) -> None:
     assert not (tmp_path / "graphs").exists()
     label_metadata = metadata["uniprot_enrichment"]["pathwaycommons_neighborhood"]
     assert label_metadata["graph_payload_storage"] == "inline"
+
+
+def test_graph_payload_none_mode_drops_graph_json_without_writing_files(tmp_path: Path) -> None:
+    metadata = graph_enrichment_metadata()
+
+    output_infos = export_workflow_outputs(
+        graph_enrichment_data(),
+        tmp_path,
+        "csv",
+        None,
+        graph_payload_storage="none",
+        graph_payload_compression="gzip",
+        workflow_metadata=metadata,
+    )
+
+    csv_df = pd.read_csv(tmp_path / "pathwaycommons_neighborhood.csv")
+    assert "graph_json" not in csv_df.columns
+    assert "graph_file" not in csv_df.columns
+    assert "graph_payload_directory" not in output_infos[0]
+    assert not (tmp_path / "graphs").exists()
+    label_metadata = metadata["uniprot_enrichment"]["pathwaycommons_neighborhood"]
+    assert label_metadata["graph_payload_storage"] == "none"
 
 
 def test_graph_payload_both_mode_keeps_inline_and_file_metadata(tmp_path: Path) -> None:

@@ -624,6 +624,7 @@ class MainWorkflow:
         total_retries = kwargs.get("total_retries", 3)
         download_alphafold_structures = kwargs.get("download_alphafold_structures", True)
         download_pdb_structures = kwargs.get("download_pdb_structures", True)
+        output_dir = kwargs.get("output_dir")
 
         if not enrich_flag:
             self.log.info("Pipeline: enrichment skipped (enrich=False)")
@@ -649,6 +650,7 @@ class MainWorkflow:
             total_retries=total_retries,
             download_alphafold_structures=download_alphafold_structures,
             download_pdb_structures=download_pdb_structures,
+            output_dir=output_dir,
         )
         enrich_elapsed = time.time() - enrich_started
         context["data"].setdefault("uniprot_enrichment", enriched)

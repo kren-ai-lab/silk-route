@@ -253,7 +253,7 @@ DEFAULT_FORM_VALUES: dict[str, object] = {
     "export.output_dir_mode": "default",
     "export.output_dir": "",
     "export.format": "csv",
-    "export.store_graph_payloads_as_files": True,
+    "export.save_graph_payloads": True,
     "export.include_metadata": True,
     "export.include_summary": True,
     "export.manifest_file": "metadata.json",
@@ -298,7 +298,11 @@ FORM_VALUE_ALIASES: dict[str, tuple[str, ...]] = {
     "export.output_dir_mode": ("export_output_dir_mode",),
     "export.output_dir": ("export_output_dir",),
     "export.format": ("export_format",),
-    "export.store_graph_payloads_as_files": ("export_store_graph_payloads_as_files",),
+    "export.save_graph_payloads": (
+        "export_save_graph_payloads",
+        "export.store_graph_payloads_as_files",
+        "export_store_graph_payloads_as_files",
+    ),
     "export.include_metadata": ("export_include_metadata",),
     "export.include_summary": ("export_include_summary",),
     "export.manifest_file": ("export_manifest_file",),
@@ -919,7 +923,7 @@ def descriptor_to_form_values(descriptor: Mapping[str, object]) -> dict[str, obj
         EXPORT_FORMAT_LABEL_TO_VALUE,
     )
     graph_payload_storage = str(export.get("graph_payload_storage") or "file")
-    form_values["export.store_graph_payloads_as_files"] = graph_payload_storage in {"file", "both"}
+    form_values["export.save_graph_payloads"] = graph_payload_storage in {"file", "both"}
     for key in ("include_metadata", "include_summary", "manifest_file", "summary_file"):
         field_name = f"export.{key}"
         if key in export:
@@ -1699,8 +1703,8 @@ def build_export_section(form_values: Mapping[str, object]) -> dict[str, object]
             EXPORT_FORMAT_LABEL_TO_VALUE,
         ),
         "graph_payload_storage": "file"
-        if parse_bool(get_form_value(form_values, "export.store_graph_payloads_as_files"))
-        else "inline",
+        if parse_bool(get_form_value(form_values, "export.save_graph_payloads"))
+        else "none",
         "graph_payload_compression": "gzip",
         "include_metadata": parse_bool(get_form_value(form_values, "export.include_metadata")),
         "include_summary": parse_bool(get_form_value(form_values, "export.include_summary")),

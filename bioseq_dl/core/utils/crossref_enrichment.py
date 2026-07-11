@@ -1,5 +1,6 @@
 """Cross-reference enrichment workflow utilities."""
 
+from pathlib import Path
 from typing import Any, Literal
 
 import pandas as pd
@@ -148,11 +149,21 @@ def build_structure_download_interface_options(
     *,
     download_alphafold_structures: bool = True,
     download_pdb_structures: bool = True,
+    output_dir: str | Path | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Return interface options controlling local structure-file downloads."""
+    structure_root = Path(output_dir) / "structures" if output_dir else None
+    alphafold_options: dict[str, Any] = {
+        "structures": ["pdb"] if download_alphafold_structures else None
+    }
+    pdb_options: dict[str, Any] = {"download_structures": download_pdb_structures}
+    if structure_root is not None and download_alphafold_structures:
+        alphafold_options["output_dir"] = str(structure_root / "alphafold")
+    if structure_root is not None and download_pdb_structures:
+        pdb_options["output_dir"] = str(structure_root / "pdb")
     return {
-        "alphafold": {"structures": ["pdb"] if download_alphafold_structures else None},
-        "pdb": {"download_structures": download_pdb_structures},
+        "alphafold": alphafold_options,
+        "pdb": pdb_options,
     }
 
 
@@ -165,6 +176,7 @@ def run_crossref_enrichment(
     *,
     download_alphafold_structures: bool = True,
     download_pdb_structures: bool = True,
+    output_dir: str | Path | None = None,
 ) -> tuple[Any, dict | list[dict]]:
     """Run cross-reference enrichment for all configured endpoint specs."""
     crossref_fields = normalize_crossref_fields(crossref_fields)
@@ -281,6 +293,7 @@ def run_crossref_enrichment(
         interface_options=build_structure_download_interface_options(
             download_alphafold_structures=download_alphafold_structures,
             download_pdb_structures=download_pdb_structures,
+            output_dir=output_dir,
         ),
     )
     enriched_data, enriched_metadata = enricher.enrich(data, format=format)

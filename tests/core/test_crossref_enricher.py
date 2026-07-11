@@ -16,6 +16,7 @@ from bioseq_dl.core.crossref_enricher import (
     normalize_crossref_format,
 )
 from bioseq_dl.core.interfaces.alphafold import AlphafoldInterface
+from bioseq_dl.core.utils.crossref_enrichment import build_structure_download_interface_options
 from bioseq_dl.core.utils.query_builders import INTERFACE_CLASSES
 
 
@@ -155,6 +156,34 @@ def test_crossref_pdb_interface_can_enable_structure_downloads(
 def test_crossref_interface_kwargs_do_not_change_other_databases() -> None:
     assert get_crossref_interface_kwargs("alphafold") == {"structures": ["pdb"]}
     assert get_crossref_interface_kwargs("uniprot") == {}
+
+
+def test_structure_download_options_scope_paths_to_output_directory(tmp_path) -> None:
+    options = build_structure_download_interface_options(
+        download_alphafold_structures=True,
+        download_pdb_structures=True,
+        output_dir=tmp_path / "results" / "example",
+    )
+
+    assert options["alphafold"]["structures"] == ["pdb"]
+    assert options["alphafold"]["output_dir"] == str(
+        tmp_path / "results" / "example" / "structures" / "alphafold"
+    )
+    assert options["pdb"]["download_structures"] is True
+    assert options["pdb"]["output_dir"] == str(
+        tmp_path / "results" / "example" / "structures" / "pdb"
+    )
+
+
+def test_structure_download_options_do_not_create_paths_when_disabled(tmp_path) -> None:
+    options = build_structure_download_interface_options(
+        download_alphafold_structures=False,
+        download_pdb_structures=False,
+        output_dir=tmp_path / "results" / "example",
+    )
+
+    assert options["alphafold"] == {"structures": None}
+    assert options["pdb"] == {"download_structures": False}
 
 
 def test_crossref_enricher_attaches_source_context_to_dataframe_results() -> None:

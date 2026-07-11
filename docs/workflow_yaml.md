@@ -313,6 +313,14 @@ enrichment depends on usable cross-reference data and enabled packaged
 endpoints. PubChem and ChEBI remain query sources/builders; their enrichment
 availability follows the same endpoint constraints. The builder prepares query
 text only; network access happens later when the CLI runs the workflow.
+The `Save graph payloads` checkbox writes graph payloads as compressed files
+under `export.output_dir`; disabling it writes `graph_payload_storage: none` so
+raw graph payload files and inline graph payload columns are omitted. The
+AlphaFold and PDB structure-download checkboxes remain in the enrichment
+section. When enabled, structure files are stored under
+`export.output_dir/structures/alphafold/` and
+`export.output_dir/structures/pdb/` rather than a loose top-level structures
+folder.
 
 `ChEMBL workflow pages to fetch` is located under collapsed source-specific
 execution options. It controls ChEMBL pagination and is not a general
@@ -640,6 +648,8 @@ The NiceGUI `Metadata fields` control accepts comma-separated values and emits
 | --- | --- | --- | --- | --- | --- | --- |
 | `output_dir` | string or null | Optional if `dataset.name` is present | `results/{dataset.name}` | Executable | Normalized to `workflow_values["output"]` | Required by merged workflow values after defaults are applied. |
 | `format` | string | Optional | `csv` | Executable | Normalized to `workflow_values["export_format"]` | Supported values are `csv`, `json`, `xml`, and `parquet`. |
+| `graph_payload_storage` | string | Optional | `inline` | Executable for graph-like enrichment exports | Normalized to `workflow_values["graph_payload_storage"]` | Supported values are `inline`, `file`, `both`, and `none`. `file` writes payload files under `output_dir/graphs/<label>/`; `both` keeps inline data and writes files; `none` drops raw graph payloads from tabular exports and writes no payload files. |
+| `graph_payload_compression` | string | Optional | `gzip` | Executable for file-based graph payload exports | Normalized to `workflow_values["graph_payload_compression"]` | Supported values are `gzip` and `none`. Applies when graph payload files are written. |
 | `include_metadata` | boolean | Optional | `true` | Executable | Normalized to `workflow_values["include_metadata"]` | Controls whether the manifest JSON is written. |
 | `include_summary` | boolean | Optional | `true` | Executable | Normalized to `workflow_values["include_summary"]` | Controls whether the run summary YAML is written. |
 | `manifest_file` | string or null | Optional | `metadata.json` | Executable | Normalized to `workflow_values["manifest_file"]` | The file content is JSON regardless of extension. |

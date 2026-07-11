@@ -2415,7 +2415,7 @@ class WorkflowYamlBuilderApp:
                     .bind_value(self.form_values, "execution.download_alphafold_structures")
                     .tooltip(
                         "When enabled, BioSeqDownloader downloads AlphaFold PDB structure files. "
-                        "When disabled, only AlphaFold prediction metadata is exported."
+                        "Downloaded structures are stored under the workflow output directory."
                     )
                 )
                 (
@@ -2423,7 +2423,7 @@ class WorkflowYamlBuilderApp:
                     .bind_value(self.form_values, "execution.download_pdb_structures")
                     .tooltip(
                         "When enabled, BioSeqDownloader downloads local PDB structure files. "
-                        "When disabled, only PDB entry metadata is exported."
+                        "Downloaded structures are stored under the workflow output directory."
                     )
                 )
             ui.label(
@@ -2549,11 +2549,11 @@ class WorkflowYamlBuilderApp:
                 .tooltip("File format to use when the workflow is executed later.")
             )
             (
-                ui.checkbox("Store graph payloads as separate files")
-                .bind_value(self.form_values, "export.store_graph_payloads_as_files")
+                ui.checkbox("Save graph payloads")
+                .bind_value(self.form_values, "export.save_graph_payloads")
                 .tooltip(
-                    "Recommended for PathwayCommons. Stores large graph payloads as separate "
-                    "compressed JSON files and keeps the CSV lightweight."
+                    "Stores graph payloads as files in the workflow output directory. "
+                    "Disable this if you only need the tabular outputs."
                 )
             )
             (

@@ -230,7 +230,13 @@ and packaged endpoint configuration. PubChem and ChEBI remain available as
 query sources/builders, while their enrichment behavior depends on usable
 cross-reference fields and configured endpoints. `query.fields` remains
 separate from `query.crossref_fields`, enrichment source selections, and
-advanced-builder search conditions.
+advanced-builder search conditions. The GUI **Save graph payloads** checkbox
+stores PathwayCommons-style graph payloads as compressed files under
+`export.output_dir`; disabling it emits `graph_payload_storage: none` so only
+the tabular outputs are written. When AlphaFold or PDB structure downloads are
+enabled, downloaded files are stored under
+`export.output_dir/structures/alphafold/` and
+`export.output_dir/structures/pdb/`, keeping workflow outputs self-contained.
 In the Advanced UniProt builder, Connector combines a row with the previous row
 using `AND` or `OR`, while Match mode combines comma-separated values inside
 one row as `Any`, `All`, or `Not`. Values containing spaces can be quoted. The

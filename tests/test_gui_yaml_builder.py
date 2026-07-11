@@ -177,7 +177,7 @@ def minimal_form_values() -> dict[str, object]:
         "execution.download_pdb_structures": False,
         "export.output_dir": "examples/results/example_dataset",
         "export.format": "csv",
-        "export.store_graph_payloads_as_files": True,
+        "export.save_graph_payloads": True,
         "export.include_metadata": True,
         "export.include_summary": True,
         "export.manifest_file": "metadata.json",
@@ -338,7 +338,7 @@ def test_default_form_disables_enrichment_and_selects_no_sources() -> None:
     assert form_values["query.return_field_custom"] == ""
     assert form_values["execution.download_alphafold_structures"] is False
     assert form_values["execution.download_pdb_structures"] is False
-    assert form_values["export.store_graph_payloads_as_files"] is True
+    assert form_values["export.save_graph_payloads"] is True
 
 
 @pytest.mark.parametrize(
@@ -483,19 +483,19 @@ def test_selected_enrichment_sources_generate_crossref_fields() -> None:
 
 def test_graph_payload_checkbox_generates_file_storage_options() -> None:
     descriptor = build_workflow_descriptor(
-        minimal_form_values() | {"export.store_graph_payloads_as_files": True}
+        minimal_form_values() | {"export.save_graph_payloads": True}
     )
 
     assert descriptor["export"]["graph_payload_storage"] == "file"
     assert descriptor["export"]["graph_payload_compression"] == "gzip"
 
 
-def test_graph_payload_checkbox_can_disable_file_storage() -> None:
+def test_graph_payload_checkbox_can_disable_payload_storage() -> None:
     descriptor = build_workflow_descriptor(
-        minimal_form_values() | {"export.store_graph_payloads_as_files": False}
+        minimal_form_values() | {"export.save_graph_payloads": False}
     )
 
-    assert descriptor["export"]["graph_payload_storage"] == "inline"
+    assert descriptor["export"]["graph_payload_storage"] == "none"
     assert descriptor["export"]["graph_payload_compression"] == "gzip"
 
 
@@ -1554,7 +1554,7 @@ def test_descriptor_to_form_values_loads_supported_fields() -> None:
     assert form_values["harmonization.sequence_column"] == "sequence"
     assert form_values["harmonization.unique_sequence_strategy"] == "exact"
     assert form_values["export.format"] == "CSV"
-    assert form_values["export.store_graph_payloads_as_files"] is True
+    assert form_values["export.save_graph_payloads"] is True
     assert form_values["export.include_metadata"] is True
     assert form_values["export.include_summary"] is True
 
@@ -1660,7 +1660,18 @@ def test_loading_inline_graph_payload_storage_restores_checkbox_state() -> None:
 
     form_values, _warnings = load_workflow_yaml_to_form_values(yaml_text)
 
-    assert form_values["export.store_graph_payloads_as_files"] is False
+    assert form_values["export.save_graph_payloads"] is False
+
+
+def test_loading_none_graph_payload_storage_restores_checkbox_state() -> None:
+    yaml_text = minimal_workflow_yaml().replace(
+        "  graph_payload_storage: file",
+        "  graph_payload_storage: none",
+    )
+
+    form_values, _warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert form_values["export.save_graph_payloads"] is False
 
 
 def test_loading_both_graph_payload_storage_restores_checkbox_state() -> None:
@@ -1671,7 +1682,7 @@ def test_loading_both_graph_payload_storage_restores_checkbox_state() -> None:
 
     form_values, _warnings = load_workflow_yaml_to_form_values(yaml_text)
 
-    assert form_values["export.store_graph_payloads_as_files"] is True
+    assert form_values["export.save_graph_payloads"] is True
 
 
 def test_loading_missing_graph_payload_storage_defaults_checkbox_to_true() -> None:
@@ -1682,7 +1693,7 @@ def test_loading_missing_graph_payload_storage_defaults_checkbox_to_true() -> No
 
     form_values, _warnings = load_workflow_yaml_to_form_values(yaml_text)
 
-    assert form_values["export.store_graph_payloads_as_files"] is True
+    assert form_values["export.save_graph_payloads"] is True
 
 
 def test_missing_optional_list_fields_become_empty_strings() -> None:

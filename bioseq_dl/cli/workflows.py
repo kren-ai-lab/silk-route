@@ -574,7 +574,7 @@ def externalize_graph_payloads(
     graph_payload_compression: str,
 ) -> tuple[pd.DataFrame, dict[str, object]]:
     """Return a graph-light DataFrame after writing raw graph payload files."""
-    if graph_payload_storage == "inline" or GRAPH_JSON_COLUMN not in content.columns:
+    if graph_payload_storage in {"inline", "none"} or GRAPH_JSON_COLUMN not in content.columns:
         return content, {}
 
     export_df = content.copy()
@@ -663,7 +663,9 @@ def export_single_result(
                 "graph_payload_storage": graph_payload_storage,
                 "graph_payload_compression": graph_payload_compression,
             }
-            if graph_payload_storage != "inline":
+            if graph_payload_storage == "none":
+                export_df = export_df.drop(columns=[GRAPH_JSON_COLUMN])
+            elif graph_payload_storage != "inline":
                 export_df, file_graph_metadata = externalize_graph_payloads(
                     export_df,
                     output_dir=output_dir,
@@ -1363,6 +1365,7 @@ def run_workflow(
                 crossref_fields=workflow_values["crossref_fields"],
                 download_alphafold_structures=workflow_values["download_alphafold_structures"],
                 download_pdb_structures=workflow_values["download_pdb_structures"],
+                output_dir=workflow_values["output"],
             )
         elif workflow_values["mode"] == "query_composition":
             if "," not in workflow_values["query"]:
@@ -1386,6 +1389,7 @@ def run_workflow(
                 crossref_fields=workflow_values["crossref_fields"],
                 download_alphafold_structures=workflow_values["download_alphafold_structures"],
                 download_pdb_structures=workflow_values["download_pdb_structures"],
+                output_dir=workflow_values["output"],
             )
         else:
             msg = f"Unsupported workflow mode '{workflow_values['mode']}'."
@@ -1411,10 +1415,10 @@ def run_workflow(
         output_dir=output_dir,
         export_format=workflow_values["export_format"],
         id_column=workflow_values["id_column"],
-        graph_payload_storage=workflow_values["graph_payload_storage"],
-        graph_payload_compression=workflow_values["graph_payload_compression"],
-        workflow_metadata=workflow_metadata,
-    )
+                graph_payload_storage=workflow_values["graph_payload_storage"],
+                graph_payload_compression=workflow_values["graph_payload_compression"],
+                workflow_metadata=workflow_metadata,
+            )
 
     finished_at = dt.datetime.now(tz=dt.UTC).replace(microsecond=0).isoformat()
     duration_seconds = time.perf_counter() - start_time

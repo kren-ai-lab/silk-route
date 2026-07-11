@@ -10,7 +10,7 @@ MODALITIES = ["protein", "compound", "interaction"]
 MODES = ["query_first", "query_composition"]
 INTERACTION_TYPES = ["protein-protein", "protein-ligand"]
 FORMATS = ["csv", "json", "xml", "parquet"]
-GRAPH_PAYLOAD_STORAGE_OPTIONS = ["inline", "file", "both"]
+GRAPH_PAYLOAD_STORAGE_OPTIONS = ["inline", "file", "both", "none"]
 GRAPH_PAYLOAD_COMPRESSION_OPTIONS = ["none", "gzip"]
 
 REQUIRED_DESCRIPTOR_SECTIONS = {"dataset", "query", "execution", "export"}
