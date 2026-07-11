@@ -11,6 +11,10 @@ from typing import cast
 import yaml
 
 from bioseq_dl.constants.uniprot import XREF_MAPPING
+from bioseq_dl.gui.uniprot_return_fields import (
+    return_fields_from_selection,
+    split_known_and_custom_return_fields,
+)
 from bioseq_dl.workflow_schema_definition import (
     WORKFLOW_SCHEMA_VERSION,
     get_workflow_v1_schema_definition,
@@ -121,6 +125,11 @@ QUERY_INPUT_MODE_LABEL_TO_VALUE = {
     "Manual query": "manual",
     "Advanced builder": "advanced_builder",
 }
+REVIEW_STATUS_LABEL_TO_VALUE = {
+    "Any": "any",
+    "Reviewed only": "reviewed",
+    "Unreviewed only": "unreviewed",
+}
 UNIPROT_MATCH_MODE_LABEL_TO_VALUE = {
     "Any": "any",
     "All": "all",
@@ -149,30 +158,24 @@ DEFAULT_CHEMBL_IC50_FORM_ROW = {
     "value": "",
     "standard_units": "nM",
 }
-ENRICHMENT_SOURCE_OPTIONS: dict[str, tuple[str, tuple[str, ...]]] = {
-    "AlphaFold": (XREF_MAPPING["AlphaFold"][1], ()),
-    "BioGRID": (XREF_MAPPING["BioGRID"][1], ()),
-    "ChEMBL": (XREF_MAPPING["ChEMBL"][1], ()),
-    "ChEBI": (XREF_MAPPING["ChEBI"][1], ()),
-    "GO": (XREF_MAPPING["GO"][1], ()),
-    "InterPro": (XREF_MAPPING["InterPro"][1], ()),
-    "KEGG": (XREF_MAPPING["KEGG"][1], ()),
-    "PDB": (XREF_MAPPING["PDB"][1], ()),
-    "PubChem": (XREF_MAPPING["PubChem"][1], ()),
-    "Reactome": (XREF_MAPPING["Reactome"][1], ()),
-    "RefSeq": (XREF_MAPPING["RefSeq"][1], ()),
-    "Rhea": (XREF_MAPPING["Rhea"][1], ()),
-    "STRING": (XREF_MAPPING["StringDB"][1], ()),
-    "SABIO-RK": (XREF_MAPPING["SABIO-RK"][1], ()),
-    "PathwayCommons Neighborhood": (
-        "pathwaycommons_neighborhood",
-        ("accession", "organism_id"),
-    ),
-    "PathwayCommons Top Pathways": (
-        "pathwaycommons_top_pathways",
-        ("gene_primary", "organism_id"),
-    ),
-    "PathwayCommons Fetch": ("pathwaycommons_fetch", ("xref_pathwaycommons",)),
+ENRICHMENT_SOURCE_OPTIONS: dict[str, str] = {
+    "AlphaFold": XREF_MAPPING["AlphaFold"][1],
+    "BioGRID": XREF_MAPPING["BioGRID"][1],
+    "ChEMBL": XREF_MAPPING["ChEMBL"][1],
+    "ChEBI": XREF_MAPPING["ChEBI"][1],
+    "GO": XREF_MAPPING["GO"][1],
+    "InterPro": XREF_MAPPING["InterPro"][1],
+    "KEGG": XREF_MAPPING["KEGG"][1],
+    "PDB": XREF_MAPPING["PDB"][1],
+    "PubChem": XREF_MAPPING["PubChem"][1],
+    "Reactome": XREF_MAPPING["Reactome"][1],
+    "RefSeq": XREF_MAPPING["RefSeq"][1],
+    "Rhea": XREF_MAPPING["Rhea"][1],
+    "STRING": XREF_MAPPING["StringDB"][1],
+    "SABIO-RK": XREF_MAPPING["SABIO-RK"][1],
+    "PathwayCommons Neighborhood": "pathwaycommons_neighborhood",
+    "PathwayCommons Top Pathways": "pathwaycommons_top_pathways",
+    "PathwayCommons Fetch": "pathwaycommons_fetch",
 }
 
 DEFAULT_FORM_VALUES: dict[str, object] = {
@@ -184,6 +187,7 @@ DEFAULT_FORM_VALUES: dict[str, object] = {
     "query.input_mode": "manual",
     "query.builder.key": "uniprot",
     "query.value": "",
+    "query.review_status": "any",
     "query.uniprot_builder.rows": [
         {
             "connector": None,
@@ -226,6 +230,8 @@ DEFAULT_FORM_VALUES: dict[str, object] = {
         }
     ],
     "query.fields": "",
+    "query.return_field_selections": [],
+    "query.return_field_custom": "",
     "query.crossref_fields": "",
     "query.include_isoform": False,
     "execution.enrich": False,
@@ -261,6 +267,7 @@ FORM_VALUE_ALIASES: dict[str, tuple[str, ...]] = {
     "query.input_mode": ("query_input_mode",),
     "query.builder.key": ("query_builder_key",),
     "query.value": ("query_value",),
+    "query.review_status": ("query_review_status",),
     "query.uniprot_builder.rows": ("query_uniprot_builder_rows",),
     "query.chembl_builder.rows": ("query_chembl_builder_rows",),
     "query.chembl_ic50_builder.row": ("query_chembl_ic50_builder_row",),
@@ -268,6 +275,8 @@ FORM_VALUE_ALIASES: dict[str, tuple[str, ...]] = {
     "query.chebi_builder.rows": ("query_chebi_builder_rows",),
     "query.composition.entries": ("query_composition_entries",),
     "query.fields": ("query_fields",),
+    "query.return_field_selections": ("query_return_field_selections",),
+    "query.return_field_custom": ("query_return_field_custom",),
     "query.crossref_fields": ("query_crossref_fields",),
     "query.include_isoform": ("query_include_isoform",),
     "execution.enrich": ("execution_enrich",),
@@ -300,6 +309,7 @@ def workflow_yaml_form_defaults() -> dict[str, object]:
     schema = get_workflow_v1_schema_definition()
     defaults = deepcopy(DEFAULT_FORM_VALUES)
     gui_only_defaults = {
+        "query.review_status",
         "execution.download_alphafold_structures",
         "execution.download_pdb_structures",
     }
@@ -374,6 +384,102 @@ def get_labeled_option_default(value: object, label_to_value: Mapping[str, objec
         if value == internal_value:
             return label
     return str(value)
+
+
+def normalize_review_status(value: object) -> str:
+    """Normalize the GUI-only UniProt review-status selector value."""
+    normalized = normalize_labeled_value(value, REVIEW_STATUS_LABEL_TO_VALUE)
+    if normalized in {"any", "reviewed", "unreviewed"}:
+        return str(normalized)
+    return "any"
+
+
+def is_top_level_reviewed_filter(value: str) -> str | None:
+    """Return the reviewed status represented by one simple reviewed filter."""
+    match = re.fullmatch(r"\s*reviewed\s*:\s*(true|false)\s*", value, flags=re.IGNORECASE)
+    if match is None:
+        return None
+    return "reviewed" if match.group(1).lower() == "true" else "unreviewed"
+
+
+def split_top_level_and_clauses(query: str) -> list[str]:
+    """Split a query on top-level AND operators while preserving clause text."""
+    text = str(query or "")
+    clauses: list[str] = []
+    start = 0
+    quote: str | None = None
+    depth = 0
+    index = 0
+    while index < len(text):
+        character = text[index]
+        if quote is not None:
+            if character == quote:
+                quote = None
+            index += 1
+            continue
+        if character in {"'", '"'}:
+            quote = character
+            index += 1
+            continue
+        if character == "(":
+            depth += 1
+            index += 1
+            continue
+        if character == ")" and depth > 0:
+            depth -= 1
+            index += 1
+            continue
+        if (
+            depth == 0
+            and text[index : index + 3].lower() == "and"
+            and (index == 0 or not text[index - 1].isalnum())
+            and (index + 3 == len(text) or not text[index + 3].isalnum())
+        ):
+            clauses.append(text[start:index].strip())
+            index += 3
+            start = index
+            continue
+        index += 1
+    clauses.append(text[start:].strip())
+    return [clause for clause in clauses if clause]
+
+
+def remove_top_level_reviewed_filter(query: str) -> str:
+    """Remove simple top-level reviewed:true or reviewed:false filters from a query."""
+    clauses = split_top_level_and_clauses(query)
+    kept_clauses = [clause for clause in clauses if is_top_level_reviewed_filter(clause) is None]
+    if len(kept_clauses) == len(clauses):
+        return str(query or "").strip()
+    return " AND ".join(kept_clauses)
+
+
+def extract_review_status_from_query(query: str) -> tuple[str, str]:
+    """Extract a shared simple top-level reviewed filter from a query."""
+    clauses = split_top_level_and_clauses(query)
+    statuses = [
+        status
+        for status in (is_top_level_reviewed_filter(clause) for clause in clauses)
+        if status is not None
+    ]
+    if not statuses or len(set(statuses)) > 1:
+        return "any", str(query or "").strip()
+    return statuses[0], remove_top_level_reviewed_filter(query)
+
+
+def apply_review_status_to_query(query: str, review_status: str) -> str:
+    """Apply the GUI-only review-status selector to an executable query string."""
+    normalized_status = normalize_review_status(review_status)
+    if normalized_status == "any":
+        extracted_status, base_query = extract_review_status_from_query(query)
+        if extracted_status != "any":
+            return base_query
+        return str(query or "").strip()
+
+    base_query = remove_top_level_reviewed_filter(query)
+    reviewed_filter = "reviewed:true" if normalized_status == "reviewed" else "reviewed:false"
+    if not base_query:
+        return reviewed_filter
+    return f"{base_query} AND {reviewed_filter}"
 
 
 def get_mapping_section(
@@ -484,6 +590,7 @@ def build_query_composition_metadata(
     *,
     modality: str = "protein",
     interaction_type: str | None = None,
+    review_status: str = "any",
 ) -> list[dict[str, object]]:
     """Build validated query.composition metadata from GUI entries."""
     if not isinstance(entries, list) or not entries:
@@ -502,6 +609,8 @@ def build_query_composition_metadata(
             modality=modality,
             interaction_type=interaction_type,
         ).strip()
+        if normalize_review_status(review_status) != "any":
+            value = apply_review_status_to_query(value, review_status)
         description = str(entry.get("description") or "").strip()
         if not label:
             msg = "Each labeled query needs a label."
@@ -547,14 +656,38 @@ def build_query_composition_value(
     *,
     modality: str = "protein",
     interaction_type: str | None = None,
+    review_status: str = "any",
 ) -> str:
     """Build the executable comma-separated query=label string."""
     metadata = build_query_composition_metadata(
         entries,
         modality=modality,
         interaction_type=interaction_type,
+        review_status=review_status,
     )
+    return build_query_composition_value_from_metadata(metadata)
+
+
+def build_query_composition_value_from_metadata(metadata: list[dict[str, object]]) -> str:
+    """Build the executable query-composition value from validated metadata."""
     return ",".join(f"{entry['value']}={entry['label']}" for entry in metadata)
+
+
+def extract_shared_review_status_from_entries(
+    entries: list[dict[str, object]],
+) -> tuple[str, list[dict[str, object]]]:
+    """Extract a shared simple review-status filter from composition entries."""
+    stripped_entries = deepcopy(entries)
+    statuses = []
+    for entry in stripped_entries:
+        status, base_query = extract_review_status_from_query(str(entry.get("value") or ""))
+        if status == "any" or not base_query:
+            return "any", entries
+        entry["value"] = base_query
+        statuses.append(status)
+    if statuses and len(set(statuses)) == 1:
+        return statuses[0], stripped_entries
+    return "any", entries
 
 
 def load_query_composition_entries(
@@ -562,12 +695,11 @@ def load_query_composition_entries(
     *,
     modality: str = "protein",
     interaction_type: str | None = None,
-) -> tuple[list[dict[str, object]], list[str]]:
+) -> tuple[list[dict[str, object]], list[str], str]:
     """Load GUI composition entries and soft builder-restoration notes."""
     composition = query_section.get("composition")
     if composition is not None:
         entries = []
-        notes = []
         for item in cast("list[Mapping[str, object]]", composition):
             entry = make_query_composition_entry()
             entry.update(
@@ -579,21 +711,28 @@ def load_query_composition_entries(
             )
             builder_metadata = item.get("builder")
             if builder_metadata is not None:
-                note = restore_query_composition_entry_builder_state(
-                    entry,
-                    builder_metadata,
-                    modality=modality,
-                    interaction_type=interaction_type,
-                )
-                if note:
-                    notes.append(note)
+                entry["_builder_metadata"] = builder_metadata
             entries.append(entry)
+        review_status, entries = extract_shared_review_status_from_entries(entries)
+        notes = []
+        for entry in entries:
+            builder_metadata = entry.pop("_builder_metadata", None)
+            if builder_metadata is None:
+                continue
+            note = restore_query_composition_entry_builder_state(
+                entry,
+                builder_metadata,
+                modality=modality,
+                interaction_type=interaction_type,
+            )
+            if note:
+                notes.append(note)
         build_query_composition_metadata(
             entries,
             modality=modality,
             interaction_type=interaction_type,
         )
-        return entries, notes
+        return entries, notes, review_status
 
     pairs = parse_query_composition_value(str(query_section.get("value") or ""))
     entries = []
@@ -601,12 +740,13 @@ def load_query_composition_entries(
         entry = make_query_composition_entry()
         entry.update({"label": label, "value": query_value})
         entries.append(entry)
+    review_status, entries = extract_shared_review_status_from_entries(entries)
     build_query_composition_metadata(
         entries,
         modality=modality,
         interaction_type=interaction_type,
     )
-    return entries, []
+    return entries, [], review_status
 
 
 def restore_query_composition_entry_builder_state(
@@ -721,8 +861,17 @@ def descriptor_to_form_values(descriptor: Mapping[str, object]) -> dict[str, obj
         "manual",
         QUERY_INPUT_MODE_LABEL_TO_VALUE,
     )
-    form_values["query.value"] = str(query.get("value") or "")
+    review_status, query_value = extract_review_status_from_query(
+        str(query.get("value") or "")
+    )
+    form_values["query.review_status"] = review_status
+    form_values["query.value"] = query_value
     form_values["query.fields"] = csv_text_from_value(query.get("fields"))
+    return_field_selections, return_field_custom = split_known_and_custom_return_fields(
+        query.get("fields")
+    )
+    form_values["query.return_field_selections"] = return_field_selections
+    form_values["query.return_field_custom"] = ", ".join(return_field_custom)
     form_values["query.crossref_fields"] = csv_text_from_value(query.get("crossref_fields"))
     form_values["execution.enrichment_sources"] = enrichment_sources_from_crossref_fields(
         query.get("crossref_fields")
@@ -796,7 +945,7 @@ def restore_loaded_query_builder_form_values(
 
         restoration = restore_query_builder_metadata(
             metadata,
-            query.get("value"),
+            form_values.get("query.value", query.get("value")),
             modality,
             interaction_type,
         )
@@ -852,7 +1001,7 @@ def restore_loaded_query_composition_form_values(
     interaction_type_value = dataset.get("interaction_type")
     interaction_type = str(interaction_type_value) if interaction_type_value else None
     try:
-        entries, notes = load_query_composition_entries(
+        entries, notes, review_status = load_query_composition_entries(
             query,
             modality=modality,
             interaction_type=interaction_type,
@@ -863,6 +1012,7 @@ def restore_loaded_query_composition_form_values(
         form_values["query.composition.entries"] = [entry]
         return [QUERY_COMPOSITION_PARSE_ERROR_NOTE]
     form_values["query.composition.entries"] = entries
+    form_values["query.review_status"] = review_status
     if "composition" not in query:
         notes.append(QUERY_COMPOSITION_VALUE_PARSED_NOTE)
     return notes
@@ -1167,7 +1317,7 @@ def parse_csv_list(value: object) -> list[str]:
 
 def get_enrichment_source_options() -> dict[str, str]:
     """Return GUI labels mapped to executable enrichment source keys."""
-    return {label: source_key for label, (source_key, _) in ENRICHMENT_SOURCE_OPTIONS.items()}
+    return dict(ENRICHMENT_SOURCE_OPTIONS)
 
 
 def normalize_enrichment_sources(value: object) -> list[str]:
@@ -1225,21 +1375,14 @@ def crossref_fields_from_enrichment_sources(
     return ", ".join(fields)
 
 
-def query_fields_from_enrichment_sources(
-    sources: object,
-    *,
-    existing_query_fields: object = None,
-) -> str:
-    """Return query fields with requirements for selected enrichment sources."""
-    fields = parse_csv_list(existing_query_fields)
-    known_fields = {field.casefold() for field in fields}
-    requirements_by_source = dict(ENRICHMENT_SOURCE_OPTIONS.values())
-    for source in normalize_enrichment_sources(sources):
-        for required_field in requirements_by_source[source]:
-            if required_field.casefold() not in known_fields:
-                fields.append(required_field)
-                known_fields.add(required_field.casefold())
-    return ", ".join(fields)
+def return_fields_for_yaml(form_values: Mapping[str, object]) -> str:
+    """Resolve GUI return-field selector state to the canonical query.fields text."""
+    selected_fields = get_form_value(form_values, "query.return_field_selections")
+    custom_fields = get_form_value(form_values, "query.return_field_custom")
+    combined_fields = return_fields_from_selection(selected_fields, custom_fields)
+    if combined_fields:
+        return combined_fields
+    return csv_text_from_value(get_form_value(form_values, "query.fields"))
 
 
 def build_workflow_filename(dataset_name: object) -> str:
@@ -1386,6 +1529,21 @@ def add_optional_list(section: dict[str, object], key: str, value: object) -> No
         section[key] = parsed
 
 
+def review_status_for_form(form_values: Mapping[str, object]) -> str:
+    """Return the active GUI-only review status when it applies to the dataset."""
+    modality = normalize_labeled_value(
+        get_form_value(form_values, "dataset.modality"),
+        MODALITY_LABEL_TO_VALUE,
+    )
+    interaction_type = normalize_labeled_value(
+        get_form_value(form_values, "dataset.interaction_type"),
+        INTERACTION_TYPE_LABEL_TO_VALUE,
+    )
+    if modality == "protein" or (modality == "interaction" and interaction_type == "protein-protein"):
+        return normalize_review_status(get_form_value(form_values, "query.review_status"))
+    return "any"
+
+
 def build_dataset_section(form_values: Mapping[str, object]) -> dict[str, object]:
     """Build the workflow dataset section."""
     modality = normalize_labeled_value(
@@ -1415,6 +1573,7 @@ def build_query_section(form_values: Mapping[str, object]) -> dict[str, object]:
         get_form_value(form_values, "dataset.mode"),
         WORKFLOW_MODE_LABEL_TO_VALUE,
     )
+    review_status = review_status_for_form(form_values)
     if workflow_mode == "query_composition":
         entries = get_form_value(form_values, "query.composition.entries")
         modality = str(
@@ -1432,27 +1591,22 @@ def build_query_section(form_values: Mapping[str, object]) -> dict[str, object]:
             entries,
             modality=modality,
             interaction_type=interaction_type,
+            review_status=review_status,
         )
         query: dict[str, object] = {
-            "value": build_query_composition_value(
-                entries,
-                modality=modality,
-                interaction_type=interaction_type,
-            ),
+            "value": build_query_composition_value_from_metadata(composition_metadata),
             "include_isoform": parse_bool(get_form_value(form_values, "query.include_isoform")),
         }
     else:
         query = {
-            "value": resolve_query_value_from_form(form_values),
+            "value": apply_review_status_to_query(
+                resolve_query_value_from_form(form_values),
+                review_status,
+            ),
             "include_isoform": parse_bool(get_form_value(form_values, "query.include_isoform")),
         }
 
-    query_fields = get_form_value(form_values, "query.fields")
-    if has_form_value(form_values, "execution.enrichment_sources"):
-        query_fields = query_fields_from_enrichment_sources(
-            get_form_value(form_values, "execution.enrichment_sources"),
-            existing_query_fields=query_fields,
-        )
+    query_fields = return_fields_for_yaml(form_values)
     add_optional_list(query, "fields", query_fields)
     crossref_fields = get_form_value(form_values, "query.crossref_fields")
     if has_form_value(form_values, "execution.enrichment_sources"):

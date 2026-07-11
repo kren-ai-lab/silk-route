@@ -20,7 +20,7 @@ def base_form_values() -> dict[str, object]:
         "dataset.modality": "protein",
         "dataset.mode": "query_first",
         "query.input_mode": "manual",
-        "query.value": "reviewed:true",
+        "query.value": "organism_id:9606",
         "execution.enrich": False,
         "execution.max_workers": 5,
         "execution.total_retries": 3,

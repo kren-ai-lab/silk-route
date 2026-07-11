@@ -58,3 +58,43 @@ def test_id_mapping_flow_resolves_and_fetches_results(interface, mocked_response
 
     fetched = interface.get_id_mapping_results_search(resolved)
     assert fetched["results"][0]["from"] == "P12345"
+
+
+def test_submit_stream_uses_search_endpoint_and_combines_results(interface, mocked_responses):
+    first_page = {
+        "results": [
+            {"primaryAccession": "P00001"},
+        ]
+    }
+    second_page = {
+        "results": [
+            {"primaryAccession": "P00002"},
+        ]
+    }
+    next_link = f"{API_URL}/uniprotkb/search?cursor=next"
+    mocked_responses.add(
+        responses.GET,
+        f"{API_URL}/uniprotkb/search",
+        json=first_page,
+        status=200,
+        headers={"x-total-results": "2", "Link": f'<{next_link}>; rel="next"'},
+    )
+    mocked_responses.add(
+        responses.GET,
+        next_link,
+        json=second_page,
+        status=200,
+    )
+
+    payload, metadata = interface.submit_stream(
+        query="reviewed:true",
+        fields="accession",
+        sort="accession asc",
+    )
+
+    assert [record["primaryAccession"] for record in payload["results"]] == ["P00001", "P00002"]
+    assert "/uniprotkb/search" in mocked_responses.calls[0].request.url
+    assert "/uniprotkb/stream" not in mocked_responses.calls[0].request.url
+    assert metadata["search_process"]["endpoint_path"] == "/uniprotkb/search"
+    assert metadata["search_process"]["total_results"] == 2
+    assert metadata["search_process"]["retrieved_results"] == 2

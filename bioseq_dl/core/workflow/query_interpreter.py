@@ -59,7 +59,7 @@ def compact_parentheses_spacing(value: str) -> str:
 
 def _remove_unknown_field_match(match: re.Match, allowed_fields: set[str]) -> str:
     """Remove fielded query matches that are not in the allowed field set."""
-    field_name = match.group(2)
+    field_name = match.group(2).lower()
     if field_name not in allowed_fields:
         return " "
     return match.group(0)
@@ -155,12 +155,13 @@ class BaseQueryInterpreter:
                 resolved_final.append(item)
                 continue
             prefix, value = item.split(":", 1)
-            field_cfg = self.config.fields.get(prefix, None)
+            field_key = prefix.lower()
+            field_cfg = self.config.fields.get(field_key, None)
             if not field_cfg:
                 resolved_final.append(item)
                 continue
 
-            prefix = self._format_prefix(prefix, field_cfg)
+            prefix = self._format_prefix(field_key, field_cfg)
             value = strip_surrounding_quotes(value)
             formatted_value = self._format_value_for_field(value, field_cfg)
             if formatted_value:
@@ -308,7 +309,7 @@ class BaseQueryInterpreter:
         """
         out = text or ""
         for friendly, native in (self.config.field_aliases or {}).items():
-            pattern = re.compile(rf"\b{re.escape(friendly)}:")
+            pattern = re.compile(rf"\b{re.escape(friendly)}:", flags=re.IGNORECASE)
             out = pattern.sub(f"{native}:", out)
         return out
 
@@ -342,7 +343,7 @@ class BaseQueryInterpreter:
     def _remove_all_fields(self, text: str) -> str:
         """Remove all fielded queries from the text, except those in the configuration fields."""
         out = text or ""
-        allowed_fields = set(self.config.fields.keys())
+        allowed_fields = {field.lower() for field in self.config.fields}
 
         pattern = re.compile(
             r"(\s*(?:AND|OR|NOT)\s+)?"  # optional leading boolean
@@ -456,6 +457,7 @@ class UniProtQueryInterpreter(BaseQueryInterpreter):
             # Ignore _any/_all/_not suffixes for this purpose
             if "_" in prefix:
                 prefix = prefix.rsplit("_", 1)[0]
+            prefix = prefix.lower()
 
             if prefix == "databases":
                 for database in value.split(","):
@@ -491,8 +493,6 @@ def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
     }
 
     field_aliases = {
-        "taxon": "taxonomy_id",
-        "taxid": "taxonomy_id",
         "org": "organism",
         "db": "database",
         "xref": "database",

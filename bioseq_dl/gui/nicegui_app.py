@@ -49,6 +49,10 @@ from bioseq_dl.gui.query_builders.uniprot import (
     build_uniprot_interpreted_query,
     get_uniprot_query_builder_field_metadata,
 )
+from bioseq_dl.gui.uniprot_return_fields import (
+    get_uniprot_return_field_options,
+    return_fields_from_selection,
+)
 from bioseq_dl.gui.yaml_builder import (
     CHEBI_BUILDER_RESOURCE_BY_KEY,
     CHEMBL_BUILDER_RESOURCE_BY_KEY,
@@ -60,8 +64,10 @@ from bioseq_dl.gui.yaml_builder import (
     PUBCHEM_BUILDER_RESOURCE_BY_KEY,
     QUERY_COMPOSITION_PARSE_ERROR_NOTE,
     QUERY_INPUT_MODE_LABEL_TO_VALUE,
+    REVIEW_STATUS_LABEL_TO_VALUE,
     UNIPROT_MATCH_MODE_LABEL_TO_VALUE,
     WORKFLOW_MODE_LABEL_TO_VALUE,
+    apply_review_status_to_query,
     build_chebi_builder_rows_from_form,
     build_chembl_builder_rows_from_form,
     build_chembl_ic50_builder_row_from_form,
@@ -81,9 +87,9 @@ from bioseq_dl.gui.yaml_builder import (
     normalize_query_builder_key,
     normalize_query_input_mode,
     parse_bool,
-    query_fields_from_enrichment_sources,
     render_workflow_yaml,
     resolve_query_composition_entry_value,
+    review_status_for_form,
     validate_generated_descriptor,
     workflow_yaml_gui_form_defaults,
 )
@@ -131,6 +137,9 @@ DEFAULT_CHEBI_OPERATORS_BY_FIELD = {
 }
 SUPPORTED_WORKFLOW_YAML_SUFFIXES = (".yml", ".yaml")
 NO_INTERACTION_LABEL = get_labeled_option_default(None, INTERACTION_TYPE_LABEL_TO_VALUE)
+REVIEW_STATUS_VALUE_TO_LABEL = {
+    value: label for label, value in REVIEW_STATUS_LABEL_TO_VALUE.items()
+}
 
 
 def is_supported_workflow_yaml_filename(filename: object) -> bool:
@@ -538,6 +547,15 @@ def should_show_interaction_type_selector(form_values: dict[str, object]) -> boo
     return get_dataset_modality_value(form_values) == "interaction"
 
 
+def should_show_review_status_selector(form_values: dict[str, object]) -> bool:
+    """Return whether the UniProt review-status selector applies to the dataset."""
+    modality = get_dataset_modality_value(form_values)
+    interaction_type = get_dataset_interaction_type_value(form_values)
+    return modality == "protein" or (
+        modality == "interaction" and interaction_type == "protein-protein"
+    )
+
+
 def is_query_composition_workflow_mode(value: object) -> bool:
     """Return whether a GUI workflow mode value means query composition."""
     return (
@@ -590,6 +608,7 @@ class WorkflowYamlBuilderApp:
         self.query_composition_entry_previews: dict[int, Any] = {}
         self.query_builder_select: Any = None
         self.enrichment_sources_select: Any = None
+        self.return_fields_select: Any = None
         self.query_fields_input: Any = None
         self.crossref_fields_input: Any = None
         self.interaction_type_select: Any = None
@@ -1198,15 +1217,66 @@ class WorkflowYamlBuilderApp:
             "standard_units. Unit conversion is not applied."
         ).classes("text-xs text-gray-600")
 
+    def sync_return_fields_to_query_fields(self) -> None:
+        """Synchronize visible return-field controls to the canonical query.fields value."""
+        self.form_values["query.fields"] = return_fields_from_selection(
+            self.form_values.get("query.return_field_selections"),
+            self.form_values.get("query.return_field_custom"),
+        )
+
+    def handle_return_field_selections_change(self, event: object) -> None:
+        """Update canonical query.fields after the return-field selector changes."""
+        if self.is_loading_form_values:
+            return
+        self.form_values["query.return_field_selections"] = getattr(event, "value", []) or []
+        self.sync_return_fields_to_query_fields()
+
+    def handle_advanced_return_fields_change(self, event: object) -> None:
+        """Update canonical query.fields after advanced return fields change."""
+        if self.is_loading_form_values:
+            return
+        self.form_values["query.return_field_custom"] = str(getattr(event, "value", "") or "")
+        self.sync_return_fields_to_query_fields()
+
+    def handle_review_status_change(self, event: object) -> None:
+        """Refresh query previews after the GUI-only review status changes."""
+        if self.is_loading_form_values:
+            return
+        self.form_values["query.review_status"] = getattr(event, "value", "any") or "any"
+        if is_query_composition_workflow_mode(self.form_values["dataset.mode"]):
+            self.update_query_composition_preview()
+        else:
+            self.update_builder_previews()
+
     def build_shared_query_controls(self) -> None:
         """Build query options shared by both workflow modes."""
         with ui.grid(columns=2).classes("w-full gap-3"):
-            self.query_fields_input = (
-                ui.input("Return fields")
-                .props('clearable placeholder="accession, protein_name, organism_name, sequence"')
-                .bind_value(self.form_values, "query.fields")
+            if should_show_review_status_selector(self.form_values):
+                (
+                    ui.select(
+                        REVIEW_STATUS_VALUE_TO_LABEL,
+                        label="Review status",
+                    )
+                    .bind_value(self.form_values, "query.review_status")
+                    .on_value_change(self.handle_review_status_change)
+                    .classes("w-full")
+                    .tooltip(
+                        "Adds reviewed:true or reviewed:false to the generated UniProt query."
+                    )
+                )
+            self.return_fields_select = (
+                ui.select(
+                    get_uniprot_return_field_options(),
+                    label="UniProt return fields",
+                    multiple=True,
+                )
+                .props("clearable use-input")
+                .bind_value(self.form_values, "query.return_field_selections")
+                .on_value_change(self.handle_return_field_selections_change)
+                .classes("w-full")
                 .tooltip(
-                    "Optional output/request fields. Enter comma-separated values."
+                    "Selected fields are written to query.fields and passed to UniProt as "
+                    "requested API fields."
                 )
             )
             (
@@ -1216,6 +1286,21 @@ class WorkflowYamlBuilderApp:
                     "Whether UniProt isoforms should be included when supported by the workflow."
                 )
             )
+            self.query_fields_input = (
+                ui.input("Advanced return fields")
+                .props('clearable placeholder="custom_field, accession"')
+                .bind_value(self.form_values, "query.return_field_custom")
+                .on_value_change(self.handle_advanced_return_fields_change)
+                .classes("w-full")
+                .tooltip(
+                    "Optional comma-separated UniProt field IDs not listed above. Technical "
+                    "xref_* fields are usually resolved from enrichment sources."
+                )
+            )
+            ui.label(
+                "Selected fields are written to query.fields and passed to UniProt as "
+                "requested API fields."
+            ).classes("text-xs text-gray-600")
 
     def get_query_composition_entries(self) -> list[dict[str, object]]:
         """Return mutable composition entries from the form state."""
@@ -1544,6 +1629,7 @@ class WorkflowYamlBuilderApp:
                 self.get_query_composition_entries(),
                 modality=get_dataset_modality_value(self.form_values),
                 interaction_type=get_dataset_interaction_type_value(self.form_values),
+                review_status=review_status_for_form(self.form_values),
             )
         except (TypeError, ValueError) as exc:
             preview = f"Composition error: {exc}"
@@ -2244,6 +2330,10 @@ class WorkflowYamlBuilderApp:
             self.friendly_query_preview.value = ""
             self.interpreted_query_preview.value = f"Builder error: {exc}"
             return
+        interpreted_query = apply_review_status_to_query(
+            interpreted_query,
+            review_status_for_form(self.form_values),
+        )
         self.friendly_query_preview.value = friendly_query
         self.interpreted_query_preview.value = interpreted_query
 
@@ -2353,14 +2443,6 @@ class WorkflowYamlBuilderApp:
             return
         sources = normalize_enrichment_sources(getattr(event, "value", []))
         self.form_values["execution.enrichment_sources"] = sources
-        query_fields = query_fields_from_enrichment_sources(
-            sources,
-            existing_query_fields=self.form_values.get("query.fields"),
-        )
-        self.form_values["query.fields"] = query_fields
-        if self.query_fields_input is not None:
-            self.query_fields_input.value = query_fields
-            self.query_fields_input.update()
         crossref_fields = crossref_fields_from_enrichment_sources(
             sources,
             existing_crossref_fields=self.form_values.get("query.crossref_fields"),

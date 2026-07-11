@@ -266,7 +266,8 @@ def test_builder_query_mismatch_falls_back_to_manual_query() -> None:
     form_values, warnings = load_descriptor(descriptor)
 
     assert form_values["query.input_mode"] == "Manual query"
-    assert form_values["query.value"] == "reviewed:true"
+    assert form_values["query.value"] == ""
+    assert form_values["query.review_status"] == "reviewed"
     assert QUERY_BUILDER_MISMATCH_WARNING in warnings
 
 
@@ -305,7 +306,8 @@ def test_manual_mode_omits_restored_builder_metadata() -> None:
     form_values, warnings = load_descriptor(descriptor)
     assert warnings == []
     form_values["query.input_mode"] = "Manual query"
-    form_values["query.value"] = "reviewed:true"
+    form_values["query.value"] = ""
+    form_values["query.review_status"] = "reviewed"
 
     regenerated = build_workflow_descriptor(form_values)
 

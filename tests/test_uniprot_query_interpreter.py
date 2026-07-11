@@ -23,6 +23,23 @@ def test_uniprot_interpreter_resolves_quoted_keyword_values():
     )
 
 
+def test_uniprot_interpreter_resolves_keyword_alias_and_antimicrobial_keyword():
+    interpreter = build_default_uniprot_interpreter()
+
+    assert interpreter.interpret("keyword:Antimicrobial AND reviewed:true") == (
+        "keyword:KW-0929 AND reviewed:true"
+    )
+    assert interpreter.interpret("keywords:Antimicrobial AND reviewed:true") == (
+        "keyword:KW-0929 AND reviewed:true"
+    )
+
+
+def test_uniprot_interpreter_preserves_reviewed_field():
+    interpreter = build_default_uniprot_interpreter()
+
+    assert interpreter.interpret("reviewed:true") == "reviewed:true"
+
+
 def test_uniprot_interpreter_resolves_quoted_go_values():
     interpreter = build_default_uniprot_interpreter()
 
@@ -39,6 +56,23 @@ def test_uniprot_interpreter_keeps_temperature_ranges_working():
         interpreter.interpret("temperature_any:20-30,50-60")
         == "(cc_bpcp_temp_dependence:20-30 OR cc_bpcp_temp_dependence:50-60)"
     )
+
+
+def test_uniprot_interpreter_resolves_field_prefixes_case_insensitively():
+    interpreter = build_default_uniprot_interpreter()
+
+    assert interpreter.interpret("Length:100-101") == "length:[100 TO 101]"
+    assert interpreter.interpret("LENGTH:100-101") == "length:[100 TO 101]"
+    assert interpreter.interpret("Keyword:Antimicrobial") == "keyword:KW-0929"
+    assert interpreter.interpret("TAXON:human") == "taxonomy_id:9606"
+
+
+def test_uniprot_interpreter_keeps_degenerate_length_ranges_as_uniprot_ranges():
+    interpreter = build_default_uniprot_interpreter()
+
+    assert interpreter.interpret("length:100-100") == "length:[100 TO 100]"
+    assert interpreter.interpret("length:100-101") == "length:[100 TO 101]"
+    assert interpreter.interpret("length:100") == "length:100"
 
 
 def test_uniprot_interpreter_handles_quoted_values_with_connectors():

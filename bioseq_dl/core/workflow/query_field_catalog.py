@@ -51,6 +51,7 @@ def build_uniprot_go_name_map() -> dict[str, str]:
 def build_uniprot_keyword_map() -> dict[str, str]:
     """Return supported friendly UniProt keyword names mapped to keyword ids."""
     return {
+        "antimicrobial": "KW-0929",
         "atp binding": "KW-0067",
         "metal-binding": "KW-0479",
         "antiviral defense": "KW-0051",
@@ -141,6 +142,26 @@ def get_uniprot_query_field_catalog() -> dict[str, UniProtQueryFieldCatalogEntry
             native_field="keyword",
             value_map=keyword_map,
             resolver_kind="keyword_map",
+        ),
+        make_uniprot_query_field_entry(
+            key="keyword",
+            label="Keyword",
+            description="UniProt keyword or supported friendly keyword name.",
+            placeholder="Antimicrobial",
+            examples=("Antimicrobial", "KW-0929"),
+            native_field="keyword",
+            value_map=keyword_map,
+            resolver_kind="keyword_map",
+            query_builder_visible=False,
+        ),
+        make_uniprot_query_field_entry(
+            key="reviewed",
+            label="Reviewed",
+            description="UniProt reviewed status.",
+            placeholder="true",
+            examples=("true", "false"),
+            native_field="reviewed",
+            query_builder_visible=False,
         ),
         make_uniprot_query_field_entry(
             key="go",

@@ -150,8 +150,8 @@ workflow behavior today:
 | `dataset.mode` | Selects `query_first` or `query_composition`. |
 | `dataset.interaction_type` | Required for interaction workflows and validated as `protein-protein` or `protein-ligand`. |
 | `query.value` | The executable query string. |
-| `query.fields` | Passed to UniProt as requested API fields. |
-| `query.crossref_fields` | Used by supported enrichment paths when enrichment is enabled. |
+| `query.fields` | User-selected UniProt request/result fields. |
+| `query.crossref_fields` | Enrichment source selections used by supported enrichment paths when enrichment is enabled. |
 | `query.include_isoform` | Passed to UniProt requests. |
 | `execution.enrich` | Enables supported enrichment behavior. |
 | `execution.max_workers` | Controls worker count for supported workflow/enrichment paths. |
@@ -234,7 +234,11 @@ to `query.value`, while Advanced builder lets users choose a database-specific
 builder. The interpreted query preview is the value written to `query.value`.
 The friendly query preview is display-only. Advanced mode also writes neutral
 `query.builder` metadata so visual editors can restore its source-specific rows
-later; Manual query mode omits it.
+later; Manual query mode omits it. For UniProt-style protein queries, the GUI
+includes a Review status selector that maps to `reviewed:true` or
+`reviewed:false` inside `query.value`. The workflow-v1 schema does not add a
+separate reviewed key; users can also write the reviewed filter manually in
+YAML.
 
 For `query_composition`, the GUI includes a labeled query editor. Each entry has
 a label, optional description, and either a manual query value or a compatible
@@ -293,15 +297,18 @@ writes `query_composition`, and modality labels write `protein`, `compound`, or
 `interaction`. `No interaction` omits `dataset.interaction_type` for protein and
 compound datasets; it is invalid when the selected modality is `Interaction`.
 
-`Return fields` accepts optional comma-separated values and remains separate
-from Advanced UniProt builder fields. Enrichment is disabled by default; its
-source selector and advanced cross-reference input appear only after `Enable
-enrichment` is selected. Selected GUI sources are written as lowercase keys in
-`query.crossref_fields`. Multiple sources are available, but actual enrichment
-depends on usable cross-reference data and enabled packaged endpoints. PubChem
-and ChEBI remain query sources/builders; their enrichment availability follows
-the same endpoint constraints. The builder prepares query text only; network
-access happens later when the CLI runs the workflow.
+`UniProt return fields` is a selectable list of normal UniProt request/result
+fields. Selected values are stored as field IDs in `query.fields`; an advanced
+manual input remains available for custom UniProt field IDs. Technical `xref_*`
+fields are usually derived internally from selected enrichment sources rather
+than shown as normal return-field choices. Enrichment is disabled by default;
+its source selector and advanced cross-reference input appear only after
+`Enable enrichment` is selected. Selected GUI sources are written as lowercase
+keys in `query.crossref_fields`. Multiple sources are available, but actual
+enrichment depends on usable cross-reference data and enabled packaged
+endpoints. PubChem and ChEBI remain query sources/builders; their enrichment
+availability follows the same endpoint constraints. The builder prepares query
+text only; network access happens later when the CLI runs the workflow.
 
 `ChEMBL workflow pages to fetch` is located under collapsed source-specific
 execution options. It controls ChEMBL pagination and is not a general
@@ -549,8 +556,8 @@ deduplication are handled by the workflow logic that supports those operations.
 | `composition` | list of mappings | Optional | omitted | Neutral visual-editor metadata | Preserved in descriptor metadata and summary | `query.value` remains executable. Each item requires non-empty `label` and `value`, with optional `description` and per-entry `builder` mapping. |
 | `description` | string or null | Optional | `null` | Descriptive | Preserved in metadata and summary | Used as descriptor context. |
 | `filtering_strategy` | string or null | Optional | `null` | Descriptive | Preserved in metadata and summary | Filtering must be encoded in `query.value`; `query.filters` is not supported. |
-| `fields` | null, string, or list of strings | Optional | `null` | Executable | Normalized to `workflow_values["fields"]` and passed to the UniProt fetch as the API `fields` parameter | It controls requested UniProt fields. Parser columns still come from the workflow parser's field map. |
-| `crossref_fields` | null, string, or list of strings | Optional | `null` | Executable when enrichment is enabled | Normalized to `workflow_values["crossref_fields"]` and passed to the enrichment path | Used with `execution.enrich`; unavailable or unsupported cross-reference fields may produce no enrichment output. |
+| `fields` | null, string, or list of strings | Optional | `null` | Executable | Normalized to `workflow_values["fields"]` and passed to the UniProt fetch as requested API fields | It controls normal requested UniProt fields. Parser columns still come from the workflow parser's field map. BioSeqDownloader may add technical `xref_*` request fields internally when enrichment needs cross-reference identifiers. |
+| `crossref_fields` | null, string, or list of strings | Optional | `null` | Executable when enrichment is enabled | Normalized to `workflow_values["crossref_fields"]` and passed to the enrichment path | Stores enrichment source selections separately from `query.fields`; unavailable or unsupported cross-reference fields may produce no enrichment output. |
 | `include_isoform` | boolean | Optional | `false` | Executable | Normalized to `workflow_values["include_isoform"]` and passed to UniProt fetches | Applies to UniProt requests. |
 
 `query.value` is the only executable query field. `query.builder` and

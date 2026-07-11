@@ -15,7 +15,9 @@ def test_uniprot_query_field_catalog_contains_supported_interpreter_fields():
 
     assert {
         "databases",
+        "keyword",
         "keywords",
+        "reviewed",
         "go",
         "organism",
         "taxon",
@@ -48,6 +50,14 @@ def test_uniprot_query_builder_catalog_exposes_canonical_database_field_only():
     assert "db" not in catalog
     assert "xref" not in catalog
     assert "database" not in catalog
+
+
+def test_uniprot_query_builder_catalog_hides_query_alias_fields():
+    catalog = get_uniprot_query_builder_field_catalog()
+
+    assert "keywords" in catalog
+    assert "keyword" not in catalog
+    assert "reviewed" not in catalog
 
 
 def test_uniprot_query_builder_catalog_contains_field_specific_placeholders():

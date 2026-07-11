@@ -190,7 +190,10 @@ For `query_first`, the Query section supports Manual query mode, which writes
 ChEMBL, PubChem, and ChEBI builders. UniProt and ChEMBL builders store neutral
 row metadata in the optional `query.builder` mapping; PubChem and ChEBI store
 their final interpreted string in `query.value`. Manual query mode omits
-`query.builder`.
+`query.builder`. For UniProt-style protein queries, the GUI also provides a
+**Review status** selector. It writes `reviewed:true` or `reviewed:false` into
+`query.value`; workflow-v1 does not define a separate `query.reviewed` key, and
+users can still type reviewed filters manually in YAML.
 For `query_composition`, the GUI provides a labeled query editor. Each entry has
 a label, optional description, and either a manual query value or a compatible
 UniProt or ChEMBL advanced builder. The GUI joins entries as comma-separated
@@ -208,6 +211,14 @@ longer matches `query.value`, the saved query text opens in Manual query mode.
 Metadata such as `resources` and `reporting` may also validate as workflow-v1
 descriptor metadata and is shown as read-only. Valid `query.composition`
 metadata is restored into the labeled query editor.
+The GUI provides a selectable **UniProt return fields** list for normal UniProt
+request/result fields such as `accession`, `protein_name`, `organism_name`, and
+`sequence`. Selected values are written as stable field IDs under
+`query.fields`; an advanced input remains available for custom UniProt field IDs.
+Technical `xref_*` fields are not shown as normal return-field choices. When
+enrichment sources require cross-reference identifiers, BioSeqDownloader may add
+the required UniProt `xref_*` request fields internally at execution time without
+writing them back into the saved YAML.
 Enrichment is optional. The GUI hides enrichment details until `Enable
 enrichment` is selected, then offers multiple sources and an advanced
 cross-reference field input. Selected sources are stored as lowercase keys in
@@ -215,7 +226,8 @@ cross-reference field input. Selected sources are stored as lowercase keys in
 and packaged endpoint configuration. PubChem and ChEBI remain available as
 query sources/builders, while their enrichment behavior depends on usable
 cross-reference fields and configured endpoints. `query.fields` remains
-separate from advanced-builder search conditions.
+separate from `query.crossref_fields`, enrichment source selections, and
+advanced-builder search conditions.
 In the Advanced UniProt builder, Connector combines a row with the previous row
 using `AND` or `OR`, while Match mode combines comma-separated values inside
 one row as `Any`, `All`, or `Not`. Values containing spaces can be quoted. The

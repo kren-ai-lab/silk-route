@@ -108,6 +108,23 @@ class CsvPpiWorkflow(MainWorkflow):
         )
 
 
+class CapturingUniprotInterface:
+    """UniProt test double that captures submitted request fields."""
+
+    def __init__(self) -> None:
+        """Initialize captured fields."""
+        self.submitted_fields = ""
+
+    def submit_stream(self, **kwargs: Any) -> tuple[dict[str, list], dict[str, dict]]:
+        """Capture fields and return an empty UniProt response."""
+        self.submitted_fields = str(kwargs.get("fields") or "")
+        return {"results": []}, {"search_process": {"status_code": 200}}
+
+    def parse(self, *_args: Any, **_kwargs: Any) -> tuple[pd.DataFrame, dict[str, object]]:
+        """Return empty parsed data so enrichment is skipped offline."""
+        return pd.DataFrame(), {}
+
+
 @pytest.mark.parametrize(
     ("query", "source"),
     [
@@ -172,6 +189,23 @@ def test_chembl_prefixed_query_is_detected_without_truncation() -> None:
 
     assert is_chembl_prefixed_query(query)
     assert query.startswith("chembl.target:")
+
+
+def test_protein_workflow_submits_effective_uniprot_fields_for_enrichment() -> None:
+    uniprot = CapturingUniprotInterface()
+    workflow = MainWorkflow(uniprot_interface=uniprot)
+
+    data, _metadata = workflow.run(
+        modality="protein",
+        mode="query_first",
+        query="reviewed:true",
+        fields="accession, protein_name",
+        enrich=True,
+        crossref_fields="pdb, alphafold",
+    )
+
+    assert isinstance(data["uniprot"], pd.DataFrame)
+    assert uniprot.submitted_fields == "accession, protein_name, xref_pdb, xref_alphafolddb"
 
 
 @pytest.mark.parametrize(

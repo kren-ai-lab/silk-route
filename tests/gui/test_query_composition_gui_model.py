@@ -107,6 +107,69 @@ def test_query_composition_descriptor_contains_executable_value_and_metadata() -
     assert "builder" not in descriptor["query"]
 
 
+def test_query_composition_review_status_applies_to_every_entry() -> None:
+    form_values = composition_form_values()
+    form_values["query.review_status"] = "reviewed"
+
+    descriptor = build_workflow_descriptor(form_values)
+
+    assert descriptor["query"]["value"] == (
+        "keywords:antiviral protein AND reviewed:true=antiviral,"
+        "go:dna repair AND reviewed:true=dna_repair"
+    )
+    assert descriptor["query"]["composition"] == [
+        {
+            "label": "antiviral",
+            "value": "keywords:antiviral protein AND reviewed:true",
+            "description": "Antiviral protein keyword query.",
+        },
+        {
+            "label": "dna_repair",
+            "value": "go:dna repair AND reviewed:true",
+            "description": "DNA repair Gene Ontology query.",
+        },
+    ]
+    assert "builder" not in descriptor["query"]
+
+
+def test_query_composition_shared_review_status_is_restored_to_selector() -> None:
+    form_values = composition_form_values()
+    form_values["query.review_status"] = "reviewed"
+    descriptor = build_workflow_descriptor(form_values)
+
+    loaded, warnings = load_workflow_yaml_to_form_values(render_workflow_yaml(descriptor))
+
+    assert warnings == []
+    assert loaded["query.review_status"] == "reviewed"
+    assert loaded["query.composition.entries"] == [
+        manual_composition_entry(
+            "antiviral",
+            "keywords:antiviral protein",
+            "Antiviral protein keyword query.",
+        ),
+        manual_composition_entry(
+            "dna_repair",
+            "go:dna repair",
+            "DNA repair Gene Ontology query.",
+        ),
+    ]
+
+
+def test_query_composition_mixed_review_status_preserves_entries() -> None:
+    form_values = composition_form_values()
+    form_values["query.composition.entries"] = [
+        manual_composition_entry("reviewed", "keyword:Antimicrobial AND reviewed:true"),
+        manual_composition_entry("unreviewed", "go:dna repair AND reviewed:false"),
+    ]
+    descriptor = build_workflow_descriptor(form_values)
+
+    loaded, warnings = load_workflow_yaml_to_form_values(render_workflow_yaml(descriptor))
+
+    assert warnings == []
+    assert loaded["query.review_status"] == "any"
+    assert loaded["query.composition.entries"] == form_values["query.composition.entries"]
+
+
 def test_empty_description_is_omitted_from_composition_metadata() -> None:
     metadata = build_query_composition_metadata(
         [{"label": "reviewed", "value": "reviewed:true", "description": "  "}]
@@ -247,10 +310,10 @@ def test_advanced_uniprot_entry_generates_local_builder_metadata() -> None:
 
     descriptor = build_workflow_descriptor(form_values)
 
-    assert descriptor["query"]["value"] == "keyword:Antimicrobial=antimicrobial"
+    assert descriptor["query"]["value"] == "keyword:KW-0929=antimicrobial"
     item = descriptor["query"]["composition"][0]
     assert item["label"] == "antimicrobial"
-    assert item["value"] == "keyword:Antimicrobial"
+    assert item["value"] == "keyword:KW-0929"
     assert item["builder"] == {
         "schema_version": "query-builder-v1",
         "source": "uniprot",
@@ -278,7 +341,7 @@ def test_two_advanced_entries_keep_independent_builder_metadata() -> None:
     descriptor = build_workflow_descriptor(form_values)
 
     assert descriptor["query"]["value"] == (
-        "keyword:Antimicrobial=antimicrobial,keyword:Antiviral=antiviral"
+        "keyword:KW-0929=antimicrobial,keyword:Antiviral=antiviral"
     )
     composition = descriptor["query"]["composition"]
     assert composition[0]["builder"]["rows"][0]["values"] == ["Antimicrobial"]
@@ -321,7 +384,7 @@ def test_entry_builder_metadata_round_trip_restores_local_state() -> None:
     entry = loaded["query.composition.entries"][0]
     assert entry["query_input_mode"] == "Advanced builder"
     assert entry["query_builder_key"] == "uniprot"
-    assert entry["value"] == "keyword:Antimicrobial"
+    assert entry["value"] == "keyword:KW-0929"
     assert entry["uniprot_builder_rows"] == [
         {
             "connector": None,
@@ -354,7 +417,7 @@ def test_invalid_entry_builder_metadata_falls_back_to_manual_with_note() -> None
     entry = loaded["query.composition.entries"][0]
     assert entry["query_input_mode"] == "Manual query"
     assert entry["label"] == "antimicrobial"
-    assert entry["value"] == "keyword:Antimicrobial"
+    assert entry["value"] == "keyword:KW-0929"
     assert entry["description"] == "Antimicrobial protein query."
     assert "builder" not in entry
 
@@ -480,7 +543,8 @@ def test_chembl_ic50_composition_builds_and_restores_entry_metadata() -> None:
 def test_query_first_generation_remains_unchanged() -> None:
     form_values = composition_form_values() | {
         "dataset.mode": "query_first",
-        "query.value": "reviewed:true",
+        "query.value": "",
+        "query.review_status": "reviewed",
         "query.input_mode": "manual",
     }
 

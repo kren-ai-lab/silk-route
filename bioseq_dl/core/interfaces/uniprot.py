@@ -38,6 +38,7 @@ log = get_logger("bioseq_dl.interfaces.uniprot")
 
 API_URL = "https://rest.uniprot.org"
 POLLING_INTERVAL = 3
+SEARCH_PAGE_SIZE = 500
 
 
 class UniprotInterface(BaseAPIInterface):
@@ -410,7 +411,7 @@ class UniprotInterface(BaseAPIInterface):
         method: str = "uniprotkb",
         timeout: float | None = None,
     ) -> tuple[dict, dict]:
-        """Submit a query to the Uniprot stream API.
+        """Submit a query to the UniProt search API and return combined JSON results.
 
         Args:
             query (str): The query string.
@@ -422,7 +423,7 @@ class UniprotInterface(BaseAPIInterface):
             timeout (float, optional): Request timeout in seconds. Defaults to the interface timeout.
 
         Returns:
-            requests.Response: The response object.
+            tuple[dict, dict]: Combined response payload and request metadata.
 
         """
         parameters = {
@@ -432,6 +433,7 @@ class UniprotInterface(BaseAPIInterface):
             "includeIsoform": include_isoform,
             "download": download,
             "format": "json",
+            "size": SEARCH_PAGE_SIZE,
         }
         metadata: dict[str, Any] = {}
         response = None
@@ -439,15 +441,15 @@ class UniprotInterface(BaseAPIInterface):
         headers = {"Accept": "application/json"}
 
         effective_timeout = self.timeout if timeout is None else timeout
-        endpoint_path = f"/{method}/stream"
+        endpoint_path = f"/{method}/search"
 
         for attempt in range(self.total_retries):
             try:
                 time_started = time.time()
                 started_at = datetime.fromtimestamp(time_started, tz=UTC).isoformat()
-                log.info("UniProt stream request started (path=%s)", endpoint_path)
+                log.info("UniProt search request started (path=%s)", endpoint_path)
                 log.debug(
-                    "UniProt stream request details: query=%s fields=%s sort=%s include_isoform=%s "
+                    "UniProt search request details: query=%s fields=%s sort=%s include_isoform=%s "
                     "timeout=%s "
                     "started_at=%s",
                     query,
@@ -457,33 +459,57 @@ class UniprotInterface(BaseAPIInterface):
                     effective_timeout,
                     started_at,
                 )
-                response = requests.get(
-                    f"{API_URL}/{method}/stream",
+                response = self.session.get(
+                    f"{API_URL}/{method}/search",
                     params=parameters,
                     headers=headers,
                     timeout=effective_timeout,
                 )
                 response.raise_for_status()
+                payload = response.json()
+                if isinstance(payload, dict) and payload.get("error"):
+                    msg = f"UniProt search returned an error payload: {payload['error']}"
+                    raise RuntimeError(msg)
+                combined_payload = payload if isinstance(payload, dict) else {"results": []}
+                if not isinstance(combined_payload.get("results"), list):
+                    combined_payload["results"] = []
+                response_size_bytes = len(response.content)
+                next_link = self.get_next_link(response.headers)
+                while next_link:
+                    page_response = self.session.get(
+                        next_link,
+                        headers=headers,
+                        timeout=effective_timeout,
+                    )
+                    page_response.raise_for_status()
+                    page_payload = page_response.json()
+                    if isinstance(page_payload, dict) and page_payload.get("error"):
+                        msg = f"UniProt search returned an error payload: {page_payload['error']}"
+                        raise RuntimeError(msg)
+                    if isinstance(page_payload, dict):
+                        combined_payload["results"].extend(page_payload.get("results", []))
+                        if page_payload.get("failedIds"):
+                            combined_payload.setdefault("failedIds", []).extend(page_payload["failedIds"])
+                    response_size_bytes += len(page_response.content)
+                    next_link = self.get_next_link(page_response.headers)
+
                 time_finished = time.time()
                 finished_at = datetime.fromtimestamp(time_finished, tz=UTC).isoformat()
                 elapsed_seconds = time_finished - time_started
-                size_header = response.headers.get("Content-Length")
-                response_size_bytes = (
-                    int(size_header) if size_header and size_header.isdigit() else len(response.content)
+                results_count = len(combined_payload.get("results", []))
+                total_header = response.headers.get("x-total-results")
+                total_results = (
+                    int(total_header)
+                    if total_header and total_header.isdigit()
+                    else results_count
                 )
-                payload = response.json()
-                results_count = 0
-                if isinstance(payload, dict):
-                    results_count = len(payload.get("results", []))
-                elif isinstance(payload, list):
-                    results_count = len(payload)
                 log.info(
-                    "UniProt stream response received (status=%s elapsed=%.2fs)",
+                    "UniProt search response received (status=%s elapsed=%.2fs)",
                     response.status_code,
                     elapsed_seconds,
                 )
                 log.debug(
-                    "UniProt stream response details: finished_at=%s size_bytes=%s results=%s",
+                    "UniProt search response details: finished_at=%s size_bytes=%s results=%s",
                     finished_at,
                     response_size_bytes,
                     results_count,
@@ -494,8 +520,10 @@ class UniprotInterface(BaseAPIInterface):
                     "finished_at": finished_at,
                     "status_code": response.status_code,
                     "response_size_bytes": response_size_bytes,
-                    "total_results": results_count,
+                    "total_results": total_results,
+                    "retrieved_results": results_count,
                     "attempts": attempt + 1,
+                    "endpoint_path": endpoint_path,
                 }
                 metadata["search_params"] = {
                     "api_url": API_URL,
@@ -507,6 +535,7 @@ class UniprotInterface(BaseAPIInterface):
                     "sort": sort,
                     "include_isoform": include_isoform,
                     "download": download,
+                    "size": SEARCH_PAGE_SIZE,
                     "timeout_seconds": effective_timeout,
                 }
             except requests.exceptions.Timeout as e:
@@ -535,7 +564,7 @@ class UniprotInterface(BaseAPIInterface):
                     log.exception(message)
                     raise RuntimeError(message) from e
             else:
-                return payload, metadata
+                return combined_payload, metadata
         return {}, {}
 
     def adapt_field_map(

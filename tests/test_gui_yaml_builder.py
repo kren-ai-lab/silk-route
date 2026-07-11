@@ -12,11 +12,18 @@ from unittest.mock import Mock
 import pytest
 import yaml
 
+from bioseq_dl.core.utils.crossref_enrichment import build_effective_uniprot_request_fields
 from bioseq_dl.gui.query_builder_state import (
     build_chembl_builder_form_rows,
     build_chembl_builder_ui_rows,
     build_uniprot_builder_form_rows,
     build_uniprot_builder_ui_rows,
+)
+from bioseq_dl.gui.uniprot_return_fields import (
+    get_uniprot_return_field_options,
+    normalize_uniprot_return_fields,
+    return_fields_from_selection,
+    split_known_and_custom_return_fields,
 )
 from bioseq_dl.gui.yaml_builder import (
     DEFAULT_OUTPUT_DIRECTORY_NAME_ERROR,
@@ -24,17 +31,20 @@ from bioseq_dl.gui.yaml_builder import (
     PROTEIN_CHEMBL_QUERY_WARNING,
     QUERY_BUILDER_RESTORE_ERROR_WARNING,
     QUERY_COMPOSITION_VALUE_PARSED_NOTE,
+    apply_review_status_to_query,
     build_workflow_descriptor,
     build_workflow_filename,
     crossref_fields_from_enrichment_sources,
     descriptor_to_form_values,
     enrichment_sources_from_crossref_fields,
+    extract_review_status_from_query,
     get_enrichment_source_options,
     load_workflow_yaml_text,
     load_workflow_yaml_to_form_values,
     normalize_enrichment_sources,
+    normalize_review_status,
     parse_csv_list,
-    query_fields_from_enrichment_sources,
+    remove_top_level_reviewed_filter,
     render_workflow_yaml,
     resolve_query_value_from_form,
     validate_generated_descriptor,
@@ -153,7 +163,7 @@ def minimal_form_values() -> dict[str, object]:
         "dataset.name": "example_dataset",
         "dataset.modality": "protein",
         "dataset.mode": "query_first",
-        "query.value": "reviewed:true",
+        "query.value": "organism_id:9606",
         "execution.enrich": False,
         "execution.max_workers": 5,
         "execution.total_retries": 3,
@@ -265,14 +275,146 @@ def test_parse_csv_list_removes_empty_values() -> None:
     assert parse_csv_list("accession, id,, protein_name") == ["accession", "id", "protein_name"]
 
 
+def test_uniprot_return_field_catalog_includes_normal_fields_only() -> None:
+    options = get_uniprot_return_field_options()
+
+    assert {"accession", "protein_name", "organism_name", "sequence", "go_id"} <= set(options)
+    assert "xref_alphafolddb" not in options
+    assert "xref_pdb" not in options
+    assert not any(field.startswith("xref_") for field in options)
+
+
+def test_uniprot_return_field_normalization_preserves_custom_values() -> None:
+    assert normalize_uniprot_return_fields(" accession, protein_name,, accession, custom_field ") == [
+        "accession",
+        "protein_name",
+        "custom_field",
+    ]
+
+
+def test_uniprot_return_field_labels_are_not_written_as_field_ids() -> None:
+    fields_text = return_fields_from_selection(["accession", "protein_name"], "custom_field")
+
+    assert fields_text == "accession, protein_name, custom_field"
+    assert "Protein name" not in fields_text
+
+
+def test_uniprot_return_fields_split_old_xref_values_into_custom_fields() -> None:
+    selections, custom_fields = split_known_and_custom_return_fields(
+        ["accession", "xref_alphafolddb", "custom_field"]
+    )
+
+    assert selections == ["accession"]
+    assert custom_fields == ["xref_alphafolddb", "custom_field"]
+
+
 def test_default_form_disables_enrichment_and_selects_no_sources() -> None:
     form_values = workflow_yaml_form_defaults()
 
     assert form_values["execution.enrich"] is False
     assert form_values["execution.enrichment_sources"] == []
+    assert form_values["query.review_status"] == "any"
+    assert form_values["query.return_field_selections"] == []
+    assert form_values["query.return_field_custom"] == ""
     assert form_values["execution.download_alphafold_structures"] is False
     assert form_values["execution.download_pdb_structures"] is False
     assert form_values["export.store_graph_payloads_as_files"] is True
+
+
+@pytest.mark.parametrize(
+    ("query", "review_status", "expected"),
+    [
+        ("keyword:Antimicrobial", "any", "keyword:Antimicrobial"),
+        ("keyword:Antimicrobial", "reviewed", "keyword:Antimicrobial AND reviewed:true"),
+        ("keyword:Antimicrobial", "unreviewed", "keyword:Antimicrobial AND reviewed:false"),
+        (
+            "keyword:Antimicrobial AND reviewed:true",
+            "reviewed",
+            "keyword:Antimicrobial AND reviewed:true",
+        ),
+        (
+            "keyword:Antimicrobial AND reviewed:false",
+            "reviewed",
+            "keyword:Antimicrobial AND reviewed:true",
+        ),
+        ("keyword:Antimicrobial AND reviewed:true", "any", "keyword:Antimicrobial"),
+        ("keyword:Antimicrobial AND REVIEWED:true", "reviewed", "keyword:Antimicrobial AND reviewed:true"),
+        ("keyword:Antimicrobial AND Reviewed: True", "any", "keyword:Antimicrobial"),
+        ("reviewed:true", "any", ""),
+    ],
+)
+def test_review_status_helpers_apply_reviewed_filters(
+    query: str,
+    review_status: str,
+    expected: str,
+) -> None:
+    assert normalize_review_status("Any") == "any"
+    assert apply_review_status_to_query(query, review_status) == expected
+
+
+def test_review_status_helpers_extract_reviewed_filters() -> None:
+    assert extract_review_status_from_query("keyword:Antimicrobial AND reviewed: true") == (
+        "reviewed",
+        "keyword:Antimicrobial",
+    )
+    assert remove_top_level_reviewed_filter("reviewed:false AND keyword:Antimicrobial") == (
+        "keyword:Antimicrobial"
+    )
+
+
+def test_default_generated_yaml_does_not_include_reviewed_filter() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values() | {"query.value": "keyword:Antimicrobial"}
+    )
+
+    assert descriptor["query"]["value"] == "keyword:Antimicrobial"
+    assert "review_status" not in descriptor["query"]
+
+
+@pytest.mark.parametrize(
+    ("review_status", "expected"),
+    [
+        ("reviewed", "keyword:Antimicrobial AND reviewed:true"),
+        ("unreviewed", "keyword:Antimicrobial AND reviewed:false"),
+    ],
+)
+def test_query_first_manual_review_status_generates_reviewed_filter(
+    review_status: str,
+    expected: str,
+) -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.value": "keyword:Antimicrobial",
+            "query.review_status": review_status,
+        }
+    )
+
+    assert descriptor["query"]["value"] == expected
+    assert "review_status" not in descriptor["query"]
+
+
+@pytest.mark.parametrize(
+    ("reviewed_filter", "expected_status"),
+    [
+        ("reviewed:true", "reviewed"),
+        ("reviewed:false", "unreviewed"),
+    ],
+)
+def test_loading_reviewed_query_restores_review_status_selector(
+    reviewed_filter: str,
+    expected_status: str,
+) -> None:
+    form_values, warnings = load_workflow_yaml_to_form_values(
+        minimal_workflow_yaml().replace(
+            'value: "reviewed:true"',
+            f'value: "keyword:Antimicrobial AND {reviewed_filter}"',
+        )
+    )
+
+    assert warnings == [LOADED_QUERY_VALUE_WARNING]
+    assert form_values["query.value"] == "keyword:Antimicrobial"
+    assert form_values["query.review_status"] == expected_status
 
 
 def test_enrichment_source_options_map_labels_to_executable_keys() -> None:
@@ -368,38 +510,28 @@ def test_structure_download_checkboxes_generate_true_execution_options() -> None
 
 
 @pytest.mark.parametrize(
-    ("source", "required_fields"),
+    "source",
     [
-        ("pathwaycommons_neighborhood", ["accession", "organism_id"]),
-        ("pathwaycommons_top_pathways", ["gene_primary", "organism_id"]),
-        ("pathwaycommons_fetch", ["xref_pathwaycommons"]),
+        "pathwaycommons_neighborhood",
+        "pathwaycommons_top_pathways",
+        "pathwaycommons_fetch",
     ],
 )
-def test_pathwaycommons_sources_generate_crossrefs_and_required_fields(
-    source: str,
-    required_fields: list[str],
-) -> None:
+def test_pathwaycommons_sources_generate_crossrefs_without_mutating_query_fields(source: str) -> None:
     descriptor = build_workflow_descriptor(
         minimal_form_values()
         | {
             "execution.enrich": True,
             "execution.enrichment_sources": [source],
-            "query.fields": "accession" if source == "pathwaycommons_neighborhood" else "",
+            "query.return_field_selections": [],
+            "query.return_field_custom": "",
+            "query.fields": "",
             "query.crossref_fields": "",
         }
     )
 
     assert descriptor["query"]["crossref_fields"] == [source]
-    assert descriptor["query"]["fields"] == required_fields
-
-
-def test_pathwaycommons_required_query_fields_do_not_duplicate_existing_fields() -> None:
-    fields = query_fields_from_enrichment_sources(
-        ["pathwaycommons_neighborhood", "pathwaycommons_top_pathways"],
-        existing_query_fields="accession, organism_id",
-    )
-
-    assert fields == "accession, organism_id, gene_primary"
+    assert "fields" not in descriptor["query"]
 
 
 def test_enrichment_source_crossrefs_preserve_unknown_manual_fields() -> None:
@@ -416,6 +548,42 @@ def test_enrichment_source_crossrefs_preserve_unknown_manual_fields() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    ("query_fields", "crossref_fields", "enrich", "expected"),
+    [
+        (
+            ["accession", "organism_id"],
+            ["pathwaycommons_neighborhood", "pathwaycommons_top_pathways"],
+            True,
+            "accession, organism_id, gene_primary",
+        ),
+        (
+            ["accession", "protein_name"],
+            ["pdb", "alphafold"],
+            True,
+            "accession, protein_name, xref_pdb, xref_alphafolddb",
+        ),
+        (["accession", "xref_pdb"], ["pdb"], True, "accession, xref_pdb"),
+        (["accession"], ["unknown_source"], True, "accession"),
+        (["accession"], ["pdb", "alphafold"], False, "accession"),
+        (["accession"], ["go", "rhea"], True, "accession, go_id, rhea"),
+    ],
+)
+def test_effective_uniprot_fields_resolve_enrichment_requirements(
+    query_fields: list[str],
+    crossref_fields: list[str],
+    enrich: bool,
+    expected: str,
+) -> None:
+    fields = build_effective_uniprot_request_fields(
+        query_fields,
+        crossref_fields,
+        enrich=enrich,
+    )
+
+    assert fields == expected
+
+
 def test_build_workflow_descriptor_parses_comma_separated_fields() -> None:
     descriptor = build_workflow_descriptor(
         minimal_form_values()
@@ -429,11 +597,39 @@ def test_build_workflow_descriptor_parses_comma_separated_fields() -> None:
     assert descriptor["query"]["crossref_fields"] == ["go", "interpro"]
 
 
+def test_return_field_selector_generates_query_fields_list() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.return_field_selections": ["accession", "protein_name", "sequence"],
+            "query.return_field_custom": "",
+            "query.fields": "",
+        }
+    )
+
+    assert descriptor["query"]["fields"] == ["accession", "protein_name", "sequence"]
+
+
+def test_return_field_selector_preserves_custom_fields() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.return_field_selections": ["accession", "sequence"],
+            "query.return_field_custom": "custom_field",
+            "query.fields": "",
+        }
+    )
+
+    assert descriptor["query"]["fields"] == ["accession", "sequence", "custom_field"]
+
+
 def test_empty_return_fields_and_crossref_placeholders_do_not_generate_lists() -> None:
     descriptor = build_workflow_descriptor(
         minimal_form_values()
         | {
             "query.fields": "",
+            "query.return_field_selections": [],
+            "query.return_field_custom": "",
             "query.crossref_fields": "",
         }
     )
@@ -505,7 +701,7 @@ def test_manual_query_mode_generates_manual_query_value() -> None:
         }
     )
 
-    assert descriptor["query"]["value"] == "reviewed:true AND organism_id:9606"
+    assert descriptor["query"]["value"] == "organism_id:9606"
 
 
 def test_resolve_query_value_from_manual_mode_does_not_call_builder() -> None:
@@ -551,6 +747,53 @@ def test_advanced_uniprot_builder_mode_generates_interpreted_query_value() -> No
     assert descriptor["query"]["value"] == (
         "organism_id:9606 AND (cc_bpcp_temp_dependence:20-30 OR cc_bpcp_temp_dependence:50-60)"
     )
+
+
+def test_advanced_uniprot_builder_mode_applies_review_status() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.input_mode": "Advanced UniProt builder",
+            "query.review_status": "reviewed",
+            "query.uniprot_builder.rows": [
+                {
+                    "connector": None,
+                    "field": "keywords",
+                    "values": "Antimicrobial",
+                    "match_mode": "Any",
+                }
+            ],
+        }
+    )
+
+    assert descriptor["query"]["value"] == "keyword:KW-0929 AND reviewed:true"
+    assert descriptor["query"]["builder"]["builder_key"] == "uniprot"
+    assert "review_status" not in descriptor["query"]
+
+
+def test_advanced_uniprot_builder_with_review_status_round_trips() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.input_mode": "Advanced UniProt builder",
+            "query.review_status": "reviewed",
+            "query.uniprot_builder.rows": [
+                {
+                    "connector": None,
+                    "field": "keywords",
+                    "values": "Antimicrobial",
+                    "match_mode": "Any",
+                }
+            ],
+        }
+    )
+
+    loaded, warnings = load_workflow_yaml_to_form_values(render_workflow_yaml(descriptor))
+
+    assert warnings == []
+    assert loaded["query.input_mode"] == "Advanced builder"
+    assert loaded["query.value"] == "keyword:KW-0929"
+    assert loaded["query.review_status"] == "reviewed"
 
 
 def test_advanced_uniprot_builder_mode_includes_builder_metadata() -> None:
@@ -1199,6 +1442,7 @@ def test_default_generated_descriptor_validates_as_workflow_v1() -> None:
     form_values = workflow_yaml_form_defaults()
     form_values["dataset.name"] = "default_dataset"
     form_values["query.value"] = "reviewed:true"
+    form_values["query.review_status"] = "reviewed"
 
     descriptor = build_workflow_descriptor(form_values)
 
@@ -1256,7 +1500,8 @@ def test_descriptor_to_form_values_loads_supported_fields() -> None:
     assert form_values["dataset.modality"] == "Protein"
     assert form_values["dataset.mode"] == "Query First"
     assert form_values["dataset.interaction_type"] == "No interaction"
-    assert form_values["query.value"] == "reviewed:true"
+    assert form_values["query.value"] == ""
+    assert form_values["query.review_status"] == "reviewed"
     assert form_values["query.input_mode"] == "Manual query"
     assert form_values["query.include_isoform"] is True
     assert form_values["execution.enrich"] is False
@@ -1282,8 +1527,23 @@ def test_loaded_list_fields_become_comma_separated_text() -> None:
     form_values, _warnings = load_workflow_yaml_to_form_values(minimal_workflow_yaml())
 
     assert form_values["query.fields"] == "accession, sequence"
+    assert form_values["query.return_field_selections"] == ["accession", "sequence"]
+    assert form_values["query.return_field_custom"] == ""
     assert form_values["query.crossref_fields"] == "xref_pdb, xref_string"
     assert form_values["harmonization.metadata_fields"] == "accession, protein_name"
+
+
+def test_loaded_xref_return_fields_restore_as_advanced_custom_fields() -> None:
+    yaml_text = minimal_workflow_yaml().replace(
+        "    - sequence",
+        "    - xref_alphafolddb",
+    )
+
+    form_values, _warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert form_values["query.fields"] == "accession, xref_alphafolddb"
+    assert form_values["query.return_field_selections"] == ["accession"]
+    assert form_values["query.return_field_custom"] == "xref_alphafolddb"
 
 
 def test_loading_enriched_yaml_restores_known_enrichment_sources() -> None:
@@ -1383,7 +1643,8 @@ def test_loaded_query_value_warns_and_uses_manual_query_mode() -> None:
     form_values, warnings = load_workflow_yaml_to_form_values(minimal_workflow_yaml())
 
     assert form_values["query.input_mode"] == "Manual query"
-    assert form_values["query.value"] == "reviewed:true"
+    assert form_values["query.value"] == ""
+    assert form_values["query.review_status"] == "reviewed"
     assert LOADED_QUERY_VALUE_WARNING in warnings
 
 
@@ -1526,7 +1787,8 @@ def test_load_yaml_upload_uses_event_file_name_and_async_text() -> None:
 
     assert app.errors is None
     assert app.loaded_form_values is not None
-    assert app.loaded_form_values["query.value"] == "reviewed:true"
+    assert app.loaded_form_values["query.value"] == ""
+    assert app.loaded_form_values["query.review_status"] == "reviewed"
     assert app.loaded_form_values["query.input_mode"] == "Manual query"
     assert app.warnings is not None
     assert LOADED_QUERY_VALUE_WARNING in app.warnings
@@ -1669,7 +1931,6 @@ def test_enrichment_source_change_updates_crossref_fields_and_preserves_unknowns
     app = module.WorkflowYamlBuilderApp()
     app.form_values["query.crossref_fields"] = "chembl, custom_source"
     app.form_values["query.fields"] = "protein_name"
-    app.query_fields_input = Mock()
     app.crossref_fields_input = Mock()
 
     app.handle_enrichment_sources_change(
@@ -1678,24 +1939,50 @@ def test_enrichment_source_change_updates_crossref_fields_and_preserves_unknowns
 
     assert app.form_values["execution.enrichment_sources"] == ["pdb", "string"]
     assert app.form_values["query.crossref_fields"] == "pdb, string, custom_source"
+    assert app.form_values["query.fields"] == "protein_name"
     assert app.crossref_fields_input.value == "pdb, string, custom_source"
     app.crossref_fields_input.update.assert_called_once_with()
 
 
-def test_pathwaycommons_source_change_updates_required_query_fields() -> None:
+def test_pathwaycommons_source_change_does_not_mutate_return_fields() -> None:
     pytest.importorskip("nicegui")
     module = importlib.import_module("bioseq_dl.gui.nicegui_app")
     app = module.WorkflowYamlBuilderApp()
     app.form_values["query.fields"] = "accession"
-    app.query_fields_input = Mock()
+    app.crossref_fields_input = Mock()
 
     app.handle_enrichment_sources_change(
         FakeValueChangeEvent(["pathwaycommons_neighborhood"]),
     )
 
-    assert app.form_values["query.fields"] == "accession, organism_id"
-    assert app.query_fields_input.value == "accession, organism_id"
-    app.query_fields_input.update.assert_called_once_with()
+    assert app.form_values["query.fields"] == "accession"
+    assert app.form_values["query.crossref_fields"] == "pathwaycommons_neighborhood"
+
+
+def test_return_field_selection_change_updates_query_fields() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    app = module.WorkflowYamlBuilderApp()
+    app.form_values["query.return_field_custom"] = "custom_field"
+
+    app.handle_return_field_selections_change(
+        FakeValueChangeEvent(["accession", "protein_name"]),
+    )
+
+    assert app.form_values["query.fields"] == "accession, protein_name, custom_field"
+
+
+def test_advanced_return_field_change_preserves_manual_custom_fields() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    app = module.WorkflowYamlBuilderApp()
+    app.form_values["query.return_field_selections"] = ["accession"]
+
+    app.handle_advanced_return_fields_change(
+        FakeValueChangeEvent("xref_alphafolddb, custom_field"),
+    )
+
+    assert app.form_values["query.fields"] == "accession, xref_alphafolddb, custom_field"
 
 
 def test_manual_crossref_change_updates_known_source_selection() -> None:
@@ -1955,7 +2242,21 @@ def test_nicegui_query_first_renders_dedicated_ic50_controls() -> None:
         for element in module.ui.context.client.elements.values()
     }
 
-    assert {"Comparison mode", "Lower value", "Upper value", "Standard units"} <= labels
+    assert {
+        "Comparison mode",
+        "Lower value",
+        "Upper value",
+        "Standard units",
+        "UniProt return fields",
+        "Advanced return fields",
+    } <= labels
+    return_field_options = app.return_fields_select.options
+    assert "accession" in return_field_options
+    assert "protein_name" in return_field_options
+    assert "organism_name" in return_field_options
+    assert "sequence" in return_field_options
+    assert "xref_alphafolddb" not in return_field_options
+    assert "xref_pdb" not in return_field_options
     app.form_values["dataset.modality"] = "Compound"
     assert "ChEMBL IC50 activity builder" in app.get_compatible_query_builder_labels()
 

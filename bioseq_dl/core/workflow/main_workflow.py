@@ -12,7 +12,11 @@ import pandas as pd
 from bioseq_dl import ChEBIInterface, ChEMBLInterface, PubChemInterface, UniprotInterface
 from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
 from bioseq_dl.core.export import normalize_parse_format
-from bioseq_dl.core.utils.crossref_enrichment import normalize_crossref_fields, run_crossref_enrichment
+from bioseq_dl.core.utils.crossref_enrichment import (
+    build_effective_uniprot_request_fields,
+    normalize_crossref_fields,
+    run_crossref_enrichment,
+)
 from bioseq_dl.logging import get_logger
 
 from .chebi_execution import build_chebi_fetch_spec, normalize_chebi_records
@@ -486,7 +490,11 @@ class MainWorkflow:
                 {"uniprot": {"skipped_empty_query": True}}
             )
             return
-        fields = args.get("fields", "") or ""
+        fields = build_effective_uniprot_request_fields(
+            args.get("fields", "") or "",
+            args.get("additional_crossref_fields"),
+            enrich=bool(args.get("enrich", False)),
+        )
         sort = args.get("sort", "accession asc")
         include_isoform = args.get("include_isoform", False)
         uniprot_timeout = args.get("uniprot_timeout")
@@ -655,7 +663,7 @@ class MainWorkflow:
         query_structure = chembl_search.get("query_structure")
         export_format = chembl_search.get("export_format") or self.default_export_format
         pages_to_fetch = normalize_chembl_pages_to_fetch(chembl_search.get("pages_to_fetch", -1))
-        limit = int(chembl_search.get("limit", 100))
+        limit = int(chembl_search.get("limit", 1000))
         parse_format = normalize_parse_format(export_format) or "dataframe"
         # Because there is two types of queries assosiated with 2 diferent methods,
         #   we need to check which one to use.

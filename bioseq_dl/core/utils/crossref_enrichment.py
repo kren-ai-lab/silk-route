@@ -11,6 +11,96 @@ from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.core.utils.crossref_enrichment")
 
+METHOD_SPECIFIC_UNIPROT_FIELD_REQUIREMENTS: dict[str, tuple[str, ...]] = {
+    "pathwaycommons_neighborhood": ("accession", "organism_id"),
+    "pathwaycommons_top_pathways": ("gene_primary", "organism_id"),
+    "pathwaycommons_fetch": ("xref_pathwaycommons",),
+}
+
+SOURCE_UNIPROT_FIELD_REQUIREMENTS: dict[str, tuple[str, ...]] = {
+    "biogrid": ("gene_primary", "organism_id"),
+    "pubchem": ("gene_primary", "organism_id", "accession"),
+}
+
+
+def normalize_uniprot_request_fields(fields: object) -> list[str]:
+    """Normalize UniProt request fields while preserving order."""
+    if fields is None:
+        return []
+    if isinstance(fields, str):
+        raw_fields = fields.replace("\r\n", "\n").replace("\n", ",").split(",")
+    elif isinstance(fields, (list, tuple, set)):
+        raw_fields = fields
+    else:
+        raw_fields = [fields]
+
+    normalized_fields = []
+    seen_fields = set()
+    for raw_field in raw_fields:
+        field = str(raw_field).strip()
+        if not field:
+            continue
+        lookup_field = field.casefold()
+        if lookup_field in seen_fields:
+            continue
+        normalized_fields.append(field)
+        seen_fields.add(lookup_field)
+    return normalized_fields
+
+
+def get_uniprot_field_requirements_by_source() -> dict[str, tuple[str, ...]]:
+    """Return UniProt request-field requirements keyed by enrichment source."""
+    requirements = dict(SOURCE_UNIPROT_FIELD_REQUIREMENTS)
+    for uniprot_field, db_name in XREF_MAPPING.values():
+        if db_name and uniprot_field:
+            requirements.setdefault(db_name, (uniprot_field,))
+    requirements.update(METHOD_SPECIFIC_UNIPROT_FIELD_REQUIREMENTS)
+    return requirements
+
+
+def get_required_uniprot_fields_for_crossref_fields(crossref_fields: object) -> list[str]:
+    """Return UniProt request fields required by selected enrichment sources."""
+    requirements_by_source = get_uniprot_field_requirements_by_source()
+    required_fields = []
+    seen_fields = set()
+
+    for crossref_field in normalize_crossref_fields(crossref_fields):
+        source_key = crossref_field.casefold()
+        requirements = requirements_by_source.get(source_key)
+        if requirements is None and "_" in source_key:
+            requirements = requirements_by_source.get(source_key.split("_", 1)[0])
+        if requirements is None and (
+            source_key.startswith("xref_") or source_key in {"go_id", "rhea"}
+        ):
+            requirements = (crossref_field,)
+        if requirements is None:
+            continue
+
+        for required_field in requirements:
+            lookup_field = required_field.casefold()
+            if lookup_field in seen_fields:
+                continue
+            required_fields.append(required_field)
+            seen_fields.add(lookup_field)
+    return required_fields
+
+
+def build_effective_uniprot_request_fields(
+    query_fields: object,
+    crossref_fields: object,
+    *,
+    enrich: bool,
+) -> str:
+    """Combine user-selected UniProt fields with enrichment-required request fields."""
+    fields = normalize_uniprot_request_fields(query_fields)
+    known_fields = {field.casefold() for field in fields}
+    if enrich:
+        for required_field in get_required_uniprot_fields_for_crossref_fields(crossref_fields):
+            if required_field.casefold() not in known_fields:
+                fields.append(required_field)
+                known_fields.add(required_field.casefold())
+    return ", ".join(fields)
+
 
 def normalize_crossref_fields(crossref_fields: object) -> list[str]:
     """Return cleaned cross-reference field names."""
