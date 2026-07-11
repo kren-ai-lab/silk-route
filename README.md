@@ -591,7 +591,7 @@ Issues and pull requests should keep the documented workflow surface aligned wit
 
 ## License
 
-This project is licensed under the **GNU General Public License v2 (GPLv2)**, matching the project metadata in `pyproject.toml`.
+This project is licensed under the **MIT License**, matching the project metadata in `pyproject.toml`. See [LICENSE](LICENSE).
 
 ## Acknowledgements
 
