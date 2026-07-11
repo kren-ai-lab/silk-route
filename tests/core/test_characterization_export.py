@@ -1,6 +1,6 @@
 """Tests for export_dataframe: per-format file contents.
 
-Assertions read the written file back through the standard library / pyarrow
+Assertions read the written file back through the standard library / polars
 (see ``read_exported_file``) and check its contents directly.
 """
 
