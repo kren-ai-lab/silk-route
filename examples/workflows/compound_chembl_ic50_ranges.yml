@@ -8,18 +8,18 @@ dataset:
   primary_data_source: chembl
 
 query:
-  value: "ic50:0-10=very_high_potency,ic50:10-100=high_potency"
-  description: Retrieve small ChEMBL IC50 activity ranges with labels.
+  value: "ic50:0-10 AND standard_units:nM=very_high_potency,ic50:10-100 AND standard_units:nM=high_potency"
+  description: Retrieve small ChEMBL IC50 activity ranges in nM with labels.
   filtering_strategy: >
     This is a live ChEMBL example. execution.chembl_pages_to_fetch is set to 1
-    to keep the run small.
+    to keep the run small. IC50 ranges are interpreted as nM potency ranges.
   composition:
     - label: very_high_potency
-      value: "ic50:0-10"
-      description: IC50 values from 0 to 10 in the workflow query syntax.
+      value: "ic50:0-10 AND standard_units:nM"
+      description: IC50 values greater than or equal to 0 nM and lower than 10 nM.
     - label: high_potency
-      value: "ic50:10-100"
-      description: IC50 values from 10 to 100 in the workflow query syntax.
+      value: "ic50:10-100 AND standard_units:nM"
+      description: IC50 values greater than or equal to 10 nM and lower than 100 nM.
 
 execution:
   enrich: true

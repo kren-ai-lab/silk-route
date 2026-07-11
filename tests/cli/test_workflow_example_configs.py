@@ -237,6 +237,26 @@ def test_chembl_examples_use_small_page_cap(config_path: Path) -> None:
         assert recipe.get("execution", {}).get("chembl_pages_to_fetch") == 1
 
 
+@pytest.mark.parametrize("config_path", iter_valid_example_paths(), ids=lambda path: path.name)
+def test_chembl_ic50_examples_constrain_standard_units(config_path: Path) -> None:
+    recipe = load_workflow_recipe(config_path)
+    query_value = recipe.get("query", {}).get("value", "")
+    is_ic50_example = "ic50:" in query_value.lower()
+
+    if is_ic50_example:
+        assert "standard_units:nM" in query_value
+
+
+@pytest.mark.parametrize("config_path", iter_valid_example_paths(), ids=lambda path: path.name)
+def test_query_composition_examples_use_entry_level_builder_metadata(config_path: Path) -> None:
+    recipe = load_workflow_recipe(config_path)
+    dataset = recipe.get("dataset", {})
+    query = recipe.get("query", {})
+
+    if dataset.get("mode") == "query_composition":
+        assert "builder" not in query
+
+
 def test_reference_workflow_descriptor_is_excluded_from_executable_examples() -> None:
     executable_names = {path.name for path in iter_valid_example_paths()}
     reference_path = WORKFLOW_DIR / REFERENCE_FILENAME

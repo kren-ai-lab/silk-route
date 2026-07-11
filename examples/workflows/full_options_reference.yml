@@ -40,7 +40,9 @@ query:
         operator: equals
         value: human
   # query.composition is preserved GUI-oriented metadata only.
-  # It does not replace query.value.
+  # It does not replace query.value. For dataset.mode: query_composition,
+  # advanced builder metadata belongs in each composition entry instead of a
+  # top-level query.builder mapping.
   composition:
     - label: reviewed_human
       value: "gene:TP53 AND reviewed:true AND organism:human"
@@ -51,7 +53,10 @@ query:
     - organism_name
     - sequence
   crossref_fields:
-    - PDB
+    # GUI enrichment selections are stored as lowercase backend keys.
+    # Technical xref_* UniProt request fields are injected internally when
+    # needed and should not be authored here as normal return fields.
+    - pdb
   include_isoform: false
 
 execution:
@@ -71,6 +76,11 @@ harmonization:
 export:
   output_dir: "examples/results/reference_workflow_v1"
   format: csv
+  # GUI workflows default to external graph payloads for large graph-like
+  # enrichment responses. Use none when only lightweight tabular outputs are
+  # desired.
+  graph_payload_storage: file
+  graph_payload_compression: gzip
   include_metadata: true
   include_summary: true
   manifest_file: "metadata.json"

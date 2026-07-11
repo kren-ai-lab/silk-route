@@ -244,7 +244,9 @@ For `query_composition`, the GUI includes a labeled query editor. Each entry has
 a label, optional description, and either a manual query value or a compatible
 UniProt or ChEMBL advanced builder. The GUI joins entries as comma-separated
 `query=label` pairs in `query.value` and writes matching `query.composition`
-metadata, including independent builder metadata for advanced entries:
+metadata, including independent builder metadata for advanced entries.
+Do not use top-level `query.builder` for `dataset.mode: query_composition`;
+advanced builder metadata belongs inside each `query.composition[]` entry:
 
 ```yaml
 query:
@@ -337,7 +339,13 @@ one value can match, `All` means every value must match, and `Not` excludes the
 values. Values with spaces can be quoted, such as `"Homo sapiens"` or
 `"DNA repair"`. The friendly query preview is an intermediate display only; the
 interpreted `query.value` preview is the value that generated YAML stores under
-`query.value`.
+`query.value`. Supported friendly UniProt field prefixes are resolved
+case-insensitively, `keyword` and `keywords` are accepted as aliases, reviewed
+filters such as `reviewed:true` and `reviewed:false` remain executable filters,
+and length ranges such as `length:100-101` are emitted with UniProt range
+syntax. A degenerate friendly range such as `length:100-100` is kept as
+`length:[100 TO 100]`; authors can still type `length:100` manually when that
+exact UniProt query form is desired.
 
 Advanced ChEMBL builders use resource-specific filters rather than UniProt-style
 connectors and match modes. ChEMBL target, assay, cell line, and molecule
@@ -609,7 +617,7 @@ individual composition query value.
 
 For ChEMBL workflows, `chembl_pages_to_fetch: -1` is the default and means fetch all available pages until ChEMBL stops returning `page_meta.next`. Positive integers cap the number of pages. `limit` is records per page, not total records and not a page count. Large ChEMBL queries can take longer when all pages are fetched; use a positive page cap for quick validation runs.
 
-For IC50 activity queries, the ChEMBL workflow constrains `standard_type` to `IC50` and applies numeric `standard_value` filters for exact values or requested ranges. IC50 macros default to `standard_units=nM`; an explicit unit may be added, for example `ic50:0-10 AND standard_units:uM` or `ic50:0-10 AND standard_units:nM=very_high_potency` in query composition. The numeric range is interpreted in the selected ChEMBL `standard_units`; no unit conversion is applied.
+For IC50 activity queries, the ChEMBL workflow constrains `standard_type` to `IC50` and applies numeric `standard_value` filters for exact values or requested ranges. IC50 macros default to `standard_units=nM`; an explicit unit may be added, for example `ic50:0-10 AND standard_units:uM` or `ic50:0-10 AND standard_units:nM=very_high_potency` in query composition. Ranges are interpreted as lower-inclusive and upper-exclusive intervals in the selected ChEMBL `standard_units`; no unit conversion is applied.
 
 The GUI exposes this syntax through the compound-only **ChEMBL IC50 activity builder** in Query First and Query Composition. The builder accepts ranges, comparisons, and exact values; `standard_units` is optional.
 

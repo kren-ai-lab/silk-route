@@ -169,7 +169,7 @@ YAML descriptors use top-level `schema_version`, `dataset`, `query`, `resources`
 
 ChEMBL workflow fetches retrieve all available pages by default. In YAML, `execution.chembl_pages_to_fetch: -1` means all pages; a positive value caps the number of pages. ChEMBL `limit` remains records per page, not total records and not a page count. Large ChEMBL queries can take longer when all pages are fetched; use a positive page cap for quick validation runs.
 
-For IC50 queries, the ChEMBL workflow enforces `standard_type = IC50` and numeric `standard_value` constraints for requested ranges. IC50 macros default to `standard_units=nM`; an explicit unit may be supplied with syntax such as `ic50:0-10 AND standard_units:uM`. The numeric range is interpreted in that ChEMBL `standard_units` value, and no unit conversion is applied. Labeled composition remains valid, for example `ic50:0-10 AND standard_units:nM=very_high_potency`.
+For IC50 queries, the ChEMBL workflow enforces `standard_type = IC50` and numeric `standard_value` constraints for requested ranges. IC50 macros default to `standard_units=nM`; an explicit unit may be supplied with syntax such as `ic50:0-10 AND standard_units:uM`. Ranges are interpreted as lower-inclusive and upper-exclusive intervals in that ChEMBL `standard_units` value, and no unit conversion is applied. Labeled composition remains valid, for example `ic50:0-10 AND standard_units:nM=very_high_potency`.
 
 For compound datasets, the GUI includes a dedicated **ChEMBL IC50 activity builder** for both Query First and Query Composition. It generates the existing IC50 macro syntax, for example `ic50:0-10 AND standard_units:nM`; `standard_units` is optional and unit conversion is not applied. Potency bins can be composed as `ic50:0-10 AND standard_units:nM=very_high_potency,ic50:10-100 AND standard_units:nM=high_potency`.
 
@@ -199,7 +199,9 @@ a label, optional description, and either a manual query value or a compatible
 UniProt or ChEMBL advanced builder. The GUI joins entries as comma-separated
 `query=label` pairs in executable `query.value` and writes matching
 `query.composition` metadata, including independent builder metadata for
-advanced entries.
+advanced entries. Query-composition YAML should not use a top-level
+`query.builder`; entry-level builder metadata belongs inside
+`query.composition[]`.
 Human-friendly GUI labels are translated to exact workflow-v1 schema values.
 The GUI can also load an existing `workflow-v1` YAML file and populate the
 supported form fields. YAML files generated from Advanced builder mode include
@@ -241,7 +243,13 @@ In the Advanced UniProt builder, Connector combines a row with the previous row
 using `AND` or `OR`, while Match mode combines comma-separated values inside
 one row as `Any`, `All`, or `Not`. Values containing spaces can be quoted. The
 builder prepares UniProt query text; live validation happens later when the
-workflow runs.
+workflow runs. Friendly UniProt field names are case-insensitive for supported
+fields, `keyword` and `keywords` aliases are accepted, `reviewed:true` and
+`reviewed:false` are preserved as executable UniProt filters, and length ranges
+such as `length:100-101` are emitted as UniProt range syntax. A degenerate
+friendly range such as `length:100-100` is kept as `length:[100 TO 100]`;
+authors can still type `length:100` manually when that exact UniProt query form
+is desired.
 Query builders are registered per database/resource: UniProt uses connectors
 and match modes, while ChEMBL target, assay, cell line, and molecule builders
 use resource filters that are combined with `AND`; ChEMBL activity uses flat
@@ -516,7 +524,7 @@ Classify compounds by bioactivity levels (IC50 ranges):
 ```bash
 bioseq-dl workflow run \
   -o workflow_compound \
-  -q "ic50:10-50=active,ic50:50-100=inactive" \
+  -q "ic50:10-50 AND standard_units:nM=active,ic50:50-100 AND standard_units:nM=inactive" \
   --modality "compound" \
   --mode "query_composition" \
   --debug
@@ -526,7 +534,7 @@ bioseq-dl workflow run \
 1. Performs ChEMBL activity retrieval with UniProt target mapping for activity records in different IC50 ranges
 2. Creates two labeled datasets: `active` (`standard_value` 10-50) and `inactive` (`standard_value` 50-100)
 3. Enforces `standard_type = IC50` and numeric `standard_value` filtering after retrieval
-4. Optionally constrains `standard_units` when it is included in the query; no unit conversion is applied
+4. Constrains `standard_units` to `nM` for this example; no unit conversion is applied
 5. Writes ChEMBL activity results and available UniProt target-mapping output
 
 **Output files:**
