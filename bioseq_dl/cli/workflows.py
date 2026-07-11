@@ -1243,7 +1243,10 @@ def run_workflow(
     fields: str | None = typer.Option(
         None,
         "--fields",
-        help="Comma-separated UniProt fields to fetch. Default is empty (UniProt API defaults).",
+        help=(
+            "Comma-separated UniProt fields to fetch. Empty values use BioSeqDownloader's "
+            "default UniProt return fields."
+        ),
     ),
     crossref_fields: str | None = typer.Option(
         None,

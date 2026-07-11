@@ -1299,7 +1299,8 @@ class WorkflowYamlBuilderApp:
             )
             ui.label(
                 "Selected fields are written to query.fields and passed to UniProt as "
-                "requested API fields."
+                "requested API fields. If no fields are selected, BioSeqDownloader uses "
+                "default UniProt fields."
             ).classes("text-xs text-gray-600")
 
     def get_query_composition_entries(self) -> list[dict[str, object]]:

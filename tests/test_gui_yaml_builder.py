@@ -12,6 +12,10 @@ from unittest.mock import Mock
 import pytest
 import yaml
 
+from bioseq_dl.constants.uniprot import (
+    DEFAULT_UNIPROT_RETURN_FIELDS,
+    get_default_uniprot_return_fields,
+)
 from bioseq_dl.core.utils.crossref_enrichment import build_effective_uniprot_request_fields
 from bioseq_dl.gui.query_builder_state import (
     build_chembl_builder_form_rows,
@@ -265,7 +269,7 @@ def test_build_workflow_descriptor_removes_empty_optional_fields() -> None:
 
     assert "description" not in descriptor["dataset"]
     assert "interaction_type" not in descriptor["dataset"]
-    assert "fields" not in descriptor["query"]
+    assert descriptor["query"]["fields"] == get_default_uniprot_return_fields()
     assert "crossref_fields" not in descriptor["query"]
     assert "uniprot_timeout" not in descriptor["execution"]
     assert "harmonization" not in descriptor
@@ -282,6 +286,22 @@ def test_uniprot_return_field_catalog_includes_normal_fields_only() -> None:
     assert "xref_alphafolddb" not in options
     assert "xref_pdb" not in options
     assert not any(field.startswith("xref_") for field in options)
+
+
+def test_default_uniprot_return_fields_are_safe_normal_fields() -> None:
+    defaults = get_default_uniprot_return_fields()
+
+    assert defaults == [
+        "accession",
+        "protein_name",
+        "organism_name",
+        "organism_id",
+        "sequence",
+        "length",
+    ]
+    assert tuple(defaults) == DEFAULT_UNIPROT_RETURN_FIELDS
+    assert not any(field.startswith("xref_") for field in defaults)
+    assert set(defaults) <= set(get_uniprot_return_field_options())
 
 
 def test_uniprot_return_field_normalization_preserves_custom_values() -> None:
@@ -314,7 +334,7 @@ def test_default_form_disables_enrichment_and_selects_no_sources() -> None:
     assert form_values["execution.enrich"] is False
     assert form_values["execution.enrichment_sources"] == []
     assert form_values["query.review_status"] == "any"
-    assert form_values["query.return_field_selections"] == []
+    assert form_values["query.return_field_selections"] == get_default_uniprot_return_fields()
     assert form_values["query.return_field_custom"] == ""
     assert form_values["execution.download_alphafold_structures"] is False
     assert form_values["execution.download_pdb_structures"] is False
@@ -531,7 +551,7 @@ def test_pathwaycommons_sources_generate_crossrefs_without_mutating_query_fields
     )
 
     assert descriptor["query"]["crossref_fields"] == [source]
-    assert "fields" not in descriptor["query"]
+    assert descriptor["query"]["fields"] == get_default_uniprot_return_fields()
 
 
 def test_enrichment_source_crossrefs_preserve_unknown_manual_fields() -> None:
@@ -610,6 +630,22 @@ def test_return_field_selector_generates_query_fields_list() -> None:
     assert descriptor["query"]["fields"] == ["accession", "protein_name", "sequence"]
 
 
+def test_blank_default_form_generates_default_query_fields() -> None:
+    form_values = workflow_yaml_form_defaults()
+    form_values.update(
+        {
+            "dataset.name": "example_dataset",
+            "query.value": "organism_id:9606",
+            "execution.chembl_pages_to_fetch": 1,
+            "export.output_dir": "results/example_dataset",
+        }
+    )
+
+    descriptor = build_workflow_descriptor(form_values)
+
+    assert descriptor["query"]["fields"] == get_default_uniprot_return_fields()
+
+
 def test_return_field_selector_preserves_custom_fields() -> None:
     descriptor = build_workflow_descriptor(
         minimal_form_values()
@@ -623,7 +659,7 @@ def test_return_field_selector_preserves_custom_fields() -> None:
     assert descriptor["query"]["fields"] == ["accession", "sequence", "custom_field"]
 
 
-def test_empty_return_fields_and_crossref_placeholders_do_not_generate_lists() -> None:
+def test_empty_return_fields_generate_safe_default_fields_without_crossrefs() -> None:
     descriptor = build_workflow_descriptor(
         minimal_form_values()
         | {
@@ -634,7 +670,7 @@ def test_empty_return_fields_and_crossref_placeholders_do_not_generate_lists() -
         }
     )
 
-    assert "fields" not in descriptor["query"]
+    assert descriptor["query"]["fields"] == get_default_uniprot_return_fields()
     assert "crossref_fields" not in descriptor["query"]
 
 
@@ -1533,6 +1569,52 @@ def test_loaded_list_fields_become_comma_separated_text() -> None:
     assert form_values["harmonization.metadata_fields"] == "accession, protein_name"
 
 
+def test_loading_yaml_with_missing_fields_restores_default_return_field_selections() -> None:
+    form_values, _warnings = load_workflow_yaml_to_form_values(
+        """
+schema_version: "workflow-v1"
+dataset:
+  name: loaded_dataset
+  modality: protein
+  mode: query_first
+query:
+  value: "reviewed:true"
+execution:
+  enrich: false
+export:
+  format: csv
+"""
+    )
+
+    assert form_values["query.fields"] == ", ".join(get_default_uniprot_return_fields())
+    assert form_values["query.return_field_selections"] == get_default_uniprot_return_fields()
+    assert form_values["query.return_field_custom"] == ""
+
+
+def test_loading_yaml_with_empty_fields_generates_safe_default_fields() -> None:
+    form_values, _warnings = load_workflow_yaml_to_form_values(
+        """
+schema_version: "workflow-v1"
+dataset:
+  name: loaded_dataset
+  modality: protein
+  mode: query_first
+query:
+  value: "reviewed:true"
+  fields: []
+execution:
+  enrich: false
+export:
+  format: csv
+"""
+    )
+
+    descriptor = build_workflow_descriptor(form_values)
+
+    assert form_values["query.return_field_selections"] == get_default_uniprot_return_fields()
+    assert descriptor["query"]["fields"] == get_default_uniprot_return_fields()
+
+
 def test_loaded_xref_return_fields_restore_as_advanced_custom_fields() -> None:
     yaml_text = minimal_workflow_yaml().replace(
         "    - sequence",
@@ -1620,7 +1702,8 @@ export:
 
     form_values, _warnings = load_workflow_yaml_to_form_values(yaml_text)
 
-    assert form_values["query.fields"] == ""
+    assert form_values["query.fields"] == ", ".join(get_default_uniprot_return_fields())
+    assert form_values["query.return_field_selections"] == get_default_uniprot_return_fields()
     assert form_values["query.crossref_fields"] == ""
     assert form_values["harmonization.metadata_fields"] == ""
 

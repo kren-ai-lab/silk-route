@@ -299,9 +299,13 @@ compound datasets; it is invalid when the selected modality is `Interaction`.
 
 `UniProt return fields` is a selectable list of normal UniProt request/result
 fields. Selected values are stored as field IDs in `query.fields`; an advanced
-manual input remains available for custom UniProt field IDs. Technical `xref_*`
-fields are usually derived internally from selected enrichment sources rather
-than shown as normal return-field choices. Enrichment is disabled by default;
+manual input remains available for custom UniProt field IDs. New GUI workflows
+preselect `accession`, `protein_name`, `organism_name`, `organism_id`,
+`sequence`, and `length`. If `query.fields` is missing or empty in a workflow
+YAML, BioSeqDownloader uses those same default UniProt return fields internally.
+Technical `xref_*` fields are usually derived internally from selected
+enrichment sources rather than shown as normal return-field choices, and they
+are not part of the normal default return fields. Enrichment is disabled by default;
 its source selector and advanced cross-reference input appear only after
 `Enable enrichment` is selected. Selected GUI sources are written as lowercase
 keys in `query.crossref_fields`. Multiple sources are available, but actual
@@ -556,7 +560,7 @@ deduplication are handled by the workflow logic that supports those operations.
 | `composition` | list of mappings | Optional | omitted | Neutral visual-editor metadata | Preserved in descriptor metadata and summary | `query.value` remains executable. Each item requires non-empty `label` and `value`, with optional `description` and per-entry `builder` mapping. |
 | `description` | string or null | Optional | `null` | Descriptive | Preserved in metadata and summary | Used as descriptor context. |
 | `filtering_strategy` | string or null | Optional | `null` | Descriptive | Preserved in metadata and summary | Filtering must be encoded in `query.value`; `query.filters` is not supported. |
-| `fields` | null, string, or list of strings | Optional | `null` | Executable | Normalized to `workflow_values["fields"]` and passed to the UniProt fetch as requested API fields | It controls normal requested UniProt fields. Parser columns still come from the workflow parser's field map. BioSeqDownloader may add technical `xref_*` request fields internally when enrichment needs cross-reference identifiers. |
+| `fields` | null, string, or list of strings | Optional | `null` | Executable | Normalized to `workflow_values["fields"]`; missing or empty values use the default UniProt return fields before the UniProt fetch | It controls normal requested UniProt fields. Defaults are `accession`, `protein_name`, `organism_name`, `organism_id`, `sequence`, and `length`. Parser columns still come from the workflow parser's field map. BioSeqDownloader may add technical `xref_*` request fields internally when enrichment needs cross-reference identifiers. |
 | `crossref_fields` | null, string, or list of strings | Optional | `null` | Executable when enrichment is enabled | Normalized to `workflow_values["crossref_fields"]` and passed to the enrichment path | Stores enrichment source selections separately from `query.fields`; unavailable or unsupported cross-reference fields may produce no enrichment output. |
 | `include_isoform` | boolean | Optional | `false` | Executable | Normalized to `workflow_values["include_isoform"]` and passed to UniProt fetches | Applies to UniProt requests. |
 

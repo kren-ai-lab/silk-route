@@ -14,6 +14,11 @@ import pandas as pd
 import requests
 
 from bioseq_dl.constants.databases import DATABASES, UNIPROT
+from bioseq_dl.constants.uniprot import (
+    get_default_uniprot_return_fields,
+    get_effective_uniprot_return_fields,
+    normalize_uniprot_return_fields,
+)
 from bioseq_dl.core.exceptions import RequestError
 from bioseq_dl.core.interfaces.base import BaseAPIInterface
 from bioseq_dl.core.utils.uniprot_auxiliary_methods import (
@@ -404,7 +409,7 @@ class UniprotInterface(BaseAPIInterface):
     def submit_stream(
         self,
         query: str,
-        fields: str,
+        fields: object,
         sort: str,
         include_isoform: bool | None = False,
         download: bool | None = False,
@@ -426,9 +431,19 @@ class UniprotInterface(BaseAPIInterface):
             tuple[dict, dict]: Combined response payload and request metadata.
 
         """
+        if not normalize_uniprot_return_fields(fields):
+            log.info(
+                "No UniProt return fields were provided. Using default fields: %s",
+                ", ".join(get_default_uniprot_return_fields()),
+            )
+        effective_fields = ", ".join(get_effective_uniprot_return_fields(fields))
+        if not effective_fields:
+            msg = "UniProt return fields could not be resolved."
+            raise ValueError(msg)
+
         parameters = {
             "query": query,
-            "fields": fields,
+            "fields": effective_fields,
             "sort": sort,
             "includeIsoform": include_isoform,
             "download": download,
@@ -453,7 +468,7 @@ class UniprotInterface(BaseAPIInterface):
                     "timeout=%s "
                     "started_at=%s",
                     query,
-                    fields,
+                    effective_fields,
                     sort,
                     include_isoform,
                     effective_timeout,
@@ -531,7 +546,7 @@ class UniprotInterface(BaseAPIInterface):
                         "type": type(query),
                         "value": query,
                     },
-                    "fields": fields,
+                    "fields": effective_fields,
                     "sort": sort,
                     "include_isoform": include_isoform,
                     "download": download,

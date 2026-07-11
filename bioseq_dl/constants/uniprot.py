@@ -1,5 +1,7 @@
 """UniProt database constants and configuration."""
 
+from __future__ import annotations
+
 # Constants for UniProt data fields and cross-references
 # Only should be added the fields that are available and defined
 # in the file bioseq_dl/core/interfaces/uniprot.py at line 187
@@ -24,6 +26,51 @@ VALID_FIELDS = [
     "ft_motif",
     "ft_region",
 ]
+
+DEFAULT_UNIPROT_RETURN_FIELDS = (
+    "accession",
+    "protein_name",
+    "organism_name",
+    "organism_id",
+    "sequence",
+    "length",
+)
+
+
+def normalize_uniprot_return_fields(value: object) -> list[str]:
+    """Normalize UniProt return-field input into stable, deduplicated field IDs."""
+    if value is None:
+        return []
+    if isinstance(value, str):
+        raw_values = value.replace("\r\n", "\n").replace("\n", ",").split(",")
+    elif isinstance(value, (list, tuple, set)):
+        raw_values = value
+    else:
+        raw_values = [value]
+
+    fields: list[str] = []
+    seen: set[str] = set()
+    for raw_value in raw_values:
+        field = str(raw_value).strip()
+        if not field:
+            continue
+        lookup_value = field.casefold()
+        if lookup_value in seen:
+            continue
+        fields.append(field)
+        seen.add(lookup_value)
+    return fields
+
+
+def get_default_uniprot_return_fields() -> list[str]:
+    """Return default UniProt return fields as a deduplicated list."""
+    return normalize_uniprot_return_fields(DEFAULT_UNIPROT_RETURN_FIELDS)
+
+
+def get_effective_uniprot_return_fields(value: object) -> list[str]:
+    """Return user-provided UniProt return fields, or defaults when none are provided."""
+    fields = normalize_uniprot_return_fields(value)
+    return fields or get_default_uniprot_return_fields()
 
 VALID_CROSS_REF_FIELDS = {
     "alphafold": "alphafold_ids",

@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from bioseq_dl.constants.uniprot import DEFAULT_UNIPROT_RETURN_FIELDS, get_default_uniprot_return_fields
 from bioseq_dl.core.workflow.query_field_catalog import (
     SUPPORTED_MATCH_MODES,
     get_uniprot_query_builder_field_catalog,
     get_uniprot_query_field_catalog,
 )
 from bioseq_dl.core.workflow.query_interpreter import build_default_uniprot_interpreter
+from bioseq_dl.gui.uniprot_return_fields import get_uniprot_return_field_options
 
 
 def test_uniprot_query_field_catalog_contains_supported_interpreter_fields():
@@ -83,3 +85,19 @@ def test_default_uniprot_interpreter_builds_fields_from_shared_catalog():
     assert interpreter.config.fields["taxid"].resolver_kind == "taxonomy_map"
     assert interpreter.config.fields["taxa"].resolver_kind == "taxonomy_map"
     assert interpreter.config.fields["length"].supports_range is True
+
+
+def test_default_uniprot_return_fields_are_catalog_options_without_xrefs():
+    defaults = get_default_uniprot_return_fields()
+
+    assert defaults == [
+        "accession",
+        "protein_name",
+        "organism_name",
+        "organism_id",
+        "sequence",
+        "length",
+    ]
+    assert tuple(defaults) == DEFAULT_UNIPROT_RETURN_FIELDS
+    assert not any(field.startswith("xref_") for field in defaults)
+    assert set(defaults) <= set(get_uniprot_return_field_options())

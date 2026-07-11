@@ -213,12 +213,15 @@ descriptor metadata and is shown as read-only. Valid `query.composition`
 metadata is restored into the labeled query editor.
 The GUI provides a selectable **UniProt return fields** list for normal UniProt
 request/result fields such as `accession`, `protein_name`, `organism_name`, and
-`sequence`. Selected values are written as stable field IDs under
-`query.fields`; an advanced input remains available for custom UniProt field IDs.
-Technical `xref_*` fields are not shown as normal return-field choices. When
-enrichment sources require cross-reference identifiers, BioSeqDownloader may add
-the required UniProt `xref_*` request fields internally at execution time without
-writing them back into the saved YAML.
+`sequence`. New GUI workflows preselect the default fields `accession`,
+`protein_name`, `organism_name`, `organism_id`, `sequence`, and `length`.
+Selected values are written as stable field IDs under `query.fields`; if no
+fields are provided in YAML, BioSeqDownloader uses the same defaults internally.
+An advanced input remains available for custom UniProt field IDs. Technical
+`xref_*` fields are not shown as normal return-field choices and are not part of
+the defaults. When enrichment sources require cross-reference identifiers,
+BioSeqDownloader may add the required UniProt `xref_*` request fields internally
+at execution time without writing them back into the saved YAML.
 Enrichment is optional. The GUI hides enrichment details until `Enable
 enrichment` is selected, then offers multiple sources and an advanced
 cross-reference field input. Selected sources are stored as lowercase keys in

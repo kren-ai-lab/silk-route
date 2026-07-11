@@ -12,6 +12,8 @@ import yaml
 
 from bioseq_dl.constants.uniprot import XREF_MAPPING
 from bioseq_dl.gui.uniprot_return_fields import (
+    get_default_uniprot_return_fields,
+    get_effective_uniprot_return_fields,
     return_fields_from_selection,
     split_known_and_custom_return_fields,
 )
@@ -230,7 +232,7 @@ DEFAULT_FORM_VALUES: dict[str, object] = {
         }
     ],
     "query.fields": "",
-    "query.return_field_selections": [],
+    "query.return_field_selections": get_default_uniprot_return_fields(),
     "query.return_field_custom": "",
     "query.crossref_fields": "",
     "query.include_isoform": False,
@@ -866,9 +868,12 @@ def descriptor_to_form_values(descriptor: Mapping[str, object]) -> dict[str, obj
     )
     form_values["query.review_status"] = review_status
     form_values["query.value"] = query_value
-    form_values["query.fields"] = csv_text_from_value(query.get("fields"))
+    query_fields = csv_text_from_value(query.get("fields"))
+    if not query_fields:
+        query_fields = ", ".join(get_default_uniprot_return_fields())
+    form_values["query.fields"] = query_fields
     return_field_selections, return_field_custom = split_known_and_custom_return_fields(
-        query.get("fields")
+        query_fields
     )
     form_values["query.return_field_selections"] = return_field_selections
     form_values["query.return_field_custom"] = ", ".join(return_field_custom)
@@ -1377,12 +1382,24 @@ def crossref_fields_from_enrichment_sources(
 
 def return_fields_for_yaml(form_values: Mapping[str, object]) -> str:
     """Resolve GUI return-field selector state to the canonical query.fields text."""
+    selector_values_present = has_form_value(form_values, "query.return_field_selections") or has_form_value(
+        form_values, "query.return_field_custom"
+    )
+    if not selector_values_present:
+        explicit_fields = csv_text_from_value(get_form_value(form_values, "query.fields"))
+        if explicit_fields:
+            return explicit_fields
+
     selected_fields = get_form_value(form_values, "query.return_field_selections")
     custom_fields = get_form_value(form_values, "query.return_field_custom")
     combined_fields = return_fields_from_selection(selected_fields, custom_fields)
     if combined_fields:
         return combined_fields
-    return csv_text_from_value(get_form_value(form_values, "query.fields"))
+
+    explicit_fields = csv_text_from_value(get_form_value(form_values, "query.fields"))
+    if explicit_fields and not selector_values_present:
+        return explicit_fields
+    return ", ".join(get_effective_uniprot_return_fields(explicit_fields))
 
 
 def build_workflow_filename(dataset_name: object) -> str:

@@ -4,7 +4,11 @@ from typing import Any, Literal
 
 import pandas as pd
 
-from bioseq_dl.constants.uniprot import XREF_MAPPING
+from bioseq_dl.constants.uniprot import (
+    XREF_MAPPING,
+    get_default_uniprot_return_fields,
+    normalize_uniprot_return_fields,
+)
 from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
 from bioseq_dl.core.interfacesconfig import load_packaged_config
 from bioseq_dl.logging import get_logger
@@ -25,27 +29,7 @@ SOURCE_UNIPROT_FIELD_REQUIREMENTS: dict[str, tuple[str, ...]] = {
 
 def normalize_uniprot_request_fields(fields: object) -> list[str]:
     """Normalize UniProt request fields while preserving order."""
-    if fields is None:
-        return []
-    if isinstance(fields, str):
-        raw_fields = fields.replace("\r\n", "\n").replace("\n", ",").split(",")
-    elif isinstance(fields, (list, tuple, set)):
-        raw_fields = fields
-    else:
-        raw_fields = [fields]
-
-    normalized_fields = []
-    seen_fields = set()
-    for raw_field in raw_fields:
-        field = str(raw_field).strip()
-        if not field:
-            continue
-        lookup_field = field.casefold()
-        if lookup_field in seen_fields:
-            continue
-        normalized_fields.append(field)
-        seen_fields.add(lookup_field)
-    return normalized_fields
+    return normalize_uniprot_return_fields(fields)
 
 
 def get_uniprot_field_requirements_by_source() -> dict[str, tuple[str, ...]]:
@@ -93,6 +77,12 @@ def build_effective_uniprot_request_fields(
 ) -> str:
     """Combine user-selected UniProt fields with enrichment-required request fields."""
     fields = normalize_uniprot_request_fields(query_fields)
+    if not fields:
+        fields = get_default_uniprot_return_fields()
+        log.info(
+            "No UniProt return fields were provided. Using default fields: %s",
+            ", ".join(fields),
+        )
     known_fields = {field.casefold() for field in fields}
     if enrich:
         for required_field in get_required_uniprot_fields_for_crossref_fields(crossref_fields):

@@ -7,9 +7,12 @@ sequence with ``responses``, plus a direct parse-shape test.
 
 from __future__ import annotations
 
+from urllib.parse import parse_qs, urlparse
+
 import pytest
 import responses
 
+from bioseq_dl.constants.uniprot import get_default_uniprot_return_fields
 from bioseq_dl.core.interfaces.uniprot import API_URL, UniprotInterface
 from tests._helpers import load_fixture
 
@@ -98,3 +101,49 @@ def test_submit_stream_uses_search_endpoint_and_combines_results(interface, mock
     assert metadata["search_process"]["endpoint_path"] == "/uniprotkb/search"
     assert metadata["search_process"]["total_results"] == 2
     assert metadata["search_process"]["retrieved_results"] == 2
+
+
+@pytest.mark.parametrize("fields", [None, "", [], ["", "  "], " , \n , "])
+def test_submit_stream_uses_default_fields_when_missing_or_empty(
+    interface,
+    mocked_responses,
+    fields,
+):
+    mocked_responses.add(
+        responses.GET,
+        f"{API_URL}/uniprotkb/search",
+        json={"results": []},
+        status=200,
+        headers={"x-total-results": "0"},
+    )
+
+    _payload, metadata = interface.submit_stream(
+        query="reviewed:true",
+        fields=fields,
+        sort="accession asc",
+    )
+
+    params = parse_qs(urlparse(mocked_responses.calls[0].request.url).query)
+    expected_fields = ", ".join(get_default_uniprot_return_fields())
+    assert params["fields"] == [expected_fields]
+    assert metadata["search_params"]["fields"] == expected_fields
+
+
+def test_submit_stream_preserves_explicit_fields(interface, mocked_responses):
+    mocked_responses.add(
+        responses.GET,
+        f"{API_URL}/uniprotkb/search",
+        json={"results": []},
+        status=200,
+        headers={"x-total-results": "0"},
+    )
+
+    _payload, metadata = interface.submit_stream(
+        query="reviewed:true",
+        fields="accession, sequence",
+        sort="accession asc",
+    )
+
+    params = parse_qs(urlparse(mocked_responses.calls[0].request.url).query)
+    assert params["fields"] == ["accession, sequence"]
+    assert metadata["search_params"]["fields"] == "accession, sequence"

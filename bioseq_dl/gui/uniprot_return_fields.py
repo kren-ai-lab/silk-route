@@ -4,6 +4,26 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from bioseq_dl.constants.uniprot import (
+    DEFAULT_UNIPROT_RETURN_FIELDS,
+    get_default_uniprot_return_fields,
+    get_effective_uniprot_return_fields,
+    normalize_uniprot_return_fields,
+)
+
+__all__ = [
+    "DEFAULT_UNIPROT_RETURN_FIELDS",
+    "UNIPROT_RETURN_FIELD_OPTIONS",
+    "UniProtReturnFieldOption",
+    "get_default_uniprot_return_fields",
+    "get_effective_uniprot_return_fields",
+    "get_uniprot_return_field_labels",
+    "get_uniprot_return_field_options",
+    "normalize_uniprot_return_fields",
+    "return_fields_from_selection",
+    "split_known_and_custom_return_fields",
+]
+
 
 @dataclass(frozen=True)
 class UniProtReturnFieldOption:
@@ -64,31 +84,6 @@ def get_uniprot_return_field_options() -> dict[str, str]:
 def get_uniprot_return_field_labels() -> dict[str, str]:
     """Return UniProt return-field labels keyed by stable field IDs."""
     return get_uniprot_return_field_options()
-
-
-def normalize_uniprot_return_fields(value: object) -> list[str]:
-    """Normalize return-field input into stable, deduplicated field IDs."""
-    if value is None:
-        return []
-    if isinstance(value, str):
-        raw_values = value.replace("\r\n", "\n").replace("\n", ",").split(",")
-    elif isinstance(value, (list, tuple, set)):
-        raw_values = value
-    else:
-        raw_values = [value]
-
-    fields: list[str] = []
-    seen: set[str] = set()
-    for raw_value in raw_values:
-        field = str(raw_value).strip()
-        if not field:
-            continue
-        lookup_value = field.casefold()
-        if lookup_value in seen:
-            continue
-        fields.append(field)
-        seen.add(lookup_value)
-    return fields
 
 
 def split_known_and_custom_return_fields(value: object) -> tuple[list[str], list[str]]:

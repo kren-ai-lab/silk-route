@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 
 from bioseq_dl.cli.workflows import WORKFLOW_SCHEMA_VERSION, validate_workflow_recipe
+from bioseq_dl.constants.uniprot import get_default_uniprot_return_fields
 from bioseq_dl.core.workflow.chembl_query_parser import is_chembl_prefixed_query
 from bioseq_dl.core.workflow.main_workflow import (
     PLI_SOURCE_QUERY_ERROR,
@@ -206,6 +207,70 @@ def test_protein_workflow_submits_effective_uniprot_fields_for_enrichment() -> N
 
     assert isinstance(data["uniprot"], pd.DataFrame)
     assert uniprot.submitted_fields == "accession, protein_name, xref_pdb, xref_alphafolddb"
+
+
+@pytest.mark.parametrize("fields", [None, "", [], ["", "   "], " , \n , "])
+def test_protein_workflow_uses_default_uniprot_fields_when_empty(fields: object) -> None:
+    uniprot = CapturingUniprotInterface()
+    workflow = MainWorkflow(uniprot_interface=uniprot)
+
+    workflow.run(
+        modality="protein",
+        mode="query_first",
+        query="reviewed:true",
+        fields=fields,  # type: ignore[arg-type]
+    )
+
+    assert uniprot.submitted_fields == ", ".join(get_default_uniprot_return_fields())
+
+
+def test_protein_workflow_preserves_explicit_uniprot_fields() -> None:
+    uniprot = CapturingUniprotInterface()
+    workflow = MainWorkflow(uniprot_interface=uniprot)
+
+    workflow.run(
+        modality="protein",
+        mode="query_first",
+        query="reviewed:true",
+        fields="accession, sequence",
+    )
+
+    assert uniprot.submitted_fields == "accession, sequence"
+
+
+def test_empty_uniprot_fields_with_enrichment_injects_defaults_and_xrefs() -> None:
+    uniprot = CapturingUniprotInterface()
+    workflow = MainWorkflow(uniprot_interface=uniprot)
+
+    workflow.run(
+        modality="protein",
+        mode="query_first",
+        query="reviewed:true",
+        fields=[],
+        enrich=True,
+        crossref_fields="pdb, alphafold",
+    )
+
+    assert uniprot.submitted_fields == (
+        "accession, protein_name, organism_name, organism_id, sequence, length, "
+        "xref_pdb, xref_alphafolddb"
+    )
+
+
+def test_explicit_uniprot_fields_with_enrichment_injects_xrefs_without_duplicates() -> None:
+    uniprot = CapturingUniprotInterface()
+    workflow = MainWorkflow(uniprot_interface=uniprot)
+
+    workflow.run(
+        modality="protein",
+        mode="query_first",
+        query="reviewed:true",
+        fields="accession, xref_pdb, accession",
+        enrich=True,
+        crossref_fields="pdb, alphafold, pdb",
+    )
+
+    assert uniprot.submitted_fields == "accession, xref_pdb, xref_alphafolddb"
 
 
 @pytest.mark.parametrize(
