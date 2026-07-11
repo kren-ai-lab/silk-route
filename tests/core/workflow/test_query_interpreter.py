@@ -58,33 +58,17 @@ def test_uniprot_interpret(uniprot, query, expected):
 @pytest.mark.parametrize(
     ("query", "expected"),
     [
-        ("keywords_any:KW-0067,KW-0479", "( keyword:KW-0067 OR keyword:KW-0479 )"),
-        ("keywords_all:KW-0067,KW-0479", "( keyword:KW-0067 AND keyword:KW-0479 )"),
-        ("keywords_not:KW-0067,KW-0479", "NOT ( keyword:KW-0067 AND keyword:KW-0479 )"),
+        ("keywords_any:KW-0067,KW-0479", "(keyword:KW-0067 OR keyword:KW-0479)"),
+        ("keywords_all:KW-0067,KW-0479", "(keyword:KW-0067 AND keyword:KW-0479)"),
+        ("keywords_not:KW-0067,KW-0479", "NOT (keyword:KW-0067 AND keyword:KW-0479)"),
         # no suffix defaults to _all
-        ("keywords:KW-0067,KW-0479", "( keyword:KW-0067 AND keyword:KW-0479 )"),
+        ("keywords:KW-0067,KW-0479", "(keyword:KW-0067 AND keyword:KW-0479)"),
         # single value: no surrounding parentheses
         ("keywords_any:KW-0067", "keyword:KW-0067"),
     ],
 )
 def test_uniprot_multimode_expansion(uniprot, query, expected):
     assert uniprot.interpret(query) == expected
-
-
-def test_uniprot_taxa_alias_does_not_map_value(uniprot):
-    # taxa/taxon/taxid expand the prefix to taxonomy_id but their field config has
-    # resolver_kind=None, so the friendly value is NOT mapped to an id.
-    assert uniprot.interpret("taxa:human") == "taxonomy_id:human"
-    assert uniprot.interpret("taxon:human") == "taxonomy_id:human"
-
-
-def test_uniprot_multiword_value_does_not_resolve(uniprot):
-    # KNOWN LIMITATION: the tokenizer splits on whitespace even inside a quoted
-    # field value, so multi-word friendly names (the GO/keyword maps' keys, e.g.
-    # "dna repair", "atp binding") never reach the map resolver and pass through
-    # verbatim. Documented here so a future fix flips this expectation knowingly.
-    assert uniprot.interpret("go:'dna repair'") == "go:'dna repair'"
-    assert uniprot.interpret("keywords:'atp binding'") == "keyword:'atp binding'"
 
 
 # --- UniProt extract_databases ---------------------------------------------

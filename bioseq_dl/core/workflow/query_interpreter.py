@@ -7,7 +7,30 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Any
 
-from bioseq_dl.constants.uniprot import XREF_MAPPING
+from bioseq_dl.core.workflow.chembl_query_parser import parse_chembl_query_builder_string
+from bioseq_dl.core.workflow.query_field_catalog import get_uniprot_query_field_catalog
+
+QUOTED_CSV_VALUE_PATTERN = re.compile(r"(?:'[^']*'|\"[^\"]*\"|[^,]+)")
+MIN_QUOTED_VALUE_LENGTH = 2
+
+
+def strip_surrounding_quotes(value: str) -> str:
+    """Strip one matching pair of surrounding single or double quotes."""
+    stripped = value.strip()
+    if len(stripped) >= MIN_QUOTED_VALUE_LENGTH and stripped[0] == stripped[-1] and stripped[0] in {"'", '"'}:
+        return stripped[1:-1]
+    return stripped
+
+
+def split_quoted_csv_values(value: str) -> list[str]:
+    """Split comma-separated values while preserving commas inside quotes."""
+    return [item.strip() for item in QUOTED_CSV_VALUE_PATTERN.findall(value) if item and item.strip()]
+
+
+def compact_parentheses_spacing(value: str) -> str:
+    """Remove spacing artifacts immediately inside query parentheses."""
+    compacted = re.sub(r"\(\s+", "(", value)
+    return re.sub(r"\s+\)", ")", compacted)
 
 
 def _remove_unknown_field_match(match: re.Match, allowed_fields: set[str]) -> str:
@@ -169,6 +192,7 @@ class BaseQueryInterpreter:
                 continue
 
             prefix = self._format_prefix(prefix, field_cfg)
+            value = strip_surrounding_quotes(value)
             formatted_value = self._format_value_for_field(value, field_cfg)
             if formatted_value:
                 value = formatted_value
@@ -179,7 +203,7 @@ class BaseQueryInterpreter:
             else:
                 resolved_final.append(f"{resolved_prefix}:{resolved_value}")
 
-        return " ".join(resolved_final)
+        return compact_parentheses_spacing(" ".join(resolved_final))
 
     def _format_prefix(self, _prefix: str, cfg: MultiModeFieldConfig) -> str:
         """Return the native field name for a prefix from its field configuration.
@@ -249,9 +273,7 @@ class BaseQueryInterpreter:
         mode = (m.group("mode") or "all").lower()
         values = m.group("values").strip()
 
-        # Split by commas but respect quoted segments (single or double)
-        parts = re.findall(r"'[^']*'|\"[^\"]*\"|[^,]+", values)
-        items = [p.strip() for p in parts if p and p.strip()]
+        items = split_quoted_csv_values(values)
 
         # Build fragments preserving original quoting
         fragments = [f"{base_field}:{it}" for it in items]
@@ -289,8 +311,29 @@ class BaseQueryInterpreter:
             return []
 
         token_re = re.compile(
-            r"""('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|\b(?:AND|OR|NOT)\b|\(|\)|[^\s()]+)""",
-            re.IGNORECASE,
+            r"""(
+                [a-zA-Z0-9_]+(?:_(?:any|all|not))?\s*:\s*
+                    (?:
+                        '(?:[^'\\]|\\.)*'
+                        |"(?:[^"\\]|\\.)*"
+                        |[^\s(),]+
+                    )
+                    (?:
+                        \s*,\s*
+                        (?:
+                            '(?:[^'\\]|\\.)*'
+                            |"(?:[^"\\]|\\.)*"
+                            |[^\s(),]+
+                        )
+                    )*
+                |'(?:[^'\\]|\\.)*'
+                |"(?:[^"\\]|\\.)*"
+                |\b(?:AND|OR|NOT)\b
+                |\(
+                |\)
+                |[^\s()]+
+            )""",
+            re.IGNORECASE | re.VERBOSE,
         )
 
         tokens: list[str] = []
@@ -437,7 +480,16 @@ class UniProtQueryInterpreter(BaseQueryInterpreter):
 
     # Resolver kinds whose only job is a friendly-name -> native-id lookup in the
     # field's own ``value_map`` (after stripping any surrounding quotes).
-    _MAP_RESOLVERS = frozenset({"go_name_map", "keyword_map", "organism_map", "database_map", "function_map"})
+    _MAP_RESOLVERS = frozenset(
+        {
+            "database_map",
+            "function_map",
+            "go_name_map",
+            "keyword_map",
+            "organism_map",
+            "taxonomy_map",
+        }
+    )
 
     def _resolve_item(self, prefix: str, value: str, cfg: MultiModeFieldConfig) -> tuple[str, str]:
         """Resolve a single ``prefix:value`` item against its field configuration.
@@ -519,121 +571,16 @@ class UniProtQueryInterpreter(BaseQueryInterpreter):
 
 
 def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
-    """Build a UniProtQueryInterpreter with default configuration.
-
-    Returns:
-        UniProtQueryInterpreter: An interpreter wired with the default UniProt field maps,
-            aliases, and ignored fields.
-
-    """
-    db_map = {db_name: db_name for _, (_, db_name) in XREF_MAPPING.items()}
-    db_map["alphafold"] = "alphafolddb"  # Special case
-
-    # Small starter dictionary; extend over time from your users' queries.
-    go_name_map = {
-        "dna repair": "0006281",
-        "protein folding": "0006457",
-        "response to heat": "0009408",
-        "translation": "0006412",
-        "proteolysis": "0006508",
-        "antioxidant activity": "0016209",
-        "hydrocarbon catabolic process": "0120252",
-        "peptidase activity": "0008233",
-        "response to stimulus": "0050896",
-    }
-
-    keyword_map = {
-        "atp binding": "KW-0067",
-        "metal-binding": "KW-0479",
-        "antiviral defense": "KW-0051",
-        "antiviral protein": "KW-0930",
-    }
-
-    function_map = {
-        "oxidoreductase": "1",
-        "transferase": "2",
-        "hydrolase": "3",
-        "lyase": "4",
-        "isomerase": "5",
-        "ligase": "6",
-        "translocase": "7",
-    }
-
-    taxonomy_id_map = {
-        "human": "9606",
-        "homo sapiens": "9606",
-        "mammalia": "40674",
-        "mouse": "10090",
-        "escherichia coli": "562",
-        "ecoli": "562",
-        "yeast": "4932",
-    }
-
-    taxonomy_field = MultiModeFieldConfig(
-        field="taxonomy_id",
-        value_map=taxonomy_id_map,
-        supports_range=False,
-        resolver_kind=None,
-    )
-
+    """Build a UniProtQueryInterpreter with default configuration."""
+    catalog = get_uniprot_query_field_catalog()
     fields = {
-        # Multi-mode databases
-        "databases": MultiModeFieldConfig(
-            field="database",
-            value_map=db_map,
-            supports_range=False,
-            resolver_kind="database_map",
-        ),
-        # Multi-mode keywords
-        "keywords": MultiModeFieldConfig(
-            field="keyword",
-            value_map=keyword_map,
-            supports_range=False,
-            resolver_kind="keyword_map",
-        ),
-        # Multi-mode GO (supports resolving known names -> IDs)
-        "go": MultiModeFieldConfig(
-            field="go",
-            value_map=go_name_map,
-            supports_range=False,
-            resolver_kind="go_name_map",
-        ),
-        # taxa + the singular aliases taxon/taxid all resolve via taxonomy_id_map;
-        # the frozen config is immutable, so one shared instance is safe.
-        "taxa": taxonomy_field,
-        "taxon": taxonomy_field,
-        "taxid": taxonomy_field,
-        # Allow 'organism' (singular) to resolve to organism_id using the taxonomy map
-        "organism": MultiModeFieldConfig(
-            field="organism_id",
-            value_map=taxonomy_id_map,
-            supports_range=False,
-            resolver_kind="organism_map",
-        ),
-        "ec": MultiModeFieldConfig(
-            field="ec",
-            value_map=function_map,
-            supports_range=False,
-            resolver_kind="function_map",
-        ),
-        "length": MultiModeFieldConfig(
-            field="length",
-            value_map={},
-            supports_range=True,
-            resolver_kind="length_transform",
-        ),
-        "temperature": MultiModeFieldConfig(
-            field="cc_bpcp_temp_dependence",
-            value_map={},
-            supports_range=True,
-            resolver_kind=None,
-        ),
-        "ph": MultiModeFieldConfig(
-            field="cc_bpcp_ph_dependence",
-            value_map={},
-            supports_range=True,
-            resolver_kind=None,
-        ),
+        key: MultiModeFieldConfig(
+            field=entry.native_field,
+            value_map=dict(entry.value_map),
+            supports_range=entry.supports_range,
+            resolver_kind=entry.resolver_kind,
+        )
+        for key, entry in catalog.items()
     }
 
     field_aliases = {
@@ -692,6 +639,10 @@ class ChEMBLQueryInterpreter(BaseQueryInterpreter):
                 return "", f"standard_type=IC50 AND standard_value={value.strip()}"
 
         return prefix, value
+
+    def parse_query_builder_string(self, query: str) -> dict[str, object]:
+        """Parse a ChEMBL query-builder string into an internal query structure."""
+        return parse_chembl_query_builder_string(query)
 
 
 def build_default_chembl_interpreter() -> ChEMBLQueryInterpreter:
