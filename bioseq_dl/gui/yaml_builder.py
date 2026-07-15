@@ -125,6 +125,13 @@ CHEMBL_BUILDER_RESOURCE_BY_KEY = {
     "chembl_molecule": "molecule",
     "chembl_activity": "activity",
 }
+PUBCHEM_BUILDER_RESOURCE_BY_KEY = {
+    "pubchem_compound": "compound",
+    "pubchem_structure": "structure",
+}
+CHEBI_BUILDER_RESOURCE_BY_KEY = {
+    "chebi_entity": "entity",
+}
 
 DEFAULT_FORM_VALUES: dict[str, object] = {
     "dataset.name": "",
@@ -150,6 +157,15 @@ DEFAULT_FORM_VALUES: dict[str, object] = {
             "value": "",
         }
     ],
+    "query.pubchem_builder.row": {
+        "field": "name",
+        "value": "",
+        "threshold": "",
+    },
+    "query.chebi_builder.row": {
+        "field": "name_contains",
+        "value": "",
+    },
     "query.fields": "",
     "query.crossref_fields": "",
     "query.include_isoform": False,
@@ -518,6 +534,49 @@ def build_chembl_builder_rows_from_form(form_values: Mapping[str, object]) -> li
     ]
 
 
+def build_pubchem_builder_row_from_form(form_values: Mapping[str, object]) -> object:
+    """Build a pure PubChem query builder row from GUI form values."""
+    from bioseq_dl.gui.query_builders.pubchem import PubChemQueryBuilderRow  # noqa: PLC0415
+
+    builder_key = normalize_query_builder_key(get_form_value(form_values, "query.builder.key"))
+    if builder_key not in PUBCHEM_BUILDER_RESOURCE_BY_KEY:
+        msg = f"Query builder '{builder_key}' is not a PubChem builder."
+        raise ValueError(msg)
+
+    raw_row = get_form_value(form_values, "query.pubchem_builder.row")
+    if not isinstance(raw_row, Mapping):
+        msg = "Advanced PubChem builder row must be a mapping."
+        raise TypeError(msg)
+
+    return PubChemQueryBuilderRow(
+        resource=PUBCHEM_BUILDER_RESOURCE_BY_KEY[builder_key],
+        field=str(get_builder_row_value(raw_row, "field", "")),
+        value=str(get_builder_row_value(raw_row, "value", "")),
+        threshold=get_builder_row_value(raw_row, "threshold", None),
+    )
+
+
+def build_chebi_builder_row_from_form(form_values: Mapping[str, object]) -> object:
+    """Build a pure ChEBI query builder row from GUI form values."""
+    from bioseq_dl.gui.query_builders.chebi import ChEBIQueryBuilderRow  # noqa: PLC0415
+
+    builder_key = normalize_query_builder_key(get_form_value(form_values, "query.builder.key"))
+    if builder_key not in CHEBI_BUILDER_RESOURCE_BY_KEY:
+        msg = f"Query builder '{builder_key}' is not a ChEBI builder."
+        raise ValueError(msg)
+
+    raw_row = get_form_value(form_values, "query.chebi_builder.row")
+    if not isinstance(raw_row, Mapping):
+        msg = "Advanced ChEBI builder row must be a mapping."
+        raise TypeError(msg)
+
+    return ChEBIQueryBuilderRow(
+        resource=CHEBI_BUILDER_RESOURCE_BY_KEY[builder_key],
+        field=str(get_builder_row_value(raw_row, "field", "")),
+        value=str(get_builder_row_value(raw_row, "value", "")),
+    )
+
+
 def resolve_query_value_from_form(form_values: Mapping[str, object]) -> str:
     """Resolve the executable query.value from manual or advanced query form values."""
     mode = normalize_query_input_mode(get_form_value(form_values, "query.input_mode"))
@@ -542,6 +601,18 @@ def resolve_query_value_from_form(form_values: Mapping[str, object]) -> str:
             msg = "Advanced ChEMBL builder requires at least one condition."
             raise ValueError(msg)
         return build_chembl_interpreted_query(rows)
+
+    if builder_key in PUBCHEM_BUILDER_RESOURCE_BY_KEY:
+        from bioseq_dl.gui.query_builders.pubchem import build_pubchem_interpreted_query  # noqa: PLC0415
+
+        row = build_pubchem_builder_row_from_form(form_values)
+        return build_pubchem_interpreted_query(row)
+
+    if builder_key in CHEBI_BUILDER_RESOURCE_BY_KEY:
+        from bioseq_dl.gui.query_builders.chebi import build_chebi_interpreted_query  # noqa: PLC0415
+
+        row = build_chebi_builder_row_from_form(form_values)
+        return build_chebi_interpreted_query(row)
 
     msg = f"Unsupported query builder '{builder_key}'."
     raise ValueError(msg)

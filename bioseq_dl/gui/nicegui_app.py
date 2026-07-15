@@ -11,31 +11,54 @@ from nicegui import ui
 from bioseq_dl.gui.form_helpers import (
     NO_INTERACTION_LABEL,
     UNIPROT_BUILDER_FIELD_LABEL_TO_VALUE,
+    build_chebi_builder_form_row,
     build_chembl_builder_form_rows,
+    build_pubchem_builder_form_row,
     build_uniprot_builder_form_rows,
+    get_active_chebi_builder_label,
     get_active_chembl_builder_label,
+    get_active_pubchem_builder_label,
+    get_chebi_field_entry,
+    get_chebi_field_help,
+    get_chebi_field_options,
     get_chembl_field_entry,
     get_chembl_field_help,
     get_chembl_field_options,
     get_chembl_filter_type_options,
     get_dataset_interaction_type_value,
     get_dataset_modality_value,
+    get_pubchem_field_entry,
+    get_pubchem_field_help,
+    get_pubchem_field_options,
     get_query_builder_label,
     get_uniprot_builder_field_help,
     get_uniprot_builder_field_placeholder,
     is_advanced_builder_query_mode,
+    is_chebi_builder_key,
     is_chembl_builder_key,
     is_manual_query_mode,
+    is_pubchem_builder_key,
+    is_pubchem_similarity_field,
     is_supported_workflow_yaml_filename,
     is_uniprot_builder_key,
+    make_chebi_builder_ui_row,
     make_chembl_builder_ui_row,
+    make_pubchem_builder_ui_row,
     make_uniprot_builder_ui_row,
     read_upload_event_text,
     should_show_interaction_type_selector,
 )
+from bioseq_dl.gui.query_builders.chebi import (
+    build_chebi_friendly_query,
+    build_chebi_interpreted_query,
+)
 from bioseq_dl.gui.query_builders.chembl import (
     build_chembl_friendly_query,
     build_chembl_interpreted_query,
+)
+from bioseq_dl.gui.query_builders.pubchem import (
+    build_pubchem_friendly_query,
+    build_pubchem_interpreted_query,
 )
 from bioseq_dl.gui.query_builders.registry import get_compatible_query_builder_choices
 from bioseq_dl.gui.query_builders.uniprot import (
@@ -50,7 +73,9 @@ from bioseq_dl.gui.yaml_builder import (
     QUERY_INPUT_MODE_LABEL_TO_VALUE,
     UNIPROT_MATCH_MODE_LABEL_TO_VALUE,
     WORKFLOW_MODE_LABEL_TO_VALUE,
+    build_chebi_builder_row_from_form,
     build_chembl_builder_rows_from_form,
+    build_pubchem_builder_row_from_form,
     build_uniprot_builder_rows_from_form,
     build_workflow_descriptor,
     build_workflow_filename,
@@ -72,6 +97,8 @@ class WorkflowYamlBuilderApp:
         self.form_values["query.builder.key"] = get_query_builder_label(self.form_values["query.builder.key"])
         self.uniprot_builder_rows = [make_uniprot_builder_ui_row()]
         self.chembl_builder_rows = [make_chembl_builder_ui_row(get_query_builder_label("chembl_target"))]
+        self.pubchem_builder_row = make_pubchem_builder_ui_row(get_query_builder_label("pubchem_compound"))
+        self.chebi_builder_row = make_chebi_builder_ui_row(get_query_builder_label("chebi_entity"))
         self.friendly_query_preview: Any = None
         self.interpreted_query_preview: Any = None
         self.query_builder_select: Any = None
@@ -242,6 +269,20 @@ class WorkflowYamlBuilderApp:
                     self.form_values,
                     "query.builder.key",
                     backward=is_chembl_builder_key,
+                )
+                with ui.column().classes("w-full gap-3") as pubchem_builder_panel:
+                    self.build_pubchem_builder_controls()
+                pubchem_builder_panel.bind_visibility_from(
+                    self.form_values,
+                    "query.builder.key",
+                    backward=is_pubchem_builder_key,
+                )
+                with ui.column().classes("w-full gap-3") as chebi_builder_panel:
+                    self.build_chebi_builder_controls()
+                chebi_builder_panel.bind_visibility_from(
+                    self.form_values,
+                    "query.builder.key",
+                    backward=is_chebi_builder_key,
                 )
                 self.friendly_query_preview = (
                     ui.textarea("Friendly query preview").classes("w-full font-mono").props("readonly rows=3")
@@ -450,12 +491,123 @@ class WorkflowYamlBuilderApp:
         self.build_chembl_builder_rows.refresh()
         self.update_builder_previews()
 
+    def build_pubchem_builder_controls(self) -> None:
+        """Build PubChem-specific advanced builder controls."""
+        with ui.column().classes("w-full gap-3"):
+            ui.label(
+                "Build a PubChem compound or structure query using one field. "
+                "The final interpreted query is stored as query.value in the YAML."
+            ).classes("text-sm text-gray-700")
+            ui.label(
+                "The threshold is required only for PubChem 2-D similarity searches."
+            ).classes("text-sm text-gray-700")
+            self.build_pubchem_builder_row()
+            with ui.row().classes("items-center gap-3"):
+                ui.button("Update query preview", on_click=self.update_builder_previews)
+
+    @ui.refreshable
+    def build_pubchem_builder_row(self) -> None:
+        """Build the single PubChem query builder row."""
+        builder_label = get_active_pubchem_builder_label(self.form_values["query.builder.key"])
+        row = self.pubchem_builder_row
+        field_help = get_pubchem_field_help(builder_label, row.get("field", ""))
+        values_placeholder = str(get_pubchem_field_entry(builder_label, row.get("field", "")).placeholder)
+        with ui.row().classes("w-full items-end gap-3"):
+            (
+                ui.select(get_pubchem_field_options(builder_label), label="Field")
+                .bind_value(row, "field")
+                .on_value_change(self.handle_pubchem_builder_field_change)
+                .classes("min-w-72")
+                .tooltip(field_help)
+            )
+            (
+                ui.input("Value", placeholder=values_placeholder)
+                .props("clearable")
+                .bind_value(row, "value")
+                .on_value_change(self.update_builder_previews)
+                .classes("grow")
+                .tooltip("Enter the value for this PubChem lookup or structure search.")
+            )
+            threshold_input = (
+                ui.number("Threshold", min=0, max=100, step=1)
+                .bind_value(row, "threshold")
+                .on_value_change(self.update_builder_previews)
+                .classes("w-32")
+                .tooltip("Required integer threshold from 0 to 100 for 2-D similarity searches.")
+            )
+            threshold_input.bind_visibility_from(
+                row,
+                "field",
+                backward=lambda value: is_pubchem_similarity_field(builder_label, value),
+            )
+        ui.label(field_help).classes("text-xs text-gray-600")
+
+    def handle_pubchem_builder_field_change(self, *_args: object) -> None:
+        """Refresh PubChem field-specific threshold visibility and help."""
+        builder_label = get_active_pubchem_builder_label(self.form_values["query.builder.key"])
+        if is_pubchem_similarity_field(builder_label, self.pubchem_builder_row.get("field", "")):
+            if self.pubchem_builder_row.get("threshold") in {None, ""}:
+                self.pubchem_builder_row["threshold"] = 80
+        else:
+            self.pubchem_builder_row["threshold"] = ""
+        self.sync_builder_rows_to_form()
+        self.build_pubchem_builder_row.refresh()
+        self.update_builder_previews()
+
+    def build_chebi_builder_controls(self) -> None:
+        """Build ChEBI-specific advanced builder controls."""
+        with ui.column().classes("w-full gap-3"):
+            ui.label(
+                "Build a ChEBI entity query using one field. "
+                "The final interpreted query is stored as query.value in the YAML."
+            ).classes("text-sm text-gray-700")
+            self.build_chebi_builder_row()
+            with ui.row().classes("items-center gap-3"):
+                ui.button("Update query preview", on_click=self.update_builder_previews)
+
+    @ui.refreshable
+    def build_chebi_builder_row(self) -> None:
+        """Build the single ChEBI entity query builder row."""
+        builder_label = get_active_chebi_builder_label(self.form_values["query.builder.key"])
+        row = self.chebi_builder_row
+        field_help = get_chebi_field_help(builder_label, row.get("field", ""))
+        values_placeholder = str(get_chebi_field_entry(builder_label, row.get("field", "")).placeholder)
+        with ui.row().classes("w-full items-end gap-3"):
+            (
+                ui.select(get_chebi_field_options(builder_label), label="Field")
+                .bind_value(row, "field")
+                .on_value_change(self.handle_chebi_builder_field_change)
+                .classes("min-w-72")
+                .tooltip(field_help)
+            )
+            (
+                ui.input("Value", placeholder=values_placeholder)
+                .props("clearable")
+                .bind_value(row, "value")
+                .on_value_change(self.update_builder_previews)
+                .classes("grow")
+                .tooltip("Enter the value for this ChEBI entity query.")
+            )
+        ui.label(field_help).classes("text-xs text-gray-600")
+
+    def handle_chebi_builder_field_change(self, *_args: object) -> None:
+        """Refresh ChEBI field-specific help."""
+        self.sync_builder_rows_to_form()
+        self.build_chebi_builder_row.refresh()
+        self.update_builder_previews()
+
     def handle_query_builder_change(self, *_args: object) -> None:
         """Refresh builder-specific controls after the selected builder changes."""
         builder_label = self.form_values["query.builder.key"]
         if is_chembl_builder_key(builder_label):
             self.chembl_builder_rows = [make_chembl_builder_ui_row(builder_label)]
             self.build_chembl_builder_rows.refresh()
+        if is_pubchem_builder_key(builder_label):
+            self.pubchem_builder_row = make_pubchem_builder_ui_row(builder_label)
+            self.build_pubchem_builder_row.refresh()
+        if is_chebi_builder_key(builder_label):
+            self.chebi_builder_row = make_chebi_builder_ui_row(builder_label)
+            self.build_chebi_builder_row.refresh()
         self.sync_builder_rows_to_form()
         self.update_builder_previews()
 
@@ -492,6 +644,14 @@ class WorkflowYamlBuilderApp:
                 self.chembl_builder_rows = [make_chembl_builder_ui_row(self.form_values["query.builder.key"])]
                 if refresh_rows:
                     self.build_chembl_builder_rows.refresh()
+            if is_pubchem_builder_key(self.form_values["query.builder.key"]):
+                self.pubchem_builder_row = make_pubchem_builder_ui_row(self.form_values["query.builder.key"])
+                if refresh_rows:
+                    self.build_pubchem_builder_row.refresh()
+            if is_chebi_builder_key(self.form_values["query.builder.key"]):
+                self.chebi_builder_row = make_chebi_builder_ui_row(self.form_values["query.builder.key"])
+                if refresh_rows:
+                    self.build_chebi_builder_row.refresh()
             if refresh_rows:
                 self.build_uniprot_builder_rows.refresh()
             self.sync_builder_rows_to_form()
@@ -537,6 +697,16 @@ class WorkflowYamlBuilderApp:
                 self.form_values["query.builder.key"],
                 self.chembl_builder_rows,
             )
+        if is_pubchem_builder_key(self.form_values["query.builder.key"]):
+            self.form_values["query.pubchem_builder.row"] = build_pubchem_builder_form_row(
+                self.form_values["query.builder.key"],
+                self.pubchem_builder_row,
+            )
+        if is_chebi_builder_key(self.form_values["query.builder.key"]):
+            self.form_values["query.chebi_builder.row"] = build_chebi_builder_form_row(
+                self.form_values["query.builder.key"],
+                self.chebi_builder_row,
+            )
 
     def update_builder_previews(self, *_args: object) -> None:
         """Update friendly and interpreted advanced query previews."""
@@ -549,10 +719,18 @@ class WorkflowYamlBuilderApp:
                 rows = build_uniprot_builder_rows_from_form(self.form_values)
                 friendly_query = build_uniprot_friendly_query(rows)
                 interpreted_query = build_uniprot_interpreted_query(rows)
-            else:
+            elif is_chembl_builder_key(builder_key):
                 rows = build_chembl_builder_rows_from_form(self.form_values)
                 friendly_query = build_chembl_friendly_query(rows)
                 interpreted_query = build_chembl_interpreted_query(rows)
+            elif is_pubchem_builder_key(builder_key):
+                row = build_pubchem_builder_row_from_form(self.form_values)
+                friendly_query = build_pubchem_friendly_query(row)
+                interpreted_query = build_pubchem_interpreted_query(row)
+            else:
+                row = build_chebi_builder_row_from_form(self.form_values)
+                friendly_query = build_chebi_friendly_query(row)
+                interpreted_query = build_chebi_interpreted_query(row)
         except ValueError as exc:
             self.friendly_query_preview.value = ""
             self.interpreted_query_preview.value = f"Builder error: {exc}"
@@ -833,6 +1011,8 @@ class WorkflowYamlBuilderApp:
         )
         self.uniprot_builder_rows = [make_uniprot_builder_ui_row()]
         self.chembl_builder_rows = [make_chembl_builder_ui_row(get_query_builder_label("chembl_target"))]
+        self.pubchem_builder_row = make_pubchem_builder_ui_row(get_query_builder_label("pubchem_compound"))
+        self.chebi_builder_row = make_chebi_builder_ui_row(get_query_builder_label("chebi_entity"))
         self.update_interaction_type_visibility()
         self.refresh_query_builder_options()
 

@@ -9,14 +9,18 @@ from __future__ import annotations
 
 from typing import Any
 
+from bioseq_dl.core.workflow.chebi_query_catalog import get_chebi_query_builder_field_catalog
 from bioseq_dl.core.workflow.chembl_query_catalog import get_chembl_query_builder_field_catalog
+from bioseq_dl.core.workflow.pubchem_query_catalog import get_pubchem_query_builder_field_catalog
 from bioseq_dl.core.workflow.query_field_catalog import get_uniprot_query_builder_field_catalog
 from bioseq_dl.gui.query_builders.registry import get_query_builder_choices
 from bioseq_dl.gui.query_builders.uniprot import get_uniprot_query_builder_field_metadata
 from bioseq_dl.gui.yaml_builder import (
+    CHEBI_BUILDER_RESOURCE_BY_KEY,
     CHEMBL_BUILDER_RESOURCE_BY_KEY,
     INTERACTION_TYPE_LABEL_TO_VALUE,
     MODALITY_LABEL_TO_VALUE,
+    PUBCHEM_BUILDER_RESOURCE_BY_KEY,
     UNIPROT_MATCH_MODE_LABEL_TO_VALUE,
     get_labeled_option_default,
     normalize_labeled_value,
@@ -40,6 +44,14 @@ DEFAULT_CHEMBL_FIELDS_BY_RESOURCE = {
     "molecule": "name",
     "activity": "target_chembl_id",
 }
+DEFAULT_PUBCHEM_FIELDS_BY_RESOURCE = {
+    "compound": "name",
+    "structure": "smiles_substructure",
+}
+DEFAULT_CHEBI_FIELDS_BY_RESOURCE = {
+    "entity": "name_contains",
+}
+PUBCHEM_SIMILARITY_FIELD = "similarity_2d_cid"
 SUPPORTED_WORKFLOW_YAML_SUFFIXES = (".yml", ".yaml")
 NO_INTERACTION_LABEL = get_labeled_option_default(None, INTERACTION_TYPE_LABEL_TO_VALUE)
 
@@ -76,6 +88,16 @@ def is_uniprot_builder_key(value: object) -> bool:
 def is_chembl_builder_key(value: object) -> bool:
     """Return whether a GUI builder key or label selects a ChEMBL builder."""
     return get_query_builder_key(value) in CHEMBL_BUILDER_RESOURCE_BY_KEY
+
+
+def is_pubchem_builder_key(value: object) -> bool:
+    """Return whether a GUI builder key or label selects a PubChem builder."""
+    return get_query_builder_key(value) in PUBCHEM_BUILDER_RESOURCE_BY_KEY
+
+
+def is_chebi_builder_key(value: object) -> bool:
+    """Return whether a GUI builder key or label selects a ChEBI builder."""
+    return get_query_builder_key(value) in CHEBI_BUILDER_RESOURCE_BY_KEY
 
 
 def get_query_builder_label(builder_key: object) -> str:
@@ -242,6 +264,171 @@ def build_chembl_builder_form_rows(
         }
         for row in ui_rows
     ]
+
+
+def get_pubchem_builder_resource(builder_label_or_key: object) -> str:
+    """Return the PubChem resource for a selected builder key or label."""
+    builder_key = get_query_builder_key(builder_label_or_key)
+    return PUBCHEM_BUILDER_RESOURCE_BY_KEY[builder_key]
+
+
+def get_active_pubchem_builder_label(builder_label_or_key: object) -> str:
+    """Return a PubChem builder label, falling back to compound when another builder is active."""
+    if is_pubchem_builder_key(builder_label_or_key):
+        return str(builder_label_or_key)
+    return get_query_builder_label("pubchem_compound")
+
+
+def get_pubchem_field_catalog_for_builder(builder_label_or_key: object) -> dict[str, object]:
+    """Return the PubChem field catalog for the selected builder."""
+    return get_pubchem_query_builder_field_catalog(get_pubchem_builder_resource(builder_label_or_key))
+
+
+def get_pubchem_builder_field_label(builder_label_or_key: object, field: object) -> str:
+    """Return a visible PubChem field label."""
+    catalog = get_pubchem_field_catalog_for_builder(builder_label_or_key)
+    field_text = str(field)
+    if field_text in catalog:
+        return f"{catalog[field_text].label} ({field_text})"
+    return field_text
+
+
+def get_pubchem_builder_field_value(builder_label_or_key: object, label_or_value: object) -> str:
+    """Return an internal PubChem field key for a visible field label or field key."""
+    catalog = get_pubchem_field_catalog_for_builder(builder_label_or_key)
+    text = str(label_or_value)
+    for key, entry in catalog.items():
+        if text == f"{entry.label} ({key})":
+            return key
+    return text
+
+
+def get_pubchem_field_entry(builder_label_or_key: object, label_or_value: object) -> object:
+    """Return PubChem catalog metadata for a visible field label or field key."""
+    catalog = get_pubchem_field_catalog_for_builder(builder_label_or_key)
+    field = get_pubchem_builder_field_value(builder_label_or_key, label_or_value)
+    return catalog[field]
+
+
+def get_pubchem_field_options(builder_label_or_key: object) -> list[str]:
+    """Return visible PubChem field options for the selected builder."""
+    catalog = get_pubchem_field_catalog_for_builder(builder_label_or_key)
+    return [get_pubchem_builder_field_label(builder_label_or_key, key) for key in catalog]
+
+
+def get_pubchem_field_help(builder_label_or_key: object, label_or_value: object) -> str:
+    """Return compact PubChem field help."""
+    entry = get_pubchem_field_entry(builder_label_or_key, label_or_value)
+    examples = ", ".join(entry.examples)
+    modes = ", ".join(entry.supported_modes)
+    return f"{entry.description} Examples: {examples}. Modes: {modes}"
+
+
+def is_pubchem_similarity_field(builder_label_or_key: object, label_or_value: object) -> bool:
+    """Return whether a PubChem field selection needs the threshold control."""
+    return get_pubchem_builder_field_value(builder_label_or_key, label_or_value) == PUBCHEM_SIMILARITY_FIELD
+
+
+def make_pubchem_builder_ui_row(builder_label_or_key: object) -> dict[str, object]:
+    """Return one mutable UI row for the selected PubChem builder."""
+    resource = get_pubchem_builder_resource(builder_label_or_key)
+    field = DEFAULT_PUBCHEM_FIELDS_BY_RESOURCE[resource]
+    return {
+        "field": get_pubchem_builder_field_label(builder_label_or_key, field),
+        "value": "",
+        "threshold": 80 if field == PUBCHEM_SIMILARITY_FIELD else "",
+    }
+
+
+def build_pubchem_builder_form_row(
+    builder_label_or_key: object,
+    ui_row: dict[str, object],
+) -> dict[str, object]:
+    """Convert a visible PubChem builder row to pure builder form data."""
+    return {
+        "field": get_pubchem_builder_field_value(builder_label_or_key, ui_row.get("field", "")),
+        "value": ui_row.get("value", ""),
+        "threshold": ui_row.get("threshold", ""),
+    }
+
+
+def get_chebi_builder_resource(builder_label_or_key: object) -> str:
+    """Return the ChEBI resource for a selected builder key or label."""
+    builder_key = get_query_builder_key(builder_label_or_key)
+    return CHEBI_BUILDER_RESOURCE_BY_KEY[builder_key]
+
+
+def get_active_chebi_builder_label(builder_label_or_key: object) -> str:
+    """Return a ChEBI builder label, falling back to entity when another builder is active."""
+    if is_chebi_builder_key(builder_label_or_key):
+        return str(builder_label_or_key)
+    return get_query_builder_label("chebi_entity")
+
+
+def get_chebi_field_catalog_for_builder(builder_label_or_key: object) -> dict[str, object]:
+    """Return the ChEBI field catalog for the selected builder."""
+    return get_chebi_query_builder_field_catalog(get_chebi_builder_resource(builder_label_or_key))
+
+
+def get_chebi_builder_field_label(builder_label_or_key: object, field: object) -> str:
+    """Return a visible ChEBI field label."""
+    catalog = get_chebi_field_catalog_for_builder(builder_label_or_key)
+    field_text = str(field)
+    if field_text in catalog:
+        return f"{catalog[field_text].label} ({field_text})"
+    return field_text
+
+
+def get_chebi_builder_field_value(builder_label_or_key: object, label_or_value: object) -> str:
+    """Return an internal ChEBI field key for a visible field label or field key."""
+    catalog = get_chebi_field_catalog_for_builder(builder_label_or_key)
+    text = str(label_or_value)
+    for key, entry in catalog.items():
+        if text == f"{entry.label} ({key})":
+            return key
+    return text
+
+
+def get_chebi_field_entry(builder_label_or_key: object, label_or_value: object) -> object:
+    """Return ChEBI catalog metadata for a visible field label or field key."""
+    catalog = get_chebi_field_catalog_for_builder(builder_label_or_key)
+    field = get_chebi_builder_field_value(builder_label_or_key, label_or_value)
+    return catalog[field]
+
+
+def get_chebi_field_options(builder_label_or_key: object) -> list[str]:
+    """Return visible ChEBI field options for the selected builder."""
+    catalog = get_chebi_field_catalog_for_builder(builder_label_or_key)
+    return [get_chebi_builder_field_label(builder_label_or_key, key) for key in catalog]
+
+
+def get_chebi_field_help(builder_label_or_key: object, label_or_value: object) -> str:
+    """Return compact ChEBI field help."""
+    entry = get_chebi_field_entry(builder_label_or_key, label_or_value)
+    examples = ", ".join(entry.examples)
+    operators = ", ".join(entry.supported_operators)
+    return f"{entry.description} Examples: {examples}. Operators: {operators}"
+
+
+def make_chebi_builder_ui_row(builder_label_or_key: object) -> dict[str, object]:
+    """Return one mutable UI row for the selected ChEBI builder."""
+    resource = get_chebi_builder_resource(builder_label_or_key)
+    field = DEFAULT_CHEBI_FIELDS_BY_RESOURCE[resource]
+    return {
+        "field": get_chebi_builder_field_label(builder_label_or_key, field),
+        "value": "",
+    }
+
+
+def build_chebi_builder_form_row(
+    builder_label_or_key: object,
+    ui_row: dict[str, object],
+) -> dict[str, object]:
+    """Convert a visible ChEBI builder row to pure builder form data."""
+    return {
+        "field": get_chebi_builder_field_value(builder_label_or_key, ui_row.get("field", "")),
+        "value": ui_row.get("value", ""),
+    }
 
 
 def get_dataset_modality_value(form_values: dict[str, object]) -> str:

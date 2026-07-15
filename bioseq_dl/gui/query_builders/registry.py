@@ -6,11 +6,21 @@ from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING
 
+from bioseq_dl.core.workflow.chebi_query_catalog import get_chebi_query_builder_field_catalog
 from bioseq_dl.core.workflow.chembl_query_catalog import get_chembl_query_builder_field_catalog
+from bioseq_dl.core.workflow.pubchem_query_catalog import get_pubchem_query_builder_field_catalog
 from bioseq_dl.core.workflow.query_field_catalog import get_uniprot_query_builder_field_catalog
+from bioseq_dl.gui.query_builders.chebi import (
+    build_chebi_friendly_query,
+    build_chebi_interpreted_query,
+)
 from bioseq_dl.gui.query_builders.chembl import (
     build_chembl_friendly_query,
     build_chembl_interpreted_query,
+)
+from bioseq_dl.gui.query_builders.pubchem import (
+    build_pubchem_friendly_query,
+    build_pubchem_interpreted_query,
 )
 from bioseq_dl.gui.query_builders.uniprot import (
     build_uniprot_friendly_query,
@@ -111,6 +121,42 @@ def get_query_builder_specs() -> dict[str, QueryBuilderSpec]:
             get_field_catalog=partial(get_chembl_query_builder_field_catalog, "activity"),
             compatible_modalities=("compound", "interaction"),
             compatible_interaction_types=(None, "protein-ligand"),
+        ),
+        QueryBuilderSpec(
+            key="pubchem_compound",
+            label="PubChem compound lookup builder",
+            description="PubChem CID, name, InChI, and InChIKey lookup builder.",
+            database="pubchem",
+            builder_type="single_lookup",
+            build_friendly_query=build_pubchem_friendly_query,
+            build_interpreted_query=build_pubchem_interpreted_query,
+            get_field_catalog=partial(get_pubchem_query_builder_field_catalog, "compound"),
+            compatible_modalities=("compound",),
+            compatible_interaction_types=(None,),
+        ),
+        QueryBuilderSpec(
+            key="pubchem_structure",
+            label="PubChem structure search builder",
+            description="PubChem SMILES identity, substructure, and 2-D similarity builder.",
+            database="pubchem",
+            builder_type="structure_search",
+            build_friendly_query=build_pubchem_friendly_query,
+            build_interpreted_query=build_pubchem_interpreted_query,
+            get_field_catalog=partial(get_pubchem_query_builder_field_catalog, "structure"),
+            compatible_modalities=("compound",),
+            compatible_interaction_types=(None,),
+        ),
+        QueryBuilderSpec(
+            key="chebi_entity",
+            label="ChEBI entity search builder",
+            description="ChEBI ID, exact name, and name-contains entity builder.",
+            database="chebi",
+            builder_type="single_lookup",
+            build_friendly_query=build_chebi_friendly_query,
+            build_interpreted_query=build_chebi_interpreted_query,
+            get_field_catalog=partial(get_chebi_query_builder_field_catalog, "entity"),
+            compatible_modalities=("compound",),
+            compatible_interaction_types=(None,),
         ),
     ]
     return {spec.key: spec for spec in specs}
