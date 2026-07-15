@@ -2129,7 +2129,7 @@ def split_pair(s: str) -> tuple[str, str]:
 
     """
     if "=" in s:
-        q, label = s.split("=", 1)
+        q, label = s.rsplit("=", 1)
     elif "|" in s:
         q, label = s.split("|", 1)
     else:
