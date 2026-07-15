@@ -142,6 +142,7 @@ CHEMBL_BUILDER_RESOURCE_BY_KEY = {
     "chembl_molecule": "molecule",
     "chembl_activity": "activity",
 }
+CHEMBL_IC50_BUILDER_KEY = "chembl_ic50"
 PUBCHEM_BUILDER_RESOURCE_BY_KEY = {
     "pubchem_compound": "compound",
     "pubchem_structure": "structure",
@@ -174,6 +175,13 @@ DEFAULT_FORM_VALUES: dict[str, object] = {
             "value": "",
         }
     ],
+    "query.chembl_ic50_builder.row": {
+        "condition": "range",
+        "minimum": 0,
+        "maximum": 10,
+        "value": None,
+        "unit": "nM",
+    },
     "query.pubchem_builder.row": {
         "field": "name",
         "value": "",
@@ -192,6 +200,13 @@ DEFAULT_FORM_VALUES: dict[str, object] = {
             "query_builder_key": "uniprot",
             "uniprot_builder_rows": [],
             "chembl_builder_rows": [],
+            "chembl_ic50_builder_row": {
+                "condition": "range",
+                "minimum": 0,
+                "maximum": 10,
+                "value": None,
+                "unit": "nM",
+            },
             "pubchem_builder_row": {
                 "field": "name",
                 "value": "",
@@ -415,6 +430,7 @@ def build_query_composition_entry_form_values(entry: Mapping[str, object]) -> di
         "query.builder.key": entry.get("query_builder_key", "uniprot"),
         "query.uniprot_builder.rows": entry.get("uniprot_builder_rows", []),
         "query.chembl_builder.rows": entry.get("chembl_builder_rows", []),
+        "query.chembl_ic50_builder.row": entry.get("chembl_ic50_builder_row", {}),
         "query.pubchem_builder.row": entry.get("pubchem_builder_row", {}),
         "query.chebi_builder.row": entry.get("chebi_builder_row", {}),
     }
@@ -616,6 +632,8 @@ def restore_query_composition_entry_builder_state(
     entry["query_builder_key"] = restoration.builder_key
     if restoration.builder_key == "uniprot":
         entry["uniprot_builder_rows"] = [dict(row) for row in restoration.form_rows]
+    elif restoration.builder_key == CHEMBL_IC50_BUILDER_KEY:
+        entry["chembl_ic50_builder_row"] = dict(restoration.form_rows[0])
     elif restoration.builder_key in CHEMBL_BUILDER_RESOURCE_BY_KEY:
         entry["chembl_builder_rows"] = [dict(row) for row in restoration.form_rows]
     elif restoration.builder_key in PUBCHEM_BUILDER_RESOURCE_BY_KEY:
@@ -807,6 +825,8 @@ def restore_loaded_query_builder_form_values(
     form_values["query.builder.key"] = restoration.builder_key
     if restoration.builder_key == "uniprot":
         form_values["query.uniprot_builder.rows"] = [dict(row) for row in restoration.form_rows]
+    elif restoration.builder_key == CHEMBL_IC50_BUILDER_KEY:
+        form_values["query.chembl_ic50_builder.row"] = dict(restoration.form_rows[0])
     elif restoration.builder_key in CHEMBL_BUILDER_RESOURCE_BY_KEY:
         form_values["query.chembl_builder.rows"] = [dict(row) for row in restoration.form_rows]
     elif restoration.builder_key in PUBCHEM_BUILDER_RESOURCE_BY_KEY:
@@ -960,6 +980,29 @@ def build_chembl_builder_rows_from_form(form_values: Mapping[str, object]) -> li
     ]
 
 
+def build_chembl_ic50_builder_row_from_form(form_values: Mapping[str, object]) -> object:
+    """Build a pure ChEMBL IC50 query builder row from GUI form values."""
+    from bioseq_dl.gui.query_builders.chembl import ChEMBLIC50QueryBuilderRow  # noqa: PLC0415
+
+    builder_key = normalize_query_builder_key(get_form_value(form_values, "query.builder.key"))
+    if builder_key != CHEMBL_IC50_BUILDER_KEY:
+        msg = f"Query builder '{builder_key}' is not the ChEMBL IC50 builder."
+        raise ValueError(msg)
+
+    raw_row = get_form_value(form_values, "query.chembl_ic50_builder.row")
+    if not isinstance(raw_row, Mapping):
+        msg = "Advanced ChEMBL IC50 builder row must be a mapping."
+        raise TypeError(msg)
+
+    return ChEMBLIC50QueryBuilderRow(
+        condition=str(get_builder_row_value(raw_row, "condition", "range")),
+        minimum=get_builder_row_value(raw_row, "minimum", None),
+        maximum=get_builder_row_value(raw_row, "maximum", None),
+        value=get_builder_row_value(raw_row, "value", None),
+        unit=str(get_builder_row_value(raw_row, "unit", "nM")),
+    )
+
+
 def build_pubchem_builder_row_from_form(form_values: Mapping[str, object]) -> object:
     """Build a pure PubChem query builder row from GUI form values."""
     from bioseq_dl.gui.query_builders.pubchem import (  # noqa: PLC0415
@@ -1035,6 +1078,11 @@ def resolve_query_value_from_form(form_values: Mapping[str, object]) -> str:
             raise ValueError(msg)
         return build_chembl_interpreted_query(rows)
 
+    if builder_key == CHEMBL_IC50_BUILDER_KEY:
+        from bioseq_dl.gui.query_builders.chembl import build_chembl_ic50_interpreted_query  # noqa: PLC0415
+
+        return build_chembl_ic50_interpreted_query(build_chembl_ic50_builder_row_from_form(form_values))
+
     if builder_key in PUBCHEM_BUILDER_RESOURCE_BY_KEY:
         from bioseq_dl.gui.query_builders.pubchem import build_pubchem_interpreted_query  # noqa: PLC0415
 
@@ -1080,6 +1128,15 @@ def build_query_builder_metadata_from_form(form_values: Mapping[str, object]) ->
         return build_chembl_query_builder_metadata(
             builder_key,
             build_chembl_builder_rows_from_form(form_values),
+        )
+
+    if builder_key == CHEMBL_IC50_BUILDER_KEY:
+        from bioseq_dl.gui.query_builders.metadata import (  # noqa: PLC0415
+            build_chembl_ic50_query_builder_metadata,
+        )
+
+        return build_chembl_ic50_query_builder_metadata(
+            build_chembl_ic50_builder_row_from_form(form_values)
         )
 
     if builder_key in PUBCHEM_BUILDER_RESOURCE_BY_KEY:

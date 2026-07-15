@@ -14,6 +14,14 @@ from bioseq_dl.core.workflow.chebi_query_catalog import get_chebi_query_builder_
 from bioseq_dl.core.workflow.chembl_query_catalog import get_chembl_query_builder_field_catalog
 from bioseq_dl.core.workflow.pubchem_query_catalog import get_pubchem_query_builder_field_catalog
 from bioseq_dl.core.workflow.query_field_catalog import get_uniprot_query_builder_field_catalog
+from bioseq_dl.gui.query_builders.chembl import (
+    CHEMBL_IC50_BUILDER_KEY,
+    IC50_STANDARD_UNITS,
+    make_default_chembl_ic50_builder_row,
+    normalize_chembl_ic50_condition,
+    normalize_chembl_ic50_number,
+    normalize_chembl_ic50_unit,
+)
 from bioseq_dl.gui.query_builders.pubchem import (
     SIMILARITY_2D_CID_FIELD,
     normalize_pubchem_builder_threshold_state,
@@ -44,6 +52,18 @@ UNIPROT_BUILDER_FIELD_VALUE_TO_LABEL = {
 DEFAULT_UNIPROT_BUILDER_FIELD = "organism"
 QUERY_BUILDER_KEY_TO_LABEL = get_query_builder_choices()
 QUERY_BUILDER_LABEL_TO_KEY = {label: key for key, label in QUERY_BUILDER_KEY_TO_LABEL.items()}
+IC50_CONDITION_LABEL_TO_VALUE = {
+    "Range": "range",
+    "Less than": "less_than",
+    "Less than or equal": "less_than_or_equal",
+    "Greater than": "greater_than",
+    "Greater than or equal": "greater_than_or_equal",
+    "Exact value": "exact",
+}
+IC50_CONDITION_VALUE_TO_LABEL = {
+    value: label for label, value in IC50_CONDITION_LABEL_TO_VALUE.items()
+}
+IC50_UNIT_LABEL_TO_VALUE = {unit: unit for unit in IC50_STANDARD_UNITS}
 DEFAULT_CHEMBL_FIELDS_BY_RESOURCE = {
     "target": "gene_symbol",
     "assay": "label_type",
@@ -95,6 +115,11 @@ def is_uniprot_builder_key(value: object) -> bool:
 def is_chembl_builder_key(value: object) -> bool:
     """Return whether a GUI builder key or label selects a ChEMBL builder."""
     return get_query_builder_key(value) in CHEMBL_BUILDER_RESOURCE_BY_KEY
+
+
+def is_chembl_ic50_builder_key(value: object) -> bool:
+    """Return whether a GUI builder key or label selects the ChEMBL IC50 builder."""
+    return get_query_builder_key(value) == CHEMBL_IC50_BUILDER_KEY
 
 
 def is_pubchem_builder_key(value: object) -> bool:
@@ -307,6 +332,84 @@ def build_chembl_builder_ui_rows(
     ] or [make_chembl_builder_ui_row(builder_label_or_key)]
 
 
+def get_chembl_ic50_condition_label(value: object) -> str:
+    """Return a visible ChEMBL IC50 condition label."""
+    try:
+        condition = normalize_chembl_ic50_condition(value)
+    except ValueError:
+        condition = "range"
+    return IC50_CONDITION_VALUE_TO_LABEL[condition]
+
+
+def get_chembl_ic50_condition_value(label_or_value: object) -> str:
+    """Return the internal ChEMBL IC50 condition value for a visible label."""
+    value = IC50_CONDITION_LABEL_TO_VALUE.get(str(label_or_value), label_or_value)
+    return normalize_chembl_ic50_condition(value)
+
+
+def make_chembl_ic50_builder_ui_row() -> dict[str, object]:
+    """Return one mutable UI row for the dedicated ChEMBL IC50 builder."""
+    row = make_default_chembl_ic50_builder_row()
+    row["condition"] = get_chembl_ic50_condition_label(row["condition"])
+    return row
+
+
+def normalize_chembl_ic50_ui_row_for_condition(row: dict[str, object]) -> None:
+    """Keep visible IC50 number state valid for the selected condition."""
+    condition = get_chembl_ic50_condition_value(row.get("condition", "Range"))
+    row["condition"] = get_chembl_ic50_condition_label(condition)
+    try:
+        row["unit"] = normalize_chembl_ic50_unit(row.get("unit", "nM"))
+    except ValueError:
+        row["unit"] = "nM"
+    if condition == "range":
+        if row.get("minimum") is None:
+            row["minimum"] = 0
+        if row.get("maximum") is None:
+            row["maximum"] = 10
+        return
+    if row.get("value") is None:
+        row["value"] = row.get("maximum") if row.get("maximum") is not None else 10
+
+
+def build_chembl_ic50_builder_form_row(ui_row: Mapping[str, object]) -> dict[str, object]:
+    """Convert a visible ChEMBL IC50 builder row to pure form data."""
+    condition = get_chembl_ic50_condition_value(ui_row.get("condition", "Range"))
+    unit = normalize_chembl_ic50_unit(ui_row.get("unit", "nM"))
+    form_row = {
+        "condition": condition,
+        "minimum": None,
+        "maximum": None,
+        "value": None,
+        "unit": unit,
+    }
+    if condition == "range":
+        form_row["minimum"] = normalize_chembl_ic50_number(ui_row.get("minimum"), "minimum")
+        form_row["maximum"] = normalize_chembl_ic50_number(ui_row.get("maximum"), "maximum")
+    else:
+        form_row["value"] = normalize_chembl_ic50_number(ui_row.get("value"), "value")
+    return form_row
+
+
+def build_chembl_ic50_builder_ui_row(form_row: object) -> dict[str, object]:
+    """Convert restored ChEMBL IC50 form data to visible GUI row values."""
+    if not isinstance(form_row, Mapping):
+        return make_chembl_ic50_builder_ui_row()
+    try:
+        condition = normalize_chembl_ic50_condition(form_row.get("condition", "range"))
+    except ValueError:
+        condition = "range"
+    row = {
+        "condition": get_chembl_ic50_condition_label(condition),
+        "minimum": form_row.get("minimum"),
+        "maximum": form_row.get("maximum"),
+        "value": form_row.get("value"),
+        "unit": form_row.get("unit", "nM"),
+    }
+    normalize_chembl_ic50_ui_row_for_condition(row)
+    return row
+
+
 def get_pubchem_builder_resource(builder_label_or_key: object) -> str:
     """Return the PubChem resource for a selected builder key or label."""
     builder_key = get_query_builder_key(builder_label_or_key)
@@ -515,6 +618,7 @@ def build_gui_query_builder_state_from_loaded_form(form_values: Mapping[str, obj
     builder_label = get_query_builder_label(builder_key)
     uniprot_rows = [make_uniprot_builder_ui_row()]
     chembl_rows = [make_chembl_builder_ui_row(get_query_builder_label("chembl_target"))]
+    chembl_ic50_row = make_chembl_ic50_builder_ui_row()
     pubchem_row = make_pubchem_builder_ui_row(get_query_builder_label("pubchem_compound"))
     chebi_row = make_chebi_builder_ui_row(get_query_builder_label("chebi_entity"))
 
@@ -527,6 +631,10 @@ def build_gui_query_builder_state_from_loaded_form(form_values: Mapping[str, obj
             chembl_rows = build_chembl_builder_ui_rows(
                 builder_label,
                 form_values.get("query.chembl_builder.rows"),
+            )
+        elif builder_key == CHEMBL_IC50_BUILDER_KEY:
+            chembl_ic50_row = build_chembl_ic50_builder_ui_row(
+                form_values.get("query.chembl_ic50_builder.row")
             )
         elif builder_key in PUBCHEM_BUILDER_RESOURCE_BY_KEY:
             pubchem_row = build_pubchem_builder_ui_row(
@@ -545,6 +653,7 @@ def build_gui_query_builder_state_from_loaded_form(form_values: Mapping[str, obj
         "builder_label": builder_label,
         "uniprot_rows": uniprot_rows,
         "chembl_rows": chembl_rows,
+        "chembl_ic50_row": chembl_ic50_row,
         "pubchem_row": pubchem_row,
         "chebi_row": chebi_row,
     }
@@ -568,6 +677,7 @@ def build_query_composition_entry_ui_state(form_entry: object) -> dict[str, obje
         "query_builder_key": builder_label,
         "uniprot_builder_rows": [make_uniprot_builder_ui_row()],
         "chembl_builder_rows": [make_chembl_builder_ui_row(get_query_builder_label("chembl_target"))],
+        "chembl_ic50_builder_row": make_chembl_ic50_builder_ui_row(),
         "pubchem_builder_row": make_pubchem_builder_ui_row(get_query_builder_label("pubchem_compound")),
         "chebi_builder_row": make_chebi_builder_ui_row(get_query_builder_label("chebi_entity")),
     }
@@ -582,6 +692,10 @@ def build_query_composition_entry_ui_state(form_entry: object) -> dict[str, obje
             ui_entry["chembl_builder_rows"] = build_chembl_builder_ui_rows(
                 builder_label,
                 form_entry.get("chembl_builder_rows"),
+            )
+        elif builder_key == CHEMBL_IC50_BUILDER_KEY:
+            ui_entry["chembl_ic50_builder_row"] = build_chembl_ic50_builder_ui_row(
+                form_entry.get("chembl_ic50_builder_row")
             )
         elif builder_key in PUBCHEM_BUILDER_RESOURCE_BY_KEY:
             ui_entry["pubchem_builder_row"] = build_pubchem_builder_ui_row(
@@ -603,6 +717,8 @@ def build_query_composition_entry_form_state(ui_entry: Mapping[str, object]) -> 
     uniprot_rows = uniprot_rows_value if isinstance(uniprot_rows_value, list) else []
     chembl_rows_value = ui_entry.get("chembl_builder_rows")
     chembl_rows = chembl_rows_value if isinstance(chembl_rows_value, list) else []
+    chembl_ic50_row_value = ui_entry.get("chembl_ic50_builder_row")
+    chembl_ic50_row = chembl_ic50_row_value if isinstance(chembl_ic50_row_value, Mapping) else {}
     pubchem_row_value = ui_entry.get("pubchem_builder_row")
     pubchem_row = pubchem_row_value if isinstance(pubchem_row_value, Mapping) else {}
     chebi_row_value = ui_entry.get("chebi_builder_row")
@@ -620,6 +736,9 @@ def build_query_composition_entry_form_state(ui_entry: Mapping[str, object]) -> 
         )
         if is_chembl_builder_key(builder_label)
         else [],
+        "chembl_ic50_builder_row": build_chembl_ic50_builder_form_row(dict(chembl_ic50_row))
+        if is_chembl_ic50_builder_key(builder_label)
+        else {},
         "pubchem_builder_row": build_pubchem_builder_form_row(
             builder_label,
             dict(pubchem_row),

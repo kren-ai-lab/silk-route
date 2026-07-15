@@ -16,7 +16,10 @@ from bioseq_dl.gui.query_builders.chebi import (
 )
 from bioseq_dl.gui.query_builders.chembl import (
     build_chembl_friendly_query,
+    build_chembl_ic50_friendly_query,
+    build_chembl_ic50_interpreted_query,
     build_chembl_interpreted_query,
+    get_chembl_ic50_query_builder_field_catalog,
 )
 from bioseq_dl.gui.query_builders.pubchem import (
     build_pubchem_friendly_query,
@@ -121,6 +124,18 @@ def get_query_builder_specs() -> dict[str, QueryBuilderSpec]:
             get_field_catalog=partial(get_chembl_query_builder_field_catalog, "activity"),
             compatible_modalities=("compound", "interaction"),
             compatible_interaction_types=(None, "protein-ligand"),
+        ),
+        QueryBuilderSpec(
+            key="chembl_ic50",
+            label="ChEMBL IC50 activity",
+            description="ChEMBL IC50 activity macro builder with required standard unit.",
+            database="chembl",
+            builder_type="ic50_activity",
+            build_friendly_query=build_chembl_ic50_friendly_query,
+            build_interpreted_query=build_chembl_ic50_interpreted_query,
+            get_field_catalog=get_chembl_ic50_query_builder_field_catalog,
+            compatible_modalities=("compound",),
+            compatible_interaction_types=(None,),
         ),
         QueryBuilderSpec(
             key="pubchem_compound",

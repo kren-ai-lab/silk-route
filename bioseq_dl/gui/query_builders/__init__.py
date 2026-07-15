@@ -9,7 +9,10 @@ from bioseq_dl.gui.query_builders.chebi import (
 )
 from bioseq_dl.gui.query_builders.chembl import (
     ChEMBLFilterQueryBuilderRow,
+    ChEMBLIC50QueryBuilderRow,
     build_chembl_friendly_query,
+    build_chembl_ic50_friendly_query,
+    build_chembl_ic50_interpreted_query,
     build_chembl_interpreted_query,
 )
 from bioseq_dl.gui.query_builders.metadata import (
@@ -17,6 +20,7 @@ from bioseq_dl.gui.query_builders.metadata import (
     QueryBuilderMetadataMismatchError,
     QueryBuilderRestoration,
     build_chebi_query_builder_metadata,
+    build_chembl_ic50_query_builder_metadata,
     build_chembl_query_builder_metadata,
     build_pubchem_query_builder_metadata,
     build_uniprot_query_builder_metadata,
@@ -43,6 +47,7 @@ __all__ = [
     "QUERY_BUILDER_SCHEMA_VERSION",
     "ChEBIQueryBuilderRow",
     "ChEMBLFilterQueryBuilderRow",
+    "ChEMBLIC50QueryBuilderRow",
     "PubChemQueryBuilderRow",
     "QueryBuilderMetadataMismatchError",
     "QueryBuilderRestoration",
@@ -52,6 +57,9 @@ __all__ = [
     "build_chebi_interpreted_query",
     "build_chebi_query_builder_metadata",
     "build_chembl_friendly_query",
+    "build_chembl_ic50_friendly_query",
+    "build_chembl_ic50_interpreted_query",
+    "build_chembl_ic50_query_builder_metadata",
     "build_chembl_interpreted_query",
     "build_chembl_query_builder_metadata",
     "build_pubchem_friendly_query",

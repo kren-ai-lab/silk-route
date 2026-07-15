@@ -9,10 +9,13 @@ import yaml
 from nicegui import ui
 
 from bioseq_dl.gui.form_helpers import (
+    IC50_CONDITION_LABEL_TO_VALUE,
+    IC50_UNIT_LABEL_TO_VALUE,
     NO_INTERACTION_LABEL,
     UNIPROT_BUILDER_FIELD_LABEL_TO_VALUE,
     build_chebi_builder_form_row,
     build_chembl_builder_form_rows,
+    build_chembl_ic50_builder_form_row,
     build_gui_query_builder_state_from_loaded_form,
     build_pubchem_builder_form_row,
     build_query_composition_entries_form_state,
@@ -28,17 +31,20 @@ from bioseq_dl.gui.form_helpers import (
     get_chembl_field_help,
     get_chembl_field_options,
     get_chembl_filter_type_options,
+    get_chembl_ic50_condition_value,
     get_dataset_interaction_type_value,
     get_dataset_modality_value,
     get_pubchem_field_entry,
     get_pubchem_field_help,
     get_pubchem_field_options,
+    get_query_builder_key,
     get_query_builder_label,
     get_uniprot_builder_field_help,
     get_uniprot_builder_field_placeholder,
     is_advanced_builder_query_mode,
     is_chebi_builder_key,
     is_chembl_builder_key,
+    is_chembl_ic50_builder_key,
     is_manual_query_mode,
     is_pubchem_builder_key,
     is_pubchem_similarity_field,
@@ -46,8 +52,10 @@ from bioseq_dl.gui.form_helpers import (
     is_uniprot_builder_key,
     make_chebi_builder_ui_row,
     make_chembl_builder_ui_row,
+    make_chembl_ic50_builder_ui_row,
     make_pubchem_builder_ui_row,
     make_uniprot_builder_ui_row,
+    normalize_chembl_ic50_ui_row_for_condition,
     read_upload_event_text,
     should_show_interaction_type_selector,
 )
@@ -57,6 +65,8 @@ from bioseq_dl.gui.query_builders.chebi import (
 )
 from bioseq_dl.gui.query_builders.chembl import (
     build_chembl_friendly_query,
+    build_chembl_ic50_friendly_query,
+    build_chembl_ic50_interpreted_query,
     build_chembl_interpreted_query,
 )
 from bioseq_dl.gui.query_builders.pubchem import (
@@ -78,6 +88,7 @@ from bioseq_dl.gui.yaml_builder import (
     WORKFLOW_MODE_LABEL_TO_VALUE,
     build_chebi_builder_row_from_form,
     build_chembl_builder_rows_from_form,
+    build_chembl_ic50_builder_row_from_form,
     build_pubchem_builder_row_from_form,
     build_uniprot_builder_rows_from_form,
     build_workflow_descriptor,
@@ -98,6 +109,16 @@ def is_query_composition_workflow_mode(value: object) -> bool:
     return normalize_labeled_value(value, WORKFLOW_MODE_LABEL_TO_VALUE) == "query_composition"
 
 
+def is_chembl_ic50_range_condition(value: object) -> bool:
+    """Return whether a visible IC50 condition uses minimum and maximum controls."""
+    return get_chembl_ic50_condition_value(value) == "range"
+
+
+def is_chembl_ic50_value_condition(value: object) -> bool:
+    """Return whether a visible IC50 condition uses one value control."""
+    return get_chembl_ic50_condition_value(value) != "range"
+
+
 class WorkflowYamlBuilderApp:
     """Render and manage the BioSeqDownloader workflow YAML builder."""
 
@@ -108,6 +129,7 @@ class WorkflowYamlBuilderApp:
         self.active_query_builder_label = str(self.form_values["query.builder.key"])
         self.uniprot_builder_rows = [make_uniprot_builder_ui_row()]
         self.chembl_builder_rows = [make_chembl_builder_ui_row(get_query_builder_label("chembl_target"))]
+        self.chembl_ic50_builder_row = make_chembl_ic50_builder_ui_row()
         self.pubchem_builder_row = make_pubchem_builder_ui_row(get_query_builder_label("pubchem_compound"))
         self.chebi_builder_row = make_chebi_builder_ui_row(get_query_builder_label("chebi_entity"))
         self.next_query_composition_entry_id = 1
@@ -131,6 +153,7 @@ class WorkflowYamlBuilderApp:
         self.yaml_output: Any = None
         self.status: Any = None
         self.is_loading_form_values = False
+        self.is_refreshing_query_section = False
 
     def build(self) -> None:
         """Build the NiceGUI page."""
@@ -299,34 +322,17 @@ class WorkflowYamlBuilderApp:
                 .on_value_change(self.handle_query_builder_change)
                 .tooltip("Choose the database-specific query builder.")
             )
-            with ui.column().classes("w-full gap-3") as uniprot_builder_panel:
+            builder_key = get_query_builder_key(self.form_values["query.builder.key"])
+            if builder_key == "uniprot":
                 self.build_uniprot_builder_controls()
-            uniprot_builder_panel.bind_visibility_from(
-                self.form_values,
-                "query.builder.key",
-                backward=is_uniprot_builder_key,
-            )
-            with ui.column().classes("w-full gap-3") as chembl_builder_panel:
+            elif builder_key == "chembl_ic50":
+                self.build_chembl_ic50_builder_controls()
+            elif is_chembl_builder_key(builder_key):
                 self.build_chembl_builder_controls()
-            chembl_builder_panel.bind_visibility_from(
-                self.form_values,
-                "query.builder.key",
-                backward=is_chembl_builder_key,
-            )
-            with ui.column().classes("w-full gap-3") as pubchem_builder_panel:
+            elif is_pubchem_builder_key(builder_key):
                 self.build_pubchem_builder_controls()
-            pubchem_builder_panel.bind_visibility_from(
-                self.form_values,
-                "query.builder.key",
-                backward=is_pubchem_builder_key,
-            )
-            with ui.column().classes("w-full gap-3") as chebi_builder_panel:
+            elif is_chebi_builder_key(builder_key):
                 self.build_chebi_builder_controls()
-            chebi_builder_panel.bind_visibility_from(
-                self.form_values,
-                "query.builder.key",
-                backward=is_chebi_builder_key,
-            )
             self.friendly_query_preview = (
                 ui.textarea("Friendly query preview").classes("w-full font-mono").props("readonly rows=3")
             )
@@ -480,18 +486,17 @@ class WorkflowYamlBuilderApp:
 
     def build_query_composition_entry_builder_controls(self, entry: dict[str, object]) -> None:
         """Build builder controls for one query-composition entry."""
-        with ui.column().classes("w-full gap-3") as uniprot_panel:
+        builder_key = get_query_builder_key(entry["query_builder_key"])
+        if builder_key == "uniprot":
             self.build_query_composition_uniprot_rows(entry)
-        uniprot_panel.bind_visibility_from(entry, "query_builder_key", backward=is_uniprot_builder_key)
-        with ui.column().classes("w-full gap-3") as chembl_panel:
+        elif builder_key == "chembl_ic50":
+            self.build_query_composition_chembl_ic50_row(entry)
+        elif is_chembl_builder_key(builder_key):
             self.build_query_composition_chembl_rows(entry)
-        chembl_panel.bind_visibility_from(entry, "query_builder_key", backward=is_chembl_builder_key)
-        with ui.column().classes("w-full gap-3") as pubchem_panel:
+        elif is_pubchem_builder_key(builder_key):
             self.build_query_composition_pubchem_row(entry)
-        pubchem_panel.bind_visibility_from(entry, "query_builder_key", backward=is_pubchem_builder_key)
-        with ui.column().classes("w-full gap-3") as chebi_panel:
+        elif is_chebi_builder_key(builder_key):
             self.build_query_composition_chebi_row(entry)
-        chebi_panel.bind_visibility_from(entry, "query_builder_key", backward=is_chebi_builder_key)
 
     def build_query_composition_uniprot_rows(self, entry: dict[str, object]) -> None:
         """Build entry-local UniProt builder rows."""
@@ -576,6 +581,57 @@ class WorkflowYamlBuilderApp:
             ui.label(field_help).classes("text-xs text-gray-600")
         ui.button("Add ChEMBL condition", on_click=partial(self.add_query_composition_chembl_row, entry))
 
+    def build_query_composition_chembl_ic50_row(self, entry: dict[str, object]) -> None:
+        """Build an entry-local ChEMBL IC50 builder row."""
+        row = cast("dict[str, object]", entry["chembl_ic50_builder_row"])
+        normalize_chembl_ic50_ui_row_for_condition(row)
+        with ui.row().classes("w-full items-end gap-3"):
+            (
+                ui.select(list(IC50_CONDITION_LABEL_TO_VALUE), label="Condition")
+                .bind_value(row, "condition")
+                .on_value_change(partial(self.handle_query_composition_chembl_ic50_condition_change, entry))
+                .classes("min-w-56")
+            )
+            minimum_input = (
+                ui.number("Minimum", step=0.1)
+                .bind_value(row, "minimum")
+                .on_value_change(self.update_query_composition_preview)
+                .classes("w-32")
+            )
+            minimum_input.bind_visibility_from(
+                row,
+                "condition",
+                backward=is_chembl_ic50_range_condition,
+            )
+            maximum_input = (
+                ui.number("Maximum", step=0.1)
+                .bind_value(row, "maximum")
+                .on_value_change(self.update_query_composition_preview)
+                .classes("w-32")
+            )
+            maximum_input.bind_visibility_from(
+                row,
+                "condition",
+                backward=is_chembl_ic50_range_condition,
+            )
+            value_input = (
+                ui.number("Value", step=0.1)
+                .bind_value(row, "value")
+                .on_value_change(self.update_query_composition_preview)
+                .classes("w-32")
+            )
+            value_input.bind_visibility_from(
+                row,
+                "condition",
+                backward=is_chembl_ic50_value_condition,
+            )
+            (
+                ui.select(list(IC50_UNIT_LABEL_TO_VALUE), label="Unit")
+                .bind_value(row, "unit")
+                .on_value_change(self.update_query_composition_preview)
+                .classes("w-24")
+            )
+
     def build_query_composition_pubchem_row(self, entry: dict[str, object]) -> None:
         """Build an entry-local PubChem builder row."""
         builder_label = get_active_pubchem_builder_label(entry["query_builder_key"])
@@ -649,6 +705,8 @@ class WorkflowYamlBuilderApp:
                     get_active_chembl_builder_label(entry["query_builder_key"])
                 )
             ]
+        if not isinstance(entry.get("chembl_ic50_builder_row"), dict) or not entry["chembl_ic50_builder_row"]:
+            entry["chembl_ic50_builder_row"] = make_chembl_ic50_builder_ui_row()
         if not isinstance(entry.get("pubchem_builder_row"), dict) or not entry["pubchem_builder_row"]:
             entry["pubchem_builder_row"] = make_pubchem_builder_ui_row(
                 get_active_pubchem_builder_label(entry["query_builder_key"])
@@ -663,6 +721,8 @@ class WorkflowYamlBuilderApp:
         builder_label = entry["query_builder_key"]
         if is_uniprot_builder_key(builder_label):
             entry["uniprot_builder_rows"] = [make_uniprot_builder_ui_row()]
+        elif is_chembl_ic50_builder_key(builder_label):
+            entry["chembl_ic50_builder_row"] = make_chembl_ic50_builder_ui_row()
         elif is_chembl_builder_key(builder_label):
             entry["chembl_builder_rows"] = [make_chembl_builder_ui_row(builder_label)]
         elif is_pubchem_builder_key(builder_label):
@@ -761,6 +821,16 @@ class WorkflowYamlBuilderApp:
                 row["threshold"] = 80
         else:
             row["threshold"] = None
+        self.refresh_query_composition_editor()
+
+    def handle_query_composition_chembl_ic50_condition_change(
+        self,
+        entry: dict[str, object],
+        *_args: object,
+    ) -> None:
+        """Normalize one composition entry IC50 row after condition changes."""
+        row = cast("dict[str, object]", entry["chembl_ic50_builder_row"])
+        normalize_chembl_ic50_ui_row_for_condition(row)
         self.refresh_query_composition_editor()
 
     def sync_query_composition_entries_to_form(self) -> None:
@@ -969,6 +1039,77 @@ class WorkflowYamlBuilderApp:
         self.build_chembl_builder_rows.refresh()
         self.update_builder_previews()
 
+    def build_chembl_ic50_builder_controls(self) -> None:
+        """Build dedicated ChEMBL IC50 advanced builder controls."""
+        with ui.column().classes("w-full gap-3"):
+            self.build_chembl_ic50_builder_row()
+            with ui.row().classes("items-center gap-3"):
+                ui.button("Update query preview", on_click=self.update_builder_previews)
+
+    @ui.refreshable
+    def build_chembl_ic50_builder_row(self) -> None:
+        """Build the dedicated ChEMBL IC50 query builder row."""
+        row = self.chembl_ic50_builder_row
+        normalize_chembl_ic50_ui_row_for_condition(row)
+        with ui.row().classes("w-full items-end gap-3"):
+            (
+                ui.select(list(IC50_CONDITION_LABEL_TO_VALUE), label="Condition")
+                .bind_value(row, "condition")
+                .on_value_change(self.handle_chembl_ic50_condition_change)
+                .classes("min-w-56")
+                .tooltip("Choose whether the IC50 query uses a range, comparison, or exact value.")
+            )
+            minimum_input = (
+                ui.number("Minimum", step=0.1)
+                .bind_value(row, "minimum")
+                .on_value_change(self.update_builder_previews)
+                .classes("w-32")
+                .tooltip("Required lower IC50 bound for range queries.")
+            )
+            minimum_input.bind_visibility_from(
+                row,
+                "condition",
+                backward=is_chembl_ic50_range_condition,
+            )
+            maximum_input = (
+                ui.number("Maximum", step=0.1)
+                .bind_value(row, "maximum")
+                .on_value_change(self.update_builder_previews)
+                .classes("w-32")
+                .tooltip("Required upper IC50 bound for range queries.")
+            )
+            maximum_input.bind_visibility_from(
+                row,
+                "condition",
+                backward=is_chembl_ic50_range_condition,
+            )
+            value_input = (
+                ui.number("Value", step=0.1)
+                .bind_value(row, "value")
+                .on_value_change(self.update_builder_previews)
+                .classes("w-32")
+                .tooltip("Required IC50 value for comparison and exact queries.")
+            )
+            value_input.bind_visibility_from(
+                row,
+                "condition",
+                backward=is_chembl_ic50_value_condition,
+            )
+            (
+                ui.select(list(IC50_UNIT_LABEL_TO_VALUE), label="Unit")
+                .bind_value(row, "unit")
+                .on_value_change(self.update_builder_previews)
+                .classes("w-24")
+                .tooltip("ChEMBL standard_units value for this IC50 query.")
+            )
+
+    def handle_chembl_ic50_condition_change(self, *_args: object) -> None:
+        """Normalize visible ChEMBL IC50 state after condition changes."""
+        normalize_chembl_ic50_ui_row_for_condition(self.chembl_ic50_builder_row)
+        self.sync_builder_rows_to_form()
+        self.build_chembl_ic50_builder_row.refresh()
+        self.update_builder_previews()
+
     def build_pubchem_builder_controls(self) -> None:
         """Build PubChem-specific advanced builder controls."""
         with ui.column().classes("w-full gap-3"):
@@ -1076,23 +1217,22 @@ class WorkflowYamlBuilderApp:
 
     def handle_query_builder_change(self, *_args: object) -> None:
         """Refresh builder-specific controls after the selected builder changes."""
-        if self.is_loading_form_values:
+        if self.is_loading_form_values or self.is_refreshing_query_section:
             return
         builder_label = self.form_values["query.builder.key"]
         if builder_label == self.active_query_builder_label:
             return
         self.active_query_builder_label = str(builder_label)
-        if is_chembl_builder_key(builder_label):
+        if is_chembl_ic50_builder_key(builder_label):
+            self.chembl_ic50_builder_row = make_chembl_ic50_builder_ui_row()
+        elif is_chembl_builder_key(builder_label):
             self.chembl_builder_rows = [make_chembl_builder_ui_row(builder_label)]
-            self.build_chembl_builder_rows.refresh()
-        if is_pubchem_builder_key(builder_label):
+        elif is_pubchem_builder_key(builder_label):
             self.pubchem_builder_row = make_pubchem_builder_ui_row(builder_label)
-            self.build_pubchem_builder_row.refresh()
-        if is_chebi_builder_key(builder_label):
+        elif is_chebi_builder_key(builder_label):
             self.chebi_builder_row = make_chebi_builder_ui_row(builder_label)
-            self.build_chebi_builder_row.refresh()
         self.sync_builder_rows_to_form()
-        self.update_builder_previews()
+        self.refresh_query_section()
 
     def get_compatible_query_builder_labels(self) -> list[str]:
         """Return visible labels for builders compatible with current dataset settings."""
@@ -1106,78 +1246,88 @@ class WorkflowYamlBuilderApp:
         """Return whether the selected builder is compatible with current dataset settings."""
         return self.form_values.get("query.builder.key") in self.get_compatible_query_builder_labels()
 
-    def refresh_query_builder_options(self, *, refresh_rows: bool = True) -> None:
-        """Refresh query-builder choices for the selected dataset settings."""
+    def normalize_query_builder_state_for_context(self) -> None:
+        """Normalize query-first builder state for the selected dataset context."""
         labels = self.get_compatible_query_builder_labels()
         builder_changed = False
-        if self.query_builder_select is not None:
-            self.query_builder_select.options = labels
-            self.query_builder_select.update()
-
         if labels:
             if not self.is_current_query_builder_compatible():
                 self.form_values["query.builder.key"] = labels[0]
-                self.active_query_builder_label = labels[0]
                 builder_changed = True
-            if self.builder_availability_message is not None:
-                self.builder_availability_message.text = ""
-            if is_chembl_builder_key(self.form_values["query.builder.key"]):
+            if is_chembl_ic50_builder_key(self.form_values["query.builder.key"]):
+                if builder_changed:
+                    self.chembl_ic50_builder_row = make_chembl_ic50_builder_ui_row()
+            elif is_chembl_builder_key(self.form_values["query.builder.key"]):
                 if builder_changed:
                     self.chembl_builder_rows = [
                         make_chembl_builder_ui_row(self.form_values["query.builder.key"])
                     ]
-                if refresh_rows:
-                    self.build_chembl_builder_rows.refresh()
-            if is_pubchem_builder_key(self.form_values["query.builder.key"]):
+            elif is_pubchem_builder_key(self.form_values["query.builder.key"]):
                 if builder_changed:
                     self.pubchem_builder_row = make_pubchem_builder_ui_row(
                         self.form_values["query.builder.key"]
                     )
-                if refresh_rows:
-                    self.build_pubchem_builder_row.refresh()
-            if is_chebi_builder_key(self.form_values["query.builder.key"]):
+            elif is_chebi_builder_key(self.form_values["query.builder.key"]):
                 if builder_changed:
                     self.chebi_builder_row = make_chebi_builder_ui_row(self.form_values["query.builder.key"])
-                if refresh_rows:
-                    self.build_chebi_builder_row.refresh()
-            if refresh_rows:
-                self.build_uniprot_builder_rows.refresh()
+            elif builder_changed and is_uniprot_builder_key(self.form_values["query.builder.key"]):
+                self.uniprot_builder_rows = [make_uniprot_builder_ui_row()]
+            self.active_query_builder_label = str(self.form_values["query.builder.key"])
             self.sync_builder_rows_to_form()
-            self.update_builder_previews()
             return
 
         self.form_values["query.input_mode"] = get_labeled_option_default(
             "manual",
             QUERY_INPUT_MODE_LABEL_TO_VALUE,
         )
-        if self.builder_availability_message is not None:
-            self.builder_availability_message.text = (
-                "No advanced builder matches these dataset settings. Use Manual query or adjust "
-                "the modality and interaction type."
-            )
-        self.update_builder_previews()
+        self.active_query_builder_label = str(self.form_values["query.builder.key"])
+
+    def refresh_query_section(self) -> None:
+        """Rebuild the Query section without refreshing stale child controls."""
+        previous_refreshing_state = self.is_refreshing_query_section
+        self.is_refreshing_query_section = True
+        self.query_builder_select = None
+        self.friendly_query_preview = None
+        self.interpreted_query_preview = None
+        self.query_composition_preview = None
+        self.query_composition_entry_previews = {}
+        try:
+            self.build_query_controls.refresh()
+        finally:
+            self.is_refreshing_query_section = previous_refreshing_state
 
     def handle_dataset_builder_context_change(self, *_args: object) -> None:
         """Refresh builder choices after dataset modality or interaction type changes."""
-        if self.is_loading_form_values:
+        if self.is_loading_form_values or self.is_refreshing_query_section:
             return
-        self.update_interaction_type_visibility()
-        if is_query_composition_workflow_mode(self.form_values["dataset.mode"]):
-            for entry in self.get_query_composition_entries():
-                self.ensure_query_composition_entry_builder_state(entry)
-            self.refresh_query_composition_editor()
-            return
-        self.refresh_query_builder_options()
+        self.is_refreshing_query_section = True
+        try:
+            self.update_interaction_type_visibility()
+            if is_query_composition_workflow_mode(self.form_values["dataset.mode"]):
+                for entry in self.get_query_composition_entries():
+                    self.ensure_query_composition_entry_builder_state(entry)
+                self.sync_query_composition_entries_to_form()
+                self.refresh_query_section()
+                return
+            self.normalize_query_builder_state_for_context()
+            self.refresh_query_section()
+        finally:
+            self.is_refreshing_query_section = False
 
     def handle_workflow_mode_change(self, *_args: object) -> None:
         """Rebuild query controls after switching workflow mode."""
-        if self.is_loading_form_values:
+        if self.is_loading_form_values or self.is_refreshing_query_section:
             return
-        if is_query_composition_workflow_mode(self.form_values["dataset.mode"]):
-            self.sync_query_composition_entries_to_form()
-        else:
-            self.sync_builder_rows_to_form()
-        self.build_query_controls.refresh()
+        self.is_refreshing_query_section = True
+        try:
+            if is_query_composition_workflow_mode(self.form_values["dataset.mode"]):
+                self.sync_query_composition_entries_to_form()
+            else:
+                self.normalize_query_builder_state_for_context()
+                self.sync_builder_rows_to_form()
+            self.refresh_query_section()
+        finally:
+            self.is_refreshing_query_section = False
 
     def update_interaction_type_visibility(self, *, update_select: bool = True) -> None:
         """Update interaction type selector visibility for the selected modality."""
@@ -1197,17 +1347,21 @@ class WorkflowYamlBuilderApp:
         self.form_values["query.uniprot_builder.rows"] = build_uniprot_builder_form_rows(
             self.uniprot_builder_rows
         )
-        if is_chembl_builder_key(self.form_values["query.builder.key"]):
+        if is_chembl_ic50_builder_key(self.form_values["query.builder.key"]):
+            self.form_values["query.chembl_ic50_builder.row"] = build_chembl_ic50_builder_form_row(
+                self.chembl_ic50_builder_row
+            )
+        elif is_chembl_builder_key(self.form_values["query.builder.key"]):
             self.form_values["query.chembl_builder.rows"] = build_chembl_builder_form_rows(
                 self.form_values["query.builder.key"],
                 self.chembl_builder_rows,
             )
-        if is_pubchem_builder_key(self.form_values["query.builder.key"]):
+        elif is_pubchem_builder_key(self.form_values["query.builder.key"]):
             self.form_values["query.pubchem_builder.row"] = build_pubchem_builder_form_row(
                 self.form_values["query.builder.key"],
                 self.pubchem_builder_row,
             )
-        if is_chebi_builder_key(self.form_values["query.builder.key"]):
+        elif is_chebi_builder_key(self.form_values["query.builder.key"]):
             self.form_values["query.chebi_builder.row"] = build_chebi_builder_form_row(
                 self.form_values["query.builder.key"],
                 self.chebi_builder_row,
@@ -1224,6 +1378,10 @@ class WorkflowYamlBuilderApp:
                 rows = build_uniprot_builder_rows_from_form(self.form_values)
                 friendly_query = build_uniprot_friendly_query(rows)
                 interpreted_query = build_uniprot_interpreted_query(rows)
+            elif is_chembl_ic50_builder_key(builder_key):
+                row = build_chembl_ic50_builder_row_from_form(self.form_values)
+                friendly_query = build_chembl_ic50_friendly_query(row)
+                interpreted_query = build_chembl_ic50_interpreted_query(row)
             elif is_chembl_builder_key(builder_key):
                 rows = build_chembl_builder_rows_from_form(self.form_values)
                 friendly_query = build_chembl_friendly_query(rows)
@@ -1526,6 +1684,7 @@ class WorkflowYamlBuilderApp:
         self.active_query_builder_label = str(state["builder_label"])
         self.uniprot_builder_rows = cast("list[dict[str, object]]", state["uniprot_rows"])
         self.chembl_builder_rows = cast("list[dict[str, object]]", state["chembl_rows"])
+        self.chembl_ic50_builder_row = cast("dict[str, object]", state["chembl_ic50_row"])
         self.pubchem_builder_row = cast("dict[str, object]", state["pubchem_row"])
         self.chebi_builder_row = cast("dict[str, object]", state["chebi_row"])
 

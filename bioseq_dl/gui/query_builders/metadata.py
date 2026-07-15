@@ -17,11 +17,17 @@ from bioseq_dl.gui.query_builders.chebi import (
     validate_chebi_builder_row,
 )
 from bioseq_dl.gui.query_builders.chembl import (
+    CHEMBL_IC50_BUILDER_KEY,
     ChEMBLFilterQueryBuilderRow,
+    build_chembl_ic50_interpreted_query,
     normalize_chembl_field,
     normalize_chembl_filter_type,
+    normalize_chembl_ic50_condition,
     normalize_chembl_resource,
+    restore_chembl_ic50_metadata_row,
+    serialize_chembl_ic50_metadata_row,
     validate_chembl_builder_rows,
+    validate_chembl_ic50_builder_row,
 )
 from bioseq_dl.gui.query_builders.pubchem import (
     PubChemQueryBuilderRow,
@@ -56,6 +62,8 @@ REQUIRED_QUERY_BUILDER_METADATA_FIELDS = (
 )
 UNIPROT_METADATA_ROW_FIELDS = {"connector", "field", "match_mode", "values"}
 CHEMBL_METADATA_ROW_FIELDS = {"field", "operator", "value"}
+CHEMBL_IC50_RANGE_METADATA_ROW_FIELDS = {"condition", "minimum", "maximum", "unit"}
+CHEMBL_IC50_VALUE_METADATA_ROW_FIELDS = {"condition", "value", "unit"}
 PUBCHEM_METADATA_ROW_FIELDS = {"field", "value"}
 PUBCHEM_THRESHOLD_METADATA_ROW_FIELDS = {"field", "value", "threshold"}
 CHEBI_METADATA_ROW_FIELDS = {"field", "value"}
@@ -185,6 +193,30 @@ def restore_chembl_query_builder_rows(
     return tuple(restored_rows)
 
 
+def restore_chembl_ic50_query_builder_row(rows: object) -> tuple[object, dict[str, object]]:
+    """Restore one validated ChEMBL IC50 row and its form state."""
+    row = require_single_metadata_row(rows)
+    condition = normalize_chembl_ic50_condition(row.get("condition"))
+    allowed_fields = (
+        CHEMBL_IC50_RANGE_METADATA_ROW_FIELDS
+        if condition == "range"
+        else CHEMBL_IC50_VALUE_METADATA_ROW_FIELDS
+    )
+    if set(row) != allowed_fields:
+        msg = "query.builder.rows[0] has an invalid ChEMBL IC50 row shape."
+        raise ValueError(msg)
+    restored_row = restore_chembl_ic50_metadata_row(row)
+    metadata_row = serialize_chembl_ic50_metadata_row(restored_row)
+    form_row = {
+        "condition": metadata_row["condition"],
+        "minimum": metadata_row.get("minimum"),
+        "maximum": metadata_row.get("maximum"),
+        "value": metadata_row.get("value"),
+        "unit": metadata_row["unit"],
+    }
+    return restored_row, form_row
+
+
 def restore_pubchem_query_builder_row(
     builder_key: str,
     rows: object,
@@ -287,6 +319,10 @@ def restore_query_builder_metadata(
             }
             for row in rows
         )
+    elif builder_key == CHEMBL_IC50_BUILDER_KEY:
+        row, form_row = restore_chembl_ic50_query_builder_row(metadata["rows"])
+        regenerated_query = build_chembl_ic50_interpreted_query(row)
+        form_rows = (form_row,)
     elif spec.database == "chembl":
         rows = restore_chembl_query_builder_rows(builder_key, metadata["rows"])
         regenerated_query = spec.build_interpreted_query(rows)
@@ -378,6 +414,16 @@ def build_chembl_query_builder_metadata(
         for row in rows
     ]
     return build_common_query_builder_metadata(builder_key, serialized_rows)
+
+
+def build_chembl_ic50_query_builder_metadata(row: object) -> dict[str, object]:
+    """Build neutral metadata for a validated ChEMBL IC50 visual builder row."""
+    restored_row = restore_chembl_ic50_metadata_row(serialize_chembl_ic50_metadata_row(row))
+    validate_chembl_ic50_builder_row(restored_row)
+    return build_common_query_builder_metadata(
+        CHEMBL_IC50_BUILDER_KEY,
+        [serialize_chembl_ic50_metadata_row(restored_row)],
+    )
 
 
 def build_pubchem_query_builder_metadata(
