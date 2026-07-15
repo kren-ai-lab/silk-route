@@ -7,10 +7,8 @@ imported and tested without the GUI dependency installed.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from collections.abc import Mapping
+from collections.abc import Mapping
+from typing import Any
 
 from bioseq_dl.core.workflow.chebi_query_catalog import get_chebi_query_builder_field_catalog
 from bioseq_dl.core.workflow.chembl_query_catalog import get_chembl_query_builder_field_catalog
@@ -550,6 +548,110 @@ def build_gui_query_builder_state_from_loaded_form(form_values: Mapping[str, obj
         "pubchem_row": pubchem_row,
         "chebi_row": chebi_row,
     }
+
+
+def build_query_composition_entry_ui_state(form_entry: object) -> dict[str, object]:
+    """Convert one pure composition form entry to visible GUI entry state."""
+    if not isinstance(form_entry, Mapping):
+        form_entry = {}
+    query_input_mode = get_labeled_option_default(
+        normalize_query_input_mode(form_entry.get("query_input_mode", "manual")),
+        QUERY_INPUT_MODE_LABEL_TO_VALUE,
+    )
+    builder_key = normalize_query_builder_key(form_entry.get("query_builder_key", "uniprot"))
+    builder_label = get_query_builder_label(builder_key)
+    ui_entry: dict[str, object] = {
+        "label": str(form_entry.get("label") or ""),
+        "value": str(form_entry.get("value") or ""),
+        "description": str(form_entry.get("description") or ""),
+        "query_input_mode": query_input_mode,
+        "query_builder_key": builder_label,
+        "uniprot_builder_rows": [make_uniprot_builder_ui_row()],
+        "chembl_builder_rows": [make_chembl_builder_ui_row(get_query_builder_label("chembl_target"))],
+        "pubchem_builder_row": make_pubchem_builder_ui_row(get_query_builder_label("pubchem_compound")),
+        "chebi_builder_row": make_chebi_builder_ui_row(get_query_builder_label("chebi_entity")),
+    }
+    if "preserved_builder" in form_entry:
+        ui_entry["preserved_builder"] = form_entry["preserved_builder"]
+    if normalize_query_input_mode(query_input_mode) == "advanced_builder":
+        if builder_key == "uniprot":
+            ui_entry["uniprot_builder_rows"] = build_uniprot_builder_ui_rows(
+                form_entry.get("uniprot_builder_rows")
+            )
+        elif builder_key in CHEMBL_BUILDER_RESOURCE_BY_KEY:
+            ui_entry["chembl_builder_rows"] = build_chembl_builder_ui_rows(
+                builder_label,
+                form_entry.get("chembl_builder_rows"),
+            )
+        elif builder_key in PUBCHEM_BUILDER_RESOURCE_BY_KEY:
+            ui_entry["pubchem_builder_row"] = build_pubchem_builder_ui_row(
+                builder_label,
+                form_entry.get("pubchem_builder_row"),
+            )
+        elif builder_key in CHEBI_BUILDER_RESOURCE_BY_KEY:
+            ui_entry["chebi_builder_row"] = build_chebi_builder_ui_row(
+                builder_label,
+                form_entry.get("chebi_builder_row"),
+            )
+    return ui_entry
+
+
+def build_query_composition_entry_form_state(ui_entry: Mapping[str, object]) -> dict[str, object]:
+    """Convert one visible GUI composition entry to pure form state."""
+    builder_label = ui_entry.get("query_builder_key", get_query_builder_label("uniprot"))
+    uniprot_rows_value = ui_entry.get("uniprot_builder_rows")
+    uniprot_rows = uniprot_rows_value if isinstance(uniprot_rows_value, list) else []
+    chembl_rows_value = ui_entry.get("chembl_builder_rows")
+    chembl_rows = chembl_rows_value if isinstance(chembl_rows_value, list) else []
+    pubchem_row_value = ui_entry.get("pubchem_builder_row")
+    pubchem_row = pubchem_row_value if isinstance(pubchem_row_value, Mapping) else {}
+    chebi_row_value = ui_entry.get("chebi_builder_row")
+    chebi_row = chebi_row_value if isinstance(chebi_row_value, Mapping) else {}
+    entry: dict[str, object] = {
+        "label": ui_entry.get("label", ""),
+        "value": ui_entry.get("value", ""),
+        "description": ui_entry.get("description", ""),
+        "query_input_mode": normalize_query_input_mode(ui_entry.get("query_input_mode", "manual")),
+        "query_builder_key": get_query_builder_key(builder_label),
+        "uniprot_builder_rows": build_uniprot_builder_form_rows(list(uniprot_rows)),
+        "chembl_builder_rows": build_chembl_builder_form_rows(
+            builder_label,
+            list(chembl_rows),
+        )
+        if is_chembl_builder_key(builder_label)
+        else [],
+        "pubchem_builder_row": build_pubchem_builder_form_row(
+            builder_label,
+            dict(pubchem_row),
+        )
+        if is_pubchem_builder_key(builder_label)
+        else {},
+        "chebi_builder_row": build_chebi_builder_form_row(
+            builder_label,
+            dict(chebi_row),
+        )
+        if is_chebi_builder_key(builder_label)
+        else {},
+    }
+    if "preserved_builder" in ui_entry:
+        entry["preserved_builder"] = ui_entry["preserved_builder"]
+    return entry
+
+
+def build_query_composition_entries_ui_state(form_entries: object) -> list[dict[str, object]]:
+    """Convert pure composition form entries to visible GUI entry state."""
+    if not isinstance(form_entries, list):
+        form_entries = [{}]
+    return [build_query_composition_entry_ui_state(entry) for entry in form_entries] or [
+        build_query_composition_entry_ui_state({})
+    ]
+
+
+def build_query_composition_entries_form_state(
+    ui_entries: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    """Convert visible GUI composition entries to pure form state."""
+    return [build_query_composition_entry_form_state(entry) for entry in ui_entries]
 
 
 def get_dataset_modality_value(form_values: dict[str, object]) -> str:
