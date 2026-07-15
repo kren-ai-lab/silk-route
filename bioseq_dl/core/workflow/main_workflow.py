@@ -16,11 +16,15 @@ from bioseq_dl.core.utils.crossref_enrichment import normalize_crossref_fields, 
 from bioseq_dl.core.utils.frames import records_to_frame
 from bioseq_dl.logging import get_logger
 
+from .chebi_execution import execute_chebi_request_plan
+from .chebi_query_parser import is_chebi_prefixed_query, parse_chebi_query_builder_string
 from .chembl_query_parser import (
     get_chembl_prefixed_query_resource,
     is_chembl_prefixed_query,
     parse_chembl_query_builder_string,
 )
+from .pubchem_execution import execute_pubchem_request_plan
+from .pubchem_query_parser import is_pubchem_prefixed_query, parse_pubchem_query_builder_string
 from .query_interpreter import (
     UniProtQueryInterpreter,
     build_default_chembl_interpreter,
@@ -42,6 +46,14 @@ PROTEIN_CHEMBL_QUERY_ERROR = (
 PPI_CHEMBL_QUERY_ERROR = (
     "ChEMBL-prefixed queries are not valid for protein-protein interaction workflows. "
     "Use a protein-ligand interaction workflow for ChEMBL target or activity queries."
+)
+PROTEIN_COMPOUND_SOURCE_QUERY_ERROR = (
+    "PubChem- and ChEBI-prefixed queries are not valid for protein workflows. "
+    "Use a compound workflow for PubChem or ChEBI queries."
+)
+INTERACTION_COMPOUND_SOURCE_QUERY_ERROR = (
+    "PubChem- and ChEBI-prefixed queries are not valid for interaction workflows. "
+    "Use a compound workflow, or use ChEMBL for protein-ligand interaction workflows."
 )
 COMPOUND_UNSUPPORTED_CHEMBL_RESOURCE_ERROR = (
     "ChEMBL resource '{resource}' is not valid for compound workflows. "
@@ -89,6 +101,7 @@ def _elapsed_seconds(started_at: object, finished_at: object) -> float:
 
 # Maps each modality to the result key its primary payload lives under.
 _MODALITY_RESULT_KEY = {"protein": "uniprot", "compound": "chembl", "interaction": "data"}
+_COMPOUND_RESULT_KEYS = ("chembl", "pubchem", "chebi")
 
 
 def _apply_label(value: Any, label: str) -> Any:
@@ -139,15 +152,21 @@ def attach_label_to_part(part_data: dict, label: str, modality: str) -> dict:
     """
     if not isinstance(part_data, dict):
         return {}
+    if modality == "compound":
+        labeled = {
+            key: _apply_label(part_data[key], label)
+            for key in _COMPOUND_RESULT_KEYS
+            if part_data.get(key) is not None
+        }
+        if part_data.get("uniprot") is not None:
+            labeled["uniprot"] = _apply_label(part_data["uniprot"], label)
+        return labeled
+
     key = _MODALITY_RESULT_KEY.get(modality)
     if key is None or part_data.get(key) is None:
         return {}
 
-    labeled = {key: _apply_label(part_data[key], label)}
-    # Compound results also carry the uniprot part; label it too when present.
-    if modality == "compound" and part_data.get("uniprot") is not None:
-        labeled["uniprot"] = _apply_label(part_data["uniprot"], label)
-    return labeled
+    return {key: _apply_label(part_data[key], label)}
 
 
 def activity_filter_metadata(activity_filter: dict) -> dict:
@@ -330,6 +349,27 @@ def build_chembl_query_structure(query: str) -> dict[str, object] | None:
     if not is_chembl_prefixed_query(query):
         return None
     return parse_chembl_query_builder_string(query)
+
+
+def is_pubchem_or_chebi_prefixed_query(query: str | None) -> bool:
+    """Return whether a query uses a PubChem or ChEBI workflow prefix."""
+    if query is None:
+        return False
+    return is_pubchem_prefixed_query(query) or is_chebi_prefixed_query(query)
+
+
+def build_pubchem_request_plan(query: str) -> dict[str, object] | None:
+    """Parse a PubChem-prefixed query string, if one is present."""
+    if not is_pubchem_prefixed_query(query):
+        return None
+    return parse_pubchem_query_builder_string(query)
+
+
+def build_chebi_request_plan(query: str) -> dict[str, object] | None:
+    """Parse a ChEBI-prefixed query string, if one is present."""
+    if not is_chebi_prefixed_query(query):
+        return None
+    return parse_chebi_query_builder_string(query)
 
 
 def merge_pair(existing: Any, new: Any) -> Any:
@@ -771,6 +811,50 @@ class MainWorkflow:
         context["metadata"]["chembl"] = meta
         self.log.debug("Pipeline ChEMBL fetch metadata: %s", meta)
 
+    def _step_fetch_pubchem(self, context: dict[str, Any]) -> None:
+        """Execute a PubChem request plan and store normalized compound results."""
+        pubchem_search = context.get("searches", {}).get("pubchem", {})
+        request_plan = pubchem_search.get("request_plan")
+        if not isinstance(request_plan, dict):
+            self.log.debug("Pipeline: missing PubChem request plan; skipping")
+            context.setdefault("data", {})["pubchem"] = pl.DataFrame()
+            context.setdefault("metadata", {}).setdefault(
+                "pubchem", {"skipped": True, "reason": "missing_request_plan"}
+            )
+            return
+
+        self.log.info(
+            "Pipeline: fetching PubChem for resource=%s model=%s",
+            request_plan.get("resource"),
+            request_plan.get("query_model"),
+        )
+        result, metadata = execute_pubchem_request_plan(request_plan)
+        context.setdefault("data", {})["pubchem"] = result
+        context.setdefault("metadata", {})["pubchem"] = metadata
+        self.log.debug("Pipeline PubChem fetch metadata: %s", metadata)
+
+    def _step_fetch_chebi(self, context: dict[str, Any]) -> None:
+        """Execute a ChEBI request plan and store normalized compound results."""
+        chebi_search = context.get("searches", {}).get("chebi", {})
+        request_plan = chebi_search.get("request_plan")
+        if not isinstance(request_plan, dict):
+            self.log.debug("Pipeline: missing ChEBI request plan; skipping")
+            context.setdefault("data", {})["chebi"] = pl.DataFrame()
+            context.setdefault("metadata", {}).setdefault(
+                "chebi", {"skipped": True, "reason": "missing_request_plan"}
+            )
+            return
+
+        self.log.info(
+            "Pipeline: fetching ChEBI for resource=%s model=%s",
+            request_plan.get("resource"),
+            request_plan.get("query_model"),
+        )
+        result, metadata = execute_chebi_request_plan(request_plan)
+        context.setdefault("data", {})["chebi"] = result
+        context.setdefault("metadata", {})["chebi"] = metadata
+        self.log.debug("Pipeline ChEBI fetch metadata: %s", metadata)
+
     def _step_chembl_to_uniprot_query(
         self, context: dict[str, Any], keep_original_query: bool = True
     ) -> None:
@@ -876,6 +960,8 @@ class MainWorkflow:
         """
         if context is None and query is not None and is_chembl_prefixed_query(query):
             raise ValueError(PROTEIN_CHEMBL_QUERY_ERROR)
+        if context is None and is_pubchem_or_chebi_prefixed_query(query):
+            raise ValueError(PROTEIN_COMPOUND_SOURCE_QUERY_ERROR)
 
         uniprot_interpreter = build_default_uniprot_interpreter()
 
@@ -953,11 +1039,13 @@ class MainWorkflow:
         context: dict[str, Any] | None = None,
         **_kwargs: Any,
     ) -> tuple[dict, dict]:
-        """Run the compound modality through compound/activity-oriented ChEMBL searches.
+        """Run the compound modality through the matching compound data source.
 
-        Compound workflows keep ChEMBL compound or activity outputs and do not
-        automatically map ChEMBL targets back to UniProt. Protein-ligand
-        interaction workflows own that cross-entity mapping behavior.
+        Source-prefixed ChEMBL, PubChem, and ChEBI compound queries are routed
+        to their respective backends. Compound workflows keep compound-source
+        outputs and do not automatically map ChEMBL targets back to UniProt;
+        protein-ligand interaction workflows own that cross-entity mapping
+        behavior.
 
         Args:
             query (str): The user-friendly compound query string.
@@ -971,6 +1059,40 @@ class MainWorkflow:
             tuple[dict, dict]: Result data and run metadata.
 
         """
+        pubchem_request_plan = build_pubchem_request_plan(query)
+        if pubchem_request_plan is not None:
+            context = {
+                "searches": {
+                    "pubchem": {
+                        "query": query,
+                        "interpreted_query": query,
+                        "request_plan": pubchem_request_plan,
+                        "modality": "compound",
+                    },
+                },
+                "data": {},
+                "metadata": {"mode": "query_first", "modality": "compound", "origin": "query"},
+            }
+            self._step_fetch_pubchem(context)
+            return context.get("data", {}), context.get("metadata", {})
+
+        chebi_request_plan = build_chebi_request_plan(query)
+        if chebi_request_plan is not None:
+            context = {
+                "searches": {
+                    "chebi": {
+                        "query": query,
+                        "interpreted_query": query,
+                        "request_plan": chebi_request_plan,
+                        "modality": "compound",
+                    },
+                },
+                "data": {},
+                "metadata": {"mode": "query_first", "modality": "compound", "origin": "query"},
+            }
+            self._step_fetch_chebi(context)
+            return context.get("data", {}), context.get("metadata", {})
+
         validate_compound_chembl_query_resource(query)
         chembl_interpreter = build_default_chembl_interpreter()
         export_format = export_format or self.default_export_format
@@ -1061,6 +1183,8 @@ class MainWorkflow:
         if not interaction_type:
             msg = "interaction_type is required for run_interaction"
             raise ValueError(msg)
+        if is_pubchem_or_chebi_prefixed_query(query):
+            raise ValueError(INTERACTION_COMPOUND_SOURCE_QUERY_ERROR)
 
         export_format = export_format or self.default_export_format
 
