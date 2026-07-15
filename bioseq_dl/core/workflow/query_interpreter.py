@@ -14,6 +14,17 @@ QUOTED_CSV_VALUE_PATTERN = re.compile(r"(?:'[^']*'|\"[^\"]*\"|[^,]+)")
 MIN_QUOTED_VALUE_LENGTH = 2
 
 
+def normalize_standard_units(value: str) -> str:
+    """Normalize a ChEMBL standard-units value without numeric conversion."""
+    normalized = str(value).strip()
+    normalized = normalized.replace("Âµ", "u").replace("Î¼", "u")
+    normalized = normalized.replace("µ", "u").replace("μ", "u")
+    if not normalized:
+        msg = "standard_units must be a non-empty value."
+        raise ValueError(msg)
+    return normalized
+
+
 def strip_surrounding_quotes(value: str) -> str:
     """Strip one matching pair of surrounding single or double quotes."""
     stripped = value.strip()
@@ -606,6 +617,18 @@ def build_default_uniprot_interpreter() -> UniProtQueryInterpreter:
 class ChEMBLQueryInterpreter(BaseQueryInterpreter):
     """Query interpreter for ChEMBL queries."""
 
+    def interpret(self, query: str) -> str:
+        """Interpret a ChEMBL query string, including explicit IC50 units."""
+        if re.search(
+            r"\bstandard_units\s*[:=]\s*(?=$|\b(?:AND|OR)\b|\))",
+            query,
+            flags=re.IGNORECASE,
+        ):
+            msg = "standard_units must be a non-empty value."
+            raise ValueError(msg)
+        query = re.sub(r"\bstandard_units\s*=", "standard_units:", query, flags=re.IGNORECASE)
+        return super().interpret(query)
+
     def _resolve_item(self, prefix: str, value: str, cfg: MultiModeFieldConfig) -> tuple[str, str]:
         """Resolve an item value based on the field configuration.
 
@@ -638,6 +661,9 @@ class ChEMBLQueryInterpreter(BaseQueryInterpreter):
             if self._is_number(value):
                 return "", f"standard_type=IC50 AND standard_value={value.strip()}"
 
+        if cfg.resolver_kind == "standard_units_transform":
+            return "", f"standard_units={normalize_standard_units(value)}"
+
         return prefix, value
 
     def parse_query_builder_string(self, query: str) -> dict[str, object]:
@@ -659,6 +685,12 @@ def build_default_chembl_interpreter() -> ChEMBLQueryInterpreter:
             value_map={},
             supports_range=True,
             resolver_kind="ic50_transform",
+        ),
+        "standard_units": MultiModeFieldConfig(
+            field="standard_units",
+            value_map={},
+            supports_range=False,
+            resolver_kind="standard_units_transform",
         ),
         "activity": MultiModeFieldConfig(
             field="activity",

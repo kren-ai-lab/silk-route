@@ -29,6 +29,7 @@ from .query_interpreter import (
     UniProtQueryInterpreter,
     build_default_chembl_interpreter,
     build_default_uniprot_interpreter,
+    normalize_standard_units,
 )
 
 if TYPE_CHECKING:
@@ -225,6 +226,33 @@ def filter_chembl_activity_dataframe(df: pl.DataFrame, activity_filter: dict) ->
 
     standard_type = str(activity_filter.get("standard_type", "")).upper()
     type_cond = pl.col("standard_type").cast(pl.String).str.to_uppercase() == standard_type
+    standard_units = activity_filter.get("standard_units")
+    if standard_units is not None and "standard_units" not in df.columns:
+        return df.clear(), {
+            "applied": True,
+            "initial_rows": initial_rows,
+            "filtered_rows": 0,
+            "removed_rows": initial_rows,
+            "reason": "missing_standard_units",
+            "requested_standard_units": standard_units,
+        }
+
+    units_cond = pl.lit(value=True)
+    if standard_units is not None:
+        normalized_units = normalize_standard_units(str(standard_units)).lower()
+        units_cond = (
+            pl.col("standard_units")
+            .cast(pl.String)
+            .str.strip_chars()
+            .str.replace_all("Âµ", "u")
+            .str.replace_all("Î¼", "u")
+            .str.replace_all("µ", "u")
+            .str.replace_all("μ", "u")
+            .str.to_lowercase()
+            .eq(normalized_units)
+            .fill_null(value=False)
+        )
+
     values = pl.col("standard_value").cast(pl.Float64, strict=False)
     value_cond = values.is_not_null()
 
@@ -245,7 +273,7 @@ def filter_chembl_activity_dataframe(df: pl.DataFrame, activity_filter: dict) ->
             else:
                 value_cond &= values < max_value
 
-    filtered = df.filter(type_cond & value_cond)
+    filtered = df.filter(type_cond & value_cond & units_cond)
     filtered_rows = filtered.height
     return filtered, {
         "applied": True,
@@ -798,11 +826,10 @@ class MainWorkflow:
             result, post_filter_meta = filter_chembl_activity_result(result, activity_filter)
             if isinstance(meta, dict):
                 meta["activity_filter"] = activity_filter_metadata(activity_filter)
-                meta["activity_filter"]["standard_units"] = None
                 meta["api_filter"] = {
                     "applied": True,
                     "endpoint": "activity",
-                    "standard_units_constrained": False,
+                    "standard_units_constrained": activity_filter.get("standard_units") is not None,
                     "pagination_capped": pages_to_fetch != -1,
                 }
                 meta["post_fetch_filter"] = post_filter_meta

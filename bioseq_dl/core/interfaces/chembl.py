@@ -12,6 +12,7 @@ from bioseq_dl.core.workflow.chembl_query_catalog import (
     OPERATOR_SUFFIXES,
     get_chembl_query_builder_field_catalog,
 )
+from bioseq_dl.core.workflow.query_interpreter import normalize_standard_units
 from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
@@ -255,6 +256,23 @@ class ChEMBLInterface(BaseAPIInterface):
             "standard_value_max_inclusive": False,
         }
 
+        if re.search(
+            r"\bstandard_units\s*[:=]\s*(?=$|\b(?:AND|OR)\b|\))",
+            query_text,
+            flags=re.IGNORECASE,
+        ):
+            msg = "standard_units must be a non-empty value."
+            raise ValueError(msg)
+
+        units_match = re.search(
+            r"\bstandard_units\s*[:=]\s*(?:\"([^\"]*)\"|'([^']*)'|([^\s()]+))",
+            query_text,
+            flags=re.IGNORECASE,
+        )
+        if units_match:
+            units_value = next((value for value in units_match.groups() if value is not None), "")
+            activity_filter["standard_units"] = normalize_standard_units(units_value)
+
         range_match = re.search(
             rf"\b(?:ic50|standard_value)\s*:\s*{number_pattern}\s*-\s*{number_pattern}\b",
             query_text,
@@ -265,7 +283,7 @@ class ChEMBLInterface(BaseAPIInterface):
             activity_filter["standard_value_max"] = cls._parse_filter_number(range_match.group(2))
 
         comparison_pattern = re.compile(
-            rf"\b(?:ic50|standard_value)\s*(>=|<=|>|<|=)\s*{number_pattern}",
+            rf"\b(?:ic50\s*:?|standard_value)\s*(>=|<=|>|<|=)\s*{number_pattern}",
             flags=re.IGNORECASE,
         )
         for match in comparison_pattern.finditer(query_text):
@@ -282,6 +300,17 @@ class ChEMBLInterface(BaseAPIInterface):
             elif operator == "=":
                 activity_filter["standard_value"] = number
 
+        if not range_match:
+            exact_macro_match = re.search(
+                rf"\bic50\s*:\s*{number_pattern}(?!\s*-)",
+                query_text,
+                flags=re.IGNORECASE,
+            )
+            if exact_macro_match:
+                activity_filter["standard_value"] = cls._parse_filter_number(
+                    exact_macro_match.group(1)
+                )
+
         return activity_filter
 
     @classmethod
@@ -295,6 +324,8 @@ class ChEMBLInterface(BaseAPIInterface):
         }
         if limit is not None:
             params["limit"] = limit
+        if activity_filter.get("standard_units") is not None:
+            params["standard_units"] = activity_filter["standard_units"]
 
         exact_value = activity_filter.get("standard_value")
         if exact_value is not None:
