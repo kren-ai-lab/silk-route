@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from functools import partial
-from typing import Any
+from typing import Any, cast
 
 import yaml
 from nicegui import ui
@@ -13,6 +13,7 @@ from bioseq_dl.gui.form_helpers import (
     UNIPROT_BUILDER_FIELD_LABEL_TO_VALUE,
     build_chebi_builder_form_row,
     build_chembl_builder_form_rows,
+    build_gui_query_builder_state_from_loaded_form,
     build_pubchem_builder_form_row,
     build_uniprot_builder_form_rows,
     get_active_chebi_builder_label,
@@ -95,6 +96,7 @@ class WorkflowYamlBuilderApp:
         """Initialize app state for form binding and status output."""
         self.form_values = workflow_yaml_gui_form_defaults()
         self.form_values["query.builder.key"] = get_query_builder_label(self.form_values["query.builder.key"])
+        self.active_query_builder_label = str(self.form_values["query.builder.key"])
         self.uniprot_builder_rows = [make_uniprot_builder_ui_row()]
         self.chembl_builder_rows = [make_chembl_builder_ui_row(get_query_builder_label("chembl_target"))]
         self.pubchem_builder_row = make_pubchem_builder_ui_row(get_query_builder_label("pubchem_compound"))
@@ -111,6 +113,7 @@ class WorkflowYamlBuilderApp:
         self.builder_availability_message: Any = None
         self.yaml_output: Any = None
         self.status: Any = None
+        self.is_loading_form_values = False
 
     def build(self) -> None:
         """Build the NiceGUI page."""
@@ -134,7 +137,8 @@ class WorkflowYamlBuilderApp:
         with ui.expansion("Load existing workflow YAML", value=False).classes("w-full"):
             ui.label(
                 "Upload a workflow-v1 .yml or .yaml file to populate supported form fields. "
-                "When a file is loaded, the saved query text is shown in Manual query mode."
+                "Compatible query.builder metadata restores Advanced builder mode; otherwise "
+                "the saved query text opens in Manual query mode."
             ).classes("text-sm text-gray-700")
             ui.label(
                 "Upload one .yml or .yaml file. Uploading another file replaces the current loaded workflow."
@@ -219,12 +223,14 @@ class WorkflowYamlBuilderApp:
                 .tooltip("Optional human-readable description stored in the YAML descriptor.")
             )
 
+    @ui.refreshable
     def build_query_controls(self) -> None:
         """Build query form controls."""
         with ui.expansion("Query", value=True).classes("w-full"):
             ui.label(
                 "Choose manual query entry or build an interpreted query. "
-                "Generated YAML always stores only query.value."
+                "query.value remains executable; advanced builders also store neutral "
+                "query.builder metadata."
             ).classes("text-sm text-gray-700")
             (
                 ui.select(list(QUERY_INPUT_MODE_LABEL_TO_VALUE), label="Query input mode")
@@ -249,9 +255,20 @@ class WorkflowYamlBuilderApp:
                 ui.label(
                     "Available builders depend on the selected dataset modality and interaction type."
                 ).classes("text-sm text-gray-700")
-                self.builder_availability_message = ui.label("").classes("text-sm text-orange-700")
+                compatible_builder_labels = self.get_compatible_query_builder_labels()
+                availability_message = (
+                    ""
+                    if compatible_builder_labels
+                    else (
+                        "No advanced builder matches these dataset settings. Use Manual query "
+                        "or adjust the modality and interaction type."
+                    )
+                )
+                self.builder_availability_message = ui.label(availability_message).classes(
+                    "text-sm text-orange-700"
+                )
                 self.query_builder_select = (
-                    ui.select(self.get_compatible_query_builder_labels(), label="Query builder")
+                    ui.select(compatible_builder_labels, label="Query builder")
                     .bind_value(self.form_values, "query.builder.key")
                     .on_value_change(self.handle_query_builder_change)
                     .tooltip("Choose the database-specific query builder.")
@@ -292,7 +309,6 @@ class WorkflowYamlBuilderApp:
                     .classes("w-full font-mono")
                     .props("readonly rows=3")
                 )
-                self.refresh_query_builder_options(refresh_rows=False)
             builder_panel.bind_visibility_from(
                 self.form_values,
                 "query.input_mode",
@@ -324,6 +340,7 @@ class WorkflowYamlBuilderApp:
                     .bind_value(self.form_values, "query.include_isoform")
                     .tooltip("Whether UniProt isoforms should be included when supported by the workflow.")
                 )
+            self.update_builder_previews()
 
     def build_uniprot_builder_controls(self) -> None:
         """Build UniProt-specific advanced builder controls."""
@@ -549,7 +566,7 @@ class WorkflowYamlBuilderApp:
             if self.pubchem_builder_row.get("threshold") in {None, ""}:
                 self.pubchem_builder_row["threshold"] = 80
         else:
-            self.pubchem_builder_row["threshold"] = ""
+            self.pubchem_builder_row["threshold"] = None
         self.sync_builder_rows_to_form()
         self.build_pubchem_builder_row.refresh()
         self.update_builder_previews()
@@ -598,7 +615,12 @@ class WorkflowYamlBuilderApp:
 
     def handle_query_builder_change(self, *_args: object) -> None:
         """Refresh builder-specific controls after the selected builder changes."""
+        if self.is_loading_form_values:
+            return
         builder_label = self.form_values["query.builder.key"]
+        if builder_label == self.active_query_builder_label:
+            return
+        self.active_query_builder_label = str(builder_label)
         if is_chembl_builder_key(builder_label):
             self.chembl_builder_rows = [make_chembl_builder_ui_row(builder_label)]
             self.build_chembl_builder_rows.refresh()
@@ -619,11 +641,6 @@ class WorkflowYamlBuilderApp:
         )
         return list(choices.values())
 
-    def get_first_compatible_query_builder_label(self) -> str | None:
-        """Return the first compatible builder label, if any."""
-        labels = self.get_compatible_query_builder_labels()
-        return labels[0] if labels else None
-
     def is_current_query_builder_compatible(self) -> bool:
         """Return whether the selected builder is compatible with current dataset settings."""
         return self.form_values.get("query.builder.key") in self.get_compatible_query_builder_labels()
@@ -631,6 +648,7 @@ class WorkflowYamlBuilderApp:
     def refresh_query_builder_options(self, *, refresh_rows: bool = True) -> None:
         """Refresh query-builder choices for the selected dataset settings."""
         labels = self.get_compatible_query_builder_labels()
+        builder_changed = False
         if self.query_builder_select is not None:
             self.query_builder_select.options = labels
             self.query_builder_select.update()
@@ -638,18 +656,27 @@ class WorkflowYamlBuilderApp:
         if labels:
             if not self.is_current_query_builder_compatible():
                 self.form_values["query.builder.key"] = labels[0]
+                self.active_query_builder_label = labels[0]
+                builder_changed = True
             if self.builder_availability_message is not None:
                 self.builder_availability_message.text = ""
             if is_chembl_builder_key(self.form_values["query.builder.key"]):
-                self.chembl_builder_rows = [make_chembl_builder_ui_row(self.form_values["query.builder.key"])]
+                if builder_changed:
+                    self.chembl_builder_rows = [
+                        make_chembl_builder_ui_row(self.form_values["query.builder.key"])
+                    ]
                 if refresh_rows:
                     self.build_chembl_builder_rows.refresh()
             if is_pubchem_builder_key(self.form_values["query.builder.key"]):
-                self.pubchem_builder_row = make_pubchem_builder_ui_row(self.form_values["query.builder.key"])
+                if builder_changed:
+                    self.pubchem_builder_row = make_pubchem_builder_ui_row(
+                        self.form_values["query.builder.key"]
+                    )
                 if refresh_rows:
                     self.build_pubchem_builder_row.refresh()
             if is_chebi_builder_key(self.form_values["query.builder.key"]):
-                self.chebi_builder_row = make_chebi_builder_ui_row(self.form_values["query.builder.key"])
+                if builder_changed:
+                    self.chebi_builder_row = make_chebi_builder_ui_row(self.form_values["query.builder.key"])
                 if refresh_rows:
                     self.build_chebi_builder_row.refresh()
             if refresh_rows:
@@ -671,6 +698,8 @@ class WorkflowYamlBuilderApp:
 
     def handle_dataset_builder_context_change(self, *_args: object) -> None:
         """Refresh builder choices after dataset modality or interaction type changes."""
+        if self.is_loading_form_values:
+            return
         self.update_interaction_type_visibility()
         self.refresh_query_builder_options()
 
@@ -1000,21 +1029,46 @@ class WorkflowYamlBuilderApp:
             clear()
 
     def apply_loaded_form_values(self, loaded_form_values: dict[str, object]) -> None:
-        """Apply loaded descriptor values to GUI state."""
+        """Apply loaded descriptor values and synchronize visible widgets."""
+        self.apply_loaded_form_values_to_state(loaded_form_values)
+        self.sync_loaded_form_values_to_widgets()
+
+    def apply_loaded_form_values_to_state(self, loaded_form_values: dict[str, object]) -> None:
+        """Apply loaded form values to internal GUI state without touching widgets."""
         self.form_values.update(loaded_form_values)
-        self.form_values["query.input_mode"] = get_labeled_option_default(
-            "manual",
-            QUERY_INPUT_MODE_LABEL_TO_VALUE,
-        )
-        self.form_values["query.builder.key"] = get_query_builder_label(
-            self.form_values.get("query.builder.key", "uniprot")
-        )
-        self.uniprot_builder_rows = [make_uniprot_builder_ui_row()]
-        self.chembl_builder_rows = [make_chembl_builder_ui_row(get_query_builder_label("chembl_target"))]
-        self.pubchem_builder_row = make_pubchem_builder_ui_row(get_query_builder_label("pubchem_compound"))
-        self.chebi_builder_row = make_chebi_builder_ui_row(get_query_builder_label("chebi_entity"))
-        self.update_interaction_type_visibility()
-        self.refresh_query_builder_options()
+        state = build_gui_query_builder_state_from_loaded_form(self.form_values)
+        self.form_values["query.input_mode"] = state["query_input_mode"]
+        self.form_values["query.builder.key"] = state["builder_label"]
+        self.active_query_builder_label = str(state["builder_label"])
+        self.uniprot_builder_rows = cast("list[dict[str, object]]", state["uniprot_rows"])
+        self.chembl_builder_rows = cast("list[dict[str, object]]", state["chembl_rows"])
+        self.pubchem_builder_row = cast("dict[str, object]", state["pubchem_row"])
+        self.chebi_builder_row = cast("dict[str, object]", state["chebi_row"])
+
+    def sync_loaded_form_values_to_widgets(self) -> None:
+        """Refresh non-query widgets and rebuild the Query section from loaded state."""
+        self.is_loading_form_values = True
+        try:
+            self.update_interaction_type_visibility()
+            self.build_query_controls.refresh()
+            self.sync_loaded_query_builder_select()
+            self.sync_builder_rows_to_form()
+            self.update_builder_previews()
+        finally:
+            self.is_loading_form_values = False
+
+    def sync_loaded_query_builder_select(self) -> None:
+        """Keep the rebuilt query-builder select on the restored builder after YAML load."""
+        if self.query_builder_select is None:
+            return
+        labels = self.get_compatible_query_builder_labels()
+        restored_label = str(self.form_values["query.builder.key"])
+        self.query_builder_select.options = labels
+        if restored_label in labels:
+            self.query_builder_select.value = restored_label
+            self.form_values["query.builder.key"] = restored_label
+            self.active_query_builder_label = restored_label
+        self.query_builder_select.update()
 
     def regenerate_loaded_yaml_preview(self, warnings: list[str]) -> list[str]:
         """Regenerate YAML preview from loaded editable form values."""
@@ -1077,8 +1131,11 @@ def create_app() -> WorkflowYamlBuilderApp:
 
 def main() -> None:
     """Run the BioSeqDownloader workflow YAML builder GUI."""
-    create_app()
-    ui.run(title="BioSeqDownloader Workflow YAML Builder")
+    ui.run(
+        root=create_app,
+        title="BioSeqDownloader Workflow YAML Builder",
+        reload=False,
+    )
 
 
 if __name__ in {"__main__", "__mp_main__"}:

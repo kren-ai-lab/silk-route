@@ -9,6 +9,8 @@ from bioseq_dl.core.workflow.query_interpreter import strip_surrounding_quotes
 
 MIN_THRESHOLD = 0
 MAX_THRESHOLD = 100
+DEFAULT_SIMILARITY_THRESHOLD = 80
+SIMILARITY_2D_CID_FIELD = "similarity_2d_cid"
 
 
 @dataclass(frozen=True)
@@ -54,6 +56,15 @@ def parse_pubchem_builder_threshold(value: int | str | None) -> int:
     return threshold
 
 
+def normalize_pubchem_builder_threshold_state(field: str, value: int | str | None) -> int | None:
+    """Return GUI-safe threshold state for one PubChem builder field."""
+    if normalize_pubchem_field(field) != SIMILARITY_2D_CID_FIELD:
+        return None
+    if value is None or str(value).strip() == "":
+        return DEFAULT_SIMILARITY_THRESHOLD
+    return parse_pubchem_builder_threshold(value)
+
+
 def validate_pubchem_builder_row(row: PubChemQueryBuilderRow) -> None:
     """Validate one PubChem query builder row."""
     resource = normalize_pubchem_resource(row.resource)
@@ -71,7 +82,7 @@ def validate_pubchem_builder_row(row: PubChemQueryBuilderRow) -> None:
     if resource == "compound" and field == "cid" and (not value.isdigit() or int(value) <= 0):
         msg = "PubChem CID values must be positive integers."
         raise ValueError(msg)
-    if resource == "structure" and field == "similarity_2d_cid":
+    if resource == "structure" and field == SIMILARITY_2D_CID_FIELD:
         if not value.isdigit() or int(value) <= 0:
             msg = "PubChem 2-D similarity searches require a positive reference CID."
             raise ValueError(msg)
@@ -82,8 +93,8 @@ def build_pubchem_parameter_fragment(row: PubChemQueryBuilderRow) -> str:
     """Build one PubChem interpreted-query parameter fragment."""
     field = normalize_pubchem_field(row.field)
     value = strip_surrounding_quotes(str(row.value)).strip()
-    if field in {"cid", "similarity_2d_cid"}:
-        if field == "similarity_2d_cid":
+    if field in {"cid", SIMILARITY_2D_CID_FIELD}:
+        if field == SIMILARITY_2D_CID_FIELD:
             threshold = parse_pubchem_builder_threshold(row.threshold)
             return f"{field}={value} AND threshold={threshold}"
         return f"{field}={value}"

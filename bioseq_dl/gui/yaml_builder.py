@@ -25,12 +25,20 @@ DEFAULT_OUTPUT_DIRECTORY_NAME_ERROR = (
 )
 LEGACY_OUTPUT_DIRECTORY_NAME_ERROR = "dataset.name is required when export.output_dir is not provided."
 LOADED_QUERY_VALUE_WARNING = (
-    "Loaded the saved query text in Manual query mode. Builder rows can be restored "
-    "in a later version when GUI builder metadata is saved."
+    "Loaded the saved query text in Manual query mode. Visual builder reconstruction "
+    "is available for YAML files saved with query.builder metadata."
 )
-QUERY_BUILDER_NOT_EDITABLE_WARNING = (
-    "This file includes query.builder metadata. It is kept with the descriptor and "
-    "shown as read-only in this GUI version."
+QUERY_BUILDER_RESTORE_ERROR_WARNING = (
+    "query.builder metadata could not be restored. The saved query text was loaded "
+    "in Manual query mode and the original metadata was preserved."
+)
+QUERY_BUILDER_MISMATCH_WARNING = (
+    "query.builder metadata did not match query.value. The saved query text was "
+    "loaded in Manual query mode and the original metadata was preserved."
+)
+QUERY_BUILDER_MODE_WARNING = (
+    "query.builder metadata is restored only for Query First workflows. The saved "
+    "query text was loaded in Manual query mode and the original metadata was preserved."
 )
 QUERY_COMPOSITION_NOT_EDITABLE_WARNING = (
     "This file includes query.composition metadata. It is kept with the descriptor "
@@ -160,7 +168,7 @@ DEFAULT_FORM_VALUES: dict[str, object] = {
     "query.pubchem_builder.row": {
         "field": "name",
         "value": "",
-        "threshold": "",
+        "threshold": None,
     },
     "query.chebi_builder.row": {
         "field": "name_contains",
@@ -295,12 +303,8 @@ def collect_load_warnings(descriptor: Mapping[str, object]) -> list[str]:
     dataset = get_mapping_section(descriptor, "dataset")
     query = get_mapping_section(descriptor, "query")
     query_value = str(query.get("value") or "").strip()
-    if query_value:
-        warnings.append(LOADED_QUERY_VALUE_WARNING)
     if dataset.get("modality") == "protein" and query_value.lower().startswith("chembl."):
         warnings.append(PROTEIN_CHEMBL_QUERY_WARNING)
-    if "builder" in query:
-        warnings.append(QUERY_BUILDER_NOT_EDITABLE_WARNING)
     if "composition" in query:
         warnings.append(QUERY_COMPOSITION_NOT_EDITABLE_WARNING)
     for section_name, warning in NON_EDITABLE_METADATA_WARNINGS.items():
@@ -310,10 +314,11 @@ def collect_load_warnings(descriptor: Mapping[str, object]) -> list[str]:
 
 
 def extract_preserved_workflow_sections(descriptor: Mapping[str, object]) -> dict[str, object]:
-    """Capture descriptor sections the GUI shows read-only but must not drop on save.
+    """Capture descriptor sections the GUI must carry through load/save.
 
-    Covers the non-editable top-level sections plus ``query.builder`` /
-    ``query.composition``, which the form controls cannot round-trip yet.
+    ``query.composition`` remains read-only passthrough metadata. ``query.builder``
+    is preserved when it cannot be restored into editable builder state; successfully
+    restored builder metadata is regenerated from the form instead.
     """
     preserved: dict[str, object] = {
         key: deepcopy(descriptor[key]) for key in PRESERVED_TOP_LEVEL_SECTIONS if key in descriptor
@@ -340,6 +345,19 @@ def merge_preserved_workflow_sections(
         else:
             descriptor[key] = deepcopy(value)
     return descriptor
+
+
+def remove_preserved_query_builder(form_values: dict[str, object]) -> None:
+    """Drop preserved read-only query.builder metadata after editable restoration."""
+    preserved = form_values.get(PRESERVED_SECTIONS_FORM_KEY)
+    if not isinstance(preserved, dict):
+        return
+    query = preserved.get("query")
+    if not isinstance(query, dict):
+        return
+    query.pop("builder", None)
+    if not query:
+        preserved.pop("query", None)
 
 
 def load_workflow_yaml_text(yaml_text: str) -> dict[str, object]:
@@ -430,12 +448,69 @@ def descriptor_to_form_values(descriptor: Mapping[str, object]) -> dict[str, obj
     return form_values
 
 
+def restore_loaded_query_builder_form_values(
+    descriptor: Mapping[str, object],
+    form_values: dict[str, object],
+) -> str | None:
+    """Restore advanced query-builder form values or return a manual-mode load note."""
+    query = get_mapping_section(descriptor, "query")
+    metadata = query.get("builder")
+    if metadata is None:
+        return LOADED_QUERY_VALUE_WARNING if str(query.get("value") or "").strip() else None
+
+    dataset = get_mapping_section(descriptor, "dataset")
+    if dataset.get("mode") != "query_first":
+        return QUERY_BUILDER_MODE_WARNING
+
+    modality = str(dataset.get("modality") or "")
+    interaction_type_value = dataset.get("interaction_type")
+    interaction_type = str(interaction_type_value) if interaction_type_value else None
+    try:
+        from bioseq_dl.gui.query_builders.metadata import (  # noqa: PLC0415
+            QueryBuilderMetadataMismatchError,
+            restore_query_builder_metadata,
+        )
+
+        restoration = restore_query_builder_metadata(
+            metadata,
+            query.get("value"),
+            modality,
+            interaction_type,
+        )
+    except QueryBuilderMetadataMismatchError:
+        return QUERY_BUILDER_MISMATCH_WARNING
+    except (TypeError, ValueError):
+        return QUERY_BUILDER_RESTORE_ERROR_WARNING
+
+    form_values["query.input_mode"] = get_labeled_option_default(
+        "advanced_builder",
+        QUERY_INPUT_MODE_LABEL_TO_VALUE,
+    )
+    form_values["query.builder.key"] = restoration.builder_key
+    if restoration.builder_key == "uniprot":
+        form_values["query.uniprot_builder.rows"] = [dict(row) for row in restoration.form_rows]
+    elif restoration.builder_key in CHEMBL_BUILDER_RESOURCE_BY_KEY:
+        form_values["query.chembl_builder.rows"] = [dict(row) for row in restoration.form_rows]
+    elif restoration.builder_key in PUBCHEM_BUILDER_RESOURCE_BY_KEY:
+        form_values["query.pubchem_builder.row"] = dict(restoration.form_rows[0])
+    elif restoration.builder_key in CHEBI_BUILDER_RESOURCE_BY_KEY:
+        form_values["query.chebi_builder.row"] = dict(restoration.form_rows[0])
+    remove_preserved_query_builder(form_values)
+    return None
+
+
 def load_workflow_yaml_to_form_values(yaml_text: str) -> tuple[dict[str, object], list[str]]:
     """Parse, validate, and convert workflow YAML text to form values and warnings."""
     descriptor = load_workflow_yaml_text(yaml_text)
     validated_descriptor = validate_workflow_v1_descriptor(descriptor)
     form_values = descriptor_to_form_values(validated_descriptor)
     warnings = collect_load_warnings(validated_descriptor)
+    query_builder_note = restore_loaded_query_builder_form_values(
+        validated_descriptor,
+        form_values,
+    )
+    if query_builder_note:
+        warnings.append(query_builder_note)
     return form_values, warnings
 
 
@@ -536,7 +611,10 @@ def build_chembl_builder_rows_from_form(form_values: Mapping[str, object]) -> li
 
 def build_pubchem_builder_row_from_form(form_values: Mapping[str, object]) -> object:
     """Build a pure PubChem query builder row from GUI form values."""
-    from bioseq_dl.gui.query_builders.pubchem import PubChemQueryBuilderRow  # noqa: PLC0415
+    from bioseq_dl.gui.query_builders.pubchem import (  # noqa: PLC0415
+        PubChemQueryBuilderRow,
+        normalize_pubchem_builder_threshold_state,
+    )
 
     builder_key = normalize_query_builder_key(get_form_value(form_values, "query.builder.key"))
     if builder_key not in PUBCHEM_BUILDER_RESOURCE_BY_KEY:
@@ -548,11 +626,15 @@ def build_pubchem_builder_row_from_form(form_values: Mapping[str, object]) -> ob
         msg = "Advanced PubChem builder row must be a mapping."
         raise TypeError(msg)
 
+    field = str(get_builder_row_value(raw_row, "field", ""))
     return PubChemQueryBuilderRow(
         resource=PUBCHEM_BUILDER_RESOURCE_BY_KEY[builder_key],
-        field=str(get_builder_row_value(raw_row, "field", "")),
+        field=field,
         value=str(get_builder_row_value(raw_row, "value", "")),
-        threshold=get_builder_row_value(raw_row, "threshold", None),
+        threshold=normalize_pubchem_builder_threshold_state(
+            field,
+            get_builder_row_value(raw_row, "threshold", None),
+        ),
     )
 
 
@@ -613,6 +695,61 @@ def resolve_query_value_from_form(form_values: Mapping[str, object]) -> str:
 
         row = build_chebi_builder_row_from_form(form_values)
         return build_chebi_interpreted_query(row)
+
+    msg = f"Unsupported query builder '{builder_key}'."
+    raise ValueError(msg)
+
+
+def build_query_builder_metadata_from_form(form_values: Mapping[str, object]) -> dict[str, object] | None:
+    """Build optional neutral metadata for the selected advanced query builder."""
+    workflow_mode = normalize_labeled_value(
+        get_form_value(form_values, "dataset.mode"),
+        WORKFLOW_MODE_LABEL_TO_VALUE,
+    )
+    if workflow_mode != "query_first":
+        return None
+
+    mode = normalize_query_input_mode(get_form_value(form_values, "query.input_mode"))
+    if mode == "manual":
+        return None
+
+    builder_key = normalize_query_builder_key(get_form_value(form_values, "query.builder.key"))
+    if builder_key == "uniprot":
+        from bioseq_dl.gui.query_builders.metadata import (  # noqa: PLC0415
+            build_uniprot_query_builder_metadata,
+        )
+
+        return build_uniprot_query_builder_metadata(build_uniprot_builder_rows_from_form(form_values))
+
+    if builder_key in CHEMBL_BUILDER_RESOURCE_BY_KEY:
+        from bioseq_dl.gui.query_builders.metadata import (  # noqa: PLC0415
+            build_chembl_query_builder_metadata,
+        )
+
+        return build_chembl_query_builder_metadata(
+            builder_key,
+            build_chembl_builder_rows_from_form(form_values),
+        )
+
+    if builder_key in PUBCHEM_BUILDER_RESOURCE_BY_KEY:
+        from bioseq_dl.gui.query_builders.metadata import (  # noqa: PLC0415
+            build_pubchem_query_builder_metadata,
+        )
+
+        return build_pubchem_query_builder_metadata(
+            builder_key,
+            build_pubchem_builder_row_from_form(form_values),
+        )
+
+    if builder_key in CHEBI_BUILDER_RESOURCE_BY_KEY:
+        from bioseq_dl.gui.query_builders.metadata import (  # noqa: PLC0415
+            build_chebi_query_builder_metadata,
+        )
+
+        return build_chebi_query_builder_metadata(
+            builder_key,
+            build_chebi_builder_row_from_form(form_values),
+        )
 
     msg = f"Unsupported query builder '{builder_key}'."
     raise ValueError(msg)
@@ -812,7 +949,11 @@ def build_query_section(form_values: Mapping[str, object]) -> dict[str, object]:
     }
     add_optional_list(query, "fields", get_form_value(form_values, "query.fields"))
     add_optional_list(query, "crossref_fields", get_form_value(form_values, "query.crossref_fields"))
-    return cast("dict[str, object]", remove_empty_values(query))
+    cleaned_query = cast("dict[str, object]", remove_empty_values(query))
+    builder_metadata = build_query_builder_metadata_from_form(form_values)
+    if builder_metadata is not None:
+        cleaned_query["builder"] = builder_metadata
+    return cleaned_query
 
 
 def build_execution_section(form_values: Mapping[str, object]) -> dict[str, object]:

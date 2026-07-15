@@ -7,12 +7,19 @@ imported and tested without the GUI dependency installed.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 from bioseq_dl.core.workflow.chebi_query_catalog import get_chebi_query_builder_field_catalog
 from bioseq_dl.core.workflow.chembl_query_catalog import get_chembl_query_builder_field_catalog
 from bioseq_dl.core.workflow.pubchem_query_catalog import get_pubchem_query_builder_field_catalog
 from bioseq_dl.core.workflow.query_field_catalog import get_uniprot_query_builder_field_catalog
+from bioseq_dl.gui.query_builders.pubchem import (
+    SIMILARITY_2D_CID_FIELD,
+    normalize_pubchem_builder_threshold_state,
+)
 from bioseq_dl.gui.query_builders.registry import get_query_builder_choices
 from bioseq_dl.gui.query_builders.uniprot import get_uniprot_query_builder_field_metadata
 from bioseq_dl.gui.yaml_builder import (
@@ -21,9 +28,11 @@ from bioseq_dl.gui.yaml_builder import (
     INTERACTION_TYPE_LABEL_TO_VALUE,
     MODALITY_LABEL_TO_VALUE,
     PUBCHEM_BUILDER_RESOURCE_BY_KEY,
+    QUERY_INPUT_MODE_LABEL_TO_VALUE,
     UNIPROT_MATCH_MODE_LABEL_TO_VALUE,
     get_labeled_option_default,
     normalize_labeled_value,
+    normalize_query_builder_key,
     normalize_query_input_mode,
 )
 
@@ -51,7 +60,7 @@ DEFAULT_PUBCHEM_FIELDS_BY_RESOURCE = {
 DEFAULT_CHEBI_FIELDS_BY_RESOURCE = {
     "entity": "name_contains",
 }
-PUBCHEM_SIMILARITY_FIELD = "similarity_2d_cid"
+PUBCHEM_SIMILARITY_FIELD = SIMILARITY_2D_CID_FIELD
 SUPPORTED_WORKFLOW_YAML_SUFFIXES = (".yml", ".yaml")
 NO_INTERACTION_LABEL = get_labeled_option_default(None, INTERACTION_TYPE_LABEL_TO_VALUE)
 
@@ -175,6 +184,22 @@ def build_uniprot_builder_form_rows(ui_rows: list[dict[str, object]]) -> list[di
     return form_rows
 
 
+def build_uniprot_builder_ui_rows(form_rows: object) -> list[dict[str, object]]:
+    """Convert restored UniProt form rows to visible GUI row values."""
+    if not isinstance(form_rows, list):
+        return [make_uniprot_builder_ui_row()]
+    return [
+        {
+            "connector": str(row.get("connector") or "") if index > 0 else "",
+            "field": get_uniprot_builder_field_label(row.get("field", "")),
+            "values": str(row.get("values") or ""),
+            "match_mode": get_uniprot_match_mode_label(row.get("match_mode", "any")),
+        }
+        for index, row in enumerate(form_rows)
+        if isinstance(row, dict)
+    ] or [make_uniprot_builder_ui_row()]
+
+
 def get_chembl_builder_resource(builder_label_or_key: object) -> str:
     """Return the ChEMBL resource for a selected builder key or label."""
     builder_key = get_query_builder_key(builder_label_or_key)
@@ -266,6 +291,24 @@ def build_chembl_builder_form_rows(
     ]
 
 
+def build_chembl_builder_ui_rows(
+    builder_label_or_key: object,
+    form_rows: object,
+) -> list[dict[str, object]]:
+    """Convert restored ChEMBL form rows to visible GUI row values."""
+    if not isinstance(form_rows, list):
+        return [make_chembl_builder_ui_row(builder_label_or_key)]
+    return [
+        {
+            "field": get_chembl_builder_field_label(builder_label_or_key, row.get("field", "")),
+            "filter_type": str(row.get("filter_type") or ""),
+            "value": str(row.get("value") or ""),
+        }
+        for row in form_rows
+        if isinstance(row, dict)
+    ] or [make_chembl_builder_ui_row(builder_label_or_key)]
+
+
 def get_pubchem_builder_resource(builder_label_or_key: object) -> str:
     """Return the PubChem resource for a selected builder key or label."""
     builder_key = get_query_builder_key(builder_label_or_key)
@@ -336,7 +379,7 @@ def make_pubchem_builder_ui_row(builder_label_or_key: object) -> dict[str, objec
     return {
         "field": get_pubchem_builder_field_label(builder_label_or_key, field),
         "value": "",
-        "threshold": 80 if field == PUBCHEM_SIMILARITY_FIELD else "",
+        "threshold": normalize_pubchem_builder_threshold_state(field, None),
     }
 
 
@@ -345,10 +388,30 @@ def build_pubchem_builder_form_row(
     ui_row: dict[str, object],
 ) -> dict[str, object]:
     """Convert a visible PubChem builder row to pure builder form data."""
+    field = get_pubchem_builder_field_value(builder_label_or_key, ui_row.get("field", ""))
     return {
-        "field": get_pubchem_builder_field_value(builder_label_or_key, ui_row.get("field", "")),
+        "field": field,
         "value": ui_row.get("value", ""),
-        "threshold": ui_row.get("threshold", ""),
+        "threshold": normalize_pubchem_builder_threshold_state(field, ui_row.get("threshold")),
+    }
+
+
+def build_pubchem_builder_ui_row(
+    builder_label_or_key: object,
+    form_row: object,
+) -> dict[str, object]:
+    """Convert a restored PubChem form row to visible GUI row values."""
+    if not isinstance(form_row, dict):
+        return make_pubchem_builder_ui_row(builder_label_or_key)
+    field = form_row.get("field", "")
+    field_value = get_pubchem_builder_field_value(builder_label_or_key, field)
+    return {
+        "field": get_pubchem_builder_field_label(builder_label_or_key, field_value),
+        "value": str(form_row.get("value") or ""),
+        "threshold": normalize_pubchem_builder_threshold_state(
+            field_value,
+            form_row.get("threshold"),
+        ),
     }
 
 
@@ -428,6 +491,64 @@ def build_chebi_builder_form_row(
     return {
         "field": get_chebi_builder_field_value(builder_label_or_key, ui_row.get("field", "")),
         "value": ui_row.get("value", ""),
+    }
+
+
+def build_chebi_builder_ui_row(
+    builder_label_or_key: object,
+    form_row: object,
+) -> dict[str, object]:
+    """Convert a restored ChEBI form row to visible GUI row values."""
+    if not isinstance(form_row, dict):
+        return make_chebi_builder_ui_row(builder_label_or_key)
+    return {
+        "field": get_chebi_builder_field_label(builder_label_or_key, form_row.get("field", "")),
+        "value": str(form_row.get("value") or ""),
+    }
+
+
+def build_gui_query_builder_state_from_loaded_form(form_values: Mapping[str, object]) -> dict[str, object]:
+    """Return the GUI query-builder state implied by loaded form values."""
+    query_input_mode = get_labeled_option_default(
+        normalize_query_input_mode(form_values.get("query.input_mode")),
+        QUERY_INPUT_MODE_LABEL_TO_VALUE,
+    )
+    builder_key = normalize_query_builder_key(form_values.get("query.builder.key"))
+    builder_label = get_query_builder_label(builder_key)
+    uniprot_rows = [make_uniprot_builder_ui_row()]
+    chembl_rows = [make_chembl_builder_ui_row(get_query_builder_label("chembl_target"))]
+    pubchem_row = make_pubchem_builder_ui_row(get_query_builder_label("pubchem_compound"))
+    chebi_row = make_chebi_builder_ui_row(get_query_builder_label("chebi_entity"))
+
+    if normalize_query_input_mode(query_input_mode) == "advanced_builder":
+        if builder_key == "uniprot":
+            uniprot_rows = build_uniprot_builder_ui_rows(
+                form_values.get("query.uniprot_builder.rows")
+            )
+        elif builder_key in CHEMBL_BUILDER_RESOURCE_BY_KEY:
+            chembl_rows = build_chembl_builder_ui_rows(
+                builder_label,
+                form_values.get("query.chembl_builder.rows"),
+            )
+        elif builder_key in PUBCHEM_BUILDER_RESOURCE_BY_KEY:
+            pubchem_row = build_pubchem_builder_ui_row(
+                builder_label,
+                form_values.get("query.pubchem_builder.row"),
+            )
+        elif builder_key in CHEBI_BUILDER_RESOURCE_BY_KEY:
+            chebi_row = build_chebi_builder_ui_row(
+                builder_label,
+                form_values.get("query.chebi_builder.row"),
+            )
+
+    return {
+        "query_input_mode": query_input_mode,
+        "builder_key": builder_key,
+        "builder_label": builder_label,
+        "uniprot_rows": uniprot_rows,
+        "chembl_rows": chembl_rows,
+        "pubchem_row": pubchem_row,
+        "chebi_row": chebi_row,
     }
 
 
