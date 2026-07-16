@@ -295,17 +295,16 @@ def run_crossref_enrichment(
         download_pdb_structures=download_pdb_structures,
         output_dir=output_dir,
     )
-    structure_metadata_block = {"structure_downloads": structure_metadata}
     if not enrich:
         log.info("Skipping CrossRef enrichment because enrich=False.")
-        return {}, {"skipped": True, "reason": "enrichment_disabled", **structure_metadata_block}
+        return {}, {"skipped": True, "reason": "enrichment_disabled"}
     if not crossref_fields:
         log.info("Skipping CrossRef enrichment because no cross-reference fields were requested.")
-        return {}, {"skipped": True, "reason": "no_crossref_fields", **structure_metadata_block}
+        return {}, {"skipped": True, "reason": "no_crossref_fields"}
 
     if is_empty_enrichment_input(data):
         log.warning("Input data is empty. Skipping crossref enrichment.")
-        return {}, {"skipped": True, "reason": "empty_input", **structure_metadata_block}
+        return {}, {"skipped": True, "reason": "empty_input"}
 
     # Process crossref fields
     # Some definitions in crossref_fields may contain the database name and the method separated by underscore
@@ -388,7 +387,7 @@ def run_crossref_enrichment(
     log.debug("Final endpoint specs: %s", endpoint_specs)
     if not endpoint_specs:
         log.info("Skipping CrossRef enrichment because no endpoint specs were resolved.")
-        return {}, {"skipped": True, "reason": "no_endpoint_specs", **structure_metadata_block}
+        return {}, {"skipped": True, "reason": "no_endpoint_specs"}
 
     enricher = CrossRefEnricher(
         endpoint_specs=endpoint_specs,

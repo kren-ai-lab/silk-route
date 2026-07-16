@@ -28,13 +28,14 @@ from bioseq_dl.core.export import (
     normalize_user_export_format,
 )
 from bioseq_dl.core.interfaces.uniprot import UniprotInterface
+from bioseq_dl.core.workflow import schema as workflow_schema
 from bioseq_dl.core.workflow.main_workflow import MainWorkflow
-from bioseq_dl.core.workflow.schema import WORKFLOW_SCHEMA_VERSION
 from bioseq_dl.logging import configure_logging, get_logger
 
 log = get_logger("bioseq_dl.cli.workflows")
 
 
+WORKFLOW_SCHEMA_VERSION = workflow_schema.WORKFLOW_SCHEMA_VERSION
 MODALITIES = ["protein", "compound", "interaction"]
 MODES = ["query_first", "query_composition"]
 INTERACTION_TYPES = ["protein-protein", "protein-ligand"]
@@ -460,58 +461,17 @@ def validate_query_builder(value: object) -> None:
 
 def validate_query_composition(value: object) -> None:
     """Validate optional GUI query-composition metadata."""
-    if value is None:
-        return
-    if not isinstance(value, list):
-        msg = "Workflow YAML key 'query.composition' must be a list of mappings."
-        raise TypeError(msg)
-    for index, item in enumerate(value):
-        if not isinstance(item, dict):
-            msg = f"Workflow YAML key 'query.composition[{index}]' must be a mapping."
-            raise TypeError(msg)
-        for required_key in ("label", "value"):
-            required_value = item.get(required_key)
-            if not isinstance(required_value, str) or not required_value.strip():
-                msg = (
-                    f"Workflow YAML key 'query.composition[{index}].{required_key}' "
-                    "must be a non-empty string."
-                )
-                raise ValueError(msg)
-        description = item.get("description")
-        if "description" in item and description is not None and not isinstance(description, str):
-            msg = f"Workflow YAML key 'query.composition[{index}].description' must be a string or null."
-            raise ValueError(msg)
+    workflow_schema.validate_query_composition(value)
 
 
 def parse_query_composition_value(query_value: str) -> list[tuple[str, str]]:
     """Parse executable query-composition pairs from query.value."""
-    pairs = []
-    for raw_part in query_value.split(","):
-        query_part = raw_part.strip()
-        if not query_part:
-            continue
-        try:
-            query_text, label = split_pair(query_part)
-        except ValueError:
-            raise ValueError(QUERY_COMPOSITION_MISMATCH_ERROR) from None
-        if not query_text or not label:
-            raise ValueError(QUERY_COMPOSITION_MISMATCH_ERROR)
-        pairs.append((query_text, label))
-    if not pairs:
-        raise ValueError(QUERY_COMPOSITION_MISMATCH_ERROR)
-    return pairs
+    return workflow_schema.parse_query_composition_value(query_value)
 
 
 def validate_query_composition_matches_query_value(query_descriptor: dict, mode: str) -> None:
     """Require preserved query.composition metadata to match executable query.value."""
-    composition = query_descriptor.get("composition")
-    if mode != "query_composition" or composition is None:
-        return
-
-    executable_pairs = set(parse_query_composition_value(query_descriptor["value"]))
-    for item in composition:
-        if (item["value"], item["label"]) not in executable_pairs:
-            raise ValueError(QUERY_COMPOSITION_MISMATCH_ERROR)
+    workflow_schema.validate_query_composition_matches_query_value(query_descriptor, mode)
 
 
 def normalize_optional_field_list(section_name: str, key: str, value: object) -> str | None:

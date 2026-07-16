@@ -255,8 +255,10 @@ def build_graph_output_row(
     }
 
 
-def add_graph_endpoint_metadata(metadata: dict, spec: EndpointSpec) -> dict:
+def add_graph_endpoint_metadata(metadata: dict, spec: EndpointSpec | None) -> dict:
     """Annotate graph-like endpoint metadata with its tabular graph contract."""
+    if spec is None:
+        return metadata
     if not is_graph_like_enrichment(spec.database, spec.endpoint):
         return metadata
     metadata.update(

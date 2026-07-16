@@ -140,6 +140,17 @@ def _apply_label(value: Any, label: str) -> Any:
     return {"_label": label}
 
 
+def _has_labelable_records(value: Any) -> bool:
+    """Return whether a query-composition part has real rows to label."""
+    if value is None:
+        return False
+    if isinstance(value, pl.DataFrame):
+        return not value.is_empty()
+    if isinstance(value, list | tuple | dict):
+        return bool(value)
+    return True
+
+
 def attach_label_to_part(part_data: dict, label: str, modality: str) -> dict:
     """Attach a query-composition label to a workflow result part.
 
@@ -162,9 +173,9 @@ def attach_label_to_part(part_data: dict, label: str, modality: str) -> dict:
         labeled = {
             key: _apply_label(part_data[key], label)
             for key in _COMPOUND_RESULT_KEYS
-            if part_data.get(key) is not None
+            if _has_labelable_records(part_data.get(key))
         }
-        if part_data.get("uniprot") is not None:
+        if labeled and _has_labelable_records(part_data.get("uniprot")):
             labeled["uniprot"] = _apply_label(part_data["uniprot"], label)
         return labeled
 
