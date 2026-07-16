@@ -10,6 +10,11 @@ from typing import cast
 
 import pytest
 
+from bioseq_dl.core.workflow.schema import (
+    parse_query_composition_value,
+    validate_workflow_v1_descriptor,
+)
+from bioseq_dl.gui.query_builders.registry import get_query_builder_spec
 from bioseq_dl.gui.yaml_builder import (
     DEFAULT_OUTPUT_DIRECTORY_NAME_ERROR,
     LOADED_QUERY_VALUE_WARNING,
@@ -146,6 +151,20 @@ def minimal_form_values() -> dict[str, object]:
     }
 
 
+def assert_query_builder_common_metadata(
+    builder: dict[str, object],
+    *,
+    builder_key: str,
+    source: str,
+) -> None:
+    """Assert common query-builder-v1 metadata fields."""
+    spec = get_query_builder_spec(builder_key)
+    assert builder["schema_version"] == "query-builder-v1"
+    assert builder["source"] == source
+    assert builder["builder_key"] == builder_key
+    assert builder["builder_type"] == spec.builder_type
+
+
 def minimal_workflow_yaml(output_dir: str | None = "results/loaded_dataset") -> str:
     """Return minimal valid workflow-v1 YAML text."""
     export_output_dir = f'  output_dir: "{output_dir}"\n' if output_dir else ""
@@ -269,9 +288,30 @@ def test_human_readable_modality_labels_map_to_schema_values(label: str, expecte
     ],
 )
 def test_human_readable_workflow_mode_labels_map_to_schema_values(label: str, expected: str) -> None:
-    descriptor = build_workflow_descriptor(minimal_form_values() | {"dataset.mode": label})
+    form_values = minimal_form_values() | {"dataset.mode": label}
+    if expected == "query_composition":
+        form_values["query.composition.entries"] = [
+            {
+                "label": "class_a",
+                "value": "field=value",
+                "description": "",
+                "query_input_mode": "manual",
+            }
+        ]
+
+    descriptor = build_workflow_descriptor(form_values)
 
     assert descriptor["dataset"]["mode"] == expected
+    assert validate_generated_descriptor(descriptor) == []
+    validate_workflow_v1_descriptor(descriptor)
+    if expected == "query_composition":
+        assert descriptor["query"]["value"] == "field=value=class_a"
+        assert descriptor["query"]["composition"] == [
+            {"label": "class_a", "value": "field=value"}
+        ]
+        assert parse_query_composition_value(descriptor["query"]["value"]) == [
+            ("field=value", "class_a")
+        ]
 
 
 @pytest.mark.parametrize(
@@ -341,7 +381,7 @@ def test_advanced_uniprot_builder_mode_generates_interpreted_query_value() -> No
     )
 
 
-def test_advanced_uniprot_builder_mode_omits_builder_metadata() -> None:
+def test_advanced_uniprot_builder_mode_emits_query_builder_metadata() -> None:
     descriptor = build_workflow_descriptor(
         minimal_form_values()
         | {
@@ -358,12 +398,25 @@ def test_advanced_uniprot_builder_mode_omits_builder_metadata() -> None:
         }
     )
 
-    assert descriptor["query"] == {
-        "value": "organism_id:9606",
-        "include_isoform": False,
-    }
+    assert descriptor["query"]["value"] == "organism_id:9606"
+    assert descriptor["query"]["include_isoform"] is False
+    builder = cast("dict[str, object]", descriptor["query"]["builder"])
+    assert_query_builder_common_metadata(
+        builder,
+        builder_key="uniprot",
+        source="uniprot",
+    )
+    assert builder["rows"] == [
+        {
+            "connector": None,
+            "field": "organism",
+            "match_mode": "any",
+            "values": ["Homo sapiens"],
+        }
+    ]
+    assert validate_generated_descriptor(descriptor) == []
+    validate_workflow_v1_descriptor(descriptor)
     assert "query.uniprot_builder.rows" not in descriptor
-    assert "builder" not in descriptor["query"]
     assert "composition" not in descriptor["query"]
     assert "friendly_query" not in descriptor["query"]
 
@@ -427,9 +480,23 @@ def test_advanced_uniprot_builder_descriptor_validates_as_workflow_v1() -> None:
 
     assert descriptor["query"]["value"] == "(database:alphafolddb OR database:pdb)"
     assert validate_generated_descriptor(descriptor) == []
+    validate_workflow_v1_descriptor(descriptor)
     assert "resources" not in descriptor
     assert "reporting" not in descriptor
-    assert "builder" not in descriptor["query"]
+    builder = cast("dict[str, object]", descriptor["query"]["builder"])
+    assert_query_builder_common_metadata(
+        builder,
+        builder_key="uniprot",
+        source="uniprot",
+    )
+    assert builder["rows"] == [
+        {
+            "connector": None,
+            "field": "databases",
+            "match_mode": "any",
+            "values": ["alphafold", "pdb"],
+        }
+    ]
     assert "composition" not in descriptor["query"]
 
 
@@ -491,7 +558,21 @@ def test_advanced_chembl_builder_modes_generate_interpreted_query_value(
 
     assert descriptor["query"]["value"] == expected_query_value
     assert validate_generated_descriptor(descriptor) == []
-    assert "builder" not in descriptor["query"]
+    validate_workflow_v1_descriptor(descriptor)
+    builder = cast("dict[str, object]", descriptor["query"]["builder"])
+    assert_query_builder_common_metadata(
+        builder,
+        builder_key=builder_key,
+        source="chembl",
+    )
+    assert builder["rows"] == [
+        {
+            "field": row["field"],
+            "operator": row["filter_type"],
+            "value": row["value"],
+        }
+        for row in rows
+    ]
     assert "composition" not in descriptor["query"]
     assert "friendly_query" not in descriptor["query"]
     assert "query.chembl_builder.rows" not in descriptor
