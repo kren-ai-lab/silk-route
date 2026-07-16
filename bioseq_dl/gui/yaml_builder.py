@@ -62,6 +62,10 @@ UNSUPPORTED_ENRICHMENT_SOURCE_WARNING = (
     "This file includes cross-reference fields that are not shown as selectable enrichment "
     "sources in this GUI version. They are preserved in the advanced cross-reference field."
 )
+STRUCTURE_DOWNLOAD_NORMALIZED_WARNING = (
+    "One or more structure-download flags were disabled because the workflow context, "
+    "enrichment setting, or matching enrichment source did not make them executable."
+)
 PROTEIN_CHEMBL_QUERY_WARNING = (
     "The loaded query looks like a ChEMBL query while the dataset is set to Protein. "
     "Protein workflows use UniProt; choose Compound or Protein-ligand interaction "
@@ -170,6 +174,7 @@ ENRICHMENT_SOURCE_OPTIONS: dict[str, str] = {
     "GO": XREF_MAPPING["GO"][1],
     "InterPro": XREF_MAPPING["InterPro"][1],
     "KEGG": XREF_MAPPING["KEGG"][1],
+    "PDB": XREF_MAPPING["PDB"][1],
     "Reactome": XREF_MAPPING["Reactome"][1],
     "RefSeq": XREF_MAPPING["RefSeq"][1],
     "Rhea": XREF_MAPPING["Rhea"][1],
@@ -252,6 +257,8 @@ DEFAULT_FORM_VALUES: dict[str, object] = {
     "query.include_isoform": False,
     "execution.enrich": False,
     "execution.enrichment_sources": [],
+    "execution.download_alphafold_structures": False,
+    "execution.download_pdb_structures": False,
     "execution.max_workers": DEFAULT_MAX_WORKERS,
     "execution.total_retries": DEFAULT_TOTAL_RETRIES,
     "execution.chembl_pages_to_fetch": DEFAULT_CHEMBL_PAGES_TO_FETCH,
@@ -281,7 +288,13 @@ def workflow_yaml_form_defaults() -> dict[str, object]:
     """Return mutable default form values for GUI binding."""
     schema = get_workflow_v1_schema_definition()
     defaults = deepcopy(DEFAULT_FORM_VALUES)
+    gui_controlled_defaults = {
+        "execution.download_alphafold_structures",
+        "execution.download_pdb_structures",
+    }
     for field_name in defaults:
+        if field_name in gui_controlled_defaults:
+            continue
         schema_default = schema.get(field_name, {}).get("default")
         if schema_default is not None:
             defaults[field_name] = schema_default
@@ -741,6 +754,48 @@ def load_workflow_yaml_text(yaml_text: str) -> dict[str, object]:
     return cast("dict[str, object]", descriptor)
 
 
+def is_structure_download_descriptor_context_valid(
+    descriptor: Mapping[str, object],
+    source: str,
+) -> bool:
+    """Return whether a loaded descriptor may keep an active structure-download flag."""
+    dataset = get_mapping_section(descriptor, "dataset")
+    query = get_mapping_section(descriptor, "query")
+    execution = get_mapping_section(descriptor, "execution")
+    interaction_type = dataset.get("interaction_type")
+    no_interaction = interaction_type in {None, "", "no_interaction", "no-interaction", "no interaction"}
+    if dataset.get("modality") != "protein" or not no_interaction:
+        return False
+    if execution.get("enrich") is not True:
+        return False
+    source_keys = {field.casefold() for field in parse_csv_list(query.get("crossref_fields"))}
+    return source.casefold() in source_keys
+
+
+def normalize_loaded_structure_download_flags(
+    descriptor: Mapping[str, object],
+) -> tuple[dict[str, object], list[str]]:
+    """Disable loaded active structure-download flags that the GUI cannot regenerate validly."""
+    normalized_descriptor = deepcopy(dict(descriptor))
+    execution = normalized_descriptor.get("execution")
+    if not isinstance(execution, dict):
+        return normalized_descriptor, []
+
+    normalized_any = False
+    flag_sources = {
+        "download_alphafold_structures": "alphafold",
+        "download_pdb_structures": "pdb",
+    }
+    for flag_name, source in flag_sources.items():
+        if execution.get(flag_name) is True and not is_structure_download_descriptor_context_valid(
+            normalized_descriptor,
+            source,
+        ):
+            execution[flag_name] = False
+            normalized_any = True
+    return normalized_descriptor, [STRUCTURE_DOWNLOAD_NORMALIZED_WARNING] if normalized_any else []
+
+
 def descriptor_to_form_values(descriptor: Mapping[str, object]) -> dict[str, object]:
     """Convert a workflow-v1 descriptor into GUI form values."""
     form_values = workflow_yaml_gui_form_defaults()
@@ -784,6 +839,8 @@ def descriptor_to_form_values(descriptor: Mapping[str, object]) -> dict[str, obj
         "chembl_pages_to_fetch",
         "uniprot_timeout",
         "debug",
+        "download_alphafold_structures",
+        "download_pdb_structures",
     ):
         field_name = f"execution.{key}"
         if key in execution:
@@ -906,9 +963,10 @@ def restore_loaded_query_composition_form_values(
 def load_workflow_yaml_to_form_values(yaml_text: str) -> tuple[dict[str, object], list[str]]:
     """Parse, validate, and convert workflow YAML text to form values and warnings."""
     descriptor = load_workflow_yaml_text(yaml_text)
+    descriptor, structure_download_warnings = normalize_loaded_structure_download_flags(descriptor)
     validated_descriptor = validate_workflow_v1_descriptor(descriptor)
     form_values = descriptor_to_form_values(validated_descriptor)
-    warnings = collect_load_warnings(validated_descriptor)
+    warnings = structure_download_warnings + collect_load_warnings(validated_descriptor)
     dataset = get_mapping_section(validated_descriptor, "dataset")
     if dataset.get("mode") == "query_composition":
         warnings.extend(restore_loaded_query_composition_form_values(validated_descriptor, form_values))
@@ -1247,6 +1305,31 @@ def enrichment_sources_from_crossref_fields(value: object) -> list[str]:
     return sources
 
 
+def selected_enrichment_source_keys(form_values: Mapping[str, object]) -> set[str]:
+    """Return canonical selected enrichment source keys from visible and advanced state."""
+    selected_sources = set(
+        normalize_enrichment_sources(get_form_value(form_values, "execution.enrichment_sources"))
+    )
+    selected_sources.update(
+        enrichment_sources_from_crossref_fields(get_form_value(form_values, "query.crossref_fields"))
+    )
+    return selected_sources
+
+
+def is_structure_download_source_selected(form_values: Mapping[str, object], source: str) -> bool:
+    """Return whether a canonical structure source is selected for enrichment."""
+    return source in selected_enrichment_source_keys(form_values)
+
+
+def can_enable_structure_download(form_values: Mapping[str, object], source: str) -> bool:
+    """Return whether a structure-download flag may serialize as true."""
+    return (
+        is_enrichment_workflow_compatible(form_values)
+        and parse_bool(get_form_value(form_values, "execution.enrich"))
+        and is_structure_download_source_selected(form_values, source)
+    )
+
+
 def has_unsupported_enrichment_sources(value: object) -> bool:
     """Return whether cross-reference fields include values outside GUI source choices."""
     fields = parse_csv_list(value)
@@ -1550,9 +1633,17 @@ def build_query_section(form_values: Mapping[str, object]) -> dict[str, object]:
 
 def build_execution_section(form_values: Mapping[str, object]) -> dict[str, object]:
     """Build the workflow execution section."""
+    download_alphafold_structures = can_enable_structure_download(form_values, "alphafold") and parse_bool(
+        get_form_value(form_values, "execution.download_alphafold_structures")
+    )
+    download_pdb_structures = can_enable_structure_download(form_values, "pdb") and parse_bool(
+        get_form_value(form_values, "execution.download_pdb_structures")
+    )
     execution: dict[str, object] = {
         "enrich": is_enrichment_workflow_compatible(form_values)
         and parse_bool(get_form_value(form_values, "execution.enrich")),
+        "download_alphafold_structures": download_alphafold_structures,
+        "download_pdb_structures": download_pdb_structures,
         "max_workers": parse_required_int(
             get_form_value(form_values, "execution.max_workers"),
             "execution.max_workers",

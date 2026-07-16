@@ -94,6 +94,7 @@ from bioseq_dl.gui.yaml_builder import (
     build_uniprot_builder_rows_from_form,
     build_workflow_descriptor,
     build_workflow_filename,
+    can_enable_structure_download,
     crossref_fields_from_enrichment_sources,
     crossref_fields_without_selectable_sources,
     enrichment_sources_from_crossref_fields,
@@ -155,6 +156,8 @@ class WorkflowYamlBuilderApp:
         self.query_builder_select: Any = None
         self.enrichment_toggle_checkbox: Any = None
         self.enrichment_sources_select: Any = None
+        self.alphafold_structure_download_switch: Any = None
+        self.pdb_structure_download_switch: Any = None
         self.query_fields_input: Any = None
         self.crossref_fields_input: Any = None
         self.enrichment_required_fields_note: Any = None
@@ -1314,6 +1317,13 @@ class WorkflowYamlBuilderApp:
         """Mark loaded incompatible enrichment data as user-edited."""
         self.form_values.pop(LOADED_INCOMPATIBLE_ENRICHMENT_PASSTHROUGH_FORM_KEY, None)
 
+    def sync_structure_download_flags_to_context(self) -> None:
+        """Clear structure-download flags that cannot generate valid workflow YAML."""
+        if not can_enable_structure_download(self.form_values, "alphafold"):
+            self.form_values["execution.download_alphafold_structures"] = False
+        if not can_enable_structure_download(self.form_values, "pdb"):
+            self.form_values["execution.download_pdb_structures"] = False
+
     def update_enrichment_control_availability(self) -> None:
         """Enable enrichment toggle only for compatible protein workflows."""
         if self.enrichment_toggle_checkbox is None:
@@ -1328,6 +1338,7 @@ class WorkflowYamlBuilderApp:
         if self.is_loading_form_values or self.is_refreshing_query_section:
             return
         self.clear_loaded_incompatible_enrichment_passthrough()
+        self.sync_structure_download_flags_to_context()
         self.is_refreshing_query_section = True
         try:
             self.update_interaction_type_visibility()
@@ -1342,6 +1353,7 @@ class WorkflowYamlBuilderApp:
         finally:
             self.is_refreshing_query_section = False
             self.update_enrichment_control_availability()
+            self.sync_structure_download_flags_to_context()
             self.build_enrichment_controls.refresh()
 
     def handle_workflow_mode_change(self, *_args: object) -> None:
@@ -1479,6 +1491,9 @@ class WorkflowYamlBuilderApp:
         self.crossref_fields_input = None
         self.enrichment_required_fields_note = None
         self.enrichment_effective_fields_note = None
+        self.alphafold_structure_download_switch = None
+        self.pdb_structure_download_switch = None
+        self.sync_structure_download_flags_to_context()
         if not self.is_enrichment_context_compatible() or not parse_bool(
             self.form_values.get("execution.enrich", False)
         ):
@@ -1506,6 +1521,33 @@ class WorkflowYamlBuilderApp:
             )
             self.enrichment_required_fields_note = ui.label("").classes("text-xs text-gray-600")
             self.enrichment_effective_fields_note = ui.label("").classes("text-xs text-gray-600")
+            if can_enable_structure_download(self.form_values, "alphafold") or can_enable_structure_download(
+                self.form_values,
+                "pdb",
+            ):
+                ui.label(
+                    "Enrichment fetches metadata. These switches additionally download local "
+                    "structure files under the workflow output directory."
+                ).classes("text-xs text-gray-600")
+                with ui.grid(columns=2).classes("w-full gap-3"):
+                    if can_enable_structure_download(self.form_values, "alphafold"):
+                        self.alphafold_structure_download_switch = (
+                            ui.switch("Download AlphaFold PDB files")
+                            .bind_value(self.form_values, "execution.download_alphafold_structures")
+                            .tooltip(
+                                "Download AlphaFold PDB structure files under the workflow output "
+                                "directory when this workflow runs. Leave off for metadata only."
+                            )
+                        )
+                    if can_enable_structure_download(self.form_values, "pdb"):
+                        self.pdb_structure_download_switch = (
+                            ui.switch("Download PDB structure files")
+                            .bind_value(self.form_values, "execution.download_pdb_structures")
+                            .tooltip(
+                                "Download PDB structure files under the workflow output directory "
+                                "when this workflow runs. Leave off for metadata only."
+                            )
+                        )
             ui.label(
                 "BioGRID requires API credential configuration. RefSeq requires Entrez email "
                 "configuration."
@@ -1538,6 +1580,7 @@ class WorkflowYamlBuilderApp:
         self.clear_loaded_incompatible_enrichment_passthrough()
         enrich_enabled = parse_bool(getattr(event, "value", False))
         self.form_values["execution.enrich"] = enrich_enabled
+        self.sync_structure_download_flags_to_context()
         if not self.is_enrichment_context_compatible():
             self.build_enrichment_controls.refresh()
             return
@@ -1561,16 +1604,19 @@ class WorkflowYamlBuilderApp:
             return
         sources = normalize_enrichment_sources(getattr(event, "value", []))
         self.form_values["execution.enrichment_sources"] = sources
+        self.sync_structure_download_flags_to_context()
         crossref_fields = crossref_fields_from_enrichment_sources(
             sources,
             existing_crossref_fields=self.form_values.get("query.crossref_fields"),
             preserve_known_existing=False,
         )
         self.form_values["query.crossref_fields"] = crossref_fields
+        self.sync_structure_download_flags_to_context()
         if self.crossref_fields_input is not None:
             self.crossref_fields_input.value = crossref_fields
             self.crossref_fields_input.update()
         self.update_enrichment_field_notes()
+        self.build_enrichment_controls.refresh()
 
     def handle_crossref_fields_change(self, event: object) -> None:
         """Synchronize manual cross-reference fields to known source selections."""
@@ -1581,10 +1627,12 @@ class WorkflowYamlBuilderApp:
         self.form_values["query.crossref_fields"] = crossref_fields
         sources = enrichment_sources_from_crossref_fields(crossref_fields)
         self.form_values["execution.enrichment_sources"] = sources
+        self.sync_structure_download_flags_to_context()
         if self.enrichment_sources_select is not None:
             self.enrichment_sources_select.value = sources
             self.enrichment_sources_select.update()
         self.update_enrichment_field_notes()
+        self.build_enrichment_controls.refresh()
 
     def build_harmonization_controls(self) -> None:
         """Build harmonization form controls."""
@@ -1711,6 +1759,7 @@ class WorkflowYamlBuilderApp:
             self.sync_query_composition_entries_to_form()
         else:
             self.sync_builder_rows_to_form()
+        self.sync_structure_download_flags_to_context()
         try:
             descriptor = build_workflow_descriptor(self.form_values)
         except (TypeError, ValueError) as exc:
