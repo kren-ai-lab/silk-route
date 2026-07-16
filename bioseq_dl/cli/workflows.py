@@ -2111,19 +2111,19 @@ def validate_workflow(
     try:
         recipe = load_workflow_recipe(config)
     except (ValueError, TypeError) as exc:
-        typer.echo(f"✗ {exc}", err=True)
+        typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(code=1) from None
 
     errors = collect_workflow_recipe_errors(recipe)
     if errors:
-        typer.echo(f"✗ {config} has {len(errors)} validation error(s):", err=True)
+        typer.echo(f"Error: {config} has {len(errors)} validation error(s):", err=True)
         for error in errors:
             typer.echo(f"  - {error}", err=True)
         raise typer.Exit(code=1) from None
 
     # No errors collected, so this re-derives the normalized values without raising.
     values = validate_workflow_recipe(recipe)
-    typer.echo(f"✓ {config} is a valid workflow descriptor.")
+    typer.echo(f"OK: {config} is a valid workflow descriptor.")
     typer.echo(f"  modality: {values['modality']} | mode: {values['mode']}")
     if values.get("output"):
         typer.echo(f"  output: {values['output']}")

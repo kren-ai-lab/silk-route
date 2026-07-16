@@ -176,7 +176,7 @@ bioseq-dl workflow validate examples/workflows/protein_query_first_minimal.yml
 ```
 
 ```text
-✗ my-workflow.yml has 2 validation error(s):
+Error: my-workflow.yml has 2 validation error(s):
   - Unsupported dataset.modality 'rna'. Supported modalities are: protein, compound, interaction.
   - Unsupported export format 'xlsx'. Supported formats are: csv, json, xml, parquet.
 ```
