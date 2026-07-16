@@ -1571,6 +1571,7 @@ class MainWorkflow:
         args = context.get("searches", {}).get("uniprot", {})
         input_data = context.get("data", {}).get("uniprot")
         export_format = args.get("export_format") or self.default_export_format
+        parse_format = normalize_parse_format(export_format) or "dataframe"
 
         # Extract max_workers and total_retries from kwargs
         max_workers = kwargs.get("max_workers", 4)
@@ -1596,7 +1597,7 @@ class MainWorkflow:
         )
         enriched, enriched_meta = crossref_enricher.enrich(
             data=input_data if input_data is not None else pl.DataFrame(),
-            format=cast("Literal['json', 'dataframe', 'xml']", export_format),
+            format=cast("Literal['json', 'dataframe', 'xml']", parse_format),
         )
 
         context["data"].setdefault("uniprot_enrichment", enriched)
