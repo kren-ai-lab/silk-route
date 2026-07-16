@@ -899,6 +899,19 @@ def validate_export_section(export_section: dict[str, object]) -> dict[str, obje
     return normalized_export
 
 
+def _collect_validation_step_error(errors: list[str], step: Callable[[], object]) -> None:
+    """Append a validation step error without stopping multi-error collection."""
+    try:
+        step()
+    except (ValueError, TypeError) as exc:
+        errors.append(str(exc))
+
+
+def _validate_export_section_from_descriptor(descriptor: dict[str, object]) -> dict[str, object]:
+    """Validate the export section while collecting workflow descriptor errors."""
+    return validate_export_section(require_mapping("export", descriptor["export"]))
+
+
 def collect_workflow_v1_descriptor_errors(recipe: object) -> list[str]:
     """Return every section-level workflow-v1 validation error found."""
     if not isinstance(recipe, dict):
@@ -906,16 +919,10 @@ def collect_workflow_v1_descriptor_errors(recipe: object) -> list[str]:
 
     errors: list[str] = []
 
-    def _check(step: Callable[[], object]) -> None:
-        try:
-            step()
-        except (ValueError, TypeError) as exc:
-            errors.append(str(exc))
-
-    _check(lambda: check_forbidden_workflow_recipe_keys(recipe))
+    _collect_validation_step_error(errors, lambda: check_forbidden_workflow_recipe_keys(recipe))
     descriptor = {str(key): value for key, value in recipe.items()}
-    _check(lambda: validate_descriptor_section_names(descriptor))
-    _check(lambda: validate_schema_version(descriptor))
+    _collect_validation_step_error(errors, lambda: validate_descriptor_section_names(descriptor))
+    _collect_validation_step_error(errors, lambda: validate_schema_version(descriptor))
 
     missing_sections = sorted(REQUIRED_DESCRIPTOR_SECTIONS - set(descriptor))
     if missing_sections:
@@ -925,12 +932,8 @@ def collect_workflow_v1_descriptor_errors(recipe: object) -> list[str]:
 
     export_section: dict[str, object] = {}
 
-    def _validate_export() -> None:
-        nonlocal export_section
-        export_section = validate_export_section(require_mapping("export", descriptor["export"]))
-
     section_steps: list[tuple[str, Callable[[], object]]] = [
-        ("export", _validate_export),
+        ("export", lambda: _validate_export_section_from_descriptor(descriptor)),
         (
             "dataset",
             lambda: validate_dataset_section(
@@ -961,19 +964,27 @@ def collect_workflow_v1_descriptor_errors(recipe: object) -> list[str]:
     for name, step in section_steps:
         if name in descriptor:
             before = len(errors)
-            _check(step)
+            if name == "export":
+                try:
+                    export_section = _validate_export_section_from_descriptor(descriptor)
+                except (ValueError, TypeError) as exc:
+                    errors.append(str(exc))
+            else:
+                _collect_validation_step_error(errors, step)
             if len(errors) == before:
                 valid_sections.add(name)
 
     if {"dataset", "query"} <= valid_sections:
-        _check(
+        _collect_validation_step_error(
+            errors,
             lambda: validate_query_composition_matches_query_value(
                 require_mapping("query", descriptor["query"]),
                 require_mapping("dataset", descriptor["dataset"]).get("mode"),
             )
         )
     if {"dataset", "execution"} <= valid_sections:
-        _check(
+        _collect_validation_step_error(
+            errors,
             lambda: validate_structure_download_controls(
                 require_mapping("dataset", descriptor["dataset"]),
                 require_mapping("execution", descriptor["execution"]),
