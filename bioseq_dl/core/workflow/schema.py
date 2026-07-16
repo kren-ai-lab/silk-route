@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import datetime as dt
 from copy import deepcopy
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 WORKFLOW_SCHEMA_VERSION = "workflow-v1"
 MODALITIES = ["protein", "compound", "interaction"]
@@ -893,6 +897,90 @@ def validate_export_section(export_section: dict[str, object]) -> dict[str, obje
     normalized_export = dict(export_section)
     normalized_export["format"] = export_format
     return normalized_export
+
+
+def collect_workflow_v1_descriptor_errors(recipe: object) -> list[str]:
+    """Return every section-level workflow-v1 validation error found."""
+    if not isinstance(recipe, dict):
+        return ["Workflow YAML root must be a mapping."]
+
+    errors: list[str] = []
+
+    def _check(step: Callable[[], object]) -> None:
+        try:
+            step()
+        except (ValueError, TypeError) as exc:
+            errors.append(str(exc))
+
+    _check(lambda: check_forbidden_workflow_recipe_keys(recipe))
+    descriptor = {str(key): value for key, value in recipe.items()}
+    _check(lambda: validate_descriptor_section_names(descriptor))
+    _check(lambda: validate_schema_version(descriptor))
+
+    missing_sections = sorted(REQUIRED_DESCRIPTOR_SECTIONS - set(descriptor))
+    if missing_sections:
+        errors.append(
+            f"Workflow YAML is missing required top-level section(s): {', '.join(missing_sections)}."
+        )
+
+    export_section: dict[str, object] = {}
+
+    def _validate_export() -> None:
+        nonlocal export_section
+        export_section = validate_export_section(require_mapping("export", descriptor["export"]))
+
+    section_steps: list[tuple[str, Callable[[], object]]] = [
+        ("export", _validate_export),
+        (
+            "dataset",
+            lambda: validate_dataset_section(
+                require_mapping("dataset", descriptor["dataset"]), export_section
+            ),
+        ),
+        ("query", lambda: validate_query_section(require_mapping("query", descriptor["query"]))),
+        (
+            "execution",
+            lambda: validate_execution_section(require_mapping("execution", descriptor["execution"])),
+        ),
+        (
+            "resources",
+            lambda: validate_resources_section(require_mapping("resources", descriptor["resources"])),
+        ),
+        (
+            "harmonization",
+            lambda: validate_harmonization_section(
+                require_mapping("harmonization", descriptor["harmonization"])
+            ),
+        ),
+        (
+            "reporting",
+            lambda: validate_reporting_section(require_mapping("reporting", descriptor["reporting"])),
+        ),
+    ]
+    valid_sections: set[str] = set()
+    for name, step in section_steps:
+        if name in descriptor:
+            before = len(errors)
+            _check(step)
+            if len(errors) == before:
+                valid_sections.add(name)
+
+    if {"dataset", "query"} <= valid_sections:
+        _check(
+            lambda: validate_query_composition_matches_query_value(
+                require_mapping("query", descriptor["query"]),
+                require_mapping("dataset", descriptor["dataset"]).get("mode"),
+            )
+        )
+    if {"dataset", "execution"} <= valid_sections:
+        _check(
+            lambda: validate_structure_download_controls(
+                require_mapping("dataset", descriptor["dataset"]),
+                require_mapping("execution", descriptor["execution"]),
+            )
+        )
+
+    return errors
 
 
 def validate_workflow_v1_descriptor(recipe: object) -> dict[str, object]:

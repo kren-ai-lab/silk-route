@@ -12,7 +12,6 @@ import os
 import re
 import tempfile
 import time
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -22,7 +21,6 @@ import yaml
 
 from bioseq_dl import __version__
 from bioseq_dl.core.export import (
-    USER_EXPORT_FORMATS,
     export_dataframe,
     normalize_export_format,
     normalize_user_export_format,
@@ -36,10 +34,13 @@ log = get_logger("bioseq_dl.cli.workflows")
 
 
 WORKFLOW_SCHEMA_VERSION = workflow_schema.WORKFLOW_SCHEMA_VERSION
-MODALITIES = ["protein", "compound", "interaction"]
-MODES = ["query_first", "query_composition"]
-INTERACTION_TYPES = ["protein-protein", "protein-ligand"]
-FORMATS = list(USER_EXPORT_FORMATS)
+MODALITIES = workflow_schema.MODALITIES
+MODES = workflow_schema.MODES
+INTERACTION_TYPES = workflow_schema.INTERACTION_TYPES
+FORMATS = workflow_schema.FORMATS
+REQUIRED_DESCRIPTOR_SECTIONS = workflow_schema.REQUIRED_DESCRIPTOR_SECTIONS
+ALLOWED_DESCRIPTOR_SECTION_NAMES = workflow_schema.ALLOWED_DESCRIPTOR_SECTION_NAMES
+KNOWN_DESCRIPTOR_SECTIONS = workflow_schema.KNOWN_DESCRIPTOR_SECTIONS
 QUERY_COMPOSITION_LABEL_COLUMN = "_label"
 PRIMARY_RESULT_LABELS = {
     "protein": "uniprot",
@@ -62,117 +63,65 @@ WINDOWS_RESERVED_FILENAMES = {
     *(f"LPT{index}" for index in range(1, 10)),
 }
 
-REQUIRED_DESCRIPTOR_SECTIONS = {"dataset", "query", "execution", "export"}
-CORE_DESCRIPTOR_SECTIONS = REQUIRED_DESCRIPTOR_SECTIONS | {
-    "resources",
-    "harmonization",
-    "reporting",
-}
-DESCRIPTIVE_DESCRIPTOR_SECTIONS = {
-    "interaction_retrieval",
-    "activity_retrieval",
-    "chemical_metadata_integration",
-    "protein_target_integration",
-    "temperature_enrichment",
-    "cross_source_integration",
-}
-ALLOWED_DESCRIPTOR_SECTION_NAMES = [
-    "schema_version",
-    "dataset",
-    "query",
-    "resources",
-    "execution",
-    "harmonization",
-    "export",
-    "reporting",
-    "interaction_retrieval",
-    "activity_retrieval",
-    "chemical_metadata_integration",
-    "protein_target_integration",
-    "temperature_enrichment",
-    "cross_source_integration",
-]
-KNOWN_DESCRIPTOR_SECTIONS = CORE_DESCRIPTOR_SECTIONS | DESCRIPTIVE_DESCRIPTOR_SECTIONS | {"schema_version"}
+check_forbidden_workflow_recipe_keys = workflow_schema.check_forbidden_workflow_recipe_keys
+require_mapping = workflow_schema.require_mapping
+validate_allowed_section_keys = workflow_schema.validate_allowed_section_keys
+validate_descriptor_section_names = workflow_schema.validate_descriptor_section_names
+validate_schema_version = workflow_schema.validate_schema_version
+validate_required_section_keys = workflow_schema.validate_required_section_keys
+validate_optional_string = workflow_schema.validate_optional_string
+validate_bool = workflow_schema.validate_bool
+validate_int = workflow_schema.validate_int
+validate_numeric_or_null = workflow_schema.validate_numeric_or_null
+validate_pages_to_fetch = workflow_schema.validate_pages_to_fetch
+validate_string_list = workflow_schema.validate_string_list
+validate_query_builder = workflow_schema.validate_query_builder
+validate_query_composition = workflow_schema.validate_query_composition
+parse_query_composition_value = workflow_schema.parse_query_composition_value
+validate_query_composition_matches_query_value = (
+    workflow_schema.validate_query_composition_matches_query_value
+)
+normalize_optional_field_list = workflow_schema.normalize_optional_field_list
+is_reporting_value_allowed = workflow_schema.is_reporting_value_allowed
+validate_reporting_section = workflow_schema.validate_reporting_section
+validate_resources_section = workflow_schema.validate_resources_section
+validate_execution_section = workflow_schema.validate_execution_section
+validate_structure_download_controls = workflow_schema.validate_structure_download_controls
+validate_harmonization_section = workflow_schema.validate_harmonization_section
+validate_export_section = workflow_schema.validate_export_section
 
-DATASET_KEYS = {
-    "name",
-    "description",
-    "modality",
-    "mode",
-    "primary_data_source",
-    "interaction_type",
-}
-QUERY_KEYS = {
-    "value",
-    "builder",
-    "composition",
-    "description",
-    "filtering_strategy",
-    "fields",
-    "crossref_fields",
-    "include_isoform",
-}
-RESOURCES_KEYS = {"primary", "integration"}
-EXECUTION_KEYS = {
-    "enrich",
-    "download_alphafold_structures",
-    "download_pdb_structures",
-    "max_workers",
-    "total_retries",
-    "chembl_pages_to_fetch",
-    "merge_results",
-    "uniprot_timeout",
-    "debug",
-}
-HARMONIZATION_KEYS = {
-    "id_column",
-    "label_column",
-    "sequence_column",
-    "unique_sequence_strategy",
-    "metadata_fields",
-}
-EXPORT_KEYS = {
-    "output_dir",
-    "format",
-    "include_metadata",
-    "include_summary",
-    "manifest_file",
-    "summary_file",
-    "result_files",
-}
 
-OLD_ROOT_KEY_ERRORS = {
-    "version": (f"Unknown workflow YAML key 'version'. Use schema_version: \"{WORKFLOW_SCHEMA_VERSION}\"."),
-    "kind": "Unknown workflow YAML key 'kind'. Use the structured dataset/query/execution/export schema.",
-    "workflow": (
-        "Unknown workflow YAML key 'workflow'. Use the structured dataset/query/execution/export schema."
-    ),
-}
-OLD_MODE_KEY_ERRORS = {
-    "dispatch_mode": "Unknown workflow YAML key 'dispatch_mode'. Use dataset.mode instead.",
-    "dispatch": "Unknown workflow YAML key 'dispatch'. Use dataset.mode instead.",
-    "method": "Unknown workflow YAML key 'method'. Use dataset.mode instead.",
-}
-QUERY_KEY_ERRORS = {
-    "type": "Unknown query YAML key 'type'. Query type is not supported yet; use query.value.",
-    "filters": (
-        "Unknown query YAML key 'filters'. Use query.filtering_strategy for descriptive filtering notes."
-    ),
-}
-FORBIDDEN_CREDENTIAL_KEYS = {
-    "api_key",
-    "access_key",
-    "password",
-    "email",
-    "token",
-    "secret",
-    "bioseq_dl_biogrid_api_key",
-    "bioseq_dl_brenda_email",
-    "bioseq_dl_brenda_password",
-    "bioseq_dl_refseq_email",
-}
-CREDENTIAL_ERROR = "Credentials must be provided through environment variables or .env, not workflow YAML."
-QUERY_COMPOSITION_MISMATCH_ERROR = "query.composition does not match executable query.value."
+def validate_interaction_type(
+    modality: object,
+    interaction_type: object,
+    field_label: str,
+    modality_label: str,
+) -> None:
+    """Validate CLI/runtime interaction-type values."""
+    if modality == "interaction" and not interaction_type:
+        msg = f"{field_label} is required when {modality_label} is 'interaction'."
+        raise ValueError(msg)
+    if interaction_type is not None and interaction_type not in INTERACTION_TYPES:
+        msg = (
+            f"Unsupported {field_label} '{interaction_type}'. "
+            f"Supported interaction types are: {', '.join(INTERACTION_TYPES)}."
+        )
+        raise ValueError(msg)
+
+
+def validate_dataset_section(dataset: dict, export_section: dict) -> dict:
+    """Validate and return the dataset descriptor section."""
+    return workflow_schema.validate_dataset_section(dataset, export_section)
+
+
+def validate_query_section(query_section: dict) -> tuple[dict, str | None, str | None]:
+    """Validate query metadata and return CLI-normalized field options."""
+    validated = workflow_schema.validate_query_section(query_section)
+    fields = workflow_schema.normalize_optional_field_list("query", "fields", validated.get("fields"))
+    crossref_fields = workflow_schema.normalize_optional_field_list(
+        "query", "crossref_fields", validated.get("crossref_fields")
+    )
+    return validated, fields, crossref_fields
 
 
 def build_default_workflow_values() -> dict:
@@ -217,573 +166,6 @@ def build_default_workflow_values() -> dict:
         "manifest_file": "metadata.json",
         "summary_file": "run_summary.yml",
     }
-
-
-def check_forbidden_workflow_recipe_keys(value: object) -> None:
-    """Reject credential-like keys anywhere in a workflow descriptor.
-
-    Recurses into nested mappings and lists, raising as soon as any key matches a
-    forbidden credential name (case-insensitive).
-
-    Args:
-        value (object): The descriptor (or nested fragment) to scan.
-
-    Raises:
-        ValueError: If a forbidden credential-like key is found.
-
-    """
-    if isinstance(value, dict):
-        for key, nested_value in value.items():
-            if str(key).lower() in FORBIDDEN_CREDENTIAL_KEYS:
-                raise ValueError(CREDENTIAL_ERROR)
-            check_forbidden_workflow_recipe_keys(nested_value)
-    elif isinstance(value, list):
-        for item in value:
-            check_forbidden_workflow_recipe_keys(item)
-
-
-def require_mapping(section_name: str, value: object) -> dict:
-    """Return a section as a string-keyed mapping.
-
-    Args:
-        section_name (str): Section name used in the error message.
-        value (object): The value expected to be a mapping.
-
-    Returns:
-        dict: The section with all keys coerced to strings.
-
-    Raises:
-        TypeError: If the value is not a mapping.
-
-    """
-    if not isinstance(value, dict):
-        msg = f"Workflow YAML section '{section_name}' must be a mapping."
-        raise TypeError(msg)
-    return {str(key): item for key, item in value.items()}
-
-
-def validate_allowed_section_keys(
-    section_name: str,
-    section: dict,
-    allowed_keys: set[str],
-    special_errors: dict[str, str] | None = None,
-) -> None:
-    """Validate known keys for a descriptor section.
-
-    Args:
-        section_name (str): Section name used in the error message.
-        section (dict): The section to validate.
-        allowed_keys (set[str]): Keys permitted in the section.
-        special_errors (dict[str, str] | None): Per-key custom error messages for
-            deprecated or unsupported keys, checked before the allowed-keys test.
-
-    Raises:
-        ValueError: If a key has a special error or is not in ``allowed_keys``.
-
-    """
-    for key in section:
-        if special_errors and key in special_errors:
-            raise ValueError(special_errors[key])
-        if key not in allowed_keys:
-            msg = f"Unknown {section_name} YAML key '{key}'."
-            raise ValueError(msg)
-
-
-def validate_descriptor_section_names(workflow_descriptor: dict) -> None:
-    """Validate top-level workflow descriptor section names.
-
-    Args:
-        workflow_descriptor (dict): The top-level descriptor mapping.
-
-    Raises:
-        ValueError: If a section name is a deprecated key or is not recognized.
-
-    """
-    allowed_sections = ", ".join(sorted(KNOWN_DESCRIPTOR_SECTIONS))
-    for key in workflow_descriptor:
-        if key in OLD_MODE_KEY_ERRORS:
-            raise ValueError(OLD_MODE_KEY_ERRORS[key])
-        if key in OLD_ROOT_KEY_ERRORS:
-            raise ValueError(OLD_ROOT_KEY_ERRORS[key])
-        if key not in KNOWN_DESCRIPTOR_SECTIONS:
-            msg = f"Unknown workflow YAML section '{key}'. Allowed sections are: {allowed_sections}."
-            raise ValueError(msg)
-
-
-def validate_schema_version(workflow_descriptor: dict) -> str:
-    """Validate the required workflow schema version."""
-    if "schema_version" not in workflow_descriptor:
-        msg = (
-            "Workflow YAML is missing required top-level key 'schema_version'. "
-            f'Use schema_version: "{WORKFLOW_SCHEMA_VERSION}".'
-        )
-        raise ValueError(msg)
-
-    schema_version = workflow_descriptor["schema_version"]
-    if schema_version != WORKFLOW_SCHEMA_VERSION:
-        msg = (
-            f"Unsupported workflow schema_version '{schema_version}'. "
-            f'Only schema_version: "{WORKFLOW_SCHEMA_VERSION}" is supported.'
-        )
-        raise ValueError(msg)
-    return schema_version
-
-
-def validate_required_section_keys(section_name: str, section: dict, required_keys: set[str]) -> None:
-    """Validate that a descriptor section contains required keys.
-
-    Args:
-        section_name (str): Section name used in the error message.
-        section (dict): The section to validate.
-        required_keys (set[str]): Keys that must be present and non-null.
-
-    Raises:
-        ValueError: If any required key is missing or set to ``None``.
-
-    """
-    missing = sorted(key for key in required_keys if key not in section or section[key] is None)
-    if missing:
-        missing_text = ", ".join(missing)
-        msg = f"Workflow YAML section '{section_name}' is missing required key(s): {missing_text}."
-        raise ValueError(msg)
-
-
-def validate_optional_string(section_name: str, key: str, value: object) -> None:
-    """Validate an optional string field.
-
-    Args:
-        section_name (str): Section name used in the error message.
-        key (str): Field name within the section.
-        value (object): The value to validate.
-
-    Raises:
-        ValueError: If the value is neither ``None`` nor a string.
-
-    """
-    if value is not None and not isinstance(value, str):
-        msg = f"Workflow YAML key '{section_name}.{key}' must be a string or null."
-        raise ValueError(msg)
-
-
-def validate_bool(section_name: str, key: str, value: object) -> None:
-    """Validate a boolean field.
-
-    Args:
-        section_name (str): Section name used in the error message.
-        key (str): Field name within the section.
-        value (object): The value to validate.
-
-    Raises:
-        TypeError: If the value is not a boolean.
-
-    """
-    if not isinstance(value, bool):
-        msg = f"Workflow YAML key '{section_name}.{key}' must be a boolean."
-        raise TypeError(msg)
-
-
-def validate_int(section_name: str, key: str, value: object) -> None:
-    """Validate an integer field without accepting booleans.
-
-    Args:
-        section_name (str): Section name used in the error message.
-        key (str): Field name within the section.
-        value (object): The value to validate.
-
-    Raises:
-        TypeError: If the value is a boolean or not an integer.
-
-    """
-    if isinstance(value, bool) or not isinstance(value, int):
-        msg = f"Workflow YAML key '{section_name}.{key}' must be an integer."
-        raise TypeError(msg)
-
-
-def validate_numeric_or_null(section_name: str, key: str, value: object) -> None:
-    """Validate a numeric or null field without accepting booleans.
-
-    Args:
-        section_name (str): Section name used in the error message.
-        key (str): Field name within the section.
-        value (object): The value to validate.
-
-    Raises:
-        ValueError: If the value is neither ``None`` nor a non-boolean number.
-
-    """
-    if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float))):
-        msg = f"Workflow YAML key '{section_name}.{key}' must be numeric or null."
-        raise ValueError(msg)
-
-
-def validate_pages_to_fetch(section_name: str, key: str, value: object) -> None:
-    """Validate a ChEMBL page count where -1 means all pages.
-
-    Args:
-        section_name (str): Section name used in the error message.
-        key (str): Field name within the section.
-        value (object): The value to validate.
-
-    Raises:
-        TypeError: If the value is not an integer.
-        ValueError: If the value is 0 or less than -1.
-
-    """
-    validate_int(section_name, key, value)
-    if value == 0 or (isinstance(value, int) and value < -1):
-        msg = f"Workflow YAML key '{section_name}.{key}' must be -1 or a positive integer."
-        raise ValueError(msg)
-
-
-def validate_string_list(section_name: str, key: str, value: object) -> None:
-    """Validate a list containing only strings.
-
-    Args:
-        section_name (str): Section name used in the error message.
-        key (str): Field name within the section.
-        value (object): The value to validate.
-
-    Raises:
-        ValueError: If the value is not a list of strings.
-
-    """
-    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-        msg = f"Workflow YAML key '{section_name}.{key}' must be a list of strings."
-        raise ValueError(msg)
-
-
-def validate_query_builder(value: object) -> None:
-    """Validate optional GUI query-builder metadata."""
-    if value is not None and not isinstance(value, dict):
-        msg = "Workflow YAML key 'query.builder' must be a mapping."
-        raise TypeError(msg)
-
-
-def validate_query_composition(value: object) -> None:
-    """Validate optional GUI query-composition metadata."""
-    workflow_schema.validate_query_composition(value)
-
-
-def parse_query_composition_value(query_value: str) -> list[tuple[str, str]]:
-    """Parse executable query-composition pairs from query.value."""
-    return workflow_schema.parse_query_composition_value(query_value)
-
-
-def validate_query_composition_matches_query_value(query_descriptor: dict, mode: str) -> None:
-    """Require preserved query.composition metadata to match executable query.value."""
-    workflow_schema.validate_query_composition_matches_query_value(query_descriptor, mode)
-
-
-def normalize_optional_field_list(section_name: str, key: str, value: object) -> str | None:
-    """Normalize null, comma-separated string, or string-list fields for workflow calls.
-
-    A list of strings is stripped of blank entries and joined with commas.
-
-    Args:
-        section_name (str): Section name used in the error message.
-        key (str): Field name within the section.
-        value (object): ``None``, a string, or a list of strings.
-
-    Returns:
-        str | None: The original string, a comma-joined list, or ``None`` when empty.
-
-    Raises:
-        ValueError: If the value is not null, a string, or a list of strings.
-
-    """
-    if value is None:
-        return None
-    if isinstance(value, str):
-        return value
-    if isinstance(value, list) and all(isinstance(item, str) for item in value):
-        cleaned = [item.strip() for item in value if isinstance(item, str) and item.strip()]
-        return ",".join(cleaned) if cleaned else None
-    msg = f"Workflow YAML key '{section_name}.{key}' must be null, a string, or a list of strings."
-    raise ValueError(msg)
-
-
-def is_reporting_value_allowed(value: object) -> bool:
-    """Return whether a reporting value is YAML-descriptor safe.
-
-    Scalars, dates, and recursively-checked lists and string-keyed dicts are allowed.
-
-    Args:
-        value (object): The reporting value to check.
-
-    Returns:
-        bool: True if the value (and any nested values) are serialization-safe.
-
-    """
-    if value is None or isinstance(value, (str, int, float, bool, dt.date, dt.datetime)):
-        return True
-    if isinstance(value, list):
-        return all(is_reporting_value_allowed(item) for item in value)
-    if isinstance(value, dict):
-        return all(isinstance(key, str) and is_reporting_value_allowed(item) for key, item in value.items())
-    return False
-
-
-def validate_reporting_section(reporting: dict) -> None:
-    """Validate free-form reporting metrics.
-
-    Args:
-        reporting (dict): The reporting section to validate.
-
-    Raises:
-        ValueError: If any value has an unsupported type.
-
-    """
-    for key, value in reporting.items():
-        if not is_reporting_value_allowed(value):
-            msg = f"Workflow YAML key 'reporting.{key}' has an unsupported value type."
-            raise ValueError(msg)
-
-
-def validate_interaction_type(
-    modality: object,
-    interaction_type: object,
-    field_label: str,
-    modality_label: str,
-) -> None:
-    """Validate the interaction type against the selected modality.
-
-    Args:
-        modality (object): The selected modality.
-        interaction_type (object): The interaction type to validate.
-        field_label (str): Interaction-type field name used in error messages.
-        modality_label (str): Modality field name used in error messages.
-
-    Raises:
-        ValueError: If the modality is ``interaction`` without an interaction type,
-            or the interaction type is not supported.
-
-    """
-    if modality == "interaction" and not interaction_type:
-        msg = f"{field_label} is required when {modality_label} is 'interaction'."
-        raise ValueError(msg)
-    if interaction_type is not None and interaction_type not in INTERACTION_TYPES:
-        msg = (
-            f"Unsupported {field_label} '{interaction_type}'. "
-            f"Supported interaction types are: {', '.join(INTERACTION_TYPES)}."
-        )
-        raise ValueError(msg)
-
-
-def validate_dataset_section(dataset: dict, export_section: dict) -> dict:
-    """Validate and return the dataset descriptor section.
-
-    Checks allowed and required keys, the supported modality/mode values, optional
-    string fields, and that a dataset name exists when no output directory is set.
-
-    Args:
-        dataset (dict): The dataset section to validate.
-        export_section (dict): The validated export section, used to decide whether
-            ``dataset.name`` is required.
-
-    Returns:
-        dict: A copy of the validated dataset section.
-
-    Raises:
-        ValueError: If keys, modality, mode, or the name/output combination are invalid.
-
-    """
-    validate_allowed_section_keys("dataset", dataset, DATASET_KEYS)
-    validate_required_section_keys("dataset", dataset, {"modality", "mode"})
-
-    modality = dataset.get("modality")
-    mode = dataset.get("mode")
-    if modality not in MODALITIES:
-        supported_modalities = ", ".join(MODALITIES)
-        msg = f"Unsupported dataset.modality '{modality}'. Supported modalities are: {supported_modalities}."
-        raise ValueError(msg)
-    if mode not in MODES:
-        msg = f"Unsupported dataset.mode '{mode}'. Supported modes are: {', '.join(MODES)}."
-        raise ValueError(msg)
-
-    for key in ("name", "description", "primary_data_source", "interaction_type"):
-        validate_optional_string("dataset", key, dataset.get(key))
-
-    validate_interaction_type(
-        modality, dataset.get("interaction_type"), "dataset.interaction_type", "dataset.modality"
-    )
-
-    if not export_section.get("output_dir") and not dataset.get("name"):
-        msg = "dataset.name is required when export.output_dir is not provided."
-        raise ValueError(msg)
-    return dict(dataset)
-
-
-def validate_query_section(query_section: dict) -> tuple[dict, str | None, str | None]:
-    """Validate and return the query descriptor section plus executable field options.
-
-    Args:
-        query_section (dict): The query section to validate.
-
-    Returns:
-        tuple[dict, str | None, str | None]: A copy of the query section, the
-        normalized ``fields`` value, and the normalized ``crossref_fields`` value.
-
-    Raises:
-        ValueError: If keys, the query value, or field lists are invalid.
-
-    """
-    validate_allowed_section_keys("query", query_section, QUERY_KEYS, special_errors=QUERY_KEY_ERRORS)
-    validate_required_section_keys("query", query_section, {"value"})
-
-    query_value = query_section.get("value")
-    if not isinstance(query_value, str) or not query_value.strip():
-        msg = "Workflow YAML key 'query.value' must be a non-empty string."
-        raise ValueError(msg)
-
-    for key in ("description", "filtering_strategy"):
-        validate_optional_string("query", key, query_section.get(key))
-    validate_query_builder(query_section.get("builder"))
-    validate_query_composition(query_section.get("composition"))
-    if "include_isoform" in query_section:
-        validate_bool("query", "include_isoform", query_section["include_isoform"])
-
-    fields = normalize_optional_field_list("query", "fields", query_section.get("fields"))
-    crossref_fields = normalize_optional_field_list(
-        "query", "crossref_fields", query_section.get("crossref_fields")
-    )
-    return dict(query_section), fields, crossref_fields
-
-
-def validate_resources_section(resources: dict) -> dict:
-    """Validate and return resource descriptors.
-
-    Args:
-        resources (dict): The resources section to validate.
-
-    Returns:
-        dict: A copy of the validated resources section.
-
-    Raises:
-        ValueError: If keys are unknown or ``primary``/``integration`` are not string lists.
-
-    """
-    validate_allowed_section_keys("resources", resources, RESOURCES_KEYS)
-    for key in ("primary", "integration"):
-        if key in resources:
-            validate_string_list("resources", key, resources[key])
-    return dict(resources)
-
-
-# Per-key validators for the execution section (all share the (section, key, value) signature).
-_EXECUTION_VALIDATORS = {
-    "enrich": validate_bool,
-    "download_alphafold_structures": validate_bool,
-    "download_pdb_structures": validate_bool,
-    "merge_results": validate_bool,
-    "max_workers": validate_int,
-    "total_retries": validate_int,
-    "chembl_pages_to_fetch": validate_pages_to_fetch,
-    "uniprot_timeout": validate_numeric_or_null,
-    "debug": validate_bool,
-}
-
-
-def validate_execution_section(execution: dict) -> dict:
-    """Validate and return executable workflow controls.
-
-    Applies the per-key validators in ``_EXECUTION_VALIDATORS`` to any present keys.
-
-    Args:
-        execution (dict): The execution section to validate.
-
-    Returns:
-        dict: A copy of the validated execution section.
-
-    Raises:
-        ValueError: If a key is unknown or a value fails its type/range validator.
-        TypeError: If a value fails its type validator.
-
-    """
-    validate_allowed_section_keys("execution", execution, EXECUTION_KEYS)
-    for key, validator in _EXECUTION_VALIDATORS.items():
-        if key in execution:
-            validator("execution", key, execution[key])
-    return dict(execution)
-
-
-def validate_structure_download_controls(dataset: dict, execution: dict) -> None:
-    """Reject active structure downloads outside protein metadata enrichment."""
-    active_keys = [
-        key
-        for key in ("download_alphafold_structures", "download_pdb_structures")
-        if execution.get(key) is True
-    ]
-    if not active_keys:
-        return
-
-    modality = dataset.get("modality")
-    interaction_type = dataset.get("interaction_type")
-    if modality != "protein" or interaction_type is not None:
-        keys = ", ".join(f"execution.{key}" for key in active_keys)
-        msg = f"{keys} may be true only for protein workflows with no interaction_type."
-        raise ValueError(msg)
-
-    if execution.get("enrich") is not True:
-        keys = ", ".join(f"execution.{key}" for key in active_keys)
-        msg = f"{keys} require execution.enrich: true."
-        raise ValueError(msg)
-
-
-def validate_harmonization_section(harmonization: dict) -> dict:
-    """Validate and return harmonization descriptors.
-
-    Args:
-        harmonization (dict): The harmonization section to validate.
-
-    Returns:
-        dict: A copy of the validated harmonization section.
-
-    Raises:
-        ValueError: If keys are unknown or string/string-list fields are invalid.
-
-    """
-    validate_allowed_section_keys("harmonization", harmonization, HARMONIZATION_KEYS)
-    for key in ("id_column", "label_column", "sequence_column", "unique_sequence_strategy"):
-        validate_optional_string("harmonization", key, harmonization.get(key))
-    if "metadata_fields" in harmonization:
-        validate_string_list("harmonization", "metadata_fields", harmonization["metadata_fields"])
-    return dict(harmonization)
-
-
-def validate_export_section(export_section: dict) -> dict:
-    """Validate and return export controls.
-
-    Validates string and boolean fields and normalizes the export format.
-
-    Args:
-        export_section (dict): The export section to validate.
-
-    Returns:
-        dict: A copy of the export section with a normalized ``format`` value.
-
-    Raises:
-        ValueError: If keys, string fields, or the export format are invalid.
-        TypeError: If a boolean field has a non-boolean value.
-
-    """
-    validate_allowed_section_keys("export", export_section, EXPORT_KEYS)
-    validate_optional_string("export", "output_dir", export_section.get("output_dir"))
-    validate_optional_string("export", "manifest_file", export_section.get("manifest_file"))
-    validate_optional_string("export", "summary_file", export_section.get("summary_file"))
-
-    export_format = normalize_user_export_format(export_section.get("format", "csv"))
-    if export_format is None:
-        raw_format = export_section.get("format", "csv")
-        msg = f"Unsupported export format '{raw_format}'. Supported formats are: {', '.join(FORMATS)}."
-        raise ValueError(msg)
-
-    for key in ("include_metadata", "include_summary"):
-        if key in export_section:
-            validate_bool("export", key, export_section[key])
-
-    normalized_export = dict(export_section)
-    normalized_export["format"] = export_format
-    return normalized_export
 
 
 def collect_descriptor_sections(values: dict) -> dict:
@@ -925,8 +307,9 @@ def load_workflow_recipe(config_path: str | Path) -> dict:
 def validate_workflow_recipe(recipe: dict) -> dict:
     """Validate and normalize a structured workflow descriptor.
 
-    Rejects credential keys, checks section names and required sections, validates each
-    section, then derives executable values (output directory, query, modality, execution
+    Delegates workflow-v1 descriptor validation to
+    :func:`bioseq_dl.core.workflow.schema.validate_workflow_v1_descriptor`, then derives
+    executable CLI/runtime values (output directory, query, modality, execution
     controls, etc.) and syncs them back into descriptor metadata.
 
     Args:
@@ -940,49 +323,24 @@ def validate_workflow_recipe(recipe: dict) -> dict:
         TypeError: If the root or a section is not a mapping.
 
     """
-    if not isinstance(recipe, dict):
-        msg = "Workflow YAML root must be a mapping."
-        raise TypeError(msg)
-
-    check_forbidden_workflow_recipe_keys(recipe)
+    validated_descriptor = workflow_schema.validate_workflow_v1_descriptor(recipe)
     workflow_descriptor = {str(key): value for key, value in recipe.items()}
-    validate_descriptor_section_names(workflow_descriptor)
-    schema_version = validate_schema_version(workflow_descriptor)
-
-    missing_sections = sorted(REQUIRED_DESCRIPTOR_SECTIONS - set(workflow_descriptor))
-    if missing_sections:
-        missing = ", ".join(missing_sections)
-        msg = f"Workflow YAML is missing required top-level section(s): {missing}."
-        raise ValueError(msg)
-
-    export_section = validate_export_section(require_mapping("export", workflow_descriptor["export"]))
-    dataset = validate_dataset_section(
-        require_mapping("dataset", workflow_descriptor["dataset"]), export_section
+    schema_version = str(validated_descriptor["schema_version"])
+    dataset = dict(validated_descriptor["dataset"])
+    query_descriptor = dict(validated_descriptor["query"])
+    fields = workflow_schema.normalize_optional_field_list("query", "fields", query_descriptor.get("fields"))
+    crossref_fields = workflow_schema.normalize_optional_field_list(
+        "query", "crossref_fields", query_descriptor.get("crossref_fields")
     )
-    query_descriptor, fields, crossref_fields = validate_query_section(
-        require_mapping("query", workflow_descriptor["query"])
-    )
-    validate_query_composition_matches_query_value(query_descriptor, dataset["mode"])
-    execution = validate_execution_section(require_mapping("execution", workflow_descriptor["execution"]))
-    validate_structure_download_controls(dataset, execution)
-
-    resources = {}
-    if "resources" in workflow_descriptor:
-        resources = validate_resources_section(require_mapping("resources", workflow_descriptor["resources"]))
-
-    harmonization = {}
-    if "harmonization" in workflow_descriptor:
-        harmonization = validate_harmonization_section(
-            require_mapping("harmonization", workflow_descriptor["harmonization"])
-        )
-
-    reporting = {}
-    if "reporting" in workflow_descriptor:
-        reporting = require_mapping("reporting", workflow_descriptor["reporting"])
-        validate_reporting_section(reporting)
-
+    execution = dict(validated_descriptor["execution"])
+    resources = dict(validated_descriptor.get("resources", {}))
+    harmonization = dict(validated_descriptor.get("harmonization", {}))
+    export_section = dict(validated_descriptor["export"])
+    reporting = dict(validated_descriptor.get("reporting", {}))
     extra_descriptor_sections = {
-        key: value for key, value in workflow_descriptor.items() if key in DESCRIPTIVE_DESCRIPTOR_SECTIONS
+        key: value
+        for key, value in validated_descriptor.items()
+        if key in workflow_schema.DESCRIPTIVE_DESCRIPTOR_SECTIONS
     }
 
     output_dir = export_section.get("output_dir")
@@ -1036,10 +394,8 @@ def validate_workflow_recipe(recipe: dict) -> dict:
 def collect_workflow_recipe_errors(recipe: object) -> list[str]:
     """Return every section-level validation error found in a descriptor.
 
-    Unlike :func:`validate_workflow_recipe` (which stops at the first error),
-    this runs each independent validation step and accumulates the messages so a
-    user can fix them all in one pass. Validation *within* a single section still
-    stops at that section's first error.
+    Delegates to the shared workflow-v1 schema collector so CLI validation reports use
+    the same rules as runtime descriptor validation.
 
     Args:
         recipe (object): The raw descriptor mapping to validate.
@@ -1048,90 +404,7 @@ def collect_workflow_recipe_errors(recipe: object) -> list[str]:
         list[str]: Human-readable error messages; empty when the descriptor is valid.
 
     """
-    if not isinstance(recipe, dict):
-        return ["Workflow YAML root must be a mapping."]
-
-    errors: list[str] = []
-
-    def _check(step: Callable[[], object]) -> None:
-        try:
-            step()
-        except (ValueError, TypeError) as exc:
-            errors.append(str(exc))
-
-    _check(lambda: check_forbidden_workflow_recipe_keys(recipe))
-    descriptor = {str(key): value for key, value in recipe.items()}
-    _check(lambda: validate_descriptor_section_names(descriptor))
-    _check(lambda: validate_schema_version(descriptor))
-
-    missing_sections = sorted(REQUIRED_DESCRIPTOR_SECTIONS - set(descriptor))
-    if missing_sections:
-        errors.append(
-            f"Workflow YAML is missing required top-level section(s): {', '.join(missing_sections)}."
-        )
-
-    # ``dataset`` validation depends on a validated ``export`` (for the name/output_dir
-    # rule), so resolve export first on a best-effort basis.
-    export_section: dict = {}
-
-    def _validate_export() -> None:
-        nonlocal export_section
-        export_section = validate_export_section(require_mapping("export", descriptor["export"]))
-
-    section_steps: list[tuple[str, Callable[[], object]]] = [
-        ("export", _validate_export),
-        (
-            "dataset",
-            lambda: validate_dataset_section(
-                require_mapping("dataset", descriptor["dataset"]), export_section
-            ),
-        ),
-        ("query", lambda: validate_query_section(require_mapping("query", descriptor["query"]))),
-        (
-            "execution",
-            lambda: validate_execution_section(require_mapping("execution", descriptor["execution"])),
-        ),
-        (
-            "resources",
-            lambda: validate_resources_section(require_mapping("resources", descriptor["resources"])),
-        ),
-        (
-            "harmonization",
-            lambda: validate_harmonization_section(
-                require_mapping("harmonization", descriptor["harmonization"])
-            ),
-        ),
-        (
-            "reporting",
-            lambda: validate_reporting_section(require_mapping("reporting", descriptor["reporting"])),
-        ),
-    ]
-    valid_sections: set[str] = set()
-    for name, step in section_steps:
-        if name in descriptor:
-            before = len(errors)
-            _check(step)
-            if len(errors) == before:
-                valid_sections.add(name)
-
-    # The composition/query.value cross-check spans two sections, so it only runs
-    # once both validated cleanly (their shapes are then safe to index).
-    if {"dataset", "query"} <= valid_sections:
-        _check(
-            lambda: validate_query_composition_matches_query_value(
-                require_mapping("query", descriptor["query"]),
-                require_mapping("dataset", descriptor["dataset"]).get("mode"),
-            )
-        )
-    if {"dataset", "execution"} <= valid_sections:
-        _check(
-            lambda: validate_structure_download_controls(
-                require_mapping("dataset", descriptor["dataset"]),
-                require_mapping("execution", descriptor["execution"]),
-            )
-        )
-
-    return errors
+    return workflow_schema.collect_workflow_v1_descriptor_errors(recipe)
 
 
 def merge_workflow_recipe(cli_values: dict, recipe_values: dict) -> dict:
