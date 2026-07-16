@@ -38,6 +38,14 @@ QUERY_BUILDER_RESTORE_ERROR_WARNING = (
     "query.builder metadata could not be restored. The saved query text was loaded "
     "in Manual query mode and the original metadata was preserved."
 )
+QUERY_BUILDER_NOT_EDITABLE_WARNING = (
+    "This file includes query.builder metadata. It is kept with the descriptor and "
+    "shown as read-only in this GUI version."
+)
+QUERY_COMPOSITION_NOT_EDITABLE_WARNING = (
+    "This file includes query.composition metadata. It is kept with the descriptor "
+    "and shown as read-only in this GUI version."
+)
 QUERY_BUILDER_MISMATCH_WARNING = (
     "query.builder metadata did not match query.value. The saved query text was "
     "loaded in Manual query mode and the original metadata was preserved."
@@ -392,6 +400,8 @@ def collect_load_warnings(descriptor: Mapping[str, object]) -> list[str]:
     query_value = str(query.get("value") or "").strip()
     if dataset.get("modality") == "protein" and query_value.lower().startswith("chembl."):
         warnings.append(PROTEIN_CHEMBL_QUERY_WARNING)
+    if dataset.get("mode") != "query_composition" and "composition" in query:
+        warnings.append(QUERY_COMPOSITION_NOT_EDITABLE_WARNING)
     for section_name, warning in NON_EDITABLE_METADATA_WARNINGS.items():
         if section_name in descriptor:
             warnings.append(warning)
@@ -910,7 +920,7 @@ def restore_loaded_query_builder_form_values(
     except QueryBuilderMetadataMismatchError:
         return QUERY_BUILDER_MISMATCH_WARNING
     except (TypeError, ValueError):
-        return QUERY_BUILDER_RESTORE_ERROR_WARNING
+        return QUERY_BUILDER_NOT_EDITABLE_WARNING
 
     form_values["query.input_mode"] = get_labeled_option_default(
         "advanced_builder",
