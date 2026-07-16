@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import math
+from collections.abc import Mapping as MappingABC
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, cast
 from xml.etree.ElementTree import Element, ElementTree, fromstring
@@ -21,6 +23,253 @@ from bioseq_dl.core.utils.xmlhandler import elementtree_to_dataframe
 from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.interfaces.crossref_enricher")
+
+PROVENANCE_COLUMNS = (
+    "source_accession",
+    "source_protein_name",
+    "source_organism_id",
+    "source_query",
+    "source_database",
+    "source_endpoint",
+)
+PROVENANCE_SCHEMA = dict.fromkeys(PROVENANCE_COLUMNS, pl.String)
+
+
+def empty_provenance_frame() -> pl.DataFrame:
+    """Return an empty frame with the stable enrichment provenance schema."""
+    return pl.DataFrame(schema=PROVENANCE_SCHEMA)
+
+
+def _is_missing_value(value: Any) -> bool:
+    """Return whether a source-row value should be treated as absent."""
+    return value is None or (isinstance(value, float) and math.isnan(value))
+
+
+def _stable_object_text(value: Any) -> str:
+    """Return a stable string fallback for non-JSON-native objects."""
+    try:
+        return str(value)
+    except Exception:  # noqa: BLE001  # defensive fallback for user objects with broken __str__
+        return repr(value)
+
+
+def _canonical_json_sort_key(value: Any) -> str:
+    """Return a string key for sorting canonical JSON values."""
+    return canonical_json_text(value) or "null"
+
+
+def _canonical_mapping_key(key: Any) -> str:
+    """Return the string key used for deterministic JSON mapping output."""
+    if isinstance(key, str):
+        return key
+    return _stable_object_text(key)
+
+
+def _dedupe_mapping_key(key: str, seen: dict[str, int]) -> str:
+    """Return ``key`` or a deterministic suffixed form when stringified keys collide."""
+    seen_count = seen.get(key, 0) + 1
+    seen[key] = seen_count
+    if seen_count == 1:
+        return key
+    return f"{key}#{seen_count}"
+
+
+def _canonical_json_value(value: Any) -> Any:
+    """Return a JSON-native value with deterministic mapping keys.
+
+    Mapping keys are normalized with ``str(key)`` for non-string keys, sorted by
+    that normalized key plus the original key type/name, and duplicate normalized
+    keys are preserved with ``#2``, ``#3`` suffixes.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool | int | str):
+        return value
+    if isinstance(value, float):
+        return value if math.isfinite(value) else _stable_object_text(value)
+    if isinstance(value, MappingABC):
+        sorted_items = sorted(
+            value.items(),
+            key=lambda item: (
+                _canonical_mapping_key(item[0]),
+                type(item[0]).__name__,
+                _stable_object_text(item[0]),
+            ),
+        )
+        seen: dict[str, int] = {}
+        return {
+            _dedupe_mapping_key(_canonical_mapping_key(key), seen): _canonical_json_value(item_value)
+            for key, item_value in sorted_items
+        }
+    if isinstance(value, list | tuple):
+        return [_canonical_json_value(item) for item in value]
+    if isinstance(value, set | frozenset):
+        normalized_items = [_canonical_json_value(item) for item in value]
+        return sorted(normalized_items, key=_canonical_json_sort_key)
+    return _stable_object_text(value)
+
+
+def canonical_json_text(value: Any) -> str | None:
+    """Serialize ordinary Python values to compact deterministic JSON text.
+
+    Returns ``None`` only for an actual ``None`` input. Mappings are recursively
+    normalized to string keys before sorting, so mixed key types cannot make
+    ``json.dumps(sort_keys=True)`` fail.
+    """
+    if value is None:
+        return None
+    return json.dumps(
+        _canonical_json_value(value),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        default=_stable_object_text,
+    )
+
+
+def _stable_text(value: Any) -> str | None:
+    """Normalize a provenance scalar to stable string/null form."""
+    if _is_missing_value(value):
+        return None
+    if isinstance(value, MappingABC | list | tuple | set | frozenset):
+        return canonical_json_text(value)
+    return str(value)
+
+
+def serialize_source_query(value: Any) -> str | None:
+    """Serialize the resolved enrichment query deterministically for tabular output."""
+    if _is_missing_value(value):
+        return None
+    return canonical_json_text(value)
+
+
+def _first_present(row: dict[str, Any], keys: tuple[str, ...]) -> Any:
+    """Return the first non-missing value found under ``keys``."""
+    for key in keys:
+        value = row.get(key)
+        if not _is_missing_value(value):
+            return value
+    return None
+
+
+def _organism_taxon_id(row: dict[str, Any]) -> Any:
+    """Return a nested or normalized taxon id without using organism names."""
+    organism = row.get("organism")
+    if isinstance(organism, dict):
+        for key in ("taxonId", "taxon_id", "organism_id"):
+            value = organism.get(key)
+            if not _is_missing_value(value):
+                return value
+    return _first_present(row, ("organism.taxonId",))
+
+
+def build_source_context(
+    row: dict[str, Any],
+    source_query: Any,
+    *,
+    source_database: str,
+    source_endpoint: str,
+) -> dict[str, str | None]:
+    """Return normalized original-record and request provenance."""
+    return {
+        "source_accession": _stable_text(
+            _first_present(row, ("source_accession", "accession", "Entry", "primaryAccession"))
+        ),
+        "source_protein_name": _stable_text(
+            _first_present(row, ("source_protein_name", "protein_name", "Protein names"))
+        ),
+        "source_organism_id": _stable_text(_source_organism_id(row)),
+        "source_query": serialize_source_query(source_query),
+        "source_database": str(source_database),
+        "source_endpoint": str(source_endpoint),
+    }
+
+
+def _payload_key_for(record: dict[str, Any], key: str) -> str:
+    """Return a deterministic non-conflicting payload key for a reserved column."""
+    candidate = f"payload_{key}"
+    if candidate not in record:
+        return candidate
+    index = 2
+    while f"payload_{index}_{key}" in record:
+        index += 1
+    return f"payload_{index}_{key}"
+
+
+def preserve_payload_collisions(
+    record: dict[str, Any],
+    context: dict[str, str | None],
+) -> dict[str, Any]:
+    """Move API payload values from reserved provenance names to ``payload_*`` names."""
+    clean_record = dict(record)
+    for column in PROVENANCE_COLUMNS:
+        if column not in clean_record:
+            continue
+        payload_value = _stable_text(clean_record[column])
+        if payload_value == context.get(column):
+            clean_record.pop(column)
+            continue
+        payload_key = _payload_key_for(clean_record, column)
+        clean_record[payload_key] = payload_value
+        clean_record.pop(column)
+    return clean_record
+
+
+def _source_organism_id(row: dict[str, Any]) -> Any:
+    """Return source organism id using the reviewed precedence."""
+    value = _first_present(row, ("source_organism_id", "organism_id"))
+    if not _is_missing_value(value):
+        return value
+    return _organism_taxon_id(row)
+
+
+def _with_provenance_record(record: dict[str, Any], context: dict[str, str | None]) -> dict[str, Any]:
+    """Return one API payload record with authoritative provenance columns first."""
+    payload = preserve_payload_collisions(record, context)
+    return {**context, **payload}
+
+
+def order_provenance_columns(df: pl.DataFrame) -> pl.DataFrame:
+    """Place provenance columns first while preserving payload column order."""
+    provenance = [column for column in PROVENANCE_COLUMNS if column in df.columns]
+    payload = [column for column in df.columns if column not in PROVENANCE_COLUMNS]
+    ordered = df.select(provenance + payload)
+    return ordered.with_columns(pl.col(column).cast(pl.String) for column in provenance)
+
+
+def attach_source_context(
+    result: Any,
+    row: dict[str, Any],
+    source_query: Any,
+    *,
+    source_database: str,
+    source_endpoint: str,
+) -> Any:
+    """Attach source-row and request provenance to non-empty enrichment results."""
+    context = build_source_context(
+        row,
+        source_query,
+        source_database=source_database,
+        source_endpoint=source_endpoint,
+    )
+
+    if isinstance(result, pl.DataFrame):
+        if result.is_empty():
+            return empty_provenance_frame()
+        records = [_with_provenance_record(record, context) for record in result.to_dicts()]
+        return order_provenance_columns(records_to_frame(records))
+    if isinstance(result, list):
+        if not result:
+            return []
+        return [
+            _with_provenance_record(item, context) if isinstance(item, dict) else item
+            for item in result
+        ]
+    if isinstance(result, dict):
+        if not result:
+            return {}
+        return _with_provenance_record(result, context)
+    return result
 
 
 @dataclass
@@ -233,10 +482,17 @@ class CrossRefEnricher:
             result, metadata = instance.fetch_batch(queries=query_params, **method_params)
         # Handle unexpected query_params format
         elif fmt == "dataframe":
-            result = pl.DataFrame()
+            result = empty_provenance_frame()
         else:
             result = []
 
+        result = attach_source_context(
+            result,
+            row,
+            query_params,
+            source_database=spec.database,
+            source_endpoint=spec.endpoint,
+        )
         return result, metadata
 
     @staticmethod
@@ -346,14 +602,20 @@ class CrossRefEnricher:
                 cleaned for result in dfs if (cleaned := self._clean_frame(result)) is not None
             ]
             if not cleaned_results:
-                return pl.DataFrame(), all_metadata
-            return pl.concat(cleaned_results, how="diagonal_relaxed"), all_metadata
+                all_metadata.setdefault("extra", {})["output_row_count"] = 0
+                return empty_provenance_frame(), all_metadata
+            combined = order_provenance_columns(pl.concat(cleaned_results, how="diagonal_relaxed"))
+            all_metadata.setdefault("extra", {})["output_row_count"] = combined.height
+            return combined, all_metadata
         if fmt == "json":
             cleaned_results = []
             for raw in all_results:
                 item = raw[0] if isinstance(raw, tuple) else raw
                 if isinstance(item, list):
                     cleaned_results.extend(item)
+                elif isinstance(item, dict) and item:
+                    cleaned_results.append(item)
+            all_metadata.setdefault("extra", {})["output_row_count"] = len(cleaned_results)
             return cleaned_results, all_metadata
         if fmt == "xml":
             # Make final root

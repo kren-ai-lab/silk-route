@@ -121,6 +121,38 @@ def has_enrichment_result_value(value: object) -> bool:
     return True
 
 
+def count_enrichment_output_rows(value: object) -> int:
+    """Return a deterministic row/record count for one enrichment artifact."""
+    if value is None:
+        return 0
+    if isinstance(value, pl.DataFrame):
+        return value.height
+    if isinstance(value, (list, tuple, set)):
+        return len(value)
+    if isinstance(value, dict):
+        return 1 if value else 0
+    if isinstance(value, (str, bytes)):
+        return 1 if value else 0
+    return 1
+
+
+def add_enrichment_output_row_counts(enriched_data: dict, enriched_metadata: dict) -> None:
+    """Record artifact-level output row counts in each endpoint metadata block."""
+    for label, value in enriched_data.items():
+        metadata = enriched_metadata.setdefault(label, {})
+        if not isinstance(metadata, dict):
+            metadata = {"details": metadata}
+            enriched_metadata[label] = metadata
+        metadata.setdefault("extra", {})["output_row_count"] = count_enrichment_output_rows(value)
+
+
+def filter_non_empty_enrichment_data(enriched_data: dict) -> dict:
+    """Return only enrichment artifacts that contain public exportable data."""
+    return {
+        label: value for label, value in enriched_data.items() if has_enrichment_result_value(value)
+    }
+
+
 def _crossref_source_selected(crossref_fields: list[str], source: str) -> bool:
     """Return whether a normalized crossref field selects a source."""
     return any(
@@ -371,11 +403,9 @@ def run_crossref_enrichment(
         enriched_metadata = {"details": enriched_metadata}
     enriched_metadata["structure_downloads"] = structure_metadata
 
-    # enrich() always returns a dict keyed by endpoint; filter to exportable values.
     if isinstance(enriched_data, dict):
-        enriched_data = {
-            label: value for label, value in enriched_data.items() if has_enrichment_result_value(value)
-        }
+        add_enrichment_output_row_counts(enriched_data, enriched_metadata)
+        enriched_data = filter_non_empty_enrichment_data(enriched_data)
         if enriched_data:
             return enriched_data, enriched_metadata
     log.warning("Crossref enrichment returned no exportable results.")
