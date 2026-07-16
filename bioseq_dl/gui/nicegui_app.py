@@ -81,6 +81,7 @@ from bioseq_dl.gui.query_builders.uniprot import (
 from bioseq_dl.gui.yaml_builder import (
     EXPORT_FORMAT_LABEL_TO_VALUE,
     INTERACTION_TYPE_LABEL_TO_VALUE,
+    LOADED_INCOMPATIBLE_ENRICHMENT_PASSTHROUGH_FORM_KEY,
     MODALITY_LABEL_TO_VALUE,
     OUTPUT_DIRECTORY_MODE_LABEL_TO_VALUE,
     QUERY_INPUT_MODE_LABEL_TO_VALUE,
@@ -93,10 +94,19 @@ from bioseq_dl.gui.yaml_builder import (
     build_uniprot_builder_rows_from_form,
     build_workflow_descriptor,
     build_workflow_filename,
+    crossref_fields_from_enrichment_sources,
+    crossref_fields_without_selectable_sources,
+    enrichment_sources_from_crossref_fields,
+    get_effective_uniprot_return_field_text,
+    get_enrichment_source_options,
     get_labeled_option_default,
+    get_required_uniprot_return_field_text,
+    is_enrichment_workflow_compatible,
     load_workflow_yaml_to_form_values,
+    normalize_enrichment_sources,
     normalize_labeled_value,
     normalize_query_builder_key,
+    parse_bool,
     render_workflow_yaml,
     resolve_query_composition_entry_value,
     validate_generated_descriptor,
@@ -143,6 +153,12 @@ class WorkflowYamlBuilderApp:
         self.query_composition_preview: Any = None
         self.query_composition_entry_previews: dict[int, Any] = {}
         self.query_builder_select: Any = None
+        self.enrichment_toggle_checkbox: Any = None
+        self.enrichment_sources_select: Any = None
+        self.query_fields_input: Any = None
+        self.crossref_fields_input: Any = None
+        self.enrichment_required_fields_note: Any = None
+        self.enrichment_effective_fields_note: Any = None
         self.interaction_type_select: Any = None
         self.workflow_upload: Any = None
         self.loaded_workflow_filename: str | None = None
@@ -366,23 +382,13 @@ class WorkflowYamlBuilderApp:
     def build_shared_query_controls(self) -> None:
         """Build query settings shared by query_first and query_composition modes."""
         with ui.grid(columns=2).classes("w-full gap-3"):
-            (
+            self.query_fields_input = (
                 ui.input("Return fields")
                 .props('clearable placeholder="accession, protein_name, organism_name, sequence"')
                 .bind_value(self.form_values, "query.fields")
                 .tooltip(
-                    "Optional output/request fields. This is separate from advanced builder "
-                    "search fields. Enter comma-separated values."
-                )
-            )
-            (
-                ui.input("Cross-reference fields")
-                .props('clearable placeholder="xref_alphafolddb, xref_pdb, xref_string"')
-                .bind_value(self.form_values, "query.crossref_fields")
-                .tooltip(
-                    "Optional database cross-references used by supported enrichment logic. "
-                    "This is separate from advanced builder search fields. Enter "
-                    "comma-separated values."
+                    "Optional UniProt request fields. Leave empty to use the safe default "
+                    "field set; enrichment can require extra fields at runtime."
                 )
             )
             (
@@ -390,6 +396,10 @@ class WorkflowYamlBuilderApp:
                 .bind_value(self.form_values, "query.include_isoform")
                 .tooltip("Whether UniProt isoforms should be included when supported by the workflow.")
             )
+        ui.label(
+            "Empty return fields resolve at execution time to: "
+            f"{get_effective_uniprot_return_field_text('', '')}."
+        ).classes("text-xs text-gray-600")
 
     def ensure_query_composition_entry_id(self, entry: dict[str, object]) -> int:
         """Assign and return a stable UI identity for one composition entry."""
@@ -1296,10 +1306,28 @@ class WorkflowYamlBuilderApp:
         finally:
             self.is_refreshing_query_section = previous_refreshing_state
 
+    def is_enrichment_context_compatible(self) -> bool:
+        """Return whether the current workflow can run protein enrichment."""
+        return is_enrichment_workflow_compatible(self.form_values)
+
+    def clear_loaded_incompatible_enrichment_passthrough(self) -> None:
+        """Mark loaded incompatible enrichment data as user-edited."""
+        self.form_values.pop(LOADED_INCOMPATIBLE_ENRICHMENT_PASSTHROUGH_FORM_KEY, None)
+
+    def update_enrichment_control_availability(self) -> None:
+        """Enable enrichment toggle only for compatible protein workflows."""
+        if self.enrichment_toggle_checkbox is None:
+            return
+        if self.is_enrichment_context_compatible():
+            self.enrichment_toggle_checkbox.enable()
+        else:
+            self.enrichment_toggle_checkbox.disable()
+
     def handle_dataset_builder_context_change(self, *_args: object) -> None:
         """Refresh builder choices after dataset modality or interaction type changes."""
         if self.is_loading_form_values or self.is_refreshing_query_section:
             return
+        self.clear_loaded_incompatible_enrichment_passthrough()
         self.is_refreshing_query_section = True
         try:
             self.update_interaction_type_visibility()
@@ -1313,6 +1341,8 @@ class WorkflowYamlBuilderApp:
             self.refresh_query_section()
         finally:
             self.is_refreshing_query_section = False
+            self.update_enrichment_control_availability()
+            self.build_enrichment_controls.refresh()
 
     def handle_workflow_mode_change(self, *_args: object) -> None:
         """Rebuild query controls after switching workflow mode."""
@@ -1403,43 +1433,158 @@ class WorkflowYamlBuilderApp:
 
     def build_execution_controls(self) -> None:
         """Build execution form controls."""
-        with (
-            ui.expansion("Execution", value=True).classes("w-full"),
-            ui.grid(columns=3).classes("w-full gap-3"),
-        ):
-            (
+        with ui.expansion("Execution", value=True).classes("w-full"):
+            self.enrichment_toggle_checkbox = (
                 ui.checkbox("Enable enrichment")
                 .bind_value(self.form_values, "execution.enrich")
+                .on_value_change(self.handle_enrichment_toggle)
                 .tooltip("Enables supported enrichment steps when the workflow supports them.")
             )
-            (
-                ui.checkbox("Enable debug logging")
-                .bind_value(self.form_values, "execution.debug")
-                .tooltip("Enable more verbose debugging information in supported workflow operations.")
+            self.update_enrichment_control_availability()
+            with ui.grid(columns=3).classes("w-full gap-3"):
+                (
+                    ui.checkbox("Enable debug logging")
+                    .bind_value(self.form_values, "execution.debug")
+                    .tooltip("Enable more verbose debugging information in supported workflow operations.")
+                )
+                (
+                    ui.number("Max workers", min=1, step=1)
+                    .bind_value(self.form_values, "execution.max_workers")
+                    .tooltip("Maximum number of worker threads used by supported operations.")
+                )
+                (
+                    ui.number("Total retries", min=0, step=1)
+                    .bind_value(self.form_values, "execution.total_retries")
+                    .tooltip("Number of retry attempts for supported network operations.")
+                )
+                (
+                    ui.number("ChEMBL pages to fetch", step=1)
+                    .bind_value(self.form_values, "execution.chembl_pages_to_fetch")
+                    .tooltip(
+                        "Number of ChEMBL pages to retrieve for supported workflows. Use -1 to fetch "
+                        "all available pages."
+                    )
+                )
+                (
+                    ui.number("UniProt timeout", min=0, step=0.1)
+                    .bind_value(self.form_values, "execution.uniprot_timeout")
+                    .tooltip("Optional timeout in seconds. Leave empty to use the default.")
+                )
+            self.build_enrichment_controls()
+
+    @ui.refreshable
+    def build_enrichment_controls(self) -> None:
+        """Build optional enrichment controls when enrichment is enabled."""
+        self.enrichment_sources_select = None
+        self.crossref_fields_input = None
+        self.enrichment_required_fields_note = None
+        self.enrichment_effective_fields_note = None
+        if not self.is_enrichment_context_compatible() or not parse_bool(
+            self.form_values.get("execution.enrich", False)
+        ):
+            return
+
+        options = {source_key: label for label, source_key in get_enrichment_source_options().items()}
+        with ui.column().classes("w-full gap-3 border-l-4 border-green-500 pl-3"):
+            self.enrichment_sources_select = (
+                ui.select(options, label="Enrichment sources", multiple=True)
+                .bind_value(self.form_values, "execution.enrichment_sources")
+                .on_value_change(self.handle_enrichment_sources_change)
+                .classes("w-full")
+                .tooltip("Select supported cross-reference enrichment sources.")
             )
-            (
-                ui.number("Max workers", min=1, step=1)
-                .bind_value(self.form_values, "execution.max_workers")
-                .tooltip("Maximum number of worker threads used by supported operations.")
-            )
-            (
-                ui.number("Total retries", min=0, step=1)
-                .bind_value(self.form_values, "execution.total_retries")
-                .tooltip("Number of retry attempts for supported network operations.")
-            )
-            (
-                ui.number("ChEMBL pages to fetch", step=1)
-                .bind_value(self.form_values, "execution.chembl_pages_to_fetch")
+            self.crossref_fields_input = (
+                ui.input("Advanced cross-reference fields")
+                .props('clearable placeholder="alphafold, biogrid, pathwaycommons_fetch"')
+                .bind_value(self.form_values, "query.crossref_fields")
+                .on_value_change(self.handle_crossref_fields_change)
+                .classes("w-full")
                 .tooltip(
-                    "Number of ChEMBL pages to retrieve for supported workflows. Use -1 to fetch "
-                    "all available pages."
+                    "Comma-separated source keys or endpoint-specific fields. Custom values are "
+                    "preserved even when they are not selectable above."
                 )
             )
-            (
-                ui.number("UniProt timeout", min=0, step=0.1)
-                .bind_value(self.form_values, "execution.uniprot_timeout")
-                .tooltip("Optional timeout in seconds. Leave empty to use the default.")
+            self.enrichment_required_fields_note = ui.label("").classes("text-xs text-gray-600")
+            self.enrichment_effective_fields_note = ui.label("").classes("text-xs text-gray-600")
+            ui.label(
+                "BioGRID requires API credential configuration. RefSeq requires Entrez email "
+                "configuration."
+            ).classes("text-xs text-gray-600")
+            self.update_enrichment_field_notes()
+
+    def update_enrichment_field_notes(self) -> None:
+        """Update enrichment field requirement helper text."""
+        crossref_fields = self.form_values.get("query.crossref_fields")
+        required_fields = get_required_uniprot_return_field_text(crossref_fields)
+        effective_fields = get_effective_uniprot_return_field_text(
+            self.form_values.get("query.fields"),
+            crossref_fields,
+        )
+        if self.enrichment_required_fields_note is not None:
+            self.enrichment_required_fields_note.text = (
+                f"Fields required by selected enrichment: {required_fields}."
+                if required_fields
+                else "Selected enrichment sources do not require extra UniProt fields."
             )
+        if self.enrichment_effective_fields_note is not None:
+            self.enrichment_effective_fields_note.text = (
+                f"Effective UniProt request fields: {effective_fields}."
+            )
+
+    def handle_enrichment_toggle(self, event: object) -> None:
+        """Show or hide enrichment source controls after a checkbox event."""
+        if self.is_loading_form_values:
+            return
+        self.clear_loaded_incompatible_enrichment_passthrough()
+        enrich_enabled = parse_bool(getattr(event, "value", False))
+        self.form_values["execution.enrich"] = enrich_enabled
+        if not self.is_enrichment_context_compatible():
+            self.build_enrichment_controls.refresh()
+            return
+        if enrich_enabled:
+            self.form_values["query.crossref_fields"] = crossref_fields_from_enrichment_sources(
+                self.form_values.get("execution.enrichment_sources"),
+                existing_crossref_fields=self.form_values.get("query.crossref_fields"),
+            )
+        else:
+            self.form_values["query.crossref_fields"] = crossref_fields_without_selectable_sources(
+                self.form_values.get("query.crossref_fields")
+            )
+        self.build_enrichment_controls.refresh()
+
+    def handle_enrichment_sources_change(self, event: object) -> None:
+        """Synchronize selected enrichment sources to cross-reference fields."""
+        if self.is_loading_form_values:
+            return
+        self.clear_loaded_incompatible_enrichment_passthrough()
+        if not self.is_enrichment_context_compatible():
+            return
+        sources = normalize_enrichment_sources(getattr(event, "value", []))
+        self.form_values["execution.enrichment_sources"] = sources
+        crossref_fields = crossref_fields_from_enrichment_sources(
+            sources,
+            existing_crossref_fields=self.form_values.get("query.crossref_fields"),
+            preserve_known_existing=False,
+        )
+        self.form_values["query.crossref_fields"] = crossref_fields
+        if self.crossref_fields_input is not None:
+            self.crossref_fields_input.value = crossref_fields
+            self.crossref_fields_input.update()
+        self.update_enrichment_field_notes()
+
+    def handle_crossref_fields_change(self, event: object) -> None:
+        """Synchronize manual cross-reference fields to known source selections."""
+        if self.is_loading_form_values:
+            return
+        self.clear_loaded_incompatible_enrichment_passthrough()
+        crossref_fields = str(getattr(event, "value", "") or "")
+        self.form_values["query.crossref_fields"] = crossref_fields
+        sources = enrichment_sources_from_crossref_fields(crossref_fields)
+        self.form_values["execution.enrichment_sources"] = sources
+        if self.enrichment_sources_select is not None:
+            self.enrichment_sources_select.value = sources
+            self.enrichment_sources_select.update()
+        self.update_enrichment_field_notes()
 
     def build_harmonization_controls(self) -> None:
         """Build harmonization form controls."""
@@ -1693,7 +1838,9 @@ class WorkflowYamlBuilderApp:
         self.is_loading_form_values = True
         try:
             self.update_interaction_type_visibility()
+            self.update_enrichment_control_availability()
             self.build_query_controls.refresh()
+            self.build_enrichment_controls.refresh()
             if is_query_composition_workflow_mode(self.form_values["dataset.mode"]):
                 self.sync_query_composition_entries_to_form()
                 self.update_query_composition_preview()

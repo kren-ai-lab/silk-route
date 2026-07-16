@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 import polars as pl
 
 from bioseq_dl import ChEMBLInterface, UniprotInterface
+from bioseq_dl.constants.uniprot import get_effective_uniprot_return_fields
 from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
 from bioseq_dl.core.export import normalize_parse_format
 from bioseq_dl.core.utils.crossref_enrichment import normalize_crossref_fields, run_crossref_enrichment
@@ -622,7 +623,12 @@ class MainWorkflow:
                 {"uniprot": {"skipped_empty_query": True}}
             )
             return
-        fields = args.get("fields", "") or ""
+        fields = ", ".join(
+            get_effective_uniprot_return_fields(
+                args.get("fields", ""),
+                args.get("additional_crossref_fields"),
+            )
+        )
         sort = args.get("sort", "accession asc")
         include_isoform = args.get("include_isoform", False)
         uniprot_timeout = args.get("uniprot_timeout")

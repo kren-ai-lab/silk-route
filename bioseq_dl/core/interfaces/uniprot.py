@@ -14,6 +14,11 @@ import niquests
 import polars as pl
 
 from bioseq_dl.constants.databases import DATABASES, UNIPROT
+from bioseq_dl.constants.uniprot import (
+    get_default_uniprot_return_fields,
+    get_effective_uniprot_return_fields,
+    normalize_uniprot_return_fields,
+)
 from bioseq_dl.core.exceptions import RequestError
 from bioseq_dl.core.interfaces.base import BaseAPIInterface
 from bioseq_dl.core.metadata import FetchMetadata, RequestInfo, current_tool
@@ -605,9 +610,19 @@ class UniprotInterface(BaseAPIInterface):
             RuntimeError: If the request keeps failing after all retries.
 
         """
+        if not normalize_uniprot_return_fields(fields):
+            log.info(
+                "No UniProt return fields were provided. Using default fields: %s",
+                ", ".join(get_default_uniprot_return_fields()),
+            )
+        effective_fields = ", ".join(get_effective_uniprot_return_fields(fields))
+        if not effective_fields:
+            msg = "UniProt return fields could not be resolved."
+            raise ValueError(msg)
+
         parameters = {
             "query": query,
-            "fields": fields,
+            "fields": effective_fields,
             "sort": sort,
             "includeIsoform": str(include_isoform),
             "download": str(download),
@@ -631,7 +646,7 @@ class UniprotInterface(BaseAPIInterface):
                     "timeout=%s "
                     "started_at=%s",
                     query,
-                    fields,
+                    effective_fields,
                     sort,
                     include_isoform,
                     effective_timeout,
@@ -685,7 +700,7 @@ class UniprotInterface(BaseAPIInterface):
                         "total_results": results_count,
                         "attempts": attempt + 1,
                         "query": query,
-                        "fields": fields,
+                        "fields": effective_fields,
                         "sort": sort,
                         "include_isoform": include_isoform,
                         "download": download,
