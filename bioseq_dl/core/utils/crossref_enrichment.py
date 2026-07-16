@@ -235,6 +235,7 @@ def build_structure_download_interface_options(
         interface_options["alphafold"] = {
             "structures": ["pdb"],
             "output_dir": alphafold_meta["output_directory"],
+            "path_base": output_dir,
         }
 
     pdb_meta = structure_metadata["pdb"]
@@ -242,6 +243,7 @@ def build_structure_download_interface_options(
         interface_options["pdb"] = {
             "download_structures": True,
             "output_dir": pdb_meta["output_directory"],
+            "path_base": output_dir,
         }
 
     return interface_options, structure_metadata
