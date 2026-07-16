@@ -1,5 +1,6 @@
 """Cross-reference enrichment workflow utilities."""
 
+from pathlib import Path
 from typing import Any, Literal
 
 import polars as pl
@@ -10,6 +11,9 @@ from bioseq_dl.core.interfacesconfig import load_packaged_config
 from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.core.utils.crossref_enrichment")
+
+STRUCTURE_DOWNLOAD_SOURCES = ("alphafold", "pdb")
+NO_INTERACTION_VALUES = {"", "none", "no interaction", "no_interaction", "no-interaction"}
 
 
 def normalize_crossref_fields(crossref_fields: object) -> list[str]:
@@ -41,8 +45,28 @@ def normalize_crossref_fields(crossref_fields: object) -> list[str]:
             continue
         cleaned_field = field.strip()
         if cleaned_field:
-            fields.append(cleaned_field)
+            fields.append(canonicalize_structure_source_field(cleaned_field))
     return fields
+
+
+def canonicalize_structure_source_field(field: str) -> str:
+    """Return canonical structure-source casing without touching unrelated fields."""
+    normalized = field.strip()
+    lowered = normalized.lower()
+    for source in STRUCTURE_DOWNLOAD_SOURCES:
+        if lowered in {source, f"{source}_all"} or lowered.startswith(f"{source}_"):
+            return lowered
+    return normalized
+
+
+def is_structure_download_workflow_compatible(
+    modality: object,
+    interaction_type: object,
+) -> bool:
+    """Return whether a workflow context may activate structure downloads."""
+    normalized_modality = str(modality or "").strip().lower()
+    normalized_interaction = str(interaction_type or "").strip().lower()
+    return normalized_modality == "protein" and normalized_interaction in NO_INTERACTION_VALUES
 
 
 def is_empty_enrichment_input(data: object) -> bool:
@@ -97,12 +121,111 @@ def has_enrichment_result_value(value: object) -> bool:
     return True
 
 
+def _crossref_source_selected(crossref_fields: list[str], source: str) -> bool:
+    """Return whether a normalized crossref field selects a source."""
+    return any(
+        field in {source, f"{source}_all"} or field.startswith(f"{source}_")
+        for field in crossref_fields
+    )
+
+
+def _structure_output_directory(output_dir: str | Path | None, source: str) -> str | None:
+    """Return the workflow-controlled structure directory for an active source."""
+    if output_dir is None:
+        return None
+    return str(Path(output_dir) / "structures" / source)
+
+
+def build_structure_download_metadata(
+    crossref_fields: list[str],
+    *,
+    enrich: bool,
+    structure_downloads_allowed: bool,
+    download_alphafold_structures: bool,
+    download_pdb_structures: bool,
+    output_dir: str | Path | None,
+) -> dict[str, dict[str, Any]]:
+    """Build concise workflow metadata for optional structure downloads."""
+    requested_by_source = {
+        "alphafold": bool(download_alphafold_structures),
+        "pdb": bool(download_pdb_structures),
+    }
+    metadata: dict[str, dict[str, Any]] = {}
+    for source in STRUCTURE_DOWNLOAD_SOURCES:
+        requested = requested_by_source[source]
+        source_selected = _crossref_source_selected(crossref_fields, source)
+        output_directory = _structure_output_directory(output_dir, source)
+        active = bool(
+            structure_downloads_allowed and enrich and requested and source_selected and output_directory
+        )
+        source_meta: dict[str, Any] = {
+            "requested": requested,
+            "active": active,
+            "source_selected": source_selected,
+        }
+        if active:
+            source_meta["output_directory"] = output_directory
+        elif requested:
+            if not structure_downloads_allowed:
+                source_meta["inactive_reason"] = "incompatible_workflow"
+            elif not enrich:
+                source_meta["inactive_reason"] = "enrichment_disabled"
+            elif not source_selected:
+                source_meta["inactive_reason"] = "source_not_selected"
+            elif not output_directory:
+                source_meta["inactive_reason"] = "missing_output_dir"
+        metadata[source] = source_meta
+    return metadata
+
+
+def build_structure_download_interface_options(
+    crossref_fields: list[str],
+    *,
+    enrich: bool,
+    structure_downloads_allowed: bool,
+    download_alphafold_structures: bool,
+    download_pdb_structures: bool,
+    output_dir: str | Path | None,
+) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Return interface kwargs and metadata for explicit structure downloads."""
+    structure_metadata = build_structure_download_metadata(
+        crossref_fields,
+        enrich=enrich,
+        structure_downloads_allowed=structure_downloads_allowed,
+        download_alphafold_structures=download_alphafold_structures,
+        download_pdb_structures=download_pdb_structures,
+        output_dir=output_dir,
+    )
+    interface_options: dict[str, dict[str, Any]] = {"pdb": {"download_structures": False}}
+
+    alphafold_meta = structure_metadata["alphafold"]
+    if alphafold_meta["active"]:
+        interface_options["alphafold"] = {
+            "structures": ["pdb"],
+            "output_dir": alphafold_meta["output_directory"],
+        }
+
+    pdb_meta = structure_metadata["pdb"]
+    if pdb_meta["active"]:
+        interface_options["pdb"] = {
+            "download_structures": True,
+            "output_dir": pdb_meta["output_directory"],
+        }
+
+    return interface_options, structure_metadata
+
+
 def run_crossref_enrichment(
     data: Any,
     crossref_fields: list,
     format: Literal["dataframe", "json", "xml"] = "json",  # noqa: A002
     max_workers: int = 4,
     total_retries: int = 3,
+    enrich: bool = True,
+    structure_downloads_allowed: bool = True,
+    download_alphafold_structures: bool = False,
+    download_pdb_structures: bool = False,
+    output_dir: str | Path | None = None,
 ) -> tuple[Any, dict | list[dict]]:
     """Run cross-reference enrichment for the requested fields.
 
@@ -118,6 +241,11 @@ def run_crossref_enrichment(
         format (Literal["dataframe", "json", "xml"]): Output format for results. Default is "json".
         max_workers (int): Maximum number of worker threads. Default is 4.
         total_retries (int): Number of retries per request. Default is 3.
+        enrich (bool): Whether enrichment is active. False disables downloads defensively.
+        structure_downloads_allowed (bool): Whether the workflow context can download structures.
+        download_alphafold_structures (bool): Whether AlphaFold structure downloads were requested.
+        download_pdb_structures (bool): Whether PDB structure downloads were requested.
+        output_dir (str | Path | None): Workflow export directory used to root structure downloads.
 
     Returns:
         tuple[Any, dict | list[dict]]: Enriched data (empty dict if skipped) and
@@ -125,13 +253,25 @@ def run_crossref_enrichment(
 
     """
     crossref_fields = normalize_crossref_fields(crossref_fields)
+    interface_options, structure_metadata = build_structure_download_interface_options(
+        crossref_fields,
+        enrich=enrich,
+        structure_downloads_allowed=structure_downloads_allowed,
+        download_alphafold_structures=download_alphafold_structures,
+        download_pdb_structures=download_pdb_structures,
+        output_dir=output_dir,
+    )
+    structure_metadata_block = {"structure_downloads": structure_metadata}
+    if not enrich:
+        log.info("Skipping CrossRef enrichment because enrich=False.")
+        return {}, {"skipped": True, "reason": "enrichment_disabled", **structure_metadata_block}
     if not crossref_fields:
         log.info("Skipping CrossRef enrichment because no cross-reference fields were requested.")
-        return {}, {"skipped": True, "reason": "no_crossref_fields"}
+        return {}, {"skipped": True, "reason": "no_crossref_fields", **structure_metadata_block}
 
     if is_empty_enrichment_input(data):
         log.warning("Input data is empty. Skipping crossref enrichment.")
-        return {}, {"skipped": True, "reason": "empty_input"}
+        return {}, {"skipped": True, "reason": "empty_input", **structure_metadata_block}
 
     # Process crossref fields
     # Some definitions in crossref_fields may contain the database name and the method separated by underscore
@@ -214,10 +354,13 @@ def run_crossref_enrichment(
     log.debug("Final endpoint specs: %s", endpoint_specs)
     if not endpoint_specs:
         log.info("Skipping CrossRef enrichment because no endpoint specs were resolved.")
-        return {}, {"skipped": True, "reason": "no_endpoint_specs"}
+        return {}, {"skipped": True, "reason": "no_endpoint_specs", **structure_metadata_block}
 
     enricher = CrossRefEnricher(
-        endpoint_specs=endpoint_specs, max_workers=max_workers, total_retries=total_retries
+        endpoint_specs=endpoint_specs,
+        max_workers=max_workers,
+        total_retries=total_retries,
+        interface_options=interface_options,
     )
     enriched_data, enriched_metadata = enricher.enrich(data, format=format)
 
@@ -226,6 +369,7 @@ def run_crossref_enrichment(
         enriched_metadata = {}
     elif not isinstance(enriched_metadata, dict):
         enriched_metadata = {"details": enriched_metadata}
+    enriched_metadata["structure_downloads"] = structure_metadata
 
     # enrich() always returns a dict keyed by endpoint; filter to exportable values.
     if isinstance(enriched_data, dict):

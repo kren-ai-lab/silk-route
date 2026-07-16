@@ -13,7 +13,11 @@ from bioseq_dl import ChEMBLInterface, UniprotInterface
 from bioseq_dl.constants.uniprot import get_effective_uniprot_return_fields
 from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
 from bioseq_dl.core.export import normalize_parse_format
-from bioseq_dl.core.utils.crossref_enrichment import normalize_crossref_fields, run_crossref_enrichment
+from bioseq_dl.core.utils.crossref_enrichment import (
+    is_structure_download_workflow_compatible,
+    normalize_crossref_fields,
+    run_crossref_enrichment,
+)
 from bioseq_dl.core.utils.frames import records_to_frame
 from bioseq_dl.logging import get_logger
 
@@ -741,19 +745,52 @@ class MainWorkflow:
         parse_format = normalize_parse_format(export_format) or "dataframe"
         max_workers = kwargs.get("max_workers", 4)
         total_retries = kwargs.get("total_retries", 3)
+        download_alphafold_structures = bool(
+            args.get("download_alphafold_structures", kwargs.get("download_alphafold_structures", False))
+        )
+        download_pdb_structures = bool(
+            args.get("download_pdb_structures", kwargs.get("download_pdb_structures", False))
+        )
+        output_dir = args.get("output_dir") or kwargs.get("output_dir")
+        structure_downloads_allowed = is_structure_download_workflow_compatible(
+            args.get("modality") or "protein",
+            args.get("interaction_type"),
+        )
 
         if not enrich_flag:
             self.log.info("Pipeline: enrichment skipped (enrich=False)")
+            _, enriched_meta = run_crossref_enrichment(
+                data=pl.DataFrame(),
+                crossref_fields=cross_ref_fields,
+                format=cast("Literal['json', 'dataframe', 'xml']", parse_format),
+                max_workers=max_workers,
+                total_retries=total_retries,
+                enrich=False,
+                structure_downloads_allowed=structure_downloads_allowed,
+                download_alphafold_structures=download_alphafold_structures,
+                download_pdb_structures=download_pdb_structures,
+                output_dir=output_dir,
+            )
+            context.setdefault("metadata", {})["uniprot_enrichment"] = enriched_meta
             return
 
         if not cross_ref_fields:
             self.log.info(
                 "Pipeline: Skipping CrossRef enrichment because no cross-reference fields were requested."
             )
-            context.setdefault("metadata", {})["uniprot_enrichment"] = {
-                "skipped": True,
-                "reason": "no_crossref_fields",
-            }
+            _, enriched_meta = run_crossref_enrichment(
+                data=input_data if input_data is not None else pl.DataFrame(),
+                crossref_fields=cross_ref_fields,
+                format=cast("Literal['json', 'dataframe', 'xml']", parse_format),
+                max_workers=max_workers,
+                total_retries=total_retries,
+                enrich=True,
+                structure_downloads_allowed=structure_downloads_allowed,
+                download_alphafold_structures=download_alphafold_structures,
+                download_pdb_structures=download_pdb_structures,
+                output_dir=output_dir,
+            )
+            context.setdefault("metadata", {})["uniprot_enrichment"] = enriched_meta
             return
 
         self.log.info("Pipeline: starting CrossRef enrichment with fields=%s", cross_ref_fields)
@@ -764,6 +801,11 @@ class MainWorkflow:
             format=cast("Literal['json', 'dataframe', 'xml']", parse_format),
             max_workers=max_workers,
             total_retries=total_retries,
+            enrich=True,
+            structure_downloads_allowed=structure_downloads_allowed,
+            download_alphafold_structures=download_alphafold_structures,
+            download_pdb_structures=download_pdb_structures,
+            output_dir=output_dir,
         )
         enrich_elapsed = time.time() - enrich_started
         context["data"].setdefault("uniprot_enrichment", enriched)
@@ -1011,6 +1053,11 @@ class MainWorkflow:
             "enrich": enrich,
             "uniprot_timeout": uniprot_timeout,
             "crossref_endpoint_specs": crossref_endpoint_specs,
+            "modality": kwargs.get("modality"),
+            "interaction_type": kwargs.get("interaction_type"),
+            "download_alphafold_structures": kwargs.get("download_alphafold_structures", False),
+            "download_pdb_structures": kwargs.get("download_pdb_structures", False),
+            "output_dir": kwargs.get("output_dir"),
         }
         if context is not None:
             existing_args = context.get("searches", {}).get("uniprot", {}) or {}
@@ -1350,6 +1397,7 @@ class MainWorkflow:
                 export_format=export_format,
                 enrich=enrich,
                 crossref_endpoint_specs=crossref_endpoint_specs,
+                interaction_type=interaction_type,
                 **kwargs,
             )
         if modality == "compound":

@@ -4,17 +4,69 @@ import json
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Any, ClassVar, Literal
+from urllib.parse import unquote, urlparse
 
+import niquests
 import polars as pl
 
 from bioseq_dl.constants.databases import ALPHAFOLD
 from bioseq_dl.core.export import export_dataframe
+from bioseq_dl.core.interfacesconfig import load_packaged_config
 from bioseq_dl.core.utils.frames import records_to_frame
 from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
 
 log = get_logger("bioseq_dl.interfaces.alphafold")
+
+WINDOWS_RESERVED_FILENAMES = {
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    *(f"COM{index}" for index in range(1, 10)),
+    *(f"LPT{index}" for index in range(1, 10)),
+}
+
+
+def _configured_output_dir(cache_dir: str, output_dir: str | None, init_subdir: str) -> str:
+    """Resolve the configured output path without creating directories."""
+    packaged_init = load_packaged_config(init_subdir, "init.yml") or {}
+    return output_dir or packaged_init.get("download_folder") or cache_dir
+
+
+def _structure_filename_from_url(structure_url: str) -> str | None:
+    """Extract a deterministic filename from a structure URL."""
+    parsed_path = urlparse(structure_url).path
+    file_name = unquote(parsed_path.rsplit("/", 1)[-1])
+    return file_name or None
+
+
+def _safe_structure_file_path(output_dir: str | Path, file_name: str) -> Path | None:
+    """Return a resolved file path if ``file_name`` stays below ``output_dir``."""
+    if (
+        not file_name
+        or file_name in {".", ".."}
+        or file_name != file_name.rstrip(" .")
+        or ":" in file_name
+        or "/" in file_name
+        or "\\" in file_name
+    ):
+        log.warning("Skipping unsafe AlphaFold structure filename: %s", file_name)
+        return None
+    file_stem = file_name.split(".", 1)[0].upper()
+    if file_stem in WINDOWS_RESERVED_FILENAMES:
+        log.warning("Skipping Windows-reserved AlphaFold structure filename: %s", file_name)
+        return None
+
+    base_dir = Path(output_dir).resolve()
+    file_path = (base_dir / file_name).resolve()
+    try:
+        file_path.relative_to(base_dir)
+    except ValueError:
+        log.warning("Skipping AlphaFold structure path outside output directory: %s", file_path)
+        return None
+    return file_path
 
 
 class AlphafoldInterface(BaseAPIInterface):
@@ -59,7 +111,10 @@ class AlphafoldInterface(BaseAPIInterface):
 
         """
         super().__init__(cache_dir=cache_dir, config_dir=config_dir, **kwargs)
-        self.output_dir = self._resolve_output_dir(output_dir, init_subdir="alphafold")
+        if structures:
+            self.output_dir = self._resolve_output_dir(output_dir, init_subdir="alphafold")
+        else:
+            self.output_dir = _configured_output_dir(self.cache_dir, output_dir, "alphafold")
 
         self.structures = structures
 
@@ -67,7 +122,8 @@ class AlphafoldInterface(BaseAPIInterface):
     def _iter_records(result: Any) -> Iterator[dict]:
         """Yield the individual record dicts contained in a fetch result."""
         if isinstance(result, list):
-            yield from result
+            for item in result:
+                yield from AlphafoldInterface._iter_records(item)
         elif isinstance(result, pl.DataFrame):
             yield from result.iter_rows(named=True)
         elif isinstance(result, dict):
@@ -122,7 +178,7 @@ class AlphafoldInterface(BaseAPIInterface):
             tuple[list | pl.DataFrame | bytes | str, dict]: Fetched data and metadata.
 
         """
-        if not isinstance(queries, list) or not isinstance(queries[0], str):
+        if not isinstance(queries, list) or not queries or not isinstance(queries[0], str):
             log.error("Queries must be a list of strings representing AlphaFold IDs.")
             return [], {}
 
@@ -131,9 +187,7 @@ class AlphafoldInterface(BaseAPIInterface):
         if not self.structures:
             return results, metadata
 
-        new_results = [
-            self.download_structures(record) for result in results for record in self._iter_records(result)
-        ]
+        new_results = [self.download_structures(record) for record in self._iter_records(results)]
         return (new_results or results), metadata
 
     def download_structures(self, parsed: dict) -> dict:
@@ -159,25 +213,31 @@ class AlphafoldInterface(BaseAPIInterface):
             if not structure_url:
                 log.warning("%s is empty; skipping download. %s", url_key, parsed)
                 continue
-            file_name = structure_url.split("/")[-1]
-            file_path = Path(self.output_dir) / file_name
-
-            # Delete the URL from parsed data
-            del parsed[url_key]
+            file_name = _structure_filename_from_url(str(structure_url))
+            if file_name is None:
+                log.warning("Could not determine AlphaFold structure filename from URL: %s", structure_url)
+                continue
+            file_path = _safe_structure_file_path(self.output_dir, file_name)
+            if file_path is None:
+                continue
 
             # Check if the file already exists
             if file_path.exists():
+                parsed.pop(url_key, None)
                 log.info("Structure %s already exists. Skipping download.", file_name)
                 continue
 
             try:
                 response = self.session.get(structure_url)
+                response.raise_for_status()
                 with file_path.open("wb") as f:
                     log.info("Downloading structure %s...", file_name)
                     f.write(response.content)
 
-            except Exception:
+            except (OSError, niquests.exceptions.RequestException):
                 log.exception("Error downloading structure %s", file_name)
+            else:
+                parsed.pop(url_key, None)
 
         return parsed if parsed is not None else {}
 

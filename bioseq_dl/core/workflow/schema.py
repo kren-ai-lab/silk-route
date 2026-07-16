@@ -64,6 +64,8 @@ QUERY_KEYS = {
 RESOURCES_KEYS = {"primary", "integration"}
 EXECUTION_KEYS = {
     "enrich",
+    "download_alphafold_structures",
+    "download_pdb_structures",
     "max_workers",
     "total_retries",
     "chembl_pages_to_fetch",
@@ -238,6 +240,24 @@ _WORKFLOW_V1_SCHEMA_DEFINITION: dict[str, object] = {
         "role": "optional_input",
         "description": "Enable supported enrichment behavior.",
         "gui_visible": True,
+    },
+    "execution.download_alphafold_structures": {
+        "type": "boolean",
+        "required": False,
+        "default": False,
+        "allowed_values": None,
+        "role": "optional_input",
+        "description": "Download AlphaFold PDB structure files during AlphaFold enrichment.",
+        "gui_visible": False,
+    },
+    "execution.download_pdb_structures": {
+        "type": "boolean",
+        "required": False,
+        "default": False,
+        "allowed_values": None,
+        "role": "optional_input",
+        "description": "Download local PDB structure files during PDB enrichment.",
+        "gui_visible": False,
     },
     "execution.max_workers": {
         "type": "integer",
@@ -786,6 +806,9 @@ def validate_execution_section(execution: dict[str, object]) -> dict[str, object
     validate_allowed_section_keys("execution", execution, EXECUTION_KEYS)
     if "enrich" in execution:
         validate_bool("execution", "enrich", execution["enrich"])
+    for key in ("download_alphafold_structures", "download_pdb_structures"):
+        if key in execution:
+            validate_bool("execution", key, execution[key])
     if "merge_results" in execution:
         validate_bool("execution", "merge_results", execution["merge_results"])
     if "max_workers" in execution:
@@ -799,6 +822,33 @@ def validate_execution_section(execution: dict[str, object]) -> dict[str, object
     if "debug" in execution:
         validate_bool("execution", "debug", execution["debug"])
     return dict(execution)
+
+
+def validate_structure_download_controls(
+    dataset: dict[str, object], execution: dict[str, object]
+) -> None:
+    """Reject active structure downloads outside protein metadata enrichment."""
+    active_keys = [
+        key
+        for key in ("download_alphafold_structures", "download_pdb_structures")
+        if execution.get(key) is True
+    ]
+    if not active_keys:
+        return
+
+    modality = dataset.get("modality")
+    interaction_type = dataset.get("interaction_type")
+    if modality != "protein" or interaction_type is not None:
+        keys = ", ".join(f"execution.{key}" for key in active_keys)
+        msg = (
+            f"{keys} may be true only for protein workflows with no interaction_type."
+        )
+        raise ValueError(msg)
+
+    if execution.get("enrich") is not True:
+        keys = ", ".join(f"execution.{key}" for key in active_keys)
+        msg = f"{keys} require execution.enrich: true."
+        raise ValueError(msg)
 
 
 def validate_harmonization_section(harmonization: dict[str, object]) -> dict[str, object]:
@@ -870,6 +920,7 @@ def validate_workflow_v1_descriptor(recipe: object) -> dict[str, object]:
     query = validate_query_section(require_mapping("query", workflow_descriptor["query"]))
     validate_query_composition_matches_query_value(query, dataset["mode"])
     execution = validate_execution_section(require_mapping("execution", workflow_descriptor["execution"]))
+    validate_structure_download_controls(dataset, execution)
 
     validated: dict[str, object] = {
         "schema_version": schema_version,

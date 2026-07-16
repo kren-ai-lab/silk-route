@@ -94,6 +94,8 @@ QUERY_KEYS = {
 RESOURCES_KEYS = {"primary", "integration"}
 EXECUTION_KEYS = {
     "enrich",
+    "download_alphafold_structures",
+    "download_pdb_structures",
     "max_workers",
     "total_retries",
     "chembl_pages_to_fetch",
@@ -176,6 +178,8 @@ def build_default_workflow_values() -> dict:
         "mode": None,
         "export_format": "csv",
         "enrich": True,
+        "download_alphafold_structures": False,
+        "download_pdb_structures": False,
         "workers": 5,
         "retries": 3,
         "chembl_pages_to_fetch": -1,
@@ -688,6 +692,8 @@ def validate_resources_section(resources: dict) -> dict:
 # Per-key validators for the execution section (all share the (section, key, value) signature).
 _EXECUTION_VALIDATORS = {
     "enrich": validate_bool,
+    "download_alphafold_structures": validate_bool,
+    "download_pdb_structures": validate_bool,
     "merge_results": validate_bool,
     "max_workers": validate_int,
     "total_retries": validate_int,
@@ -718,6 +724,29 @@ def validate_execution_section(execution: dict) -> dict:
         if key in execution:
             validator("execution", key, execution[key])
     return dict(execution)
+
+
+def validate_structure_download_controls(dataset: dict, execution: dict) -> None:
+    """Reject active structure downloads outside protein metadata enrichment."""
+    active_keys = [
+        key
+        for key in ("download_alphafold_structures", "download_pdb_structures")
+        if execution.get(key) is True
+    ]
+    if not active_keys:
+        return
+
+    modality = dataset.get("modality")
+    interaction_type = dataset.get("interaction_type")
+    if modality != "protein" or interaction_type is not None:
+        keys = ", ".join(f"execution.{key}" for key in active_keys)
+        msg = f"{keys} may be true only for protein workflows with no interaction_type."
+        raise ValueError(msg)
+
+    if execution.get("enrich") is not True:
+        keys = ", ".join(f"execution.{key}" for key in active_keys)
+        msg = f"{keys} require execution.enrich: true."
+        raise ValueError(msg)
 
 
 def validate_harmonization_section(harmonization: dict) -> dict:
@@ -848,6 +877,8 @@ def sync_descriptor_from_workflow_values(values: dict) -> dict:
 
     execution = dict(synced.get("execution") or {})
     execution["enrich"] = synced.get("enrich")
+    execution["download_alphafold_structures"] = synced.get("download_alphafold_structures", False)
+    execution["download_pdb_structures"] = synced.get("download_pdb_structures", False)
     execution["max_workers"] = synced.get("workers")
     execution["total_retries"] = synced.get("retries")
     execution["chembl_pages_to_fetch"] = synced.get("chembl_pages_to_fetch")
@@ -953,6 +984,7 @@ def validate_workflow_recipe(recipe: dict) -> dict:
     )
     validate_query_composition_matches_query_value(query_descriptor, dataset["mode"])
     execution = validate_execution_section(require_mapping("execution", workflow_descriptor["execution"]))
+    validate_structure_download_controls(dataset, execution)
 
     resources = {}
     if "resources" in workflow_descriptor:
@@ -999,6 +1031,8 @@ def validate_workflow_recipe(recipe: dict) -> dict:
             "mode": dataset["mode"],
             "export_format": export_section.get("format", "csv"),
             "enrich": execution.get("enrich", True),
+            "download_alphafold_structures": execution.get("download_alphafold_structures", False),
+            "download_pdb_structures": execution.get("download_pdb_structures", False),
             "workers": execution.get("max_workers", 5),
             "retries": execution.get("total_retries", 3),
             "chembl_pages_to_fetch": execution.get("chembl_pages_to_fetch", -1),
@@ -1107,6 +1141,13 @@ def collect_workflow_recipe_errors(recipe: object) -> list[str]:
             lambda: validate_query_composition_matches_query_value(
                 require_mapping("query", descriptor["query"]),
                 require_mapping("dataset", descriptor["dataset"]).get("mode"),
+            )
+        )
+    if {"dataset", "execution"} <= valid_sections:
+        _check(
+            lambda: validate_structure_download_controls(
+                require_mapping("dataset", descriptor["dataset"]),
+                require_mapping("execution", descriptor["execution"]),
             )
         )
 
@@ -2282,6 +2323,8 @@ def run_workflow(
             "export_format": workflow_values["export_format"],
             "fields": workflow_values["fields"],
             "enrich": workflow_values["enrich"],
+            "download_alphafold_structures": workflow_values["download_alphafold_structures"],
+            "download_pdb_structures": workflow_values["download_pdb_structures"],
             "max_workers": workflow_values["workers"],
             "total_retries": workflow_values["retries"],
             "chembl_pages_to_fetch": workflow_values["chembl_pages_to_fetch"],
@@ -2289,6 +2332,7 @@ def run_workflow(
             "include_isoform": workflow_values["include_isoform"],
             "interaction_type": workflow_values["interaction_type"],
             "crossref_fields": workflow_values["crossref_fields"],
+            "output_dir": workflow_values["output"],
         }
         if workflow_values["mode"] == "query_composition":
             if "," not in workflow_values["query"]:

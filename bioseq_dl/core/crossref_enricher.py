@@ -14,6 +14,8 @@ from bioseq_dl.core.utils.frames import records_to_frame
 from bioseq_dl.core.utils.query_builders import INTERFACE_CLASSES, get_query_builder
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from bioseq_dl.core.interfaces.base import BaseAPIInterface
 from bioseq_dl.core.utils.xmlhandler import elementtree_to_dataframe
 from bioseq_dl.logging import get_logger
@@ -102,6 +104,7 @@ class CrossRefEnricher:
         config_path: str | None = None,
         max_workers: int = 4,
         total_retries: int = 3,
+        interface_options: Mapping[str, Mapping[str, Any]] | None = None,
     ) -> None:
         """Initialize the enricher with the endpoints and fetch settings to use.
 
@@ -110,12 +113,17 @@ class CrossRefEnricher:
             config_path (str | None): Path to a config file for the interfaces.
             max_workers (int): Number of worker threads used by each interface.
             total_retries (int): Number of retries each interface attempts on failure.
+            interface_options (Mapping[str, Mapping[str, Any]] | None): Optional source-specific
+                interface constructor kwargs.
 
         """
         self.endpoint_specs = endpoint_specs or []
         self.config_path = config_path
         self.max_workers = max_workers
         self.total_retries = total_retries
+        self.interface_options = {
+            str(source): dict(options) for source, options in (interface_options or {}).items()
+        }
 
     def _check_required_columns(self, df: pl.DataFrame, spec: EndpointSpec) -> None:
         """Validate that a spec's required columns are present in the DataFrame.
@@ -168,8 +176,11 @@ class CrossRefEnricher:
             msg = f"Unsupported database: {database_name}"
             raise ValueError(msg)
 
+        interface_kwargs = dict(self.interface_options.get(database_name, {}))
         return INTERFACE_CLASSES[database_name](
-            max_workers=self.max_workers, total_retries=self.total_retries
+            max_workers=self.max_workers,
+            total_retries=self.total_retries,
+            **interface_kwargs,
         )
 
     def _search_and_merge(
