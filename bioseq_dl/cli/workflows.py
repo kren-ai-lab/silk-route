@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import contextlib
 import datetime as dt
+import hashlib
 import json
 import logging
 import math
+import os
+import re
+import tempfile
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -39,6 +44,21 @@ PRIMARY_RESULT_LABELS = {
     "protein": "uniprot",
     "compound": "chembl",
     "interaction": "data",
+}
+GRAPH_JSON_COLUMN = "graph_json"
+GRAPH_FILE_COLUMNS = ("graph_file", "graph_file_size_bytes", "graph_sha256")
+GRAPH_RAW_OUTPUT_KIND = "raw_graph"
+GRAPH_ENRICHMENT_OUTPUTS = {
+    ("pathwaycommons", "fetch"),
+    ("pathwaycommons", "neighborhood"),
+}
+WINDOWS_RESERVED_FILENAMES = {
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    *(f"COM{index}" for index in range(1, 10)),
+    *(f"LPT{index}" for index in range(1, 10)),
 }
 
 REQUIRED_DESCRIPTOR_SECTIONS = {"dataset", "query", "execution", "export"}
@@ -1429,6 +1449,367 @@ def write_text_file(path: Path, content: object) -> None:
         handle.write(str(content))
 
 
+def graph_relative_output_path(path: Path, output_dir: Path) -> str:
+    """Return a forward-slash graph artifact path relative to ``output_dir``."""
+    return path.resolve().relative_to(output_dir.resolve()).as_posix()
+
+
+def get_output_graph_metadata(workflow_metadata: dict | None, label: str) -> dict[str, Any]:
+    """Return enrichment metadata for a graph output label when available."""
+    if not isinstance(workflow_metadata, dict):
+        return {}
+    enrichment_metadata = workflow_metadata.get("uniprot_enrichment")
+    if not isinstance(enrichment_metadata, dict):
+        return {}
+    label_metadata = enrichment_metadata.get(label)
+    return label_metadata if isinstance(label_metadata, dict) else {}
+
+
+def row_is_intended_graph_payload(row: dict[str, Any]) -> bool:
+    """Return whether a row carries one of the supported PathwayCommons graph endpoints."""
+    return (row.get("source_database"), row.get("source_endpoint")) in GRAPH_ENRICHMENT_OUTPUTS
+
+
+def has_externalizable_graph_payloads(
+    content: object,
+    output_metadata: dict[str, Any] | None = None,
+) -> bool:
+    """Return whether tabular content contains raw graph payloads."""
+    if not isinstance(content, pl.DataFrame) or GRAPH_JSON_COLUMN not in content.columns:
+        return False
+    if not isinstance(output_metadata, dict) or output_metadata.get("output_kind") != GRAPH_RAW_OUTPUT_KIND:
+        return False
+    if {"source_database", "source_endpoint"}.issubset(set(content.columns)):
+        return any(row_is_intended_graph_payload(row) for row in content.to_dicts())
+    return True
+
+
+def is_empty_graph_payload(value: object, graph_record_count: object = None) -> bool:
+    """Return whether a raw graph payload should be treated as empty."""
+    if (
+        isinstance(graph_record_count, (int, float))
+        and not isinstance(graph_record_count, bool)
+        and int(graph_record_count) == 0
+    ):
+        return True
+    if value is None:
+        return True
+    text = str(value).strip()
+    if not text or text in {"[]", "{}"}:
+        return True
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return False
+    return payload in ({}, [])
+
+
+def graph_payload_json_text(value: object) -> tuple[object, str]:
+    """Return the graph payload object and deterministic JSON text for writing."""
+    if isinstance(value, bytes):
+        try:
+            value = value.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            msg = f"Graph payload bytes are not valid UTF-8: {exc}"
+            raise ValueError(msg) from exc
+    if isinstance(value, str):
+        try:
+            payload = json.loads(value)
+        except json.JSONDecodeError:
+            msg = "Graph payload text is not valid JSON."
+            raise ValueError(msg) from None
+    else:
+        payload = to_json_compatible(value)
+    text = json.dumps(
+        to_json_compatible(payload),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return payload, text
+
+
+def safe_graph_filename_part(value: object) -> str:
+    """Return a deterministic filename component safe for Windows and POSIX."""
+    text = str(value or "").strip()
+    text = text.replace("/", "_").replace("\\", "_")
+    text = re.sub(r"[^A-Za-z0-9._-]+", "_", text)
+    text = text.strip(" ._-")
+    if not text:
+        return ""
+    text = text[:120].rstrip(" .")
+    stem = text.split(".", 1)[0].upper()
+    if stem in WINDOWS_RESERVED_FILENAMES:
+        text = f"graph_{text}"
+    return text
+
+
+def source_query_for_digest(value: object) -> object:
+    """Return the source query as a JSON-native object when possible."""
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return value
+    return value
+
+
+def graph_payload_digest(row: dict[str, Any], payload_text: str) -> str:
+    """Return a stable digest for graph identity and canonical payload text."""
+    digest_payload = {
+        "source_accession": row.get("source_accession"),
+        "source_query": source_query_for_digest(row.get("source_query")),
+        "source_database": row.get("source_database"),
+        "source_endpoint": row.get("source_endpoint"),
+        "graph_payload": json.loads(payload_text),
+    }
+    digest_text = json.dumps(
+        to_json_compatible(digest_payload),
+        sort_keys=True,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        default=str,
+    )
+    return hashlib.sha256(digest_text.encode("utf-8")).hexdigest()
+
+
+def graph_payload_file_name(row: dict[str, Any], export_label: str, digest: str, digest_length: int) -> str:
+    """Return a deterministic graph payload filename for one digest length."""
+    accession_part = safe_graph_filename_part(row.get("source_accession"))
+    if accession_part:
+        return f"{accession_part}__{export_label}__{digest[:digest_length]}.json"
+    return f"query_{digest[:digest_length]}__{export_label}.json"
+
+
+def graph_file_candidates(row: dict[str, Any], export_label: str, digest: str) -> list[str]:
+    """Return deterministic filename candidates for existing-file disambiguation."""
+    candidates = [
+        graph_payload_file_name(row, export_label, digest, length)
+        for length in (16, 24, 32, 40, 64)
+    ]
+    seen: set[str] = set()
+    unique_candidates = []
+    for candidate in candidates:
+        candidate_key = candidate.casefold()
+        if candidate_key in seen:
+            continue
+        seen.add(candidate_key)
+        unique_candidates.append(candidate)
+    return unique_candidates
+
+
+def safe_graph_file_path(output_dir: Path, graph_dir: Path, file_name: str) -> Path:
+    """Return a resolved graph artifact path guaranteed to stay below graph_dir."""
+    if (
+        not file_name
+        or file_name in {".", ".."}
+        or file_name != file_name.rstrip(" .")
+        or ":" in file_name
+        or "/" in file_name
+        or "\\" in file_name
+    ):
+        msg = f"Unsafe graph payload filename: {file_name}"
+        raise ValueError(msg)
+    graph_output_dir = (output_dir / graph_dir).resolve()
+    file_path = (graph_output_dir / file_name).resolve()
+    file_path.relative_to(graph_output_dir)
+    return file_path
+
+
+def existing_file_matches(file_path: Path, payload_bytes: bytes) -> bool:
+    """Return whether an existing artifact exactly matches the new payload bytes."""
+    try:
+        return file_path.read_bytes() == payload_bytes
+    except OSError:
+        return False
+
+
+def select_graph_file_path(
+    row: dict[str, Any],
+    *,
+    output_dir: Path,
+    graph_dir: Path,
+    export_label: str,
+    digest: str,
+    payload_bytes: bytes,
+    used_file_names: set[str],
+) -> Path:
+    """Return a stable graph artifact path without order-dependent suffixes."""
+    for file_name in graph_file_candidates(row, export_label, digest):
+        file_name_key = file_name.casefold()
+        file_path = safe_graph_file_path(output_dir, graph_dir, file_name)
+        if file_name_key in used_file_names:
+            if file_path.exists() and existing_file_matches(file_path, payload_bytes):
+                return file_path
+            continue
+        if file_path.exists() and not existing_file_matches(file_path, payload_bytes):
+            continue
+        used_file_names.add(file_name_key)
+        return file_path
+    msg = "Could not derive a collision-free deterministic graph artifact filename."
+    raise ValueError(msg)
+
+
+def write_graph_payload_atomically(file_path: Path, payload_bytes: bytes) -> tuple[int, str, bool]:
+    """Write a graph payload atomically unless an identical artifact already exists."""
+    payload_hash = hashlib.sha256(payload_bytes).hexdigest()
+    file_size = len(payload_bytes)
+    if file_path.exists():
+        existing_bytes = file_path.read_bytes()
+        if hashlib.sha256(existing_bytes).hexdigest() == payload_hash and existing_bytes == payload_bytes:
+            return file_size, payload_hash, False
+        msg = f"Refusing to overwrite existing graph artifact: {file_path}"
+        raise FileExistsError(msg)
+
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            delete=False,
+            dir=file_path.parent,
+            prefix=f".{file_path.name}.",
+            suffix=".tmp",
+        ) as handle:
+            temp_path = Path(handle.name)
+            handle.write(payload_bytes)
+            handle.flush()
+            os.fsync(handle.fileno())
+        temp_path.replace(file_path)
+    except Exception:
+        if temp_path is not None:
+            with contextlib.suppress(OSError):
+                temp_path.unlink()
+        raise
+    return file_size, payload_hash, True
+
+
+def build_graph_artifact_info(
+    *,
+    export_label: str,
+    row: dict,
+    file_path: Path,
+    relative_path: str,
+    file_size: int,
+    sha256: str,
+) -> dict:
+    """Return metadata for one successfully written graph payload artifact."""
+    return {
+        "label": export_label,
+        "file": file_path.name,
+        "path": relative_path,
+        "category": "graph_payload",
+        "source_database": row.get("source_database"),
+        "endpoint": row.get("source_endpoint"),
+        "graph_format": row.get("graph_format"),
+        "graph_record_count": row.get("graph_record_count"),
+        "file_size_bytes": file_size,
+        "sha256": sha256,
+    }
+
+
+def externalize_graph_payloads(
+    content: pl.DataFrame,
+    *,
+    output_dir: Path,
+    export_label: str,
+) -> tuple[pl.DataFrame, list[dict], dict[str, object]]:
+    """Write graph payload JSON artifacts and return the graph-light export frame."""
+    if GRAPH_JSON_COLUMN not in content.columns:
+        return content, [], {}
+
+    records = content.to_dicts()
+    graph_dir = Path("graphs") / export_label
+    used_file_names: set[str] = set()
+    artifact_infos_by_path: dict[str, dict] = {}
+    artifact_infos: list[dict] = []
+    failures: list[dict[str, object]] = []
+
+    for row_index, row in enumerate(records, start=1):
+        payload_value = row.get(GRAPH_JSON_COLUMN)
+        graph_record_count = row.get("graph_record_count")
+        if (
+            is_empty_graph_payload(payload_value, graph_record_count)
+            or not row_is_intended_graph_payload(row)
+        ):
+            continue
+        try:
+            _payload, payload_text = graph_payload_json_text(payload_value)
+            payload_bytes = payload_text.encode("utf-8")
+            digest = graph_payload_digest(row, payload_text)
+            file_path = select_graph_file_path(
+                row,
+                output_dir=output_dir,
+                graph_dir=graph_dir,
+                export_label=export_label,
+                digest=digest,
+                payload_bytes=payload_bytes,
+                used_file_names=used_file_names,
+            )
+            file_size, payload_hash, _was_written = write_graph_payload_atomically(file_path, payload_bytes)
+            relative_path = graph_relative_output_path(file_path, output_dir)
+        except Exception as exc:  # noqa: BLE001  # preserve payload and continue exporting other rows
+            log.warning(
+                "Could not write graph payload artifact for %s row %s: %s",
+                export_label,
+                row_index,
+                exc,
+            )
+            failures.append({"row": row_index, "error": str(exc)})
+            continue
+
+        row["graph_file"] = relative_path
+        row["graph_file_size_bytes"] = file_size
+        row["graph_sha256"] = payload_hash
+        row.pop(GRAPH_JSON_COLUMN, None)
+        artifact_key = relative_path.casefold()
+        if artifact_key not in artifact_infos_by_path:
+            artifact_infos_by_path[artifact_key] = build_graph_artifact_info(
+                export_label=export_label,
+                row=row,
+                file_path=file_path,
+                relative_path=relative_path,
+                file_size=file_size,
+                sha256=payload_hash,
+            )
+            artifact_infos.append(artifact_infos_by_path[artifact_key])
+
+    export_df = pl.DataFrame(records, infer_schema_length=None) if records else content
+    for column in GRAPH_FILE_COLUMNS:
+        if column in export_df.columns:
+            dtype = pl.Int64 if column == "graph_file_size_bytes" else pl.String
+            export_df = export_df.with_columns(pl.col(column).cast(dtype))
+
+    graph_metadata: dict[str, object] = {
+        "graph_payload_files_written": len(artifact_infos),
+    }
+    if artifact_infos:
+        graph_metadata["graph_payload_directory"] = graph_dir.as_posix()
+    if failures:
+        graph_metadata["graph_payload_write_failures"] = failures
+    return export_df, artifact_infos, graph_metadata
+
+
+def annotate_graph_payload_metadata(
+    workflow_metadata: dict | None,
+    label: str,
+    graph_metadata: dict[str, object],
+) -> None:
+    """Annotate enrichment metadata with graph artifact export results."""
+    if workflow_metadata is None or not graph_metadata:
+        return
+    enrichment_metadata = workflow_metadata.get("uniprot_enrichment")
+    if not isinstance(enrichment_metadata, dict):
+        return
+    label_metadata = enrichment_metadata.setdefault(label, {})
+    if not isinstance(label_metadata, dict):
+        return
+    label_metadata.setdefault("output_kind", "raw_graph")
+    label_metadata.setdefault("graph_serialization", "json")
+    label_metadata.setdefault("graph_tabularization", "one_row_per_source")
+    label_metadata.update(graph_metadata)
+
+
 def build_output_info(
     label: str,
     output_path: Path,
@@ -1473,6 +1854,8 @@ def export_single_result(
     export_format: str,
     id_column: str | None,
     suffix_results: bool,
+    graph_artifact_infos: list[dict] | None = None,
+    workflow_metadata: dict | None = None,
 ) -> dict | None:
     """Export one workflow result and return output metadata.
 
@@ -1487,6 +1870,8 @@ def export_single_result(
         id_column (str | None): Name of an ID column to insert, if any.
         suffix_results (bool): Whether to suffix the file stem with ``_results`` and
             mark the output category as a primary result.
+        graph_artifact_infos (list[dict] | None): Collector for graph artifact metadata entries.
+        workflow_metadata (dict | None): Workflow metadata to annotate with graph export outcomes.
 
     Returns:
         dict | None: Output-file metadata, or ``None`` if nothing was exported.
@@ -1499,25 +1884,64 @@ def export_single_result(
     tabular_format = normalize_export_format(export_format)
     file_stem = f"{export_label}_results" if suffix_results else export_label
     output_category = "result" if suffix_results else "enrichment"
+    graph_metadata: dict[str, object] = {}
+    export_df = content
+    graph_output_metadata = get_output_graph_metadata(workflow_metadata, export_label)
+    graph_payloads_externalized = False
 
-    if isinstance(content, pl.DataFrame) and tabular_format in {"csv", "parquet"}:
+    if isinstance(content, pl.DataFrame):
         export_df = add_id_column_for_export(content, export_label, id_column)
+        if has_externalizable_graph_payloads(export_df, graph_output_metadata):
+            export_df, artifact_infos, graph_metadata = externalize_graph_payloads(
+                export_df,
+                output_dir=output_dir,
+                export_label=export_label,
+            )
+            graph_payloads_externalized = True
+            if graph_artifact_infos is not None:
+                graph_artifact_infos.extend(artifact_infos)
+            annotate_graph_payload_metadata(workflow_metadata, export_label, graph_metadata)
+
+    if isinstance(export_df, pl.DataFrame) and tabular_format in {"csv", "parquet"}:
         output_path = output_dir / f"{file_stem}.{tabular_format}"
         exported_path = export_dataframe(export_df, output_path, output_format=tabular_format)
-        return build_output_info(export_label, exported_path, content, export_df, output_category)
+        info = build_output_info(
+            export_label,
+            exported_path,
+            content,
+            export_df,
+            output_category,
+        )
+        info.update(graph_metadata)
+        return info
 
     if export_format == "json":
         output_path = output_dir / f"{file_stem}.json"
-        exported_content = content
-        if isinstance(content, pl.DataFrame):
-            exported_content = add_id_column_for_export(content, export_label, id_column)
+        exported_content = export_df
         write_json_file(output_path, exported_content)
-        return build_output_info(export_label, output_path, content, exported_content, output_category)
+        info = build_output_info(
+            export_label,
+            output_path,
+            content,
+            exported_content,
+            output_category,
+        )
+        info.update(graph_metadata)
+        return info
 
     if export_format == "xml":
         output_path = output_dir / f"{file_stem}.xml"
-        write_text_file(output_path, content)
-        return build_output_info(export_label, output_path, content, content, output_category)
+        exported_content = export_df if graph_payloads_externalized else content
+        write_text_file(output_path, exported_content)
+        info = build_output_info(
+            export_label,
+            output_path,
+            content,
+            exported_content,
+            output_category,
+        )
+        info.update(graph_metadata)
+        return info
 
     return None
 
@@ -1527,6 +1951,7 @@ def export_workflow_outputs(
     output_dir: Path,
     export_format: str,
     id_column: str | None,
+    workflow_metadata: dict | None = None,
 ) -> list[dict]:
     """Export workflow outputs and return output-file metadata.
 
@@ -1537,6 +1962,7 @@ def export_workflow_outputs(
         output_dir (Path): Directory to write files into.
         export_format (str): User-facing export format.
         id_column (str | None): Name of an ID column to insert, if any.
+        workflow_metadata (dict | None): Workflow metadata to annotate with graph export outcomes.
 
     Returns:
         list[dict]: Metadata for each exported file.
@@ -1550,6 +1976,7 @@ def export_workflow_outputs(
     for label, content in data.items():
         if label == "uniprot_enrichment":
             continue
+        graph_artifact_infos: list[dict] = []
         info = export_single_result(
             label,
             content,
@@ -1557,18 +1984,30 @@ def export_workflow_outputs(
             export_format,
             id_column,
             suffix_results=True,
+            graph_artifact_infos=graph_artifact_infos,
+            workflow_metadata=workflow_metadata,
         )
         if info:
             output_infos.append(info)
+            output_infos.extend(graph_artifact_infos)
 
     enrichment_data = data.get("uniprot_enrichment")
     if isinstance(enrichment_data, dict):
         for label, content in enrichment_data.items():
+            graph_artifact_infos = []
             info = export_single_result(
-                label, content, output_dir, export_format, id_column, suffix_results=False
+                label,
+                content,
+                output_dir,
+                export_format,
+                id_column,
+                suffix_results=False,
+                graph_artifact_infos=graph_artifact_infos,
+                workflow_metadata=workflow_metadata,
             )
             if info:
                 output_infos.append(info)
+                output_infos.extend(graph_artifact_infos)
 
     return output_infos
 
@@ -2002,6 +2441,14 @@ def build_summary_outputs(output_infos: list[dict]) -> dict:
             output_summary["rows"] = info["rows"]
         if "columns" in info:
             output_summary["columns"] = info["columns"]
+        if info.get("category") == "graph_payload":
+            output_summary["category"] = "graph_payload"
+            if "graph_record_count" in info:
+                output_summary["graph_record_count"] = info["graph_record_count"]
+        if "graph_payload_files_written" in info:
+            output_summary["graph_payload_files_written"] = info["graph_payload_files_written"]
+        if "graph_payload_directory" in info:
+            output_summary["graph_payload_directory"] = info["graph_payload_directory"]
         outputs[output_key] = output_summary
     return outputs
 
@@ -2358,17 +2805,18 @@ def run_workflow(
 
     output_dir = Path(workflow_values["output"])
     logger.info("Exporting workflow results to %s", output_dir)
+    workflow_metadata = meta if isinstance(meta, dict) else {"metadata": meta}
     output_infos = export_workflow_outputs(
         data=data,
         output_dir=output_dir,
         export_format=workflow_values["export_format"],
         id_column=workflow_values["id_column"],
+        workflow_metadata=workflow_metadata,
     )
 
     finished_at = dt.datetime.now(tz=dt.UTC).replace(microsecond=0).isoformat()
     duration_seconds = time.perf_counter() - start_time
     reporting = calculate_reporting_metrics(workflow_values, data, output_infos, duration_seconds)
-    workflow_metadata = meta if isinstance(meta, dict) else {"metadata": meta}
     execution_status, execution_error = determine_execution_status(workflow_metadata, output_infos)
 
     metadata_path = None

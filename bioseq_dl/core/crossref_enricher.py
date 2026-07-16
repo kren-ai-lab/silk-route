@@ -33,6 +33,16 @@ PROVENANCE_COLUMNS = (
     "source_endpoint",
 )
 PROVENANCE_SCHEMA = dict.fromkeys(PROVENANCE_COLUMNS, pl.String)
+GRAPH_JSON_COLUMN = "graph_json"
+GRAPH_LIKE_ENRICHMENT_OUTPUTS = {
+    "pathwaycommons_fetch",
+    "pathwaycommons_neighborhood",
+}
+GRAPH_OUTPUT_NOTE = (
+    "graph_json is intentionally preserved as raw graph data until workflow export "
+    "writes the external JSON artifact."
+)
+EMPTY_GRAPH_COLLECTION_KEYS = ("@graph", "graph", "searchHit")
 
 
 def empty_provenance_frame() -> pl.DataFrame:
@@ -141,6 +151,133 @@ def serialize_source_query(value: Any) -> str | None:
     if _is_missing_value(value):
         return None
     return canonical_json_text(value)
+
+
+def get_enrichment_output_key(database_name: str, endpoint_name: str) -> str:
+    """Return the stable output key used to classify enrichment results."""
+    return f"{database_name}_{endpoint_name}"
+
+
+def is_graph_like_enrichment(database_name: str, endpoint_name: str) -> bool:
+    """Return whether an enrichment endpoint must preserve a raw graph payload."""
+    return get_enrichment_output_key(database_name, endpoint_name) in GRAPH_LIKE_ENRICHMENT_OUTPUTS
+
+
+@dataclass(frozen=True)
+class NormalizedGraphPayload:
+    """JSON-native graph payload plus an optional normalization error."""
+
+    payload: Any = None
+    error: str | None = None
+
+
+def _decode_graph_payload_text(value: str | bytes) -> NormalizedGraphPayload:
+    """Decode and parse a text/bytes graph payload as JSON."""
+    if isinstance(value, bytes):
+        try:
+            value = value.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            return NormalizedGraphPayload(error=f"invalid_utf8_graph_payload: {exc}")
+    try:
+        return NormalizedGraphPayload(payload=json.loads(value))
+    except json.JSONDecodeError as exc:
+        return NormalizedGraphPayload(error=f"malformed_graph_json: {exc}")
+
+
+def normalize_graph_payload(raw_result: Any) -> NormalizedGraphPayload:
+    """Return a JSON-native graph payload or a concise normalization error."""
+    if isinstance(raw_result, pl.DataFrame):
+        return NormalizedGraphPayload(payload=raw_result.to_dicts())
+    if isinstance(raw_result, str | bytes):
+        return _decode_graph_payload_text(raw_result)
+    if raw_result is None or (isinstance(raw_result, dict | list) and not raw_result):
+        return NormalizedGraphPayload(payload=[])
+    return NormalizedGraphPayload(payload=_canonical_json_value(raw_result))
+
+
+def is_empty_graph_payload(graph_payload: Any) -> bool:
+    """Return whether a graph payload is an empty graph response."""
+    if graph_payload is None:
+        return True
+    if isinstance(graph_payload, list):
+        return not graph_payload
+    if not isinstance(graph_payload, dict):
+        return False
+    if not graph_payload:
+        return True
+    for key in EMPTY_GRAPH_COLLECTION_KEYS:
+        value = graph_payload.get(key)
+        if isinstance(value, list):
+            return not value
+    nodes = graph_payload.get("nodes")
+    edges = graph_payload.get("edges")
+    if isinstance(nodes, list) and isinstance(edges, list):
+        return not nodes and not edges
+    return False
+
+
+def count_graph_records(graph_payload: Any) -> int:
+    """Count graph records using recognized graph collections when present."""
+    if isinstance(graph_payload, dict):
+        graph_records = graph_payload.get("@graph")
+        if isinstance(graph_records, list):
+            return len(graph_records)
+        nodes = graph_payload.get("nodes")
+        edges = graph_payload.get("edges")
+        if isinstance(nodes, list) and isinstance(edges, list):
+            return len(nodes) + len(edges)
+        return 1 if graph_payload else 0
+    if isinstance(graph_payload, list):
+        return len(graph_payload)
+    return 0 if graph_payload is None else 1
+
+
+def build_graph_output_row(
+    graph_payload: Any,
+    row: dict[str, Any],
+    source_query: Any,
+    *,
+    source_database: str,
+    source_endpoint: str,
+) -> dict[str, Any]:
+    """Build one provenance row containing a deterministic raw graph payload."""
+    graph_json = canonical_json_text(graph_payload) or "null"
+    return {
+        **build_source_context(
+            row,
+            source_query,
+            source_database=source_database,
+            source_endpoint=source_endpoint,
+        ),
+        "graph_format": "json",
+        "graph_record_count": count_graph_records(graph_payload),
+        GRAPH_JSON_COLUMN: graph_json,
+    }
+
+
+def add_graph_endpoint_metadata(metadata: dict, spec: EndpointSpec) -> dict:
+    """Annotate graph-like endpoint metadata with its tabular graph contract."""
+    if not is_graph_like_enrichment(spec.database, spec.endpoint):
+        return metadata
+    metadata.update(
+        {
+            "output_kind": "raw_graph",
+            "graph_serialization": "json",
+            "graph_tabularization": "one_row_per_source",
+            "note": GRAPH_OUTPUT_NOTE,
+        }
+    )
+    return metadata
+
+
+def build_graph_failure_metadata(query: Any, reason: str, error: str | None = None) -> dict:
+    """Return fetch metadata for a graph request that could not produce a graph row."""
+    metadata = FetchMetadata()
+    metadata.failed.add(serialize_source_query(query) or "graph_query", query, reason)
+    metadata.data_info = {"total_entries": 0, "data_type": "graph", "columns": []}
+    if error:
+        metadata.extra["graph_payload_error"] = error
+    return metadata.to_dict()
 
 
 def _first_present(row: dict[str, Any], keys: tuple[str, ...]) -> Any:
@@ -461,38 +598,79 @@ class CrossRefEnricher:
         qb = get_query_builder(spec.database, spec.endpoint, spec.option)
 
         query_params = qb(row, params)
+        if not query_params:
+            if fmt == "dataframe":
+                return empty_provenance_frame(), metadata
+            return [], metadata
 
-        method_params = {"method": spec.endpoint, "parse": True, "format": fmt}
+        graph_like = is_graph_like_enrichment(spec.database, spec.endpoint)
+        method_params = {
+            "method": spec.endpoint,
+            "parse": not graph_like,
+            "format": "json" if graph_like else fmt,
+        }
 
         if spec.option:
             method_params["option"] = spec.option
 
-        if isinstance(query_params, dict) or (isinstance(query_params, list) and len(query_params) == 1):
-            # If is a single elemnt dict, use the dict itself
-            query_params = query_params[0] if isinstance(query_params, list) else query_params
-            result, metadata = instance.fetch_single(query=query_params, **method_params)
-        elif isinstance(query_params, list) and len(query_params) > 1:
-            # If is a list of dicts, use batch
-            log.debug(
-                "Batch querying %s with %s queries and method_params: %s",
-                spec.label,
-                len(query_params),
-                method_params,
-            )
-            result, metadata = instance.fetch_batch(queries=query_params, **method_params)
-        # Handle unexpected query_params format
-        elif fmt == "dataframe":
-            result = empty_provenance_frame()
-        else:
-            result = []
+        try:
+            if isinstance(query_params, dict) or (isinstance(query_params, list) and len(query_params) == 1):
+                # If is a single elemnt dict, use the dict itself
+                query_params = query_params[0] if isinstance(query_params, list) else query_params
+                result, metadata = instance.fetch_single(query=query_params, **method_params)
+            elif isinstance(query_params, list) and len(query_params) > 1:
+                # If is a list of dicts, use batch
+                log.debug(
+                    "Batch querying %s with %s queries and method_params: %s",
+                    spec.label,
+                    len(query_params),
+                    method_params,
+                )
+                result, metadata = instance.fetch_batch(queries=query_params, **method_params)
+            # Handle unexpected query_params format
+            elif fmt == "dataframe":
+                result = empty_provenance_frame()
+            else:
+                result = []
+        except Exception as exc:  # graph fetches must preserve workflow execution
+            if not graph_like:
+                raise
+            log.warning("Graph payload fetch failed for %s: %s", spec.label, exc)
+            metadata = build_graph_failure_metadata(query_params, "request_error", str(exc))
+            if fmt == "dataframe":
+                return empty_provenance_frame(), metadata
+            return [], metadata
 
-        result = attach_source_context(
-            result,
-            row,
-            query_params,
-            source_database=spec.database,
-            source_endpoint=spec.endpoint,
-        )
+        if graph_like:
+            normalized_graph = normalize_graph_payload(result)
+            if normalized_graph.error:
+                metadata = self._merge_metadata(
+                    metadata,
+                    build_graph_failure_metadata(query_params, "malformed_result", normalized_graph.error),
+                )
+                if fmt == "dataframe":
+                    return empty_provenance_frame(), metadata
+                return [], metadata
+            if is_empty_graph_payload(normalized_graph.payload):
+                if fmt == "dataframe":
+                    return empty_provenance_frame(), metadata
+                return [], metadata
+            graph_row = build_graph_output_row(
+                normalized_graph.payload,
+                row,
+                query_params,
+                source_database=spec.database,
+                source_endpoint=spec.endpoint,
+            )
+            result = records_to_frame([graph_row]) if fmt == "dataframe" else [graph_row]
+        else:
+            result = attach_source_context(
+                result,
+                row,
+                query_params,
+                source_database=spec.database,
+                source_endpoint=spec.endpoint,
+            )
         return result, metadata
 
     @staticmethod
@@ -594,6 +772,7 @@ class CrossRefEnricher:
 
         # Attach per-row outcomes under the source-specific extra block.
         all_metadata.setdefault("extra", {})["per_row"] = per_row
+        all_metadata = add_graph_endpoint_metadata(all_metadata, spec)
 
         if fmt == "dataframe":
             # Unpack (df, metadata) tuples; metadata currently unused
