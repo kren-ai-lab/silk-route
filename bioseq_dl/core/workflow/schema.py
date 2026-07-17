@@ -828,9 +828,7 @@ def validate_execution_section(execution: dict[str, object]) -> dict[str, object
     return dict(execution)
 
 
-def validate_structure_download_controls(
-    dataset: dict[str, object], execution: dict[str, object]
-) -> None:
+def validate_structure_download_controls(dataset: dict[str, object], execution: dict[str, object]) -> None:
     """Reject active structure downloads outside protein metadata enrichment."""
     active_keys = [
         key
@@ -844,9 +842,7 @@ def validate_structure_download_controls(
     interaction_type = dataset.get("interaction_type")
     if modality != "protein" or interaction_type is not None:
         keys = ", ".join(f"execution.{key}" for key in active_keys)
-        msg = (
-            f"{keys} may be true only for protein workflows with no interaction_type."
-        )
+        msg = f"{keys} may be true only for protein workflows with no interaction_type."
         raise ValueError(msg)
 
     if execution.get("enrich") is not True:
@@ -980,7 +976,7 @@ def collect_workflow_v1_descriptor_errors(recipe: object) -> list[str]:
             lambda: validate_query_composition_matches_query_value(
                 require_mapping("query", descriptor["query"]),
                 require_mapping("dataset", descriptor["dataset"]).get("mode"),
-            )
+            ),
         )
     if {"dataset", "execution"} <= valid_sections:
         _collect_validation_step_error(
@@ -988,7 +984,7 @@ def collect_workflow_v1_descriptor_errors(recipe: object) -> list[str]:
             lambda: validate_structure_download_controls(
                 require_mapping("dataset", descriptor["dataset"]),
                 require_mapping("execution", descriptor["execution"]),
-            )
+            ),
         )
 
     return errors

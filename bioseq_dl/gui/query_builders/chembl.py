@@ -252,11 +252,15 @@ def restore_chembl_ic50_metadata_row(row: object) -> ChEMBLIC50QueryBuilderRow:
         msg = "query.builder.rows[0] must be a mapping."
         raise TypeError(msg)
     condition = normalize_chembl_ic50_condition(row.get("condition"))
-    expected_fields = {"condition", "minimum", "maximum", "unit"} if condition == "range" else {
-        "condition",
-        "value",
-        "unit",
-    }
+    expected_fields = (
+        {"condition", "minimum", "maximum", "unit"}
+        if condition == "range"
+        else {
+            "condition",
+            "value",
+            "unit",
+        }
+    )
     if set(row) != expected_fields:
         msg = "query.builder.rows[0] has an invalid ChEMBL IC50 row shape."
         raise ValueError(msg)

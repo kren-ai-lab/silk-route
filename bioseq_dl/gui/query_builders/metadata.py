@@ -393,8 +393,7 @@ def restore_query_builder_metadata(
         rows = restore_chembl_query_builder_rows(builder_key, metadata["rows"])
         regenerated_query = spec.build_interpreted_query(rows)
         form_rows = tuple(
-            {"field": row.field, "filter_type": row.filter_type, "value": row.value}
-            for row in rows
+            {"field": row.field, "filter_type": row.filter_type, "value": row.value} for row in rows
         )
     elif spec.database == "pubchem":
         row = restore_pubchem_query_builder_row(builder_key, metadata["rows"])
@@ -446,10 +445,7 @@ def build_uniprot_query_builder_metadata(
             "connector": normalize_query_builder_connector(row.connector),
             "field": normalize_query_builder_field(row.field),
             "match_mode": normalize_query_builder_match_mode(row.match_mode),
-            "values": [
-                strip_surrounding_quotes(value)
-                for value in split_quoted_csv_values(row.values)
-            ],
+            "values": [strip_surrounding_quotes(value) for value in split_quoted_csv_values(row.values)],
         }
         for row in rows
     ]

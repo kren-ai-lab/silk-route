@@ -79,9 +79,7 @@ def split_known_and_custom_return_fields(value: object) -> tuple[list[str], list
         else:
             selected_lookup.add(known_field.casefold())
     selections = [
-        option.field
-        for option in UNIPROT_RETURN_FIELD_OPTIONS
-        if option.field.casefold() in selected_lookup
+        option.field for option in UNIPROT_RETURN_FIELD_OPTIONS if option.field.casefold() in selected_lookup
     ]
     return selections, custom_fields
 
@@ -90,9 +88,7 @@ def return_fields_from_selection(selected_fields: object, custom_fields: object 
     """Return comma-separated UniProt field IDs from selector and advanced input values."""
     selected_lookup = {field.casefold() for field in normalize_uniprot_return_fields(selected_fields)}
     fields = [
-        option.field
-        for option in UNIPROT_RETURN_FIELD_OPTIONS
-        if option.field.casefold() in selected_lookup
+        option.field for option in UNIPROT_RETURN_FIELD_OPTIONS if option.field.casefold() in selected_lookup
     ]
     seen = {field.casefold() for field in fields}
     for custom_field in normalize_uniprot_return_fields(custom_fields):

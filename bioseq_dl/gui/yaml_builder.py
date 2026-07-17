@@ -60,8 +60,7 @@ QUERY_BUILDER_MODE_WARNING = (
     "query text was loaded in Manual query mode and the original metadata was preserved."
 )
 QUERY_COMPOSITION_VALUE_PARSED_NOTE = (
-    "Loaded query_composition entries from query.value. Add descriptions or builders if needed "
-    "before saving."
+    "Loaded query_composition entries from query.value. Add descriptions or builders if needed before saving."
 )
 QUERY_COMPOSITION_PARSE_ERROR_NOTE = (
     "This query_composition value could not be split into labeled query entries. "
@@ -127,9 +126,7 @@ REPEATED_FILENAME_SEPARATOR = re.compile(r"_+")
 PRESERVED_TOP_LEVEL_SECTIONS = tuple(NON_EDITABLE_METADATA_WARNINGS)
 # Non-widget slot in the form-values dict that carries the preserved sections.
 PRESERVED_SECTIONS_FORM_KEY = "__preserved_sections__"
-LOADED_INCOMPATIBLE_ENRICHMENT_PASSTHROUGH_FORM_KEY = (
-    "__loaded_incompatible_enrichment_passthrough__"
-)
+LOADED_INCOMPATIBLE_ENRICHMENT_PASSTHROUGH_FORM_KEY = "__loaded_incompatible_enrichment_passthrough__"
 
 MODALITY_LABEL_TO_VALUE = {
     "Protein": "protein",
@@ -1251,9 +1248,7 @@ def build_query_builder_metadata_from_form(form_values: Mapping[str, object]) ->
             build_chembl_ic50_query_builder_metadata,
         )
 
-        return build_chembl_ic50_query_builder_metadata(
-            build_chembl_ic50_builder_row_from_form(form_values)
-        )
+        return build_chembl_ic50_query_builder_metadata(build_chembl_ic50_builder_row_from_form(form_values))
 
     if builder_key in PUBCHEM_BUILDER_RESOURCE_BY_KEY:
         from bioseq_dl.gui.query_builders.metadata import (  # noqa: PLC0415
@@ -1384,9 +1379,7 @@ def crossref_fields_from_enrichment_sources(
 def crossref_fields_without_selectable_sources(value: object) -> str:
     """Return cross-reference fields after removing GUI-selectable enrichment sources."""
     fields = [
-        field
-        for field in parse_csv_list(value)
-        if not enrichment_sources_from_crossref_fields([field])
+        field for field in parse_csv_list(value) if not enrichment_sources_from_crossref_fields([field])
     ]
     return ", ".join(fields)
 

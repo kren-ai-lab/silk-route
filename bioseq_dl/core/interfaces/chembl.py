@@ -307,9 +307,7 @@ class ChEMBLInterface(BaseAPIInterface):
                 flags=re.IGNORECASE,
             )
             if exact_macro_match:
-                activity_filter["standard_value"] = cls._parse_filter_number(
-                    exact_macro_match.group(1)
-                )
+                activity_filter["standard_value"] = cls._parse_filter_number(exact_macro_match.group(1))
 
         return activity_filter
 

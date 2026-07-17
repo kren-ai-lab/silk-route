@@ -148,16 +148,13 @@ def add_enrichment_output_row_counts(enriched_data: dict, enriched_metadata: dic
 
 def filter_non_empty_enrichment_data(enriched_data: dict) -> dict:
     """Return only enrichment artifacts that contain public exportable data."""
-    return {
-        label: value for label, value in enriched_data.items() if has_enrichment_result_value(value)
-    }
+    return {label: value for label, value in enriched_data.items() if has_enrichment_result_value(value)}
 
 
 def _crossref_source_selected(crossref_fields: list[str], source: str) -> bool:
     """Return whether a normalized crossref field selects a source."""
     return any(
-        field in {source, f"{source}_all"} or field.startswith(f"{source}_")
-        for field in crossref_fields
+        field in {source, f"{source}_all"} or field.startswith(f"{source}_") for field in crossref_fields
     )
 
 

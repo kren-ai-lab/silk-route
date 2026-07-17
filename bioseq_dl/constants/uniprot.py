@@ -165,6 +165,7 @@ def get_effective_uniprot_return_fields(
             seen.add(lookup_value)
     return fields
 
+
 DATABASES = {
     "uniprotkb_reviewed": "knowledgebase/complete/uniprot_sprot",
     "uniprotkb_unreviewed": "knowledgebase/complete/uniprot_trembl",

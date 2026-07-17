@@ -403,12 +403,8 @@ def test_human_readable_workflow_mode_labels_map_to_schema_values(label: str, ex
     validate_workflow_v1_descriptor(descriptor)
     if expected == "query_composition":
         assert descriptor["query"]["value"] == "field=value=class_a"
-        assert descriptor["query"]["composition"] == [
-            {"label": "class_a", "value": "field=value"}
-        ]
-        assert parse_query_composition_value(descriptor["query"]["value"]) == [
-            ("field=value", "class_a")
-        ]
+        assert descriptor["query"]["composition"] == [{"label": "class_a", "value": "field=value"}]
+        assert parse_query_composition_value(descriptor["query"]["value"]) == [("field=value", "class_a")]
 
 
 @pytest.mark.parametrize(
@@ -754,7 +750,9 @@ def test_historical_chembl_ic50_comparison_modes_restore(
         historical_chembl_ic50_builder_metadata(
             historical_chembl_ic50_row(
                 historical_mode,
-                value="100" if historical_mode in {"gt", "gte"} else "1000"
+                value="100"
+                if historical_mode in {"gt", "gte"}
+                else "1000"
                 if historical_mode in {"lt", "lte"}
                 else "50",
                 standard_units=unit,
@@ -890,8 +888,7 @@ def test_historical_chembl_ic50_three_entry_composition_restores_all_entries() -
         "ic50:>=100 AND standard_units:uM=weak"
     )
     assert all(
-        entry["builder"]["builder_key"] == "chembl_ic50"
-        for entry in descriptor["query"]["composition"]
+        entry["builder"]["builder_key"] == "chembl_ic50" for entry in descriptor["query"]["composition"]
     )
     assert "chembl_ic50_activity" not in str(descriptor["query"]["composition"])
 
@@ -984,10 +981,7 @@ def test_invalid_historical_chembl_ic50_composition_entry_falls_back_independent
                 "mode": "query_composition",
             },
             "query": {
-                "value": (
-                    "ic50:<1000 AND standard_units:nM=valid,"
-                    "ic50:0-10 AND standard_units:nM=manual"
-                ),
+                "value": ("ic50:<1000 AND standard_units:nM=valid,ic50:0-10 AND standard_units:nM=manual"),
                 "composition": composition,
             },
             "execution": {"enrich": False},

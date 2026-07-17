@@ -375,15 +375,12 @@ class WorkflowYamlBuilderApp:
     def build_query_composition_controls(self) -> None:
         """Build the labeled query-composition editor."""
         ui.label(
-            "Build multiple labeled queries. Each entry keeps its own manual query or "
-            "advanced builder state."
+            "Build multiple labeled queries. Each entry keeps its own manual query or advanced builder state."
         ).classes("text-sm text-gray-700")
         self.build_query_composition_rows()
         ui.button("Add labeled query", on_click=self.add_query_composition_entry)
         self.query_composition_preview = (
-            ui.textarea("Executable query.value preview")
-            .classes("w-full font-mono")
-            .props("readonly rows=3")
+            ui.textarea("Executable query.value preview").classes("w-full font-mono").props("readonly rows=3")
         )
         self.update_query_composition_preview()
 
@@ -500,9 +497,7 @@ class WorkflowYamlBuilderApp:
                     (
                         ui.textarea("Executable query value")
                         .bind_value(entry, "value")
-                        .on_value_change(
-                            partial(self.handle_query_composition_manual_value_change, entry)
-                        )
+                        .on_value_change(partial(self.handle_query_composition_manual_value_change, entry))
                         .classes("w-full")
                     )
                 manual_panel.bind_visibility_from(
@@ -757,9 +752,7 @@ class WorkflowYamlBuilderApp:
             entry["uniprot_builder_rows"] = [make_uniprot_builder_ui_row()]
         if not entry.get("chembl_builder_rows"):
             entry["chembl_builder_rows"] = [
-                make_chembl_builder_ui_row(
-                    get_active_chembl_builder_label(entry["query_builder_key"])
-                )
+                make_chembl_builder_ui_row(get_active_chembl_builder_label(entry["query_builder_key"]))
             ]
         if not isinstance(entry.get("chembl_ic50_builder_row"), dict) or not entry["chembl_ic50_builder_row"]:
             entry["chembl_ic50_builder_row"] = make_chembl_ic50_builder_ui_row()
@@ -1173,9 +1166,9 @@ class WorkflowYamlBuilderApp:
                 "Build a PubChem compound or structure query using one field. "
                 "The final interpreted query is stored as query.value in the YAML."
             ).classes("text-sm text-gray-700")
-            ui.label(
-                "The threshold is required only for PubChem 2-D similarity searches."
-            ).classes("text-sm text-gray-700")
+            ui.label("The threshold is required only for PubChem 2-D similarity searches.").classes(
+                "text-sm text-gray-700"
+            )
             self.build_pubchem_builder_row()
             with ui.row().classes("items-center gap-3"):
                 ui.button("Update query preview", on_click=self.update_builder_previews)
@@ -1592,8 +1585,7 @@ class WorkflowYamlBuilderApp:
                             )
                         )
             ui.label(
-                "BioGRID requires API credential configuration. RefSeq requires Entrez email "
-                "configuration."
+                "BioGRID requires API credential configuration. RefSeq requires Entrez email configuration."
             ).classes("text-xs text-gray-600")
             self.update_enrichment_field_notes()
 

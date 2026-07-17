@@ -400,10 +400,7 @@ def attach_source_context(
     if isinstance(result, list):
         if not result:
             return []
-        return [
-            _with_provenance_record(item, context) if isinstance(item, dict) else item
-            for item in result
-        ]
+        return [_with_provenance_record(item, context) if isinstance(item, dict) else item for item in result]
     if isinstance(result, dict):
         if not result:
             return {}

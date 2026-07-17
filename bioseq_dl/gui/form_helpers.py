@@ -60,9 +60,7 @@ IC50_CONDITION_LABEL_TO_VALUE = {
     "Greater than or equal": "greater_than_or_equal",
     "Exact value": "exact",
 }
-IC50_CONDITION_VALUE_TO_LABEL = {
-    value: label for label, value in IC50_CONDITION_LABEL_TO_VALUE.items()
-}
+IC50_CONDITION_VALUE_TO_LABEL = {value: label for label, value in IC50_CONDITION_LABEL_TO_VALUE.items()}
 IC50_UNIT_LABEL_TO_VALUE = {unit: unit for unit in IC50_STANDARD_UNITS}
 DEFAULT_CHEMBL_FIELDS_BY_RESOURCE = {
     "target": "gene_symbol",
@@ -624,9 +622,7 @@ def build_gui_query_builder_state_from_loaded_form(form_values: Mapping[str, obj
 
     if normalize_query_input_mode(query_input_mode) == "advanced_builder":
         if builder_key == "uniprot":
-            uniprot_rows = build_uniprot_builder_ui_rows(
-                form_values.get("query.uniprot_builder.rows")
-            )
+            uniprot_rows = build_uniprot_builder_ui_rows(form_values.get("query.uniprot_builder.rows"))
         elif builder_key in CHEMBL_BUILDER_RESOURCE_BY_KEY:
             chembl_rows = build_chembl_builder_ui_rows(
                 builder_label,

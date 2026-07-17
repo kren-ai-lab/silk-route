@@ -817,8 +817,7 @@ def graph_payload_file_name(row: dict[str, Any], export_label: str, digest: str,
 def graph_file_candidates(row: dict[str, Any], export_label: str, digest: str) -> list[str]:
     """Return deterministic filename candidates for existing-file disambiguation."""
     candidates = [
-        graph_payload_file_name(row, export_label, digest, length)
-        for length in (16, 24, 32, 40, 64)
+        graph_payload_file_name(row, export_label, digest, length) for length in (16, 24, 32, 40, 64)
     ]
     seen: set[str] = set()
     unique_candidates = []
@@ -961,9 +960,8 @@ def externalize_graph_payloads(
     for row_index, row in enumerate(records, start=1):
         payload_value = row.get(GRAPH_JSON_COLUMN)
         graph_record_count = row.get("graph_record_count")
-        if (
-            is_empty_graph_payload(payload_value, graph_record_count)
-            or not row_is_intended_graph_payload(row)
+        if is_empty_graph_payload(payload_value, graph_record_count) or not row_is_intended_graph_payload(
+            row
         ):
             continue
         try:
