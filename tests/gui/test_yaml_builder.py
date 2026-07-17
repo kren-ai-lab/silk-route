@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import inspect
 import subprocess
 import sys
 from typing import cast
@@ -19,7 +20,9 @@ from bioseq_dl.gui.yaml_builder import (
     DEFAULT_OUTPUT_DIRECTORY_NAME_ERROR,
     LOADED_QUERY_VALUE_WARNING,
     PROTEIN_CHEMBL_QUERY_WARNING,
+    QUERY_BUILDER_MISMATCH_WARNING,
     QUERY_BUILDER_NOT_EDITABLE_WARNING,
+    QUERY_COMPOSITION_BUILDER_RESTORE_NOTE,
     QUERY_COMPOSITION_NOT_EDITABLE_WARNING,
     build_workflow_descriptor,
     build_workflow_filename,
@@ -27,6 +30,7 @@ from bioseq_dl.gui.yaml_builder import (
     load_workflow_yaml_text,
     load_workflow_yaml_to_form_values,
     parse_csv_list,
+    render_workflow_yaml,
     resolve_query_value_from_form,
     validate_generated_descriptor,
     workflow_yaml_form_defaults,
@@ -208,6 +212,59 @@ export:
 """
 
 
+def historical_chembl_ic50_builder_metadata(
+    row: dict[str, object],
+    *,
+    builder_key: str = "chembl_ic50_activity",
+) -> dict[str, object]:
+    """Return historical ChEMBL IC50 query-builder-v1 metadata."""
+    return {
+        "schema_version": "query-builder-v1",
+        "source": "chembl",
+        "builder_key": builder_key,
+        "builder_type": "ic50_activity",
+        "rows": [row],
+    }
+
+
+def historical_chembl_ic50_row(
+    comparison_mode: str,
+    *,
+    lower_value: object = "",
+    upper_value: object = "",
+    value: object = "",
+    standard_units: str = "nM",
+) -> dict[str, object]:
+    """Return one historical ChEMBL IC50 metadata row."""
+    return {
+        "comparison_mode": comparison_mode,
+        "lower_value": lower_value,
+        "upper_value": upper_value,
+        "value": value,
+        "standard_units": standard_units,
+    }
+
+
+def chembl_ic50_query_first_yaml(
+    query_value: str,
+    builder: dict[str, object],
+) -> str:
+    """Return a compound query_first workflow carrying ChEMBL IC50 metadata."""
+    return render_workflow_yaml(
+        {
+            "schema_version": "workflow-v1",
+            "dataset": {
+                "name": "ic50_dataset",
+                "modality": "compound",
+                "mode": "query_first",
+            },
+            "query": {"value": query_value, "builder": builder},
+            "execution": {"enrich": False},
+            "export": {"format": "csv", "output_dir": "results/ic50_dataset"},
+        }
+    )
+
+
 def test_build_workflow_descriptor_generates_required_sections() -> None:
     descriptor = build_workflow_descriptor(minimal_form_values())
 
@@ -260,6 +317,46 @@ def test_build_workflow_descriptor_parses_comma_separated_fields() -> None:
 
     assert descriptor["query"]["fields"] == ["accession", "id"]
     assert descriptor["query"]["crossref_fields"] == ["go", "interpro"]
+
+
+def test_return_field_selector_writes_stable_field_ids_not_labels() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.fields": "",
+            "query.return_field_selections": ["accession", "protein_name"],
+            "query.return_field_custom": "",
+        }
+    )
+
+    assert descriptor["query"]["fields"] == ["accession", "protein_name"]
+    assert "Accession" not in descriptor["query"]["fields"]
+
+
+def test_return_field_selector_and_custom_fields_combine_deterministically() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.fields": "",
+            "query.return_field_selections": ["length", "accession", "ACCESSION"],
+            "query.return_field_custom": "custom_field, ACCESSION, Custom_Field, xref_pdb",
+        }
+    )
+
+    assert descriptor["query"]["fields"] == ["accession", "length", "custom_field", "xref_pdb"]
+
+
+def test_empty_return_field_controls_omit_query_fields_for_runtime_defaults() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.fields": "",
+            "query.return_field_selections": [],
+            "query.return_field_custom": "",
+        }
+    )
+
+    assert "fields" not in descriptor["query"]
 
 
 @pytest.mark.parametrize(
@@ -609,6 +706,305 @@ def test_selected_chembl_builder_determines_resource() -> None:
     assert descriptor["query"]["value"] == "chembl.activity:standard_type=IC50"
 
 
+def test_historical_chembl_ic50_range_metadata_restores_without_warning() -> None:
+    yaml_text = chembl_ic50_query_first_yaml(
+        "ic50:0-10 AND standard_units:nM",
+        historical_chembl_ic50_builder_metadata(
+            historical_chembl_ic50_row(
+                "range",
+                lower_value="0",
+                upper_value="10",
+                standard_units="nM",
+            )
+        ),
+    )
+
+    form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert warnings == []
+    assert form_values["query.input_mode"] == "Advanced builder"
+    assert form_values["query.builder.key"] == "chembl_ic50"
+    assert form_values["query.chembl_ic50_builder.row"] == {
+        "condition": "range",
+        "minimum": 0,
+        "maximum": 10,
+        "value": None,
+        "unit": "nM",
+    }
+
+
+@pytest.mark.parametrize(
+    ("historical_mode", "condition", "query_value"),
+    [
+        ("lt", "less_than", "ic50:<1000 AND standard_units:nM"),
+        ("lte", "less_than_or_equal", "ic50:<=1000 AND standard_units:nM"),
+        ("gt", "greater_than", "ic50:>100 AND standard_units:uM"),
+        ("gte", "greater_than_or_equal", "ic50:>=100 AND standard_units:uM"),
+        ("exact", "exact", "ic50:50 AND standard_units:nM"),
+    ],
+)
+def test_historical_chembl_ic50_comparison_modes_restore(
+    historical_mode: str,
+    condition: str,
+    query_value: str,
+) -> None:
+    unit = "uM" if historical_mode in {"gt", "gte"} else "nM"
+    yaml_text = chembl_ic50_query_first_yaml(
+        query_value,
+        historical_chembl_ic50_builder_metadata(
+            historical_chembl_ic50_row(
+                historical_mode,
+                value="100" if historical_mode in {"gt", "gte"} else "1000"
+                if historical_mode in {"lt", "lte"}
+                else "50",
+                standard_units=unit,
+            )
+        ),
+    )
+
+    form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+    descriptor = build_workflow_descriptor(form_values)
+    builder = cast("dict[str, object]", descriptor["query"]["builder"])
+
+    assert warnings == []
+    assert form_values["query.chembl_ic50_builder.row"]["condition"] == condition
+    assert descriptor["query"]["value"] == query_value
+    assert_query_builder_common_metadata(builder, builder_key="chembl_ic50", source="chembl")
+    row = cast("list[dict[str, object]]", builder["rows"])[0]
+    assert row["condition"] == condition
+    assert row["unit"] == unit
+    assert "comparison_mode" not in row
+    assert "standard_units" not in row
+
+
+def test_historical_chembl_ic50_metadata_saves_as_canonical_format() -> None:
+    yaml_text = chembl_ic50_query_first_yaml(
+        "ic50:0-10 AND standard_units:nM",
+        historical_chembl_ic50_builder_metadata(
+            historical_chembl_ic50_row(
+                "range",
+                lower_value="0",
+                upper_value="10",
+                standard_units="nM",
+            )
+        ),
+    )
+    form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    descriptor = build_workflow_descriptor(form_values)
+    builder = cast("dict[str, object]", descriptor["query"]["builder"])
+
+    assert warnings == []
+    assert descriptor["query"]["value"] == "ic50:0-10 AND standard_units:nM"
+    assert_query_builder_common_metadata(builder, builder_key="chembl_ic50", source="chembl")
+    assert builder["rows"] == [{"condition": "range", "unit": "nM", "minimum": 0, "maximum": 10}]
+    assert "chembl_ic50_activity" not in str(builder)
+    assert "comparison_mode" not in str(builder)
+    assert "lower_value" not in str(builder)
+    assert "upper_value" not in str(builder)
+    assert "standard_units" not in str(builder)
+
+
+def test_current_canonical_chembl_ic50_metadata_still_restores() -> None:
+    yaml_text = chembl_ic50_query_first_yaml(
+        "ic50:0-10 AND standard_units:nM",
+        {
+            "schema_version": "query-builder-v1",
+            "source": "chembl",
+            "builder_key": "chembl_ic50",
+            "builder_type": "ic50_activity",
+            "rows": [{"condition": "range", "minimum": 0, "maximum": 10, "unit": "nM"}],
+        },
+    )
+
+    form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert warnings == []
+    assert form_values["query.input_mode"] == "Advanced builder"
+    assert form_values["query.builder.key"] == "chembl_ic50"
+    assert form_values["query.chembl_ic50_builder.row"]["condition"] == "range"
+
+
+def test_historical_chembl_ic50_three_entry_composition_restores_all_entries() -> None:
+    composition = [
+        {
+            "label": "very_high",
+            "value": "ic50:0-10 AND standard_units:nM",
+            "builder": historical_chembl_ic50_builder_metadata(
+                historical_chembl_ic50_row(
+                    "range",
+                    lower_value="0",
+                    upper_value="10",
+                    standard_units="nM",
+                )
+            ),
+        },
+        {
+            "label": "high",
+            "value": "ic50:<1000 AND standard_units:nM",
+            "builder": historical_chembl_ic50_builder_metadata(
+                historical_chembl_ic50_row("lt", value="1000", standard_units="nM")
+            ),
+        },
+        {
+            "label": "weak",
+            "value": "ic50:>=100 AND standard_units:uM",
+            "builder": historical_chembl_ic50_builder_metadata(
+                historical_chembl_ic50_row("gte", value="100", standard_units="uM")
+            ),
+        },
+    ]
+    yaml_text = render_workflow_yaml(
+        {
+            "schema_version": "workflow-v1",
+            "dataset": {
+                "name": "ic50_dataset",
+                "modality": "compound",
+                "mode": "query_composition",
+            },
+            "query": {
+                "value": (
+                    "ic50:0-10 AND standard_units:nM=very_high,"
+                    "ic50:<1000 AND standard_units:nM=high,"
+                    "ic50:>=100 AND standard_units:uM=weak"
+                ),
+                "composition": composition,
+            },
+            "execution": {"enrich": False},
+            "export": {"format": "csv", "output_dir": "results/ic50_dataset"},
+        }
+    )
+
+    form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+    descriptor = build_workflow_descriptor(form_values)
+
+    assert warnings == []
+    assert [entry["query_builder_key"] for entry in form_values["query.composition.entries"]] == [
+        "chembl_ic50",
+        "chembl_ic50",
+        "chembl_ic50",
+    ]
+    assert descriptor["query"]["value"] == (
+        "ic50:0-10 AND standard_units:nM=very_high,"
+        "ic50:<1000 AND standard_units:nM=high,"
+        "ic50:>=100 AND standard_units:uM=weak"
+    )
+    assert all(
+        entry["builder"]["builder_key"] == "chembl_ic50"
+        for entry in descriptor["query"]["composition"]
+    )
+    assert "chembl_ic50_activity" not in str(descriptor["query"]["composition"])
+
+
+def test_malformed_historical_chembl_ic50_row_shape_falls_back_to_manual_mode() -> None:
+    malformed_builder = historical_chembl_ic50_builder_metadata(
+        {
+            "comparison_mode": "range",
+            "lower_value": "0",
+            "value": "",
+            "standard_units": "nM",
+        }
+    )
+    yaml_text = chembl_ic50_query_first_yaml("ic50:0-10 AND standard_units:nM", malformed_builder)
+
+    form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert QUERY_BUILDER_NOT_EDITABLE_WARNING in warnings
+    assert form_values["query.input_mode"] == "Manual query"
+    assert form_values["query.value"] == "ic50:0-10 AND standard_units:nM"
+
+
+def test_unknown_historical_chembl_ic50_builder_key_remains_unsupported() -> None:
+    yaml_text = chembl_ic50_query_first_yaml(
+        "ic50:0-10 AND standard_units:nM",
+        historical_chembl_ic50_builder_metadata(
+            historical_chembl_ic50_row(
+                "range",
+                lower_value="0",
+                upper_value="10",
+                standard_units="nM",
+            ),
+            builder_key="chembl_ic50_activity_v0",
+        ),
+    )
+
+    form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert QUERY_BUILDER_NOT_EDITABLE_WARNING in warnings
+    assert form_values["query.input_mode"] == "Manual query"
+
+
+def test_historical_chembl_ic50_metadata_query_mismatch_warns() -> None:
+    yaml_text = chembl_ic50_query_first_yaml(
+        "ic50:0-20 AND standard_units:nM",
+        historical_chembl_ic50_builder_metadata(
+            historical_chembl_ic50_row(
+                "range",
+                lower_value="0",
+                upper_value="10",
+                standard_units="nM",
+            )
+        ),
+    )
+
+    form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert QUERY_BUILDER_MISMATCH_WARNING in warnings
+    assert form_values["query.input_mode"] == "Manual query"
+
+
+def test_invalid_historical_chembl_ic50_composition_entry_falls_back_independently() -> None:
+    composition = [
+        {
+            "label": "valid",
+            "value": "ic50:<1000 AND standard_units:nM",
+            "builder": historical_chembl_ic50_builder_metadata(
+                historical_chembl_ic50_row("lt", value="1000", standard_units="nM")
+            ),
+        },
+        {
+            "label": "manual",
+            "value": "ic50:0-10 AND standard_units:nM",
+            "builder": historical_chembl_ic50_builder_metadata(
+                historical_chembl_ic50_row(
+                    "range",
+                    lower_value="0",
+                    upper_value="20",
+                    standard_units="nM",
+                )
+            ),
+        },
+    ]
+    yaml_text = render_workflow_yaml(
+        {
+            "schema_version": "workflow-v1",
+            "dataset": {
+                "name": "ic50_dataset",
+                "modality": "compound",
+                "mode": "query_composition",
+            },
+            "query": {
+                "value": (
+                    "ic50:<1000 AND standard_units:nM=valid,"
+                    "ic50:0-10 AND standard_units:nM=manual"
+                ),
+                "composition": composition,
+            },
+            "execution": {"enrich": False},
+            "export": {"format": "csv", "output_dir": "results/ic50_dataset"},
+        }
+    )
+
+    form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+    entries = cast("list[dict[str, object]]", form_values["query.composition.entries"])
+
+    assert warnings == [QUERY_COMPOSITION_BUILDER_RESTORE_NOTE.format(index=2, label="manual")]
+    assert entries[0]["query_input_mode"] == "advanced_builder"
+    assert entries[0]["query_builder_key"] == "chembl_ic50"
+    assert entries[1]["query_input_mode"] == "manual"
+    assert entries[1]["value"] == "ic50:0-10 AND standard_units:nM"
+
+
 def test_interaction_descriptor_includes_interaction_type_when_provided() -> None:
     descriptor = build_workflow_descriptor(
         minimal_form_values()
@@ -954,8 +1350,37 @@ def test_loaded_list_fields_become_comma_separated_text() -> None:
     form_values, _warnings = load_workflow_yaml_to_form_values(minimal_workflow_yaml())
 
     assert form_values["query.fields"] == "accession, sequence"
+    assert form_values["query.return_field_selections"] == ["accession", "sequence"]
+    assert form_values["query.return_field_custom"] == ""
     assert form_values["query.crossref_fields"] == "xref_pdb, xref_string"
     assert form_values["harmonization.metadata_fields"] == "accession, protein_name"
+
+
+def test_loading_custom_return_fields_restores_advanced_input() -> None:
+    yaml_text = minimal_workflow_yaml().replace(
+        "    - accession\n    - sequence\n",
+        "    - sequence\n    - custom_field\n    - xref_pdb\n    - accession\n",
+    )
+
+    form_values, _warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert form_values["query.fields"] == "sequence, custom_field, xref_pdb, accession"
+    assert form_values["query.return_field_selections"] == ["accession", "sequence"]
+    assert form_values["query.return_field_custom"] == "custom_field, xref_pdb"
+
+
+def test_loaded_return_fields_round_trip_unchanged_until_controls_change() -> None:
+    yaml_text = minimal_workflow_yaml().replace(
+        "    - accession\n    - sequence\n",
+        "    - sequence\n    - custom_field\n    - xref_pdb\n    - accession\n",
+    )
+    form_values, _warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    descriptor = build_workflow_descriptor(form_values)
+
+    assert descriptor["query"]["fields"] == ["sequence", "custom_field", "xref_pdb", "accession"]
+    assert "query.return_field_selections" not in descriptor["query"]
+    assert "query.return_field_custom" not in descriptor["query"]
 
 
 def test_missing_optional_list_fields_become_empty_strings() -> None:
@@ -976,6 +1401,8 @@ export:
     form_values, _warnings = load_workflow_yaml_to_form_values(yaml_text)
 
     assert form_values["query.fields"] == ""
+    assert form_values["query.return_field_selections"] == []
+    assert form_values["query.return_field_custom"] == ""
     assert form_values["query.crossref_fields"] == ""
     assert form_values["harmonization.metadata_fields"] == ""
 
@@ -1136,6 +1563,16 @@ def test_read_upload_event_text_uses_nicegui_file_text() -> None:
 
     assert yaml_text == minimal_workflow_yaml()
     assert event.file.requested_encoding == "utf-8"
+
+
+def test_query_controls_render_return_field_selector_labels() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+
+    source = inspect.getsource(module.WorkflowYamlBuilderApp.build_shared_query_controls)
+
+    assert "UniProt return fields" in source
+    assert "Advanced return fields" in source
 
 
 def test_load_yaml_upload_uses_event_file_name_and_async_text() -> None:

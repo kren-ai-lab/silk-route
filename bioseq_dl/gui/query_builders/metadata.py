@@ -64,6 +64,22 @@ UNIPROT_METADATA_ROW_FIELDS = {"connector", "field", "match_mode", "values"}
 CHEMBL_METADATA_ROW_FIELDS = {"field", "operator", "value"}
 CHEMBL_IC50_RANGE_METADATA_ROW_FIELDS = {"condition", "minimum", "maximum", "unit"}
 CHEMBL_IC50_VALUE_METADATA_ROW_FIELDS = {"condition", "value", "unit"}
+HISTORICAL_CHEMBL_IC50_BUILDER_KEY = "chembl_ic50_activity"
+HISTORICAL_CHEMBL_IC50_METADATA_ROW_FIELDS = {
+    "comparison_mode",
+    "lower_value",
+    "upper_value",
+    "value",
+    "standard_units",
+}
+HISTORICAL_CHEMBL_IC50_CONDITIONS = {
+    "range": "range",
+    "lt": "less_than",
+    "lte": "less_than_or_equal",
+    "gt": "greater_than",
+    "gte": "greater_than_or_equal",
+    "exact": "exact",
+}
 PUBCHEM_METADATA_ROW_FIELDS = {"field", "value"}
 PUBCHEM_THRESHOLD_METADATA_ROW_FIELDS = {"field", "value", "threshold"}
 CHEBI_METADATA_ROW_FIELDS = {"field", "value"}
@@ -217,6 +233,53 @@ def restore_chembl_ic50_query_builder_row(rows: object) -> tuple[object, dict[st
     return restored_row, form_row
 
 
+def is_historical_chembl_ic50_metadata(metadata: Mapping[str, object]) -> bool:
+    """Return whether metadata has the exact historical ChEMBL IC50 shape."""
+    if (
+        metadata.get("schema_version") != QUERY_BUILDER_SCHEMA_VERSION
+        or metadata.get("source") != "chembl"
+        or metadata.get("builder_key") != HISTORICAL_CHEMBL_IC50_BUILDER_KEY
+        or metadata.get("builder_type") != "ic50_activity"
+    ):
+        return False
+    rows = metadata.get("rows")
+    return (
+        isinstance(rows, list)
+        and len(rows) == 1
+        and isinstance(rows[0], dict)
+        and set(rows[0]) == HISTORICAL_CHEMBL_IC50_METADATA_ROW_FIELDS
+    )
+
+
+def migrate_historical_chembl_ic50_metadata(
+    metadata: Mapping[str, object],
+) -> dict[str, object] | None:
+    """Convert exact historical ChEMBL IC50 metadata to canonical metadata."""
+    if not is_historical_chembl_ic50_metadata(metadata):
+        return None
+    row = require_single_metadata_row(metadata["rows"])
+    condition = HISTORICAL_CHEMBL_IC50_CONDITIONS.get(str(row["comparison_mode"]).strip())
+    if condition is None:
+        msg = "query.builder.rows[0] has an unsupported historical ChEMBL IC50 comparison mode."
+        raise ValueError(msg)
+
+    migrated_row: dict[str, object] = {
+        "condition": condition,
+        "unit": row["standard_units"],
+    }
+    if condition == "range":
+        migrated_row["minimum"] = row["lower_value"]
+        migrated_row["maximum"] = row["upper_value"]
+    else:
+        migrated_row["value"] = row["value"]
+
+    restored_row = restore_chembl_ic50_metadata_row(migrated_row)
+    return build_common_query_builder_metadata(
+        CHEMBL_IC50_BUILDER_KEY,
+        [serialize_chembl_ic50_metadata_row(restored_row)],
+    )
+
+
 def restore_pubchem_query_builder_row(
     builder_key: str,
     rows: object,
@@ -292,6 +355,9 @@ def restore_query_builder_metadata(
         msg = "query.builder must be a mapping."
         raise TypeError(msg)
     validate_query_builder_metadata(metadata)
+    migrated_metadata = migrate_historical_chembl_ic50_metadata(metadata)
+    if migrated_metadata is not None:
+        metadata = migrated_metadata
     builder_key = metadata["builder_key"]
     if not isinstance(builder_key, str):
         msg = "query.builder.builder_key must be a non-empty string."
