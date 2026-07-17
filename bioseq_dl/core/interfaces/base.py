@@ -65,6 +65,20 @@ def _extract_nested_values(value: object) -> list[str]:
     return result
 
 
+def _request_exception_status_code(exc: RequestException) -> int | None:
+    """Return an HTTP status code from a niquests exception, when available."""
+    response = getattr(exc, "response", None)
+    status_code = getattr(response, "status_code", None)
+    return int(status_code) if isinstance(status_code, int) else None
+
+
+def _request_exception_url(exc: RequestException, fallback_url: str) -> str:
+    """Return the best URL for a failed request without assuming response shape."""
+    response = getattr(exc, "response", None)
+    url = getattr(response, "url", None)
+    return str(url or fallback_url)
+
+
 class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have concrete defaults
     """Abstract base class for all BioSeqDownloader API interfaces."""
 
@@ -1049,18 +1063,23 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
             for future, i in future_to_index.items():
                 log.debug("Waiting for future result for query at index %s", i)
                 batch_query = index_query_map[i]
-                metadata.fetched.add(self._identifier_for(batch_query, spec, **kwargs), batch_query)
                 try:
                     result = future.result()
 
                     if isinstance(result, tuple) and len(result) == 2:  # noqa: PLR2004  # (data, metadata) pair
-                        data, _ = result
+                        data, child_metadata = result
                         results.append(data)
+                        metadata = metadata.merge(FetchMetadata.from_dict(child_metadata))
                     else:
                         results.append(result)
 
                 except Exception:
                     log.exception("Error fetching query at index %s (%s)", i, queries[i])
+                    metadata.failed.add(
+                        self._identifier_for(batch_query, spec, **kwargs),
+                        batch_query,
+                        "request_error",
+                    )
                 self._delay()
         metadata.finished_at = datetime.now(UTC).isoformat()
 
@@ -1288,8 +1307,21 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                     log.warning("No content returned for URL %s.", current_url)
                     break
                 data = response.json()
-            except RequestException:
-                log.exception("Error fetching page %s", current_url)
+            except RequestException as exc:
+                status_code = _request_exception_status_code(exc)
+                url = _request_exception_url(exc, current_url)
+                if status_code in {HTTPStatus.NOT_FOUND, HTTPStatus.GONE}:
+                    log.warning(
+                        "Resource unavailable while fetching %s (HTTP %s); skipping this result.",
+                        url,
+                        status_code,
+                    )
+                else:
+                    log.warning(
+                        "Recoverable request error while fetching %s: %s; skipping remaining pages.",
+                        url,
+                        exc,
+                    )
                 break
 
             records.extend(extract_records(data))
@@ -1322,7 +1354,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
 
         """
         if not data:
-            log.warning("Tried to parse data but the data is empty or None.")
+            log.debug("No data available to parse; returning an empty result.")
             return {}
 
         if isinstance(data, Response):

@@ -25,9 +25,22 @@ def workflow():
 class RecordingUniprot:
     """UniProt fake that records fetch/parse formats without network access."""
 
-    def __init__(self):
+    def __init__(self, parsed_frame=None):
         self.submit_calls = []
         self.parse_calls = []
+        self.parsed_frame = (
+            parsed_frame
+            if parsed_frame is not None
+            else pl.DataFrame(
+                {
+                    "accession": ["P12345"],
+                    "gene_primary": [["TP53"]],
+                    "organism_id": ["9606"],
+                    "biogrid_ids": ["108356"],
+                    "string_ids": ["9606.ENSP00000269305"],
+                }
+            )
+        )
 
     def submit_stream(self, **kwargs):
         self.submit_calls.append(kwargs)
@@ -39,13 +52,7 @@ class RecordingUniprot:
             {"results": results, "extract_fields": extract_fields, "format": output_format}
         )
         return (
-            pl.DataFrame(
-                {
-                    "accession": ["P12345"],
-                    "biogrid_ids": ["108356"],
-                    "string_ids": ["9606.ENSP00000269305"],
-                }
-            ),
+            self.parsed_frame,
             {"format": output_format},
         )
 
@@ -65,9 +72,13 @@ class RecordingPpiCrossRefEnricher:
     def enrich(self, data, **kwargs):
         output_format = kwargs.get("format", "dataframe")
         self.enrich_calls.append({"data": data, "format": output_format})
+        results = {
+            spec.key: pl.DataFrame({"source_accession": ["P12345"], "source_endpoint": [spec.endpoint]})
+            for spec in self.endpoint_specs
+        }
         return (
-            {"biogrid_interactions": pl.DataFrame({"source_accession": ["P12345"]})},
-            {"format": output_format},
+            results,
+            {spec.key: {"format": output_format} for spec in self.endpoint_specs},
         )
 
 
@@ -79,9 +90,7 @@ class RecordingPpiWorkflow(MainWorkflow):
         self.ppi_context_export_formats = []
 
     def _step_fetch_additional_ppi_interaction_sources(self, context, **kwargs):
-        self.ppi_context_export_formats.append(
-            context["searches"]["uniprot"].get("export_format")
-        )
+        self.ppi_context_export_formats.append(context["searches"]["uniprot"].get("export_format"))
         super()._step_fetch_additional_ppi_interaction_sources(context, **kwargs)
 
 
@@ -142,7 +151,172 @@ def test_ppi_csv_export_keeps_upstream_parse_formats_dataframe(monkeypatch, niqu
     assert all(call["format"] != "csv" for call in uniprot.parse_calls)
     assert all(call["format"] != "csv" for call in ppi_enricher.enrich_calls)
     assert isinstance(data["uniprot"], pl.DataFrame)
+    assert set(data["uniprot_enrichment"]) == {
+        "biogrid_interactions",
+        "string_interaction_partners",
+    }
     assert metadata["mode"] == "query_first"
+    assert len(niquests_mock.calls) == 0
+
+
+def split_fields(value):
+    return [field.strip() for field in value.split(",") if field.strip()]
+
+
+def test_ppi_default_fields_include_required_interaction_inputs(monkeypatch, niquests_mock):
+    RecordingPpiCrossRefEnricher.instances = []
+    monkeypatch.setattr(workflow_module, "CrossRefEnricher", RecordingPpiCrossRefEnricher)
+    uniprot = RecordingUniprot()
+    workflow = MainWorkflow(uniprot_interface=uniprot)
+
+    workflow.query_first(
+        modality="interaction",
+        interaction_type="protein-protein",
+        query="reviewed:true",
+        fields=None,
+        enrich=False,
+    )
+
+    requested_fields = split_fields(uniprot.submit_calls[0]["fields"])
+    assert requested_fields == [
+        "accession",
+        "protein_name",
+        "organism_name",
+        "organism_id",
+        "sequence",
+        "length",
+        "gene_primary",
+        "xref_string",
+    ]
+    assert len(requested_fields) == len(set(requested_fields))
+    assert RecordingPpiCrossRefEnricher.instances
+    assert len(niquests_mock.calls) == 0
+
+
+def test_ppi_user_fields_are_preserved_and_deduplicated(monkeypatch, niquests_mock):
+    RecordingPpiCrossRefEnricher.instances = []
+    monkeypatch.setattr(workflow_module, "CrossRefEnricher", RecordingPpiCrossRefEnricher)
+    uniprot = RecordingUniprot()
+    workflow = MainWorkflow(uniprot_interface=uniprot)
+
+    workflow.query_first(
+        modality="interaction",
+        interaction_type="protein-protein",
+        query="reviewed:true",
+        fields="accession, custom_field, accession, organism_id",
+        enrich=False,
+    )
+
+    requested_fields = split_fields(uniprot.submit_calls[0]["fields"])
+    assert requested_fields == ["accession", "custom_field", "organism_id", "gene_primary", "xref_string"]
+    assert len(requested_fields) == len(set(requested_fields))
+    assert len(niquests_mock.calls) == 0
+
+
+def test_ppi_endpoint_specs_use_gene_organism_and_id_fallbacks(monkeypatch):
+    RecordingPpiCrossRefEnricher.instances = []
+    monkeypatch.setattr(workflow_module, "CrossRefEnricher", RecordingPpiCrossRefEnricher)
+    workflow = MainWorkflow(uniprot_interface=RecordingUniprot())
+    context = {
+        "searches": {"uniprot": {"export_format": "csv"}},
+        "data": {
+            "uniprot": pl.DataFrame(
+                {"accession": ["P12345"], "gene_primary": [["TP53"]], "organism_id": ["9606"]}
+            )
+        },
+        "metadata": {},
+    }
+
+    workflow._step_fetch_additional_ppi_interaction_sources(context)
+
+    instance = RecordingPpiCrossRefEnricher.instances[-1]
+    assert [(spec.database, spec.endpoint) for spec in instance.endpoint_specs] == [
+        ("biogrid", "interactions"),
+        ("string", "interaction_partners"),
+    ]
+    assert set(context["data"]["uniprot_enrichment"]) == {
+        "biogrid_interactions",
+        "string_interaction_partners",
+    }
+
+
+@pytest.mark.parametrize(
+    ("frame", "expected_specs"),
+    [
+        (
+            pl.DataFrame({"accession": ["P12345"], "string_ids": ["9606.ENSP00000269305"]}),
+            [("string", "interaction_partners")],
+        ),
+        (
+            pl.DataFrame({"accession": ["P12345"], "biogrid_ids": ["108356"]}),
+            [("biogrid", "interactions")],
+        ),
+        (
+            pl.DataFrame({"accession": ["P12345"], "gene_primary": [["TP53"]], "organism_id": ["9606"]}),
+            [("biogrid", "interactions"), ("string", "interaction_partners")],
+        ),
+    ],
+)
+def test_ppi_source_eligibility_matches_registered_query_builders(
+    monkeypatch,
+    frame,
+    expected_specs,
+):
+    RecordingPpiCrossRefEnricher.instances = []
+    monkeypatch.setattr(workflow_module, "CrossRefEnricher", RecordingPpiCrossRefEnricher)
+    workflow = MainWorkflow(uniprot_interface=RecordingUniprot())
+    context = {
+        "searches": {"uniprot": {"export_format": "csv"}},
+        "data": {"uniprot": frame},
+        "metadata": {},
+    }
+
+    workflow._step_fetch_additional_ppi_interaction_sources(context)
+
+    instance = RecordingPpiCrossRefEnricher.instances[-1]
+    assert [(spec.database, spec.endpoint) for spec in instance.endpoint_specs] == expected_specs
+    assert [call["format"] for call in instance.enrich_calls] == ["dataframe"]
+
+
+def test_ppi_without_usable_columns_records_skip_reason(monkeypatch, caplog):
+    RecordingPpiCrossRefEnricher.instances = []
+    monkeypatch.setattr(workflow_module, "CrossRefEnricher", RecordingPpiCrossRefEnricher)
+    workflow = MainWorkflow(uniprot_interface=RecordingUniprot())
+    initial_instance_count = len(RecordingPpiCrossRefEnricher.instances)
+    context = {
+        "searches": {"uniprot": {"export_format": "csv"}},
+        "data": {"uniprot": pl.DataFrame({"accession": ["P12345"]})},
+        "metadata": {},
+    }
+
+    with caplog.at_level("WARNING"):
+        workflow._step_fetch_additional_ppi_interaction_sources(context)
+
+    assert len(RecordingPpiCrossRefEnricher.instances) == initial_instance_count
+    assert "ppi_sources" in context["metadata"]["uniprot_enrichment"]
+    assert "No usable UniProt columns for PPI source fetch" in caplog.text
+
+
+def test_ppi_query_composition_forwards_fields(monkeypatch, niquests_mock):
+    RecordingPpiCrossRefEnricher.instances = []
+    monkeypatch.setattr(workflow_module, "CrossRefEnricher", RecordingPpiCrossRefEnricher)
+    uniprot = RecordingUniprot()
+    workflow = MainWorkflow(uniprot_interface=uniprot)
+
+    workflow.query_composition(
+        modality="interaction",
+        interaction_type="protein-protein",
+        queries_with_labels=[("reviewed:true", "reviewed")],
+        fields="accession",
+        enrich=False,
+    )
+
+    assert split_fields(uniprot.submit_calls[0]["fields"]) == [
+        "accession",
+        "gene_primary",
+        "organism_id",
+        "xref_string",
+    ]
     assert len(niquests_mock.calls) == 0
 
 

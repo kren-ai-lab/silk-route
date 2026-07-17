@@ -12,6 +12,7 @@ from typing import Any, ClassVar
 
 import polars as pl
 import pytest
+from niquests.exceptions import RequestException
 
 from bioseq_dl.core.dbconfig import DBConfig
 from bioseq_dl.core.interfaces.base import BaseAPIInterface
@@ -167,6 +168,48 @@ class FakeWithDB(FakeInterface):
     DB_CONFIG = DBConfig(API_URL="http://example/", CACHE_DIR="/fake/cache", CONFIG_DIR="/fake/config")
 
 
+class DefaultParseInterface(FakeInterface):
+    def parse(self, data, fields_to_extract, **kwargs):
+        return BaseAPIInterface.parse(self, data, fields_to_extract, **kwargs)
+
+
+class BatchMetadataInterface(FakeInterface):
+    def fetch(self, query, *, method="single", **kwargs):
+        value = query.get("id") if isinstance(query, dict) else query
+        if value == "empty":
+            return []
+        return [{"id": value}]
+
+    def parse(self, data, fields_to_extract, **kwargs):
+        return data
+
+
+class PaginatedResponse:
+    def __init__(self, url, status_code, payload=None):
+        self.url = url
+        self.status_code = status_code
+        self._payload = payload or {}
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            exc = RequestException(f"{self.status_code} error")
+            exc.response = self
+            raise exc
+
+    def json(self):
+        return self._payload
+
+
+class PaginatedSession:
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.urls = []
+
+    def get(self, url, **_kwargs):
+        self.urls.append(url)
+        return self.responses.pop(0)
+
+
 def test_resolve_dirs_default_fallback_is_absolute():
     # No DB_CONFIG and no explicit dir -> "./cache", normalized to absolute.
     cache, config = FakeInterface._resolve_dirs(None, None)
@@ -177,7 +220,7 @@ def test_resolve_dirs_default_fallback_is_absolute():
 
 def test_resolve_dirs_uses_db_config():
     cache, config = FakeWithDB._resolve_dirs(None, None)
-    assert cache == "/fake/cache"
+    assert cache == str(Path("/fake/cache").resolve())
     assert config == "/fake/config"
 
 
@@ -211,3 +254,94 @@ def test_packaged_fields_loaded_without_user_config_dir(tmp_path):
 def test_load_packaged_fields_empty_without_db_config(iface):
     # FakeInterface has no DB_CONFIG -> no packaged fields, returns {}.
     assert iface._load_packaged_fields() == {}
+
+
+def test_fetch_paginated_http_410_warns_without_traceback_and_preserves_partial_records(
+    iface,
+    caplog,
+):
+    page_one = "https://example.test/page/1"
+    page_two = "https://example.test/page/2"
+    iface.session = PaginatedSession(
+        [
+            PaginatedResponse(page_one, 200, {"results": [{"id": 1}], "next": page_two}),
+            PaginatedResponse(page_two, 410),
+        ]
+    )
+
+    with caplog.at_level("WARNING", logger="bioseq_dl.interfaces.base"):
+        records = iface._fetch_paginated(
+            page_one,
+            next_link=lambda data: data.get("next"),
+            extract_records=lambda data: data["results"],
+            pages_to_fetch=-1,
+        )
+
+    warnings = [record for record in caplog.records if record.levelname == "WARNING"]
+    assert records == [{"id": 1}]
+    assert len(warnings) == 1
+    assert (
+        "Resource unavailable while fetching https://example.test/page/2 (HTTP 410)"
+        in warnings[0].getMessage()
+    )
+    assert warnings[0].exc_info is None
+    assert not [record for record in caplog.records if record.levelname == "ERROR"]
+
+
+def test_fetch_paginated_other_request_errors_warn_without_traceback(iface, caplog):
+    url = "https://example.test/page/1"
+    iface.session = PaginatedSession([PaginatedResponse(url, 500)])
+
+    with caplog.at_level("WARNING", logger="bioseq_dl.interfaces.base"):
+        records = iface._fetch_paginated(
+            url,
+            next_link=lambda data: data.get("next"),
+            extract_records=lambda data: data["results"],
+        )
+
+    assert records == []
+    assert len([record for record in caplog.records if record.levelname == "WARNING"]) == 1
+    assert "Recoverable request error while fetching" in caplog.text
+    assert all(record.exc_info is None for record in caplog.records)
+
+
+def test_fetch_paginated_successful_pages_still_accumulate(iface):
+    page_one = "https://example.test/page/1"
+    page_two = "https://example.test/page/2"
+    iface.session = PaginatedSession(
+        [
+            PaginatedResponse(page_one, 200, {"results": [{"id": 1}], "next": page_two}),
+            PaginatedResponse(page_two, 200, {"results": [{"id": 2}], "next": None}),
+        ]
+    )
+
+    records = iface._fetch_paginated(
+        page_one,
+        next_link=lambda data: data.get("next"),
+        extract_records=lambda data: data["results"],
+        pages_to_fetch=-1,
+    )
+
+    assert records == [{"id": 1}, {"id": 2}]
+
+
+def test_base_parse_empty_data_logs_one_debug_message(tmp_path, caplog):
+    interface = DefaultParseInterface(cache_dir=str(tmp_path), use_config=False)
+
+    with caplog.at_level("DEBUG", logger="bioseq_dl.interfaces.base"):
+        assert interface.parse({}, None) == {}
+
+    assert caplog.text.count("No data available to parse; returning an empty result.") == 1
+    assert not [record for record in caplog.records if record.levelname in {"WARNING", "ERROR"}]
+
+
+def test_fetch_batch_merges_child_empty_metadata(tmp_path):
+    interface = BatchMetadataInterface(cache_dir=str(tmp_path), use_config=False, min_wait=0, max_wait=0)
+
+    data, metadata = interface.fetch_batch(["ok", "empty"], method="single", format="json")
+
+    assert data == [[{"id": "ok"}], []]
+    assert metadata["fetched"]["ids"] == ["ok", "empty"]
+    assert metadata["fetched"]["length"] == 2
+    assert metadata["failed"]["ids"] == ["empty"]
+    assert metadata["failed"]["reasons"] == ["empty_result"]

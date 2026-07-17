@@ -108,6 +108,31 @@ def _elapsed_seconds(started_at: object, finished_at: object) -> float:
 # Maps each modality to the result key its primary payload lives under.
 _MODALITY_RESULT_KEY = {"protein": "uniprot", "compound": "chembl", "interaction": "data"}
 _COMPOUND_RESULT_KEYS = ("chembl", "pubchem", "chebi")
+PPI_SOURCE_REQUIREMENTS = {
+    "biogrid": (("biogrid_ids",), ("gene_primary", "organism_id")),
+    "string": (("string_ids",), ("gene_primary", "organism_id")),
+}
+
+
+def _frame_has_columns(frame: object, columns: Iterable[str]) -> bool:
+    """Return whether a Polars frame contains every requested column."""
+    return isinstance(frame, pl.DataFrame) and all(column in frame.columns for column in columns)
+
+
+def _ppi_endpoint_available(frame: object, source: str) -> bool:
+    """Return whether a PPI source has either ID or gene/taxon inputs available."""
+    return any(_frame_has_columns(frame, columns) for columns in PPI_SOURCE_REQUIREMENTS[source])
+
+
+def _ppi_missing_inputs(frame: object, source: str) -> list[str]:
+    """Return concise alternatives needed to enable a skipped PPI source."""
+    available = set(frame.columns) if isinstance(frame, pl.DataFrame) else set()
+    missing_alternatives = []
+    for columns in PPI_SOURCE_REQUIREMENTS[source]:
+        missing = [column for column in columns if column not in available]
+        if missing:
+            missing_alternatives.append("+".join(missing))
+    return missing_alternatives
 
 
 def _apply_label(value: Any, label: str) -> Any:
@@ -1233,6 +1258,7 @@ class MainWorkflow:
         self,
         query: str,
         interaction_type: str | None = None,
+        fields: str | None = None,
         export_format: str | None = None,
         **kwargs: Any,
     ) -> tuple[dict, dict]:
@@ -1248,6 +1274,7 @@ class MainWorkflow:
         Args:
             query (str): The user-friendly interaction query string.
             interaction_type (str | None): Interaction kind ('protein-protein' or 'protein-ligand').
+            fields (str | None): Comma-separated UniProt return fields.
             export_format (str | None): Output format; defaults to the workflow default.
             **kwargs: Forwarded to pipeline steps; notable keys: ``uniprot_timeout``,
                 ``chembl_pages_to_fetch``, ``max_workers``, ``total_retries``.
@@ -1284,6 +1311,7 @@ class MainWorkflow:
 
         args: dict[str, Any] = {
             "query": query,
+            "fields": fields or "",
             "export_format": export_format,
             "interaction_type": interaction_type,
             "modality": "interaction",
@@ -1303,6 +1331,7 @@ class MainWorkflow:
         if interaction_type == "protein-protein":
             if is_chembl_prefixed_query(query):
                 raise ValueError(PPI_CHEMBL_QUERY_ERROR)
+            context["searches"]["uniprot"]["additional_crossref_fields"] = ["biogrid", "string"]
             # Interpret original interaction query
             context["searches"]["uniprot"]["interpreted_query"] = uniprot_interpreter.interpret(
                 query=args.get("query", "")
@@ -1424,6 +1453,7 @@ class MainWorkflow:
         if modality == "interaction":
             return self.run_interaction(
                 query=query,
+                fields=fields,
                 export_format=export_format,
                 enrich=enrich,
                 crossref_endpoint_specs=crossref_endpoint_specs,
@@ -1499,6 +1529,7 @@ class MainWorkflow:
             elif modality == "interaction":
                 part_data, part_meta = self.run_interaction(
                     query=query,
+                    fields=fields,
                     export_format=export_format,
                     enrich=enrich,
                     crossref_endpoint_specs=crossref_endpoint_specs,
@@ -1580,17 +1611,32 @@ class MainWorkflow:
         self.log.info("Pipeline: fetching additional interaction sources for protein-protein interactions")
 
         specs = []
-        # Fetch BioGRID interactions
-        # Check if Biogrid IDs are present in the input data
-        if "biogrid_ids" in input_data.columns:
+        skipped: dict[str, list[str]] = {}
+        # Fetch BioGRID interactions when either BioGRID IDs or gene/taxon inputs are available.
+        if _ppi_endpoint_available(input_data, "biogrid"):
             specs.append(EndpointSpec(database="biogrid", endpoint="interactions"))
         else:
-            self.log.debug("No biogrid_ids column found in input data; skipping BioGRID interaction fetch")
-        # Fetch StringDB interactions
-        if "string_ids" in input_data.columns:
+            skipped["biogrid"] = _ppi_missing_inputs(input_data, "biogrid")
+        # Fetch StringDB interactions when either STRING IDs or gene/taxon inputs are available.
+        if _ppi_endpoint_available(input_data, "string"):
             specs.append(EndpointSpec(database="string", endpoint="interaction_partners"))
         else:
-            self.log.debug("No string_ids column found in input data; skipping StringDB interaction fetch")
+            skipped["string"] = _ppi_missing_inputs(input_data, "string")
+
+        if not specs:
+            available_columns = list(input_data.columns) if isinstance(input_data, pl.DataFrame) else []
+            self.log.warning(
+                "No usable UniProt columns for PPI source fetch; available columns=%s missing=%s",
+                available_columns,
+                skipped,
+            )
+            context["data"].setdefault("uniprot_enrichment", {})
+            context["metadata"].setdefault("uniprot_enrichment", {})
+            context["metadata"]["uniprot_enrichment"]["ppi_sources"] = {
+                "skipped": skipped,
+                "available_columns": available_columns,
+            }
+            return
 
         crossref_enricher = CrossRefEnricher(
             endpoint_specs=specs, max_workers=max_workers, total_retries=total_retries
