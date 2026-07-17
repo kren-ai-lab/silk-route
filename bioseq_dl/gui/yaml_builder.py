@@ -12,6 +12,7 @@ import yaml
 
 from bioseq_dl.constants.uniprot import (
     XREF_MAPPING,
+    get_default_uniprot_return_fields,
     get_effective_uniprot_return_fields,
     get_required_uniprot_fields_for_enrichment,
 )
@@ -20,6 +21,10 @@ from bioseq_dl.core.workflow.schema import (
     get_workflow_v1_schema_definition,
     parse_query_composition_value,
     validate_workflow_v1_descriptor,
+)
+from bioseq_dl.gui.uniprot_return_fields import (
+    return_fields_from_selection,
+    split_known_and_custom_return_fields,
 )
 
 DEFAULT_MAX_WORKERS = 5
@@ -260,7 +265,9 @@ DEFAULT_FORM_VALUES: dict[str, object] = {
             },
         }
     ],
-    "query.fields": "",
+    "query.fields": ", ".join(get_default_uniprot_return_fields()),
+    "query.return_field_selections": get_default_uniprot_return_fields(),
+    "query.return_field_custom": "",
     "query.crossref_fields": "",
     "query.include_isoform": False,
     "execution.enrich": False,
@@ -835,7 +842,11 @@ def descriptor_to_form_values(descriptor: Mapping[str, object]) -> dict[str, obj
         QUERY_INPUT_MODE_LABEL_TO_VALUE,
     )
     form_values["query.value"] = str(query.get("value") or "")
-    form_values["query.fields"] = csv_text_from_value(query.get("fields"))
+    query_fields = csv_text_from_value(query.get("fields"))
+    form_values["query.fields"] = query_fields
+    return_field_selections, return_field_custom = split_known_and_custom_return_fields(query_fields)
+    form_values["query.return_field_selections"] = return_field_selections
+    form_values["query.return_field_custom"] = ", ".join(return_field_custom)
     form_values["query.crossref_fields"] = csv_text_from_value(query.get("crossref_fields"))
     form_values["execution.enrichment_sources"] = enrichment_sources_from_crossref_fields(
         query.get("crossref_fields")
@@ -1380,6 +1391,21 @@ def crossref_fields_without_selectable_sources(value: object) -> str:
     return ", ".join(fields)
 
 
+def return_fields_for_yaml(form_values: Mapping[str, object]) -> str:
+    """Resolve GUI return-field selector state to the canonical query.fields text."""
+    explicit_fields = csv_text_from_value(get_form_value(form_values, "query.fields"))
+    if explicit_fields:
+        return explicit_fields
+    if has_form_value(form_values, "query.return_field_selections") or has_form_value(
+        form_values, "query.return_field_custom"
+    ):
+        return return_fields_from_selection(
+            get_form_value(form_values, "query.return_field_selections"),
+            get_form_value(form_values, "query.return_field_custom"),
+        )
+    return explicit_fields
+
+
 def get_effective_uniprot_return_field_text(
     fields: object,
     crossref_fields: object = None,
@@ -1614,7 +1640,7 @@ def build_query_section(form_values: Mapping[str, object]) -> dict[str, object]:
             "value": resolve_query_value_from_form(form_values),
             "include_isoform": parse_bool(get_form_value(form_values, "query.include_isoform")),
         }
-    add_optional_list(query, "fields", get_form_value(form_values, "query.fields"))
+    add_optional_list(query, "fields", return_fields_for_yaml(form_values))
     crossref_fields = get_form_value(form_values, "query.crossref_fields")
     enrichment_compatible = is_enrichment_workflow_compatible(form_values)
     if (

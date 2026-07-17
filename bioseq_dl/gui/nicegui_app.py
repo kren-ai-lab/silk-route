@@ -78,6 +78,10 @@ from bioseq_dl.gui.query_builders.uniprot import (
     build_uniprot_friendly_query,
     build_uniprot_interpreted_query,
 )
+from bioseq_dl.gui.uniprot_return_fields import (
+    get_uniprot_return_field_options,
+    return_fields_from_selection,
+)
 from bioseq_dl.gui.yaml_builder import (
     EXPORT_FORMAT_LABEL_TO_VALUE,
     INTERACTION_TYPE_LABEL_TO_VALUE,
@@ -158,6 +162,7 @@ class WorkflowYamlBuilderApp:
         self.enrichment_sources_select: Any = None
         self.alphafold_structure_download_switch: Any = None
         self.pdb_structure_download_switch: Any = None
+        self.return_fields_select: Any = None
         self.query_fields_input: Any = None
         self.crossref_fields_input: Any = None
         self.enrichment_required_fields_note: Any = None
@@ -385,13 +390,28 @@ class WorkflowYamlBuilderApp:
     def build_shared_query_controls(self) -> None:
         """Build query settings shared by query_first and query_composition modes."""
         with ui.grid(columns=2).classes("w-full gap-3"):
-            self.query_fields_input = (
-                ui.input("Return fields")
-                .props('clearable placeholder="accession, protein_name, organism_name, sequence"')
-                .bind_value(self.form_values, "query.fields")
+            self.return_fields_select = (
+                ui.select(
+                    get_uniprot_return_field_options(),
+                    label="UniProt return fields",
+                    multiple=True,
+                )
+                .props("clearable use-input")
+                .bind_value(self.form_values, "query.return_field_selections")
+                .on_value_change(self.handle_return_field_selections_change)
                 .tooltip(
-                    "Optional UniProt request fields. Leave empty to use the safe default "
-                    "field set; enrichment can require extra fields at runtime."
+                    "Selected field IDs are written to query.fields and passed to UniProt "
+                    "as requested API fields."
+                )
+            )
+            self.query_fields_input = (
+                ui.input("Advanced return fields")
+                .props('clearable placeholder="custom_field, accession"')
+                .bind_value(self.form_values, "query.return_field_custom")
+                .on_value_change(self.handle_advanced_return_fields_change)
+                .tooltip(
+                    "Optional comma-separated UniProt field IDs not listed above. Technical "
+                    "xref_* fields are usually resolved from enrichment sources."
                 )
             )
             (
@@ -400,9 +420,32 @@ class WorkflowYamlBuilderApp:
                 .tooltip("Whether UniProt isoforms should be included when supported by the workflow.")
             )
         ui.label(
-            "Empty return fields resolve at execution time to: "
+            "Selected fields are written to query.fields. If no fields are selected, "
+            "BioSeqDownloader uses default UniProt fields: "
             f"{get_effective_uniprot_return_field_text('', '')}."
         ).classes("text-xs text-gray-600")
+
+    def sync_return_fields_to_query_fields(self) -> None:
+        """Synchronize visible return-field controls to the canonical query.fields value."""
+        self.form_values["query.fields"] = return_fields_from_selection(
+            self.form_values.get("query.return_field_selections"),
+            self.form_values.get("query.return_field_custom"),
+        )
+        self.update_enrichment_field_notes()
+
+    def handle_return_field_selections_change(self, event: object) -> None:
+        """Update canonical query.fields after the return-field selector changes."""
+        if self.is_loading_form_values:
+            return
+        self.form_values["query.return_field_selections"] = getattr(event, "value", []) or []
+        self.sync_return_fields_to_query_fields()
+
+    def handle_advanced_return_fields_change(self, event: object) -> None:
+        """Update canonical query.fields after advanced return fields change."""
+        if self.is_loading_form_values:
+            return
+        self.form_values["query.return_field_custom"] = str(getattr(event, "value", "") or "")
+        self.sync_return_fields_to_query_fields()
 
     def ensure_query_composition_entry_id(self, entry: dict[str, object]) -> int:
         """Assign and return a stable UI identity for one composition entry."""

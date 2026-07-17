@@ -218,7 +218,11 @@ builder rows; unsupported metadata falls back without changing `query.value`.
 Metadata such as `resources` and `reporting` may validate as workflow-v1
 descriptor metadata and is shown as read-only in this GUI version.
 `query.fields` and `query.crossref_fields` remain separate optional inputs and
-are not advanced-builder search conditions.
+are not advanced-builder search conditions. For UniProt return fields, the GUI
+offers a searchable common-field selector plus an Advanced return fields input
+for custom field IDs. The YAML stores stable field IDs in `query.fields`, never
+visible labels. Enrichment-required `xref_*` request fields may still be added
+internally at runtime when enrichment sources need them.
 In the Advanced UniProt builder, Connector combines a row with the previous row
 using `AND` or `OR`, while Match mode combines comma-separated values inside
 one row as `Any`, `All`, or `Not`. Values containing spaces can be quoted. The

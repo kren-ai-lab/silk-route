@@ -270,12 +270,16 @@ writes `query_composition`, and modality labels write `protein`, `compound`, or
 `interaction`. `No interaction` omits `dataset.interaction_type` for protein and
 compound datasets; it is invalid when the selected modality is `Interaction`.
 
-`Return fields` and `Cross-reference fields` accept optional comma-separated
-values. They remain separate from Advanced UniProt builder fields: return fields
-control optional requested/output fields, while builder fields control the
-executable search query. The builder prepares the query text only; UniProt
-validation and network access happen later when the workflow runs. The default
-output-directory mode writes `results/{dataset.name}`. The custom mode accepts
+`UniProt return fields` provides a searchable common-field selector, and
+`Advanced return fields` accepts comma-separated custom UniProt field IDs.
+Generated YAML writes stable field IDs to `query.fields`, never visible labels.
+These return-field controls and `Cross-reference fields` remain separate from
+Advanced UniProt builder fields: return fields control optional requested/output
+fields, while builder fields control the executable search query. Enrichment
+sources may add required `xref_*` request fields internally at runtime. The
+builder prepares the query text only; UniProt validation and network access
+happen later when the workflow runs. The default output-directory mode writes
+`results/{dataset.name}`. The custom mode accepts
 only relative paths, normalizes backslashes to forward slashes, and rejects
 absolute paths or `..` traversal. This path is used later when the workflow
 runs.
