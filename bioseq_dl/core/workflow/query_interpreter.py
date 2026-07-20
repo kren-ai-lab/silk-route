@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 from functools import partial
@@ -380,13 +381,12 @@ class BaseQueryInterpreter:
         return low, high
 
     def _is_number(self, text: str) -> bool:
-        """Return True if text can be parsed as float."""
+        """Return True if text parses as a finite float (rejects inf/nan)."""
         try:
-            float(str(text))
+            value = float(str(text))
         except (ValueError, TypeError):
             return False
-        else:
-            return True
+        return math.isfinite(value)
 
     def _expand_field_aliases(self, text: str) -> str:
         """Replace simple prefix aliases like 'taxon:' -> 'taxonomy_id:' based on configuration.
@@ -467,7 +467,7 @@ class BaseQueryInterpreter:
 
         pattern = re.compile(
             r"(\s*(?:AND|OR|NOT)\s+)?"  # optional leading boolean
-            r"\b([a-zA-Z0-9_]+)(?:_?(any|all|not))?:"
+            r"\b([a-zA-Z0-9_]+?)(?:_(any|all|not))?:"
             r"("  # start items capture
             r"(?:\"[^\"]+\"|'[^']+')(?:\s*,\s*(?:\"[^\"]+\"|'[^']+'))*"  # quoted csv
             r"|"
