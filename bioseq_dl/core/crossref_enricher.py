@@ -7,7 +7,7 @@ import math
 from collections.abc import Mapping as MappingABC
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, cast
-from xml.etree.ElementTree import Element, ElementTree, fromstring
+from xml.etree.ElementTree import Element, ElementTree, fromstring, tostring
 
 import polars as pl
 
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from bioseq_dl.core.interfaces.base import BaseAPIInterface
-from bioseq_dl.core.utils.xmlhandler import elementtree_to_dataframe
+from bioseq_dl.core.utils.xmlhandler import dict_to_elementtree, elementtree_to_dataframe
 from bioseq_dl.logging import get_logger
 
 log = get_logger("bioseq_dl.interfaces.crossref_enricher")
@@ -575,7 +575,7 @@ class CrossRefEnricher:
         spec: EndpointSpec,
         params: dict[str, Any],
         fmt: Literal["dataframe", "json", "xml"] = "dataframe",
-    ) -> tuple[pl.DataFrame | list[dict[str, Any]], dict]:
+    ) -> tuple[pl.DataFrame | list[dict[str, Any]] | str, dict]:
         """Build a query from a row and fetch its cross-reference result.
 
         Uses the registered query-builder for the spec, then calls ``fetch_single``
@@ -647,13 +647,9 @@ class CrossRefEnricher:
                     metadata,
                     build_graph_failure_metadata(query_params, "malformed_result", normalized_graph.error),
                 )
-                if fmt == "dataframe":
-                    return empty_provenance_frame(), metadata
-                return [], metadata
+                return self._empty_graph_result(fmt), metadata
             if is_empty_graph_payload(normalized_graph.payload):
-                if fmt == "dataframe":
-                    return empty_provenance_frame(), metadata
-                return [], metadata
+                return self._empty_graph_result(fmt), metadata
             graph_row = build_graph_output_row(
                 normalized_graph.payload,
                 row,
@@ -661,7 +657,7 @@ class CrossRefEnricher:
                 source_database=spec.database,
                 source_endpoint=spec.endpoint,
             )
-            result = records_to_frame([graph_row]) if fmt == "dataframe" else [graph_row]
+            result = self._graph_row_result(graph_row, fmt)
         else:
             result = attach_source_context(
                 result,
@@ -671,6 +667,28 @@ class CrossRefEnricher:
                 source_endpoint=spec.endpoint,
             )
         return result, metadata
+
+    @staticmethod
+    def _empty_graph_result(fmt: str) -> pl.DataFrame | str | list:
+        """Return the empty per-row graph result matching the requested output format."""
+        if fmt == "dataframe":
+            return empty_provenance_frame()
+        if fmt == "xml":
+            return "<results></results>"
+        return []
+
+    @staticmethod
+    def _graph_row_result(graph_row: dict, fmt: str) -> pl.DataFrame | str | list:
+        """Serialize a graph row into the requested format.
+
+        XML must be a string, not a list: `_process_dataframe` feeds each result to
+        `fromstring`.
+        """
+        if fmt == "dataframe":
+            return records_to_frame([graph_row])
+        if fmt == "xml":
+            return tostring(dict_to_elementtree([graph_row]).getroot(), encoding="unicode")
+        return [graph_row]
 
     @staticmethod
     def _merge_metadata(meta1: dict, meta2: dict) -> dict:

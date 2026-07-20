@@ -436,14 +436,20 @@ def merge_preserved_workflow_sections(
     descriptor: dict[str, object], preserved: Mapping[str, object]
 ) -> dict[str, object]:
     """Re-attach preserved read-only sections onto a regenerated descriptor."""
+    query_mode_keys = ("builder", "composition")
     for key, value in preserved.items():
         if key == "query" and isinstance(value, Mapping):
             query = descriptor.get("query")
             if not isinstance(query, dict):
                 query = {}
                 descriptor["query"] = query
+            # A form-regenerated builder/composition owns the query's mode: the
+            # preserved one never overwrites it or cross-injects the other mode.
+            form_owns_mode = any(mode_key in query for mode_key in query_mode_keys)
             for sub_key, sub_value in value.items():
-                query[sub_key] = deepcopy(sub_value)
+                if sub_key in query_mode_keys and form_owns_mode:
+                    continue
+                query.setdefault(sub_key, deepcopy(sub_value))
         else:
             descriptor[key] = deepcopy(value)
     return descriptor

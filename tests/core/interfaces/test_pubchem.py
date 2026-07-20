@@ -5,7 +5,11 @@ from __future__ import annotations
 import pytest
 from niquests_mock import startswith
 
-from bioseq_dl.core.interfaces.pubchem import PubChemInterface
+from bioseq_dl.core.exceptions import RequestError
+from bioseq_dl.core.interfaces.pubchem import (
+    WORKFLOW_COMPOUND_PROPERTIES_METHOD,
+    PubChemInterface,
+)
 from tests._helpers import load_fixture
 from tests.core.interfaces._contract import CachingContract, HttpErrorContract
 
@@ -38,6 +42,18 @@ def test_parse_extracts_requested_fields(interface):
     )
 
     assert parsed == {"title": body["Record"]["RecordTitle"]}
+
+
+WORKFLOW_LOOKUP_URL = "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/aspirin/property/"
+
+
+def test_workflow_fetch_raises_request_error_on_http_failure(interface, niquests_mock):
+    # HTTP failure must raise RequestError so the base records request_error.
+    niquests_mock.get(url=startswith(WORKFLOW_LOOKUP_URL)).respond(status_code=503)
+
+    query = {"namespace": "name", "identifier": "aspirin", "search_mode": "lookup"}
+    with pytest.raises(RequestError, match="PubChem workflow request failed"):
+        interface.fetch(query, method=WORKFLOW_COMPOUND_PROPERTIES_METHOD)
 
 
 class TestPubchemContract(CachingContract, HttpErrorContract):

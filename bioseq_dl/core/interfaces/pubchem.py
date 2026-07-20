@@ -10,6 +10,7 @@ from niquests.exceptions import RequestException
 # Add the import for your database in constants
 from bioseq_dl.constants.databases import PUBCHEM
 from bioseq_dl.constants.pubchem import COMPOUND_TEMPLATE, GENE_TEMPLATE, OPTIONS, PROTEIN_TEMPLATE
+from bioseq_dl.core.exceptions import RequestError
 from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
 from bioseq_dl.logging import get_logger
 
@@ -436,9 +437,10 @@ class PubChemInterface(BaseAPIInterface):
             self._delay()
             response.raise_for_status()
             payload = response.json()
-        except (RequestException, ValueError):
+        except (RequestException, ValueError) as exc:
             log.exception("Error fetching PubChem workflow properties for %s", query.get("identifier"))
-            return {}
+            msg = f"PubChem workflow request failed for {query.get('identifier')}: {exc}"
+            raise RequestError(msg) from exc
         return self._unwrap_pug_envelope(payload, "pug/compound", "property", query)
 
     def _make_identifier(self, query: str | dict | list, spec: dict) -> str:

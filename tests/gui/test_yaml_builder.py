@@ -19,6 +19,7 @@ from bioseq_dl.gui.query_builders.registry import get_query_builder_spec
 from bioseq_dl.gui.yaml_builder import (
     DEFAULT_OUTPUT_DIRECTORY_NAME_ERROR,
     LOADED_QUERY_VALUE_WARNING,
+    PRESERVED_SECTIONS_FORM_KEY,
     PROTEIN_CHEMBL_QUERY_WARNING,
     QUERY_BUILDER_MISMATCH_WARNING,
     QUERY_BUILDER_NOT_EDITABLE_WARNING,
@@ -29,6 +30,7 @@ from bioseq_dl.gui.yaml_builder import (
     descriptor_to_form_values,
     load_workflow_yaml_text,
     load_workflow_yaml_to_form_values,
+    merge_preserved_workflow_sections,
     parse_csv_list,
     render_workflow_yaml,
     resolve_query_value_from_form,
@@ -1702,3 +1704,66 @@ def test_update_interaction_type_visibility_shows_interaction_value() -> None:
     assert app.form_values["dataset.interaction_type"] == "Protein-protein interaction"
     assert app.interaction_type_select.visible is True
     assert app.interaction_type_select.update_count == 1
+
+
+PRESERVED_CHEMBL_BUILDER = {
+    "builder_key": "chembl",
+    "source": "chembl",
+    "resource": "molecule",
+    "rows": [{"connector": None, "field": "max_phase", "value": "4"}],
+}
+
+
+def test_merge_preserved_does_not_clobber_form_built_builder() -> None:
+    # A form-built builder wins over the preserved one.
+    form_builder = {"builder_key": "uniprot", "source": "uniprot", "rows": []}
+    descriptor: dict[str, object] = {"query": {"value": "organism_id:9606", "builder": form_builder}}
+    preserved = {"query": {"builder": dict(PRESERVED_CHEMBL_BUILDER)}}
+
+    merge_preserved_workflow_sections(descriptor, preserved)
+
+    assert descriptor["query"]["builder"] == form_builder
+
+
+def test_merge_preserved_does_not_inject_builder_into_composition_query() -> None:
+    # A composition-mode query keeps no builder; the preserved one is not injected.
+    descriptor: dict[str, object] = {"query": {"composition": [{"label": "a", "query": "x"}]}}
+    preserved = {"query": {"builder": dict(PRESERVED_CHEMBL_BUILDER)}}
+
+    merge_preserved_workflow_sections(descriptor, preserved)
+
+    assert "builder" not in descriptor["query"]
+
+
+def test_merge_preserved_reattaches_builder_when_form_built_none() -> None:
+    # Manual mode (no form builder, no composition): the preserved builder is reattached.
+    descriptor: dict[str, object] = {"query": {"value": "reviewed:true"}}
+    preserved = {"query": {"builder": dict(PRESERVED_CHEMBL_BUILDER)}}
+
+    merge_preserved_workflow_sections(descriptor, preserved)
+
+    assert descriptor["query"]["builder"] == PRESERVED_CHEMBL_BUILDER
+
+
+def test_build_descriptor_form_builder_wins_over_preserved() -> None:
+    # Building a UniProt query with a ChEMBL builder in preserved sections yields the
+    # UniProt builder in the saved descriptor.
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.input_mode": "uniprot_builder",
+            "query.uniprot_builder.rows": [
+                {
+                    "connector": None,
+                    "field": "organism",
+                    "values": "Homo sapiens",
+                    "match_mode": "any",
+                }
+            ],
+            PRESERVED_SECTIONS_FORM_KEY: {"query": {"builder": dict(PRESERVED_CHEMBL_BUILDER)}},
+        }
+    )
+
+    builder = cast("dict[str, object]", descriptor["query"]["builder"])
+    assert builder["source"] == "uniprot"
+    assert descriptor["query"]["value"] == "organism_id:9606"
