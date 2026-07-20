@@ -313,14 +313,12 @@ class PDBInterface(BaseAPIInterface):
         if not self.download_structures:
             return super().fetch_batch(queries, parse, *args, **kwargs)
 
-        result_items: list[tuple[str, Any, bool]] = []
+        result_items: list[tuple[str | dict, Any, bool]] = []
         eligible_structure_ids: list[str] = []
         structure_paths: dict[str, str | None] = {}
         merged_metadata = FetchMetadata()
 
         for query in queries:
-            if not isinstance(query, str):
-                continue
             try:
                 result, metadata = super().fetch_single(query, parse, *args, **kwargs)
             except Exception:
@@ -328,9 +326,10 @@ class PDBInterface(BaseAPIInterface):
                 continue
 
             merged_metadata = merged_metadata.merge(FetchMetadata.from_dict(metadata))
-            successful_result = _is_successful_child_result(query, result, metadata)
-            result_items.append((query, result, successful_result))
-            if successful_result:
+            # Structure downloads need a string PDB id; dict queries are fetched but not downloaded.
+            eligible = isinstance(query, str) and _is_successful_child_result(query, result, metadata)
+            result_items.append((query, result, eligible))
+            if eligible:
                 _append_unique_pdb_id(eligible_structure_ids, query)
 
         for pdb_id in eligible_structure_ids:
@@ -339,9 +338,9 @@ class PDBInterface(BaseAPIInterface):
             )
 
         results = []
-        for query, result, successful_result in result_items:
+        for query, result, eligible in result_items:
             attached_result = result
-            if successful_result:
+            if eligible and isinstance(query, str):
                 attached_result = self._attach_structure_path_to_result(
                     result, structure_paths.get(query.casefold())
                 )

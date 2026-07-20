@@ -56,6 +56,27 @@ def test_workflow_fetch_raises_request_error_on_http_failure(interface, niquests
         interface.fetch(query, method=WORKFLOW_COMPOUND_PROPERTIES_METHOD)
 
 
+@pytest.mark.parametrize(("threshold", "expected"), [(0, 0), (95, 95), (None, 90)])
+def test_workflow_similarity_threshold_is_honored(interface, threshold, expected):
+    query = {"namespace": "cid", "identifier": "2244", "search_mode": "similarity_2d"}
+    if threshold is not None:
+        query["threshold"] = threshold
+    request = interface._build_workflow_compound_properties_request(query)
+    assert request.params["Threshold"] == expected
+
+
+def test_workflow_similarity_cache_key_matches_default_threshold(interface):
+    # An unset threshold and an explicit 90 hit the same cache entry (request uses 90).
+    spec = interface.METHODS[WORKFLOW_COMPOUND_PROPERTIES_METHOD]
+    base = {"namespace": "cid", "identifier": "2244", "search_mode": "similarity_2d"}
+    assert interface._make_identifier(base, spec) == interface._make_identifier(
+        {**base, "threshold": 90}, spec
+    )
+    assert interface._make_identifier(base, spec) != interface._make_identifier(
+        {**base, "threshold": 50}, spec
+    )
+
+
 class TestPubchemContract(CachingContract, HttpErrorContract):
     INTERFACE_URL = COMPOUND_URL
     QUERY = {"cid": "444444"}

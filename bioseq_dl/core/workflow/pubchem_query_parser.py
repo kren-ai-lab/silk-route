@@ -11,7 +11,7 @@ from bioseq_dl.core.workflow.pubchem_query_catalog import (
 )
 from bioseq_dl.core.workflow.query_prefixes import is_source_prefixed_query
 
-PUBCHEM_QUERY_PATTERN = re.compile(r"^pubchem\.(?P<resource>[a-z_]+):(?P<body>.+)$")
+PUBCHEM_QUERY_PATTERN = re.compile(r"^pubchem\.(?P<resource>[a-z_]+):(?P<body>.+)$", re.IGNORECASE)
 PUBCHEM_BUILDER_QUERY_PREFIXES = ("pubchem.compound:", "pubchem.structure:")
 MIN_QUOTED_VALUE_LENGTH = 2
 MIN_THRESHOLD = 0
@@ -33,7 +33,7 @@ def get_pubchem_prefixed_query_resource(query: str) -> str | None:
     match = PUBCHEM_QUERY_PATTERN.match(str(query or "").strip())
     if not match:
         return None
-    return match.group("resource")
+    return match.group("resource").lower()
 
 
 def strip_pubchem_value_quotes(value: str) -> str:
@@ -105,6 +105,9 @@ def parse_pubchem_structure_parameters(fragments: list[str]) -> dict[str, object
             supported = format_pubchem_supported_fields((*STRUCTURE_FIELD_NAMES, "threshold"))
             msg = f"Unsupported PubChem structure field '{field}'. Supported fields are: {supported}."
             raise ValueError(msg)
+        if field in raw_parameters:
+            msg = f"PubChem structure query has a duplicate condition for '{field}'."
+            raise ValueError(msg)
         raw_parameters[field] = value
 
     if "similarity_2d_cid" in raw_parameters:
@@ -141,7 +144,7 @@ def parse_pubchem_query_builder_string(query: str) -> dict[str, object]:
         raise ValueError(msg)
 
     resources = get_pubchem_query_builder_resource_catalog()
-    resource_key = match.group("resource")
+    resource_key = match.group("resource").lower()
     if resource_key not in resources:
         supported = ", ".join(resources)
         msg = f"Unsupported PubChem resource '{resource_key}'. Supported resources are: {supported}."

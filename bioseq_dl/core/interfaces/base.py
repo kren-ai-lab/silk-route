@@ -1071,7 +1071,10 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                         results.append(data)
                         metadata = metadata.merge(FetchMetadata.from_dict(child_metadata))
                     else:
+                        # A fetch_single override returning a bare value carries no child
+                        # metadata; still record it as fetched so it appears in the summary.
                         results.append(result)
+                        metadata.fetched.add(self._identifier_for(batch_query, spec, **kwargs), batch_query)
 
                 except Exception:
                     log.exception("Error fetching query at index %s (%s)", i, queries[i])

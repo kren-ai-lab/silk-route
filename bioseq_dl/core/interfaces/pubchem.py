@@ -412,7 +412,8 @@ class PubChemInterface(BaseAPIInterface):
                 f"{WORKFLOW_COMPOUND_PROPERTIES}/JSON"
             )
             params["MaxRecords"] = int(query.get("max_records") or 100)
-            params["Threshold"] = int(query.get("threshold") or 90)
+            threshold = query.get("threshold")
+            params["Threshold"] = int(threshold) if threshold is not None else 90
         else:
             msg = (
                 "Unsupported PubChem workflow search mode "
@@ -446,15 +447,19 @@ class PubChemInterface(BaseAPIInterface):
     def _make_identifier(self, query: str | dict | list, spec: dict) -> str:
         """Build cache identifiers for PubChem requests."""
         if spec == self.METHODS[WORKFLOW_COMPOUND_PROPERTIES_METHOD] and isinstance(query, dict):
+            search_mode = query.get("search_mode", "lookup")
             identifier = {
                 "namespace": query.get("namespace"),
                 "identifier": query.get("identifier"),
-                "search_mode": query.get("search_mode", "lookup"),
+                "search_mode": search_mode,
                 "max_records": query.get("max_records", 100),
                 "properties": WORKFLOW_COMPOUND_PROPERTIES,
             }
-            if query.get("threshold") is not None:
-                identifier["threshold"] = query["threshold"]
+            # Only similarity_2d sends Threshold; mirror the request default (90) so an
+            # unset threshold and an explicit 90 map to the same cache entry.
+            if search_mode == "similarity_2d":
+                threshold = query.get("threshold")
+                identifier["threshold"] = int(threshold) if threshold is not None else 90
             return json.dumps(identifier, sort_keys=True)
         return super()._make_identifier(query, spec)
 

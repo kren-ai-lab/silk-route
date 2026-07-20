@@ -108,3 +108,16 @@ def test_extract_databases_none_when_no_special_fields(uniprot):
 )
 def test_chembl_interpret(chembl, query, expected):
     assert chembl.interpret(query) == expected
+
+
+def test_chembl_mode_suffix_clause_is_kept(chembl):
+    # A _any/_all/_not suffix on an allowed field must not be swallowed and dropped.
+    result = chembl.interpret("ic50_any:100,1000")
+    assert "standard_value=100" in result
+    assert "standard_value=1000" in result
+
+
+@pytest.mark.parametrize("value", ["inf", "-inf", "nan"])
+def test_chembl_rejects_non_finite_values(chembl, value):
+    # Non-finite numbers must not become a standard_value clause.
+    assert f"standard_value={value}" not in chembl.interpret(f"ic50:{value}")

@@ -10,7 +10,7 @@ from bioseq_dl.core.workflow.chebi_query_catalog import (
 )
 from bioseq_dl.core.workflow.query_prefixes import is_source_prefixed_query
 
-CHEBI_QUERY_PATTERN = re.compile(r"^chebi\.(?P<resource>[a-z_]+):(?P<body>.+)$")
+CHEBI_QUERY_PATTERN = re.compile(r"^chebi\.(?P<resource>[a-z_]+):(?P<body>.+)$", re.IGNORECASE)
 CHEBI_BUILDER_QUERY_PREFIXES = ("chebi.entity:",)
 CHEBI_ID_PATTERN = re.compile(r"^CHEBI:\d+$")
 MIN_QUOTED_VALUE_LENGTH = 2
@@ -29,7 +29,7 @@ def get_chebi_prefixed_query_resource(query: str) -> str | None:
     match = CHEBI_QUERY_PATTERN.match(str(query or "").strip())
     if not match:
         return None
-    return match.group("resource")
+    return match.group("resource").lower()
 
 
 def strip_chebi_value_quotes(value: str) -> str:
@@ -88,7 +88,7 @@ def parse_chebi_query_builder_string(query: str) -> dict[str, object]:
         raise ValueError(msg)
 
     resources = get_chebi_query_builder_resource_catalog()
-    resource_key = match.group("resource")
+    resource_key = match.group("resource").lower()
     if resource_key not in resources:
         supported = ", ".join(resources)
         msg = f"Unsupported ChEBI resource '{resource_key}'. Supported resources are: {supported}."
