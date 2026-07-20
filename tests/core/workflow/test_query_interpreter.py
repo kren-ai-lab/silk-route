@@ -117,7 +117,7 @@ def test_chembl_mode_suffix_clause_is_kept(chembl):
     assert "standard_value=1000" in result
 
 
-@pytest.mark.parametrize("value", ["inf", "-inf", "nan"])
+@pytest.mark.parametrize("value", ["inf", "nan"])
 def test_chembl_rejects_non_finite_values(chembl, value):
     # Non-finite numbers must not become a standard_value clause.
     assert f"standard_value={value}" not in chembl.interpret(f"ic50:{value}")

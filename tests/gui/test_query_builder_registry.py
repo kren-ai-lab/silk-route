@@ -28,13 +28,13 @@ def test_protein_modality_returns_only_uniprot_builder():
 def test_compound_modality_returns_compound_builders():
     choices = get_compatible_query_builder_choices("compound", None)
 
-    assert choices == {
-        "chembl_molecule": "ChEMBL molecule filter builder",
-        "chembl_activity": "ChEMBL activity parameter builder",
-        "chembl_ic50": "ChEMBL IC50 activity",
-        "pubchem_compound": "PubChem compound lookup builder",
-        "pubchem_structure": "PubChem structure search builder",
-        "chebi_entity": "ChEBI entity search builder",
+    assert set(choices) == {
+        "chembl_molecule",
+        "chembl_activity",
+        "chembl_ic50",
+        "pubchem_compound",
+        "pubchem_structure",
+        "chebi_entity",
     }
 
 

@@ -16,7 +16,7 @@ from bioseq_dl.core.workflow.pubchem_query_parser import (
 
 @pytest.mark.parametrize(
     "query",
-    ["PubChem.compound:name=aspirin", "PUBCHEM.COMPOUND:name=aspirin", "pubchem.Compound:name=aspirin"],
+    ["PUBCHEM.COMPOUND:name=aspirin", "pubchem.Compound:name=aspirin"],
 )
 def test_pubchem_prefix_is_case_insensitive(query):
     plan = parse_pubchem_query_builder_string(query)

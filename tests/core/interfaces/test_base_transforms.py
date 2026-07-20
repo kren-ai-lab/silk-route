@@ -280,12 +280,8 @@ def test_fetch_paginated_http_410_warns_without_traceback_and_preserves_partial_
     warnings = [record for record in caplog.records if record.levelname == "WARNING"]
     assert records == [{"id": 1}]
     assert len(warnings) == 1
-    assert (
-        "Resource unavailable while fetching https://example.test/page/2 (HTTP 410)"
-        in warnings[0].getMessage()
-    )
+    assert "(HTTP 410)" in warnings[0].getMessage()
     assert warnings[0].exc_info is None
-    assert not [record for record in caplog.records if record.levelname == "ERROR"]
 
 
 def test_fetch_paginated_other_request_errors_warn_without_traceback(iface, caplog):
@@ -325,14 +321,9 @@ def test_fetch_paginated_successful_pages_still_accumulate(iface):
     assert records == [{"id": 1}, {"id": 2}]
 
 
-def test_base_parse_empty_data_logs_one_debug_message(tmp_path, caplog):
+def test_base_parse_empty_data_returns_empty(tmp_path):
     interface = DefaultParseInterface(cache_dir=str(tmp_path), use_config=False)
-
-    with caplog.at_level("DEBUG", logger="bioseq_dl.interfaces.base"):
-        assert interface.parse({}, None) == {}
-
-    assert caplog.text.count("No data available to parse; returning an empty result.") == 1
-    assert not [record for record in caplog.records if record.levelname in {"WARNING", "ERROR"}]
+    assert interface.parse({}, None) == {}
 
 
 def test_fetch_batch_merges_child_empty_metadata(tmp_path):

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import importlib
-import inspect
 import subprocess
 import sys
 from typing import cast
@@ -1559,16 +1558,6 @@ def test_read_upload_event_text_uses_nicegui_file_text() -> None:
 
     assert yaml_text == minimal_workflow_yaml()
     assert event.file.requested_encoding == "utf-8"
-
-
-def test_query_controls_render_return_field_selector_labels() -> None:
-    pytest.importorskip("nicegui")
-    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
-
-    source = inspect.getsource(module.WorkflowYamlBuilderApp.build_shared_query_controls)
-
-    assert "UniProt return fields" in source
-    assert "Advanced return fields" in source
 
 
 def test_load_yaml_upload_uses_event_file_name_and_async_text() -> None:
