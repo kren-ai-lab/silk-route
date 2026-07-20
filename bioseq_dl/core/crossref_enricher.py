@@ -50,6 +50,60 @@ def empty_provenance_frame() -> pl.DataFrame:
     return pl.DataFrame(schema=PROVENANCE_SCHEMA)
 
 
+def summarize_result_shape(result: Any) -> str:
+    """Return a concise result-shape summary without serializing the payload."""
+    if isinstance(result, pl.DataFrame):
+        return f"DataFrame(rows={result.height}, columns={len(result.columns)})"
+    if isinstance(result, MappingABC):
+        return f"dict(keys={len(result)})"
+    if isinstance(result, list):
+        item_shapes = []
+        for item in result[:3]:
+            if isinstance(item, list):
+                item_shapes.append(f"list[{len(item)}]")
+            elif isinstance(item, MappingABC):
+                item_shapes.append("dict")
+            else:
+                item_shapes.append(type(item).__name__)
+        suffix = ", ..." if len(result) > len(item_shapes) else ""
+        return f"list(len={len(result)}, items={', '.join(item_shapes)}{suffix})"
+    return type(result).__name__
+
+
+def normalize_tabular_enrichment_result(result: Any) -> Any:
+    """Flatten only top-level batch containers in tabular enrichment results."""
+    if isinstance(result, pl.DataFrame | MappingABC) or result is None:
+        return result
+    if not isinstance(result, list):
+        return result
+
+    flattened: list[dict[str, Any]] = []
+    for index, item in enumerate(result):
+        if isinstance(item, MappingABC):
+            flattened.append(dict(item))
+            continue
+        if isinstance(item, list):
+            if all(isinstance(record, MappingABC) for record in item):
+                flattened.extend(dict(record) for record in item)
+                continue
+            msg = f"top-level batch item {index} is a list containing non-mapping records"
+            raise TypeError(msg)
+        msg = f"top-level batch item {index} is {type(item).__name__}, not a mapping or batch list"
+        raise TypeError(msg)
+    return flattened
+
+
+def log_malformed_tabular_result(endpoint_label: str, result: Any, error: Exception) -> None:
+    """Log a concise warning for a malformed recoverable tabular result."""
+    log.warning(
+        "Dropping malformed cross-ref result for %s (result_type=%s, shape=%s): %s",
+        endpoint_label,
+        type(result).__name__,
+        summarize_result_shape(result),
+        error,
+    )
+
+
 def _is_missing_value(value: Any) -> bool:
     """Return whether a source-row value should be treated as absent."""
     return value is None or (isinstance(value, float) and math.isnan(value))
@@ -392,6 +446,12 @@ def attach_source_context(
         source_endpoint=source_endpoint,
     )
 
+    try:
+        result = normalize_tabular_enrichment_result(result)
+    except TypeError as exc:
+        log_malformed_tabular_result(f"{source_database}:{source_endpoint}", result, exc)
+        return empty_provenance_frame() if isinstance(result, pl.DataFrame) else []
+
     if isinstance(result, pl.DataFrame):
         if result.is_empty():
             return empty_provenance_frame()
@@ -659,6 +719,13 @@ class CrossRefEnricher:
             )
             result = self._graph_row_result(graph_row, fmt)
         else:
+            try:
+                result = normalize_tabular_enrichment_result(result)
+            except TypeError as exc:
+                log_malformed_tabular_result(spec.label, result, exc)
+                if fmt == "dataframe":
+                    return empty_provenance_frame(), metadata
+                return [], metadata
             result = attach_source_context(
                 result,
                 row,
@@ -712,18 +779,23 @@ class CrossRefEnricher:
         if isinstance(result, pl.DataFrame):
             df_result = result
         elif isinstance(result, list):
+            try:
+                result = normalize_tabular_enrichment_result(result)
+            except TypeError as exc:
+                log_malformed_tabular_result("tabular-clean-frame", result, exc)
+                return None
             if not result:
                 return None
             try:
                 df_result = records_to_frame(result)
-            except Exception:  # skip records that will not coerce to a DataFrame
-                log.exception("Dropping cross-ref result that will not coerce to a DataFrame: %r", result)
+            except (TypeError, ValueError, pl.exceptions.PolarsError) as exc:
+                log_malformed_tabular_result("tabular-clean-frame", result, exc)
                 return None
         elif isinstance(result, dict):
             try:
                 df_result = records_to_frame(result)
-            except Exception:  # skip records that will not coerce to a DataFrame
-                log.exception("Dropping cross-ref result that will not coerce to a DataFrame: %r", result)
+            except (TypeError, ValueError, pl.exceptions.PolarsError) as exc:
+                log_malformed_tabular_result("tabular-clean-frame", result, exc)
                 return None
         else:
             log.debug("Skipping unsupported cross-ref result type: %s", type(result).__name__)
