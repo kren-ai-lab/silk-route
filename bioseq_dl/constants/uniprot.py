@@ -132,9 +132,16 @@ def get_default_uniprot_return_fields() -> list[str]:
 
 
 def get_required_uniprot_fields_for_enrichment(crossref_fields: object) -> list[str]:
-    """Return UniProt fields required by selected cross-reference enrichment sources."""
+    """Return UniProt fields required by selected cross-reference enrichment sources.
+
+    ``accession`` is always included once any enrichment source is recognized: it is the
+    provenance key (``source_accession``) that ties every enrichment row back to its
+    originating protein, so it must be present even when the user's custom return fields
+    omit it.
+    """
     required_fields: list[str] = []
     seen: set[str] = set()
+    enrichment_requested = False
     for field in normalize_uniprot_return_fields(crossref_fields):
         source = field
         if source.endswith("_all"):
@@ -143,11 +150,16 @@ def get_required_uniprot_fields_for_enrichment(crossref_fields: object) -> list[
         if required is None and "_" in source:
             source_db = source.split("_", 1)[0]
             required = ENRICHMENT_REQUIRED_UNIPROT_FIELDS.get(source_db)
-        for required_field in required or ():
+        if required is None:
+            continue
+        enrichment_requested = True
+        for required_field in required:
             lookup_value = required_field.casefold()
             if lookup_value not in seen:
                 required_fields.append(required_field)
                 seen.add(lookup_value)
+    if enrichment_requested and "accession" not in seen:
+        required_fields.append("accession")
     return required_fields
 
 

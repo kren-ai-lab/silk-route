@@ -13,6 +13,7 @@ from bioseq_dl import ChEMBLInterface, UniprotInterface
 from bioseq_dl.constants.uniprot import get_effective_uniprot_return_fields
 from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
 from bioseq_dl.core.export import normalize_parse_format
+from bioseq_dl.core.metadata import FetchMetadata
 from bioseq_dl.core.utils.crossref_enrichment import (
     is_structure_download_workflow_compatible,
     normalize_crossref_fields,
@@ -492,6 +493,43 @@ def merge_enrichment_data(existing: list[Any], new: Any) -> list[Any]:
             else:
                 existing.append({db_ep: db_data})
     return existing
+
+
+def merge_enrichment_endpoint_meta(existing: dict, incoming: dict) -> dict:
+    """Merge two same-endpoint enrichment metadata dicts, keeping graph flags.
+
+    ``FetchMetadata`` merges the fetch buckets accurately but drops non-schema keys
+    (``output_kind`` and the other graph-contract flags), so those are restored from
+    the source dicts afterwards.
+    """
+    if not isinstance(existing, dict):
+        return incoming
+    if not isinstance(incoming, dict):
+        return existing
+    merged = FetchMetadata.from_dict(existing).merge(FetchMetadata.from_dict(incoming)).to_dict()
+    for key in (set(existing) | set(incoming)) - set(merged):
+        merged[key] = incoming.get(key, existing.get(key))
+    return merged
+
+
+def aggregate_part_enrichment_metadata(parts: list[dict]) -> dict:
+    """Aggregate per-part ``uniprot_enrichment`` metadata into one top-level mapping.
+
+    Mirrors the query_first layout (``metadata['uniprot_enrichment'][label]``) so the
+    graph-externalization consumer works the same in both modes.
+    """
+    aggregated: dict = {}
+    for part in parts:
+        part_enrichment = part.get("meta", {}).get("uniprot_enrichment") if isinstance(part, dict) else None
+        if not isinstance(part_enrichment, dict):
+            continue
+        for label, endpoint_meta in part_enrichment.items():
+            aggregated[label] = (
+                merge_enrichment_endpoint_meta(aggregated[label], endpoint_meta)
+                if label in aggregated
+                else endpoint_meta
+            )
+    return aggregated
 
 
 class MainWorkflow:
@@ -1553,6 +1591,12 @@ class MainWorkflow:
                 combined_enrichment = merge_enrichment_data(combined_enrichment, enrichment_data)
 
             metadata["parts"].append({"query": query, "label": label, "meta": part_meta})
+
+        # Expose enrichment metadata at the top level (keyed by endpoint label), matching
+        # query_first, so graph-payload externalization recognizes composition outputs too.
+        aggregated_enrichment_meta = aggregate_part_enrichment_metadata(metadata["parts"])
+        if aggregated_enrichment_meta:
+            metadata["uniprot_enrichment"] = aggregated_enrichment_meta
 
         # Combined_rows now contains only the labeled data parts in a list.
         # For example

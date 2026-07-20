@@ -341,6 +341,40 @@ def test_query_composition_labels_and_merges(workflow, monkeypatch):
     assert [p["label"] for p in metadata["parts"]] == ["la", "lb"]
 
 
+def test_merge_enrichment_endpoint_meta_preserves_graph_flags():
+    from bioseq_dl.core.workflow.main_workflow import merge_enrichment_endpoint_meta
+
+    a = {"output_kind": "raw_graph", "fetched": {"ids": ["P1"]}}
+    b = {"output_kind": "raw_graph", "fetched": {"ids": ["P2"]}}
+    merged = merge_enrichment_endpoint_meta(a, b)
+
+    assert merged["output_kind"] == "raw_graph"
+    assert set(merged["fetched"]["ids"]) == {"P1", "P2"}
+
+
+def test_query_composition_surfaces_top_level_enrichment_metadata(workflow, monkeypatch):
+    def fake_run_protein(query=None, **kwargs):
+        data = {"uniprot": pl.DataFrame({"acc": [f"P{query}"]})}
+        meta = {
+            "modality": "protein",
+            "uniprot_enrichment": {
+                "pathwaycommons_fetch": {"output_kind": "raw_graph", "fetched": {"ids": [f"P{query}"]}}
+            },
+        }
+        return data, meta
+
+    monkeypatch.setattr(workflow, "run_protein", fake_run_protein)
+
+    _, metadata = workflow.query_composition(
+        modality="protein", queries_with_labels=[("1", "la"), ("2", "lb")]
+    )
+
+    # Top-level uniprot_enrichment mirrors query_first so graph externalization recognizes it.
+    graph_meta = metadata["uniprot_enrichment"]["pathwaycommons_fetch"]
+    assert graph_meta["output_kind"] == "raw_graph"
+    assert set(graph_meta["fetched"]["ids"]) == {"P1", "P2"}
+
+
 def test_query_composition_empty_parts_returns_empty(workflow, monkeypatch):
     monkeypatch.setattr(workflow, "run_protein", lambda **kw: ({}, {}))
 
