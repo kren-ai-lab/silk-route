@@ -2,6 +2,7 @@
 
 import re
 from collections.abc import Sequence
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -10,9 +11,14 @@ import polars as pl
 from niquests import Request
 
 from bioseq_dl.constants.databases import PDB
-from bioseq_dl.core.interfacesconfig import load_packaged_config
 from bioseq_dl.core.metadata import FetchMetadata
-from bioseq_dl.core.utils.frames import records_to_frame
+from bioseq_dl.core.utils.structure_files import (
+    WINDOWS_RESERVED_FILENAMES,
+    attach_pdb_file,
+    configured_output_dir,
+    display_structure_path,
+    records_to_structure_frame,
+)
 from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
@@ -21,25 +27,11 @@ log = get_logger("bioseq_dl.interfaces.pdb")
 
 PDB_ID_PATTERN = re.compile(r"^[A-Za-z0-9]{4}$")
 STRUCTURE_FORMAT_PATTERN = re.compile(r"^[A-Za-z0-9]+$")
-WINDOWS_RESERVED_FILENAMES = {
-    "CON",
-    "PRN",
-    "AUX",
-    "NUL",
-    *(f"COM{index}" for index in range(1, 10)),
-    *(f"LPT{index}" for index in range(1, 10)),
-}
 
 # Check https://data.rcsb.org/rest/v1/core/entry/4HHB for more attributes
 # rcsbapi package usage tutorial at: https://pdb101.rcsb.org/train/training-events/apis-python
 # more info: https://data.rcsb.org/rest/v1/schema/entry
 # more info: https://data.rcsb.org/redoc/index.html#tag/Entry-Service/operation/getEntryById
-
-
-def _configured_output_dir(cache_dir: str, output_dir: str | None, init_subdir: str) -> str:
-    """Resolve the configured output path without creating directories."""
-    packaged_init = load_packaged_config(init_subdir, "init.yml") or {}
-    return output_dir or packaged_init.get("download_folder") or cache_dir
 
 
 def _is_empty_result(result: object) -> bool:
@@ -107,45 +99,6 @@ def _safe_structure_file_path(output_dir: str | Path, pdb_id: str, file_format: 
     return file_path
 
 
-def _display_structure_path(file_path: str | Path, path_base: str | Path | None) -> str:
-    """Return a normalized path suitable for interface and workflow output."""
-    resolved_path = Path(file_path).resolve()
-    if path_base is None:
-        return str(resolved_path)
-    try:
-        return resolved_path.relative_to(Path(path_base).resolve()).as_posix()
-    except ValueError:
-        log.warning("PDB structure path is outside workflow output directory: %s", resolved_path)
-        return str(resolved_path)
-
-
-def _next_payload_pdb_file_key(record: dict) -> str:
-    """Return the next collision-preserving payload key for an incoming pdb_file."""
-    if "payload_pdb_file" not in record:
-        return "payload_pdb_file"
-    index = 2
-    while f"payload_{index}_pdb_file" in record:
-        index += 1
-    return f"payload_{index}_pdb_file"
-
-
-def _attach_pdb_file(record: dict, pdb_file: str | None) -> dict:
-    """Attach an authoritative local pdb_file while preserving payload collisions."""
-    existing = record.get("pdb_file")
-    if "pdb_file" in record and existing != pdb_file:
-        record[_next_payload_pdb_file_key(record)] = existing
-    record["pdb_file"] = pdb_file
-    return record
-
-
-def _records_to_structure_frame(records: list[dict]) -> pl.DataFrame:
-    """Build a Polars frame with a stable nullable string pdb_file column."""
-    frame = records_to_frame(records)
-    if "pdb_file" in frame.columns:
-        frame = frame.with_columns(pl.col("pdb_file").cast(pl.Utf8))
-    return frame
-
-
 class PDBInterface(BaseAPIInterface):
     """RCSB Protein Data Bank API interface."""
 
@@ -192,7 +145,7 @@ class PDBInterface(BaseAPIInterface):
         if download_structures:
             self.output_dir = self._resolve_output_dir(output_dir, init_subdir="pdb")
         else:
-            self.output_dir = _configured_output_dir(self.cache_dir, output_dir, "pdb")
+            self.output_dir = configured_output_dir(self.cache_dir, output_dir, "pdb")
 
         self.batch_size = batch_size
         self.download_structures = download_structures
@@ -249,18 +202,18 @@ class PDBInterface(BaseAPIInterface):
         """Return a display path for a downloaded structure path."""
         if not path:
             return None
-        return _display_structure_path(path, self.path_base)
+        return display_structure_path(path, self.path_base)
 
     def _attach_structure_path_to_result(self, result: Any, pdb_file: str | None) -> Any:
         """Attach a local structure path to every row in a successful PDB result."""
         if isinstance(result, pl.DataFrame):
-            return _records_to_structure_frame(
-                [_attach_pdb_file(row, pdb_file) for row in result.iter_rows(named=True)]
+            return records_to_structure_frame(
+                [attach_pdb_file(row, pdb_file) for row in result.iter_rows(named=True)]
             )
         if isinstance(result, list):
             return [self._attach_structure_path_to_result(item, pdb_file) for item in result]
         if isinstance(result, dict):
-            return _attach_pdb_file(result, pdb_file)
+            return attach_pdb_file(result, pdb_file)
         return result
 
     def fetch_single(
@@ -315,16 +268,24 @@ class PDBInterface(BaseAPIInterface):
 
         result_items: list[tuple[str | dict, Any, bool]] = []
         eligible_structure_ids: list[str] = []
-        structure_paths: dict[str, str | None] = {}
         merged_metadata = FetchMetadata()
 
-        for query in queries:
+        def fetch_one(query: str | dict) -> tuple[str | dict, Any, dict] | None:
             try:
-                result, metadata = super().fetch_single(query, parse, *args, **kwargs)
+                result, metadata = BaseAPIInterface.fetch_single(self, query, parse, *args, **kwargs)
             except Exception:
                 log.exception("Error fetching PDB query during structure-download batch: %s", query)
-                continue
+                return None
+            return query, result, metadata
 
+        # executor.map preserves input order, keeping the output deterministic.
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            fetched = list(executor.map(fetch_one, queries))
+
+        for item in fetched:
+            if item is None:
+                continue
+            query, result, metadata = item
             merged_metadata = merged_metadata.merge(FetchMetadata.from_dict(metadata))
             # Structure downloads need a string PDB id; dict queries are fetched but not downloaded.
             eligible = isinstance(query, str) and _is_successful_child_result(query, result, metadata)
@@ -332,10 +293,11 @@ class PDBInterface(BaseAPIInterface):
             if eligible:
                 _append_unique_pdb_id(eligible_structure_ids, query)
 
-        for pdb_id in eligible_structure_ids:
-            structure_paths[pdb_id.casefold()] = self._display_downloaded_structure_path(
-                self.fetch_structure(pdb_id)
-            )
+        def download_one(pdb_id: str) -> tuple[str, str | None]:
+            return pdb_id.casefold(), self._display_downloaded_structure_path(self.fetch_structure(pdb_id))
+
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            structure_paths = dict(executor.map(download_one, eligible_structure_ids))
 
         results = []
         for query, result, eligible in result_items:

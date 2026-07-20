@@ -11,28 +11,19 @@ import polars as pl
 
 from bioseq_dl.constants.databases import ALPHAFOLD
 from bioseq_dl.core.export import export_dataframe
-from bioseq_dl.core.interfacesconfig import load_packaged_config
 from bioseq_dl.core.utils.frames import records_to_frame
+from bioseq_dl.core.utils.structure_files import (
+    WINDOWS_RESERVED_FILENAMES,
+    attach_pdb_file,
+    configured_output_dir,
+    display_structure_path,
+    records_to_structure_frame,
+)
 from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
 
 log = get_logger("bioseq_dl.interfaces.alphafold")
-
-WINDOWS_RESERVED_FILENAMES = {
-    "CON",
-    "PRN",
-    "AUX",
-    "NUL",
-    *(f"COM{index}" for index in range(1, 10)),
-    *(f"LPT{index}" for index in range(1, 10)),
-}
-
-
-def _configured_output_dir(cache_dir: str, output_dir: str | None, init_subdir: str) -> str:
-    """Resolve the configured output path without creating directories."""
-    packaged_init = load_packaged_config(init_subdir, "init.yml") or {}
-    return output_dir or packaged_init.get("download_folder") or cache_dir
 
 
 def _structure_filename_from_url(structure_url: str) -> str | None:
@@ -67,45 +58,6 @@ def _safe_structure_file_path(output_dir: str | Path, file_name: str) -> Path | 
         log.warning("Skipping AlphaFold structure path outside output directory: %s", file_path)
         return None
     return file_path
-
-
-def _display_structure_path(file_path: Path, path_base: str | Path | None) -> str:
-    """Return a normalized path suitable for interface and workflow output."""
-    resolved_path = file_path.resolve()
-    if path_base is None:
-        return str(resolved_path)
-    try:
-        return resolved_path.relative_to(Path(path_base).resolve()).as_posix()
-    except ValueError:
-        log.warning("AlphaFold structure path is outside workflow output directory: %s", resolved_path)
-        return str(resolved_path)
-
-
-def _next_payload_pdb_file_key(record: dict) -> str:
-    """Return the next collision-preserving payload key for an incoming pdb_file."""
-    if "payload_pdb_file" not in record:
-        return "payload_pdb_file"
-    index = 2
-    while f"payload_{index}_pdb_file" in record:
-        index += 1
-    return f"payload_{index}_pdb_file"
-
-
-def _attach_pdb_file(record: dict, pdb_file: str | None) -> dict:
-    """Attach an authoritative local pdb_file while preserving payload collisions."""
-    existing = record.get("pdb_file")
-    if "pdb_file" in record and existing != pdb_file:
-        record[_next_payload_pdb_file_key(record)] = existing
-    record["pdb_file"] = pdb_file
-    return record
-
-
-def _records_to_structure_frame(records: list[dict]) -> pl.DataFrame:
-    """Build a Polars frame with a stable nullable string pdb_file column."""
-    frame = records_to_frame(records)
-    if "pdb_file" in frame.columns:
-        frame = frame.with_columns(pl.col("pdb_file").cast(pl.Utf8))
-    return frame
 
 
 class AlphafoldInterface(BaseAPIInterface):
@@ -156,7 +108,7 @@ class AlphafoldInterface(BaseAPIInterface):
         if structures:
             self.output_dir = self._resolve_output_dir(output_dir, init_subdir="alphafold")
         else:
-            self.output_dir = _configured_output_dir(self.cache_dir, output_dir, "alphafold")
+            self.output_dir = configured_output_dir(self.cache_dir, output_dir, "alphafold")
 
         self.structures = structures
         self.path_base = path_base
@@ -234,7 +186,7 @@ class AlphafoldInterface(BaseAPIInterface):
     def _download_structures_for_result(self, result: Any) -> Any:
         """Return ``result`` with downloaded structure paths attached to records."""
         if isinstance(result, pl.DataFrame):
-            return _records_to_structure_frame(
+            return records_to_structure_frame(
                 [self.download_structures(record) for record in result.iter_rows(named=True)]
             )
         if isinstance(result, list):
@@ -262,32 +214,32 @@ class AlphafoldInterface(BaseAPIInterface):
             if url_key not in parsed:
                 log.warning("%s not found in parsed data. %s", url_key, parsed)
                 if ext == "pdb":
-                    _attach_pdb_file(parsed, None)
+                    attach_pdb_file(parsed, None)
                 continue
 
             structure_url = parsed[url_key]
             if not structure_url:
                 log.warning("%s is empty; skipping download. %s", url_key, parsed)
                 if ext == "pdb":
-                    _attach_pdb_file(parsed, None)
+                    attach_pdb_file(parsed, None)
                 continue
             file_name = _structure_filename_from_url(str(structure_url))
             if file_name is None:
                 log.warning("Could not determine AlphaFold structure filename from URL: %s", structure_url)
                 if ext == "pdb":
-                    _attach_pdb_file(parsed, None)
+                    attach_pdb_file(parsed, None)
                 continue
             file_path = _safe_structure_file_path(self.output_dir, file_name)
             if file_path is None:
                 if ext == "pdb":
-                    _attach_pdb_file(parsed, None)
+                    attach_pdb_file(parsed, None)
                 continue
 
             # Check if the file already exists
             if file_path.exists():
                 parsed.pop(url_key, None)
                 if file_key == "pdb_file":
-                    _attach_pdb_file(parsed, _display_structure_path(file_path, self.path_base))
+                    attach_pdb_file(parsed, display_structure_path(file_path, self.path_base))
                 log.info("Structure %s already exists. Skipping download.", file_name)
                 continue
 
@@ -302,11 +254,11 @@ class AlphafoldInterface(BaseAPIInterface):
             except (OSError, niquests.exceptions.RequestException):
                 log.exception("Error downloading structure %s", file_name)
                 if file_key == "pdb_file":
-                    _attach_pdb_file(parsed, None)
+                    attach_pdb_file(parsed, None)
             else:
                 parsed.pop(url_key, None)
                 if file_key == "pdb_file":
-                    _attach_pdb_file(parsed, _display_structure_path(file_path, self.path_base))
+                    attach_pdb_file(parsed, display_structure_path(file_path, self.path_base))
 
         return parsed if parsed is not None else {}
 

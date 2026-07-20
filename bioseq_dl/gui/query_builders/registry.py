@@ -98,6 +98,8 @@ def get_query_builder_specs() -> dict[str, QueryBuilderSpec]:
             build_friendly_query=build_chembl_friendly_query,
             build_interpreted_query=build_chembl_interpreted_query,
             get_field_catalog=partial(get_chembl_query_builder_field_catalog, "cell_line"),
+            # Intentionally not GUI-selectable: usable via the parser/YAML map, but kept
+            # out of the builder menu (empty compatibility tuples).
             compatible_modalities=(),
             compatible_interaction_types=(),
         ),

@@ -39,10 +39,6 @@ LOADED_QUERY_VALUE_WARNING = (
     "Loaded the saved query text in Manual query mode. Visual builder reconstruction "
     "is available for YAML files saved with query.builder metadata."
 )
-QUERY_BUILDER_RESTORE_ERROR_WARNING = (
-    "query.builder metadata could not be restored. The saved query text was loaded "
-    "in Manual query mode and the original metadata was preserved."
-)
 QUERY_BUILDER_NOT_EDITABLE_WARNING = (
     "This file includes query.builder metadata. It is kept with the descriptor and "
     "shown as read-only in this GUI version."

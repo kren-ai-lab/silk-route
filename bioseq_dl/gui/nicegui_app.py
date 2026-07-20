@@ -1472,7 +1472,7 @@ class WorkflowYamlBuilderApp:
                 row = build_chebi_builder_row_from_form(self.form_values)
                 friendly_query = build_chebi_friendly_query(row)
                 interpreted_query = build_chebi_interpreted_query(row)
-        except ValueError as exc:
+        except (TypeError, ValueError) as exc:
             self.friendly_query_preview.value = ""
             self.interpreted_query_preview.value = f"Builder error: {exc}"
             return
