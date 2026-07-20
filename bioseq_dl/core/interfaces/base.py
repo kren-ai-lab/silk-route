@@ -130,20 +130,24 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
 
         return cache_dir, config_dir
 
-    def _resolve_output_dir(self, output_dir: str | None, *, init_subdir: str | None = None) -> str:
-        """Resolve a download output dir and ensure it exists.
+    def _resolve_output_dir(
+        self, output_dir: str | None, *, init_subdir: str | None = None, create: bool = True
+    ) -> str:
+        """Resolve a download output dir, creating it unless ``create`` is False.
 
         Precedence: explicit ``output_dir`` > packaged ``init.yml`` ``download_folder``
         (when ``init_subdir`` is given) > ``self.cache_dir``. Shared by the
-        file-downloading interfaces (AlphaFold / PDB / SABIO-RK). Call after
-        ``super().__init__`` so ``self.cache_dir`` is set.
+        file-downloading interfaces (AlphaFold / PDB / SABIO-RK); pass ``create=False``
+        to resolve the path without touching the filesystem (no downloads pending).
+        Call after ``super().__init__`` so ``self.cache_dir`` is set.
         """
         fallback = self.cache_dir
         if init_subdir:
             packaged_init = load_packaged_config(init_subdir, "init.yml") or {}
             fallback = packaged_init.get("download_folder") or self.cache_dir
         out_dir = output_dir or fallback
-        Path(out_dir).mkdir(parents=True, exist_ok=True)
+        if create:
+            Path(out_dir).mkdir(parents=True, exist_ok=True)
         return out_dir
 
     def __init__(

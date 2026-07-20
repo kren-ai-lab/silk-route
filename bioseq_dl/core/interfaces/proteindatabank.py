@@ -15,7 +15,6 @@ from bioseq_dl.core.metadata import FetchMetadata
 from bioseq_dl.core.utils.structure_files import (
     WINDOWS_RESERVED_FILENAMES,
     attach_pdb_file,
-    configured_output_dir,
     display_structure_path,
     records_to_structure_frame,
 )
@@ -145,7 +144,7 @@ class PDBInterface(BaseAPIInterface):
         if download_structures:
             self.output_dir = self._resolve_output_dir(output_dir, init_subdir="pdb")
         else:
-            self.output_dir = configured_output_dir(self.cache_dir, output_dir, "pdb")
+            self.output_dir = self._resolve_output_dir(output_dir, init_subdir="pdb", create=False)
 
         self.batch_size = batch_size
         self.download_structures = download_structures

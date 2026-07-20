@@ -15,7 +15,6 @@ from bioseq_dl.core.utils.frames import records_to_frame
 from bioseq_dl.core.utils.structure_files import (
     WINDOWS_RESERVED_FILENAMES,
     attach_pdb_file,
-    configured_output_dir,
     display_structure_path,
     records_to_structure_frame,
 )
@@ -108,7 +107,7 @@ class AlphafoldInterface(BaseAPIInterface):
         if structures:
             self.output_dir = self._resolve_output_dir(output_dir, init_subdir="alphafold")
         else:
-            self.output_dir = configured_output_dir(self.cache_dir, output_dir, "alphafold")
+            self.output_dir = self._resolve_output_dir(output_dir, init_subdir="alphafold", create=False)
 
         self.structures = structures
         self.path_base = path_base

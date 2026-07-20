@@ -21,6 +21,9 @@ WORKFLOW_COMPOUND_PROPERTIES_METHOD = "workflow/compound-properties"
 WORKFLOW_COMPOUND_PROPERTIES = (
     "MolecularFormula,MolecularWeight,CanonicalSMILES,IsomericSMILES,InChI,InChIKey,IUPACName"
 )
+# Default Threshold for a similarity_2d search. The request builder and the cache-identifier
+# builder must agree on this so an unset threshold and an explicit 90 map to one cache entry.
+DEFAULT_SIMILARITY_THRESHOLD = 90
 
 # PubChem has 2 main API access points: PUG-REST and PUG-View.
 # PUG-REST is used for short requests with simple inputs and outputs.
@@ -413,7 +416,7 @@ class PubChemInterface(BaseAPIInterface):
             )
             params["MaxRecords"] = int(query.get("max_records") or 100)
             threshold = query.get("threshold")
-            params["Threshold"] = int(threshold) if threshold is not None else 90
+            params["Threshold"] = int(threshold) if threshold is not None else DEFAULT_SIMILARITY_THRESHOLD
         else:
             msg = (
                 "Unsupported PubChem workflow search mode "
@@ -455,11 +458,13 @@ class PubChemInterface(BaseAPIInterface):
                 "max_records": query.get("max_records", 100),
                 "properties": WORKFLOW_COMPOUND_PROPERTIES,
             }
-            # Only similarity_2d sends Threshold; mirror the request default (90) so an
-            # unset threshold and an explicit 90 map to the same cache entry.
+            # Only similarity_2d sends Threshold; mirror the request default so an
+            # unset threshold and an explicit default map to the same cache entry.
             if search_mode == "similarity_2d":
                 threshold = query.get("threshold")
-                identifier["threshold"] = int(threshold) if threshold is not None else 90
+                identifier["threshold"] = (
+                    int(threshold) if threshold is not None else DEFAULT_SIMILARITY_THRESHOLD
+                )
             return json.dumps(identifier, sort_keys=True)
         return super()._make_identifier(query, spec)
 

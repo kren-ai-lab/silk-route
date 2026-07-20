@@ -10,7 +10,6 @@ from pathlib import Path
 
 import polars as pl
 
-from bioseq_dl.core.interfacesconfig import load_packaged_config
 from bioseq_dl.core.utils.frames import records_to_frame
 from bioseq_dl.logging import get_logger
 
@@ -24,12 +23,6 @@ WINDOWS_RESERVED_FILENAMES = {
     *(f"COM{index}" for index in range(1, 10)),
     *(f"LPT{index}" for index in range(1, 10)),
 }
-
-
-def configured_output_dir(cache_dir: str, output_dir: str | None, init_subdir: str) -> str:
-    """Resolve the configured output path without creating directories."""
-    packaged_init = load_packaged_config(init_subdir, "init.yml") or {}
-    return output_dir or packaged_init.get("download_folder") or cache_dir
 
 
 def display_structure_path(file_path: str | Path, path_base: str | Path | None) -> str:
