@@ -221,6 +221,47 @@ def build_uniprot_builder_ui_rows(form_rows: object) -> list[dict[str, object]]:
     ] or [make_uniprot_builder_ui_row()]
 
 
+def builder_field_label(catalog: dict[str, object], field: object) -> str:
+    """Return a visible "Label (key)" field label, or the raw field when unknown."""
+    field_text = str(field)
+    if field_text in catalog:
+        return f"{catalog[field_text].label} ({field_text})"
+    return field_text
+
+
+def builder_field_value(catalog: dict[str, object], label_or_value: object) -> str:
+    """Return the internal field key for a visible field label or raw field key."""
+    text = str(label_or_value)
+    for key, entry in catalog.items():
+        if text == f"{entry.label} ({key})":
+            return key
+    return text
+
+
+def builder_field_entry(catalog: dict[str, object], label_or_value: object) -> object:
+    """Return the catalog entry for a visible field label or field key."""
+    return catalog[builder_field_value(catalog, label_or_value)]
+
+
+def builder_field_options(catalog: dict[str, object]) -> list[str]:
+    """Return visible field option labels for a catalog."""
+    return [builder_field_label(catalog, key) for key in catalog]
+
+
+def builder_field_help(
+    catalog: dict[str, object],
+    label_or_value: object,
+    *,
+    operator_attr: str,
+    operator_word: str,
+) -> str:
+    """Return compact field help listing examples and the source's operator/mode set."""
+    entry = builder_field_entry(catalog, label_or_value)
+    examples = ", ".join(entry.examples)
+    operators = ", ".join(getattr(entry, operator_attr))
+    return f"{entry.description} Examples: {examples}. {operator_word}: {operators}"
+
+
 def get_chembl_builder_resource(builder_label_or_key: object) -> str:
     """Return the ChEMBL resource for a selected builder key or label."""
     builder_key = get_query_builder_key(builder_label_or_key)
@@ -241,34 +282,22 @@ def get_chembl_field_catalog_for_builder(builder_label_or_key: object) -> dict[s
 
 def get_chembl_builder_field_label(builder_label_or_key: object, field: object) -> str:
     """Return a visible ChEMBL field label."""
-    catalog = get_chembl_field_catalog_for_builder(builder_label_or_key)
-    field_text = str(field)
-    if field_text in catalog:
-        return f"{catalog[field_text].label} ({field_text})"
-    return field_text
+    return builder_field_label(get_chembl_field_catalog_for_builder(builder_label_or_key), field)
 
 
 def get_chembl_builder_field_value(builder_label_or_key: object, label_or_value: object) -> str:
     """Return an internal ChEMBL field key for a visible field label or field key."""
-    catalog = get_chembl_field_catalog_for_builder(builder_label_or_key)
-    text = str(label_or_value)
-    for key, entry in catalog.items():
-        if text == f"{entry.label} ({key})":
-            return key
-    return text
+    return builder_field_value(get_chembl_field_catalog_for_builder(builder_label_or_key), label_or_value)
 
 
 def get_chembl_field_entry(builder_label_or_key: object, label_or_value: object) -> object:
     """Return ChEMBL catalog metadata for a visible field label or field key."""
-    catalog = get_chembl_field_catalog_for_builder(builder_label_or_key)
-    field = get_chembl_builder_field_value(builder_label_or_key, label_or_value)
-    return catalog[field]
+    return builder_field_entry(get_chembl_field_catalog_for_builder(builder_label_or_key), label_or_value)
 
 
 def get_chembl_field_options(builder_label_or_key: object) -> list[str]:
     """Return visible ChEMBL field options for the selected builder."""
-    catalog = get_chembl_field_catalog_for_builder(builder_label_or_key)
-    return [get_chembl_builder_field_label(builder_label_or_key, key) for key in catalog]
+    return builder_field_options(get_chembl_field_catalog_for_builder(builder_label_or_key))
 
 
 def get_chembl_filter_type_options(builder_label_or_key: object, label_or_value: object) -> list[str]:
@@ -279,10 +308,12 @@ def get_chembl_filter_type_options(builder_label_or_key: object, label_or_value:
 
 def get_chembl_field_help(builder_label_or_key: object, label_or_value: object) -> str:
     """Return compact ChEMBL field help."""
-    entry = get_chembl_field_entry(builder_label_or_key, label_or_value)
-    examples = ", ".join(entry.examples)
-    operators = ", ".join(entry.allowed_operators)
-    return f"{entry.description} Examples: {examples}. Operators: {operators}"
+    return builder_field_help(
+        get_chembl_field_catalog_for_builder(builder_label_or_key),
+        label_or_value,
+        operator_attr="allowed_operators",
+        operator_word="Operators",
+    )
 
 
 def make_chembl_builder_ui_row(builder_label_or_key: object) -> dict[str, object]:
@@ -428,42 +459,32 @@ def get_pubchem_field_catalog_for_builder(builder_label_or_key: object) -> dict[
 
 def get_pubchem_builder_field_label(builder_label_or_key: object, field: object) -> str:
     """Return a visible PubChem field label."""
-    catalog = get_pubchem_field_catalog_for_builder(builder_label_or_key)
-    field_text = str(field)
-    if field_text in catalog:
-        return f"{catalog[field_text].label} ({field_text})"
-    return field_text
+    return builder_field_label(get_pubchem_field_catalog_for_builder(builder_label_or_key), field)
 
 
 def get_pubchem_builder_field_value(builder_label_or_key: object, label_or_value: object) -> str:
     """Return an internal PubChem field key for a visible field label or field key."""
-    catalog = get_pubchem_field_catalog_for_builder(builder_label_or_key)
-    text = str(label_or_value)
-    for key, entry in catalog.items():
-        if text == f"{entry.label} ({key})":
-            return key
-    return text
+    return builder_field_value(get_pubchem_field_catalog_for_builder(builder_label_or_key), label_or_value)
 
 
 def get_pubchem_field_entry(builder_label_or_key: object, label_or_value: object) -> object:
     """Return PubChem catalog metadata for a visible field label or field key."""
-    catalog = get_pubchem_field_catalog_for_builder(builder_label_or_key)
-    field = get_pubchem_builder_field_value(builder_label_or_key, label_or_value)
-    return catalog[field]
+    return builder_field_entry(get_pubchem_field_catalog_for_builder(builder_label_or_key), label_or_value)
 
 
 def get_pubchem_field_options(builder_label_or_key: object) -> list[str]:
     """Return visible PubChem field options for the selected builder."""
-    catalog = get_pubchem_field_catalog_for_builder(builder_label_or_key)
-    return [get_pubchem_builder_field_label(builder_label_or_key, key) for key in catalog]
+    return builder_field_options(get_pubchem_field_catalog_for_builder(builder_label_or_key))
 
 
 def get_pubchem_field_help(builder_label_or_key: object, label_or_value: object) -> str:
     """Return compact PubChem field help."""
-    entry = get_pubchem_field_entry(builder_label_or_key, label_or_value)
-    examples = ", ".join(entry.examples)
-    modes = ", ".join(entry.supported_modes)
-    return f"{entry.description} Examples: {examples}. Modes: {modes}"
+    return builder_field_help(
+        get_pubchem_field_catalog_for_builder(builder_label_or_key),
+        label_or_value,
+        operator_attr="supported_modes",
+        operator_word="Modes",
+    )
 
 
 def is_pubchem_similarity_field(builder_label_or_key: object, label_or_value: object) -> bool:
@@ -534,42 +555,32 @@ def get_chebi_field_catalog_for_builder(builder_label_or_key: object) -> dict[st
 
 def get_chebi_builder_field_label(builder_label_or_key: object, field: object) -> str:
     """Return a visible ChEBI field label."""
-    catalog = get_chebi_field_catalog_for_builder(builder_label_or_key)
-    field_text = str(field)
-    if field_text in catalog:
-        return f"{catalog[field_text].label} ({field_text})"
-    return field_text
+    return builder_field_label(get_chebi_field_catalog_for_builder(builder_label_or_key), field)
 
 
 def get_chebi_builder_field_value(builder_label_or_key: object, label_or_value: object) -> str:
     """Return an internal ChEBI field key for a visible field label or field key."""
-    catalog = get_chebi_field_catalog_for_builder(builder_label_or_key)
-    text = str(label_or_value)
-    for key, entry in catalog.items():
-        if text == f"{entry.label} ({key})":
-            return key
-    return text
+    return builder_field_value(get_chebi_field_catalog_for_builder(builder_label_or_key), label_or_value)
 
 
 def get_chebi_field_entry(builder_label_or_key: object, label_or_value: object) -> object:
     """Return ChEBI catalog metadata for a visible field label or field key."""
-    catalog = get_chebi_field_catalog_for_builder(builder_label_or_key)
-    field = get_chebi_builder_field_value(builder_label_or_key, label_or_value)
-    return catalog[field]
+    return builder_field_entry(get_chebi_field_catalog_for_builder(builder_label_or_key), label_or_value)
 
 
 def get_chebi_field_options(builder_label_or_key: object) -> list[str]:
     """Return visible ChEBI field options for the selected builder."""
-    catalog = get_chebi_field_catalog_for_builder(builder_label_or_key)
-    return [get_chebi_builder_field_label(builder_label_or_key, key) for key in catalog]
+    return builder_field_options(get_chebi_field_catalog_for_builder(builder_label_or_key))
 
 
 def get_chebi_field_help(builder_label_or_key: object, label_or_value: object) -> str:
     """Return compact ChEBI field help."""
-    entry = get_chebi_field_entry(builder_label_or_key, label_or_value)
-    examples = ", ".join(entry.examples)
-    operators = ", ".join(entry.supported_operators)
-    return f"{entry.description} Examples: {examples}. Operators: {operators}"
+    return builder_field_help(
+        get_chebi_field_catalog_for_builder(builder_label_or_key),
+        label_or_value,
+        operator_attr="supported_operators",
+        operator_word="Operators",
+    )
 
 
 def make_chebi_builder_ui_row(builder_label_or_key: object) -> dict[str, object]:

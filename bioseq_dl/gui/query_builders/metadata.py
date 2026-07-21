@@ -50,7 +50,7 @@ from bioseq_dl.gui.query_builders.uniprot import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Callable, Mapping, Sequence
 
 QUERY_BUILDER_SCHEMA_VERSION = "query-builder-v1"
 REQUIRED_QUERY_BUILDER_METADATA_FIELDS = (
@@ -488,25 +488,46 @@ def build_chembl_ic50_query_builder_metadata(row: object) -> dict[str, object]:
     )
 
 
+def _validated_source_builder_row(
+    builder_key: str,
+    row: object,
+    *,
+    database: str,
+    database_label: str,
+    validate: Callable[[object], None],
+    normalize_resource: Callable[[str], str],
+    normalize_field: Callable[[str], str],
+) -> dict[str, object]:
+    """Validate a source builder row and return its serialized ``{field, value}`` mapping."""
+    validate(row)
+    spec = get_query_builder_spec(builder_key)
+    if spec.database != database:
+        msg = f"Query builder '{builder_key}' is not a {database_label} builder."
+        raise ValueError(msg)
+    expected_resource = builder_key.removeprefix(f"{database}_")
+    if normalize_resource(row.resource) != expected_resource:
+        msg = f"Query builder '{builder_key}' does not match its {database_label} row resource."
+        raise ValueError(msg)
+    return {
+        "field": normalize_field(row.field),
+        "value": strip_surrounding_quotes(str(row.value)).strip(),
+    }
+
+
 def build_pubchem_query_builder_metadata(
     builder_key: str,
     row: PubChemQueryBuilderRow,
 ) -> dict[str, object]:
     """Build neutral metadata for a validated PubChem visual builder row."""
-    validate_pubchem_builder_row(row)
-    spec = get_query_builder_spec(builder_key)
-    if spec.database != "pubchem":
-        msg = f"Query builder '{builder_key}' is not a PubChem builder."
-        raise ValueError(msg)
-    expected_resource = builder_key.removeprefix("pubchem_")
-    if normalize_pubchem_resource(row.resource) != expected_resource:
-        msg = f"Query builder '{builder_key}' does not match its PubChem row resource."
-        raise ValueError(msg)
-
-    serialized_row: dict[str, object] = {
-        "field": normalize_pubchem_field(row.field),
-        "value": strip_surrounding_quotes(str(row.value)).strip(),
-    }
+    serialized_row = _validated_source_builder_row(
+        builder_key,
+        row,
+        database="pubchem",
+        database_label="PubChem",
+        validate=validate_pubchem_builder_row,
+        normalize_resource=normalize_pubchem_resource,
+        normalize_field=normalize_pubchem_field,
+    )
     if serialized_row["field"] == "similarity_2d_cid":
         serialized_row["threshold"] = int(str(row.threshold).strip())
     return build_common_query_builder_metadata(builder_key, [serialized_row])
@@ -517,18 +538,13 @@ def build_chebi_query_builder_metadata(
     row: ChEBIQueryBuilderRow,
 ) -> dict[str, object]:
     """Build neutral metadata for a validated ChEBI visual builder row."""
-    validate_chebi_builder_row(row)
-    spec = get_query_builder_spec(builder_key)
-    if spec.database != "chebi":
-        msg = f"Query builder '{builder_key}' is not a ChEBI builder."
-        raise ValueError(msg)
-    expected_resource = builder_key.removeprefix("chebi_")
-    if normalize_chebi_resource(row.resource) != expected_resource:
-        msg = f"Query builder '{builder_key}' does not match its ChEBI row resource."
-        raise ValueError(msg)
-
-    serialized_row = {
-        "field": normalize_chebi_field(row.field),
-        "value": strip_surrounding_quotes(str(row.value)).strip(),
-    }
+    serialized_row = _validated_source_builder_row(
+        builder_key,
+        row,
+        database="chebi",
+        database_label="ChEBI",
+        validate=validate_chebi_builder_row,
+        normalize_resource=normalize_chebi_resource,
+        normalize_field=normalize_chebi_field,
+    )
     return build_common_query_builder_metadata(builder_key, [serialized_row])

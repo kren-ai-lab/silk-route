@@ -123,3 +123,34 @@ def test_read_upload_event_text_reads_utf8() -> None:
 def test_read_upload_event_text_raises_without_file() -> None:
     with pytest.raises(ValueError, match="Uploaded file content was not available"):
         asyncio.run(fh.read_upload_event_text(object()))
+
+
+# --- PubChem / ChEBI getter families (characterization; guards a future collapse) ---
+
+
+def test_pubchem_field_options_and_help_use_modes_wording() -> None:
+    label = fh.get_query_builder_label("pubchem_compound")
+    assert fh.get_pubchem_field_options(label) == [
+        "CID (cid)",
+        "Name (name)",
+        "InChIKey (inchikey)",
+        "InChI (inchi)",
+    ]
+    # PubChem help ends with the mode list ("Modes:"), not operators.
+    assert fh.get_pubchem_field_help(label, "name").endswith("Modes: lookup")
+
+
+def test_pubchem_field_value_round_trips_label_to_key() -> None:
+    label = fh.get_query_builder_label("pubchem_compound")
+    assert fh.get_pubchem_builder_field_value(label, "Name (name)") == "name"
+
+
+def test_chebi_field_options_and_help_use_operators_wording() -> None:
+    label = fh.get_query_builder_label("chebi_entity")
+    assert fh.get_chebi_field_options(label) == [
+        "ChEBI ID (chebi_id)",
+        "Name (name)",
+        "Name contains (name_contains)",
+    ]
+    # ChEBI help ends with the operator list ("Operators:"), not modes.
+    assert fh.get_chebi_field_help(label, "name").endswith("Operators: exact")
