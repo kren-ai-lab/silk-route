@@ -104,6 +104,30 @@ def test_allowed_top_level_sections_are_exactly_workflow_v1_sections() -> None:
     assert len(ALLOWED_DESCRIPTOR_SECTION_NAMES) == len(KNOWN_DESCRIPTOR_SECTIONS)
 
 
+def test_every_accepted_section_key_is_in_the_schema_definition() -> None:
+    # Every validated key must appear in the schema definition, or GUI/YAML generators
+    # can't see it and it fails to round-trip.
+    from bioseq_dl.core.workflow.schema import (
+        DATASET_KEYS,
+        EXECUTION_KEYS,
+        EXPORT_KEYS,
+        HARMONIZATION_KEYS,
+        QUERY_KEYS,
+        get_workflow_v1_schema_definition,
+    )
+
+    definition = set(get_workflow_v1_schema_definition())
+    for section, keys in (
+        ("dataset", DATASET_KEYS),
+        ("query", QUERY_KEYS),
+        ("execution", EXECUTION_KEYS),
+        ("harmonization", HARMONIZATION_KEYS),
+        ("export", EXPORT_KEYS),
+    ):
+        missing = {key for key in keys if f"{section}.{key}" not in definition}
+        assert not missing, f"{section} keys missing from schema definition: {missing}"
+
+
 def test_valid_minimal_workflow_v1_descriptor() -> None:
     values = validate_workflow_recipe(base_workflow_descriptor())
 
@@ -285,10 +309,10 @@ def test_invalid_query_composition_description_is_rejected() -> None:
 def test_query_composition_matching_query_value_passes_validation() -> None:
     descriptor = base_workflow_descriptor()
     descriptor["dataset"]["mode"] = "query_composition"
-    descriptor["query"]["value"] = "gene:TP53=tp53,gene:BRCA1=brca1"
+    descriptor["query"]["value"] = "ic50:0-10=active,ic50:10-100=inactive"
     descriptor["query"]["composition"] = [
-        {"label": "tp53", "value": "gene:TP53", "description": "TP53 query."},
-        {"label": "brca1", "value": "gene:BRCA1", "description": None},
+        {"label": "active", "value": "ic50:0-10"},
+        {"label": "inactive", "value": "ic50:10-100"},
     ]
 
     values = validate_workflow_recipe(descriptor)
@@ -296,12 +320,13 @@ def test_query_composition_matching_query_value_passes_validation() -> None:
     assert values["query_descriptor"]["composition"] == descriptor["query"]["composition"]
 
 
-def test_query_composition_contradicting_query_value_fails_validation() -> None:
+def test_query_composition_crossed_pairs_fail_validation() -> None:
     descriptor = base_workflow_descriptor()
     descriptor["dataset"]["mode"] = "query_composition"
-    descriptor["query"]["value"] = "gene:TP53=tp53"
+    descriptor["query"]["value"] = "ic50:0-10=active,ic50:10-100=inactive"
     descriptor["query"]["composition"] = [
-        {"label": "brca1", "value": "gene:BRCA1"},
+        {"label": "active", "value": "ic50:10-100"},
+        {"label": "inactive", "value": "ic50:0-10"},
     ]
 
     with pytest.raises(ValueError, match=r"query\.composition does not match executable query\.value"):

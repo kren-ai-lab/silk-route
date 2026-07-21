@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import contextlib
 import datetime as dt
+import hashlib
 import json
 import logging
 import math
+import os
+import re
+import tempfile
 import time
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -17,139 +21,107 @@ import yaml
 
 from bioseq_dl import __version__
 from bioseq_dl.core.export import (
-    USER_EXPORT_FORMATS,
     export_dataframe,
     normalize_export_format,
     normalize_user_export_format,
 )
 from bioseq_dl.core.interfaces.uniprot import UniprotInterface
+from bioseq_dl.core.workflow import schema as workflow_schema
 from bioseq_dl.core.workflow.main_workflow import MainWorkflow
-from bioseq_dl.core.workflow.schema import WORKFLOW_SCHEMA_VERSION
 from bioseq_dl.logging import configure_logging, get_logger
 
 log = get_logger("bioseq_dl.cli.workflows")
 
 
-MODALITIES = ["protein", "compound", "interaction"]
-MODES = ["query_first", "query_composition"]
-INTERACTION_TYPES = ["protein-protein", "protein-ligand"]
-FORMATS = list(USER_EXPORT_FORMATS)
+WORKFLOW_SCHEMA_VERSION = workflow_schema.WORKFLOW_SCHEMA_VERSION
+MODALITIES = workflow_schema.MODALITIES
+MODES = workflow_schema.MODES
+INTERACTION_TYPES = workflow_schema.INTERACTION_TYPES
+FORMATS = workflow_schema.FORMATS
+REQUIRED_DESCRIPTOR_SECTIONS = workflow_schema.REQUIRED_DESCRIPTOR_SECTIONS
+ALLOWED_DESCRIPTOR_SECTION_NAMES = workflow_schema.ALLOWED_DESCRIPTOR_SECTION_NAMES
+KNOWN_DESCRIPTOR_SECTIONS = workflow_schema.KNOWN_DESCRIPTOR_SECTIONS
 QUERY_COMPOSITION_LABEL_COLUMN = "_label"
 PRIMARY_RESULT_LABELS = {
     "protein": "uniprot",
     "compound": "chembl",
     "interaction": "data",
 }
-
-REQUIRED_DESCRIPTOR_SECTIONS = {"dataset", "query", "execution", "export"}
-CORE_DESCRIPTOR_SECTIONS = REQUIRED_DESCRIPTOR_SECTIONS | {
-    "resources",
-    "harmonization",
-    "reporting",
+GRAPH_JSON_COLUMN = "graph_json"
+GRAPH_FILE_COLUMNS = ("graph_file", "graph_file_size_bytes", "graph_sha256")
+GRAPH_RAW_OUTPUT_KIND = "raw_graph"
+GRAPH_ENRICHMENT_OUTPUTS = {
+    ("pathwaycommons", "fetch"),
+    ("pathwaycommons", "neighborhood"),
 }
-DESCRIPTIVE_DESCRIPTOR_SECTIONS = {
-    "interaction_retrieval",
-    "activity_retrieval",
-    "chemical_metadata_integration",
-    "protein_target_integration",
-    "temperature_enrichment",
-    "cross_source_integration",
-}
-ALLOWED_DESCRIPTOR_SECTION_NAMES = [
-    "schema_version",
-    "dataset",
-    "query",
-    "resources",
-    "execution",
-    "harmonization",
-    "export",
-    "reporting",
-    "interaction_retrieval",
-    "activity_retrieval",
-    "chemical_metadata_integration",
-    "protein_target_integration",
-    "temperature_enrichment",
-    "cross_source_integration",
-]
-KNOWN_DESCRIPTOR_SECTIONS = CORE_DESCRIPTOR_SECTIONS | DESCRIPTIVE_DESCRIPTOR_SECTIONS | {"schema_version"}
-
-DATASET_KEYS = {
-    "name",
-    "description",
-    "modality",
-    "mode",
-    "primary_data_source",
-    "interaction_type",
-}
-QUERY_KEYS = {
-    "value",
-    "builder",
-    "composition",
-    "description",
-    "filtering_strategy",
-    "fields",
-    "crossref_fields",
-    "include_isoform",
-}
-RESOURCES_KEYS = {"primary", "integration"}
-EXECUTION_KEYS = {
-    "enrich",
-    "max_workers",
-    "total_retries",
-    "chembl_pages_to_fetch",
-    "merge_results",
-    "uniprot_timeout",
-    "debug",
-}
-HARMONIZATION_KEYS = {
-    "id_column",
-    "label_column",
-    "sequence_column",
-    "unique_sequence_strategy",
-    "metadata_fields",
-}
-EXPORT_KEYS = {
-    "output_dir",
-    "format",
-    "include_metadata",
-    "include_summary",
-    "manifest_file",
-    "summary_file",
-    "result_files",
+WINDOWS_RESERVED_FILENAMES = {
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    *(f"COM{index}" for index in range(1, 10)),
+    *(f"LPT{index}" for index in range(1, 10)),
 }
 
-OLD_ROOT_KEY_ERRORS = {
-    "version": (f"Unknown workflow YAML key 'version'. Use schema_version: \"{WORKFLOW_SCHEMA_VERSION}\"."),
-    "kind": "Unknown workflow YAML key 'kind'. Use the structured dataset/query/execution/export schema.",
-    "workflow": (
-        "Unknown workflow YAML key 'workflow'. Use the structured dataset/query/execution/export schema."
-    ),
-}
-OLD_MODE_KEY_ERRORS = {
-    "dispatch_mode": "Unknown workflow YAML key 'dispatch_mode'. Use dataset.mode instead.",
-    "dispatch": "Unknown workflow YAML key 'dispatch'. Use dataset.mode instead.",
-    "method": "Unknown workflow YAML key 'method'. Use dataset.mode instead.",
-}
-QUERY_KEY_ERRORS = {
-    "type": "Unknown query YAML key 'type'. Query type is not supported yet; use query.value.",
-    "filters": (
-        "Unknown query YAML key 'filters'. Use query.filtering_strategy for descriptive filtering notes."
-    ),
-}
-FORBIDDEN_CREDENTIAL_KEYS = {
-    "api_key",
-    "access_key",
-    "password",
-    "email",
-    "token",
-    "secret",
-    "bioseq_dl_biogrid_api_key",
-    "bioseq_dl_brenda_email",
-    "bioseq_dl_brenda_password",
-    "bioseq_dl_refseq_email",
-}
-CREDENTIAL_ERROR = "Credentials must be provided through environment variables or .env, not workflow YAML."
-QUERY_COMPOSITION_MISMATCH_ERROR = "query.composition does not match executable query.value."
+check_forbidden_workflow_recipe_keys = workflow_schema.check_forbidden_workflow_recipe_keys
+require_mapping = workflow_schema.require_mapping
+validate_allowed_section_keys = workflow_schema.validate_allowed_section_keys
+validate_descriptor_section_names = workflow_schema.validate_descriptor_section_names
+validate_schema_version = workflow_schema.validate_schema_version
+validate_required_section_keys = workflow_schema.validate_required_section_keys
+validate_optional_string = workflow_schema.validate_optional_string
+validate_bool = workflow_schema.validate_bool
+validate_int = workflow_schema.validate_int
+validate_numeric_or_null = workflow_schema.validate_numeric_or_null
+validate_pages_to_fetch = workflow_schema.validate_pages_to_fetch
+validate_string_list = workflow_schema.validate_string_list
+validate_query_builder = workflow_schema.validate_query_builder
+validate_query_composition = workflow_schema.validate_query_composition
+parse_query_composition_value = workflow_schema.parse_query_composition_value
+validate_query_composition_matches_query_value = (
+    workflow_schema.validate_query_composition_matches_query_value
+)
+normalize_optional_field_list = workflow_schema.normalize_optional_field_list
+is_reporting_value_allowed = workflow_schema.is_reporting_value_allowed
+validate_reporting_section = workflow_schema.validate_reporting_section
+validate_resources_section = workflow_schema.validate_resources_section
+validate_execution_section = workflow_schema.validate_execution_section
+validate_structure_download_controls = workflow_schema.validate_structure_download_controls
+validate_harmonization_section = workflow_schema.validate_harmonization_section
+validate_export_section = workflow_schema.validate_export_section
+
+
+def validate_interaction_type(
+    modality: object,
+    interaction_type: object,
+    field_label: str,
+    modality_label: str,
+) -> None:
+    """Validate CLI/runtime interaction-type values."""
+    if modality == "interaction" and not interaction_type:
+        msg = f"{field_label} is required when {modality_label} is 'interaction'."
+        raise ValueError(msg)
+    if interaction_type is not None and interaction_type not in INTERACTION_TYPES:
+        msg = (
+            f"Unsupported {field_label} '{interaction_type}'. "
+            f"Supported interaction types are: {', '.join(INTERACTION_TYPES)}."
+        )
+        raise ValueError(msg)
+
+
+def validate_dataset_section(dataset: dict, export_section: dict) -> dict:
+    """Validate and return the dataset descriptor section."""
+    return workflow_schema.validate_dataset_section(dataset, export_section)
+
+
+def validate_query_section(query_section: dict) -> tuple[dict, str | None, str | None]:
+    """Validate query metadata and return CLI-normalized field options."""
+    validated = workflow_schema.validate_query_section(query_section)
+    fields = workflow_schema.normalize_optional_field_list("query", "fields", validated.get("fields"))
+    crossref_fields = workflow_schema.normalize_optional_field_list(
+        "query", "crossref_fields", validated.get("crossref_fields")
+    )
+    return validated, fields, crossref_fields
 
 
 def build_default_workflow_values() -> dict:
@@ -176,6 +148,8 @@ def build_default_workflow_values() -> dict:
         "mode": None,
         "export_format": "csv",
         "enrich": True,
+        "download_alphafold_structures": False,
+        "download_pdb_structures": False,
         "workers": 5,
         "retries": 3,
         "chembl_pages_to_fetch": -1,
@@ -192,589 +166,6 @@ def build_default_workflow_values() -> dict:
         "manifest_file": "metadata.json",
         "summary_file": "run_summary.yml",
     }
-
-
-def check_forbidden_workflow_recipe_keys(value: object) -> None:
-    """Reject credential-like keys anywhere in a workflow descriptor.
-
-    Recurses into nested mappings and lists, raising as soon as any key matches a
-    forbidden credential name (case-insensitive).
-
-    Args:
-        value (object): The descriptor (or nested fragment) to scan.
-
-    Raises:
-        ValueError: If a forbidden credential-like key is found.
-
-    """
-    if isinstance(value, dict):
-        for key, nested_value in value.items():
-            if str(key).lower() in FORBIDDEN_CREDENTIAL_KEYS:
-                raise ValueError(CREDENTIAL_ERROR)
-            check_forbidden_workflow_recipe_keys(nested_value)
-    elif isinstance(value, list):
-        for item in value:
-            check_forbidden_workflow_recipe_keys(item)
-
-
-def require_mapping(section_name: str, value: object) -> dict:
-    """Return a section as a string-keyed mapping.
-
-    Args:
-        section_name (str): Section name used in the error message.
-        value (object): The value expected to be a mapping.
-
-    Returns:
-        dict: The section with all keys coerced to strings.
-
-    Raises:
-        TypeError: If the value is not a mapping.
-
-    """
-    if not isinstance(value, dict):
-        msg = f"Workflow YAML section '{section_name}' must be a mapping."
-        raise TypeError(msg)
-    return {str(key): item for key, item in value.items()}
-
-
-def validate_allowed_section_keys(
-    section_name: str,
-    section: dict,
-    allowed_keys: set[str],
-    special_errors: dict[str, str] | None = None,
-) -> None:
-    """Validate known keys for a descriptor section.
-
-    Args:
-        section_name (str): Section name used in the error message.
-        section (dict): The section to validate.
-        allowed_keys (set[str]): Keys permitted in the section.
-        special_errors (dict[str, str] | None): Per-key custom error messages for
-            deprecated or unsupported keys, checked before the allowed-keys test.
-
-    Raises:
-        ValueError: If a key has a special error or is not in ``allowed_keys``.
-
-    """
-    for key in section:
-        if special_errors and key in special_errors:
-            raise ValueError(special_errors[key])
-        if key not in allowed_keys:
-            msg = f"Unknown {section_name} YAML key '{key}'."
-            raise ValueError(msg)
-
-
-def validate_descriptor_section_names(workflow_descriptor: dict) -> None:
-    """Validate top-level workflow descriptor section names.
-
-    Args:
-        workflow_descriptor (dict): The top-level descriptor mapping.
-
-    Raises:
-        ValueError: If a section name is a deprecated key or is not recognized.
-
-    """
-    allowed_sections = ", ".join(sorted(KNOWN_DESCRIPTOR_SECTIONS))
-    for key in workflow_descriptor:
-        if key in OLD_MODE_KEY_ERRORS:
-            raise ValueError(OLD_MODE_KEY_ERRORS[key])
-        if key in OLD_ROOT_KEY_ERRORS:
-            raise ValueError(OLD_ROOT_KEY_ERRORS[key])
-        if key not in KNOWN_DESCRIPTOR_SECTIONS:
-            msg = f"Unknown workflow YAML section '{key}'. Allowed sections are: {allowed_sections}."
-            raise ValueError(msg)
-
-
-def validate_schema_version(workflow_descriptor: dict) -> str:
-    """Validate the required workflow schema version."""
-    if "schema_version" not in workflow_descriptor:
-        msg = (
-            "Workflow YAML is missing required top-level key 'schema_version'. "
-            f'Use schema_version: "{WORKFLOW_SCHEMA_VERSION}".'
-        )
-        raise ValueError(msg)
-
-    schema_version = workflow_descriptor["schema_version"]
-    if schema_version != WORKFLOW_SCHEMA_VERSION:
-        msg = (
-            f"Unsupported workflow schema_version '{schema_version}'. "
-            f'Only schema_version: "{WORKFLOW_SCHEMA_VERSION}" is supported.'
-        )
-        raise ValueError(msg)
-    return schema_version
-
-
-def validate_required_section_keys(section_name: str, section: dict, required_keys: set[str]) -> None:
-    """Validate that a descriptor section contains required keys.
-
-    Args:
-        section_name (str): Section name used in the error message.
-        section (dict): The section to validate.
-        required_keys (set[str]): Keys that must be present and non-null.
-
-    Raises:
-        ValueError: If any required key is missing or set to ``None``.
-
-    """
-    missing = sorted(key for key in required_keys if key not in section or section[key] is None)
-    if missing:
-        missing_text = ", ".join(missing)
-        msg = f"Workflow YAML section '{section_name}' is missing required key(s): {missing_text}."
-        raise ValueError(msg)
-
-
-def validate_optional_string(section_name: str, key: str, value: object) -> None:
-    """Validate an optional string field.
-
-    Args:
-        section_name (str): Section name used in the error message.
-        key (str): Field name within the section.
-        value (object): The value to validate.
-
-    Raises:
-        ValueError: If the value is neither ``None`` nor a string.
-
-    """
-    if value is not None and not isinstance(value, str):
-        msg = f"Workflow YAML key '{section_name}.{key}' must be a string or null."
-        raise ValueError(msg)
-
-
-def validate_bool(section_name: str, key: str, value: object) -> None:
-    """Validate a boolean field.
-
-    Args:
-        section_name (str): Section name used in the error message.
-        key (str): Field name within the section.
-        value (object): The value to validate.
-
-    Raises:
-        TypeError: If the value is not a boolean.
-
-    """
-    if not isinstance(value, bool):
-        msg = f"Workflow YAML key '{section_name}.{key}' must be a boolean."
-        raise TypeError(msg)
-
-
-def validate_int(section_name: str, key: str, value: object) -> None:
-    """Validate an integer field without accepting booleans.
-
-    Args:
-        section_name (str): Section name used in the error message.
-        key (str): Field name within the section.
-        value (object): The value to validate.
-
-    Raises:
-        TypeError: If the value is a boolean or not an integer.
-
-    """
-    if isinstance(value, bool) or not isinstance(value, int):
-        msg = f"Workflow YAML key '{section_name}.{key}' must be an integer."
-        raise TypeError(msg)
-
-
-def validate_numeric_or_null(section_name: str, key: str, value: object) -> None:
-    """Validate a numeric or null field without accepting booleans.
-
-    Args:
-        section_name (str): Section name used in the error message.
-        key (str): Field name within the section.
-        value (object): The value to validate.
-
-    Raises:
-        ValueError: If the value is neither ``None`` nor a non-boolean number.
-
-    """
-    if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float))):
-        msg = f"Workflow YAML key '{section_name}.{key}' must be numeric or null."
-        raise ValueError(msg)
-
-
-def validate_pages_to_fetch(section_name: str, key: str, value: object) -> None:
-    """Validate a ChEMBL page count where -1 means all pages.
-
-    Args:
-        section_name (str): Section name used in the error message.
-        key (str): Field name within the section.
-        value (object): The value to validate.
-
-    Raises:
-        TypeError: If the value is not an integer.
-        ValueError: If the value is 0 or less than -1.
-
-    """
-    validate_int(section_name, key, value)
-    if value == 0 or (isinstance(value, int) and value < -1):
-        msg = f"Workflow YAML key '{section_name}.{key}' must be -1 or a positive integer."
-        raise ValueError(msg)
-
-
-def validate_string_list(section_name: str, key: str, value: object) -> None:
-    """Validate a list containing only strings.
-
-    Args:
-        section_name (str): Section name used in the error message.
-        key (str): Field name within the section.
-        value (object): The value to validate.
-
-    Raises:
-        ValueError: If the value is not a list of strings.
-
-    """
-    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-        msg = f"Workflow YAML key '{section_name}.{key}' must be a list of strings."
-        raise ValueError(msg)
-
-
-def validate_query_builder(value: object) -> None:
-    """Validate optional GUI query-builder metadata."""
-    if value is not None and not isinstance(value, dict):
-        msg = "Workflow YAML key 'query.builder' must be a mapping."
-        raise TypeError(msg)
-
-
-def validate_query_composition(value: object) -> None:
-    """Validate optional GUI query-composition metadata."""
-    if value is None:
-        return
-    if not isinstance(value, list):
-        msg = "Workflow YAML key 'query.composition' must be a list of mappings."
-        raise TypeError(msg)
-    for index, item in enumerate(value):
-        if not isinstance(item, dict):
-            msg = f"Workflow YAML key 'query.composition[{index}]' must be a mapping."
-            raise TypeError(msg)
-        for required_key in ("label", "value"):
-            required_value = item.get(required_key)
-            if not isinstance(required_value, str) or not required_value.strip():
-                msg = (
-                    f"Workflow YAML key 'query.composition[{index}].{required_key}' "
-                    "must be a non-empty string."
-                )
-                raise ValueError(msg)
-        description = item.get("description")
-        if "description" in item and description is not None and not isinstance(description, str):
-            msg = f"Workflow YAML key 'query.composition[{index}].description' must be a string or null."
-            raise ValueError(msg)
-
-
-def parse_query_composition_value(query_value: str) -> list[tuple[str, str]]:
-    """Parse executable query-composition pairs from query.value."""
-    pairs = []
-    for raw_part in query_value.split(","):
-        query_part = raw_part.strip()
-        if not query_part:
-            continue
-        try:
-            query_text, label = split_pair(query_part)
-        except ValueError:
-            raise ValueError(QUERY_COMPOSITION_MISMATCH_ERROR) from None
-        if not query_text or not label:
-            raise ValueError(QUERY_COMPOSITION_MISMATCH_ERROR)
-        pairs.append((query_text, label))
-    if not pairs:
-        raise ValueError(QUERY_COMPOSITION_MISMATCH_ERROR)
-    return pairs
-
-
-def validate_query_composition_matches_query_value(query_descriptor: dict, mode: str) -> None:
-    """Require preserved query.composition metadata to match executable query.value."""
-    composition = query_descriptor.get("composition")
-    if mode != "query_composition" or composition is None:
-        return
-
-    executable_pairs = set(parse_query_composition_value(query_descriptor["value"]))
-    for item in composition:
-        if (item["value"], item["label"]) not in executable_pairs:
-            raise ValueError(QUERY_COMPOSITION_MISMATCH_ERROR)
-
-
-def normalize_optional_field_list(section_name: str, key: str, value: object) -> str | None:
-    """Normalize null, comma-separated string, or string-list fields for workflow calls.
-
-    A list of strings is stripped of blank entries and joined with commas.
-
-    Args:
-        section_name (str): Section name used in the error message.
-        key (str): Field name within the section.
-        value (object): ``None``, a string, or a list of strings.
-
-    Returns:
-        str | None: The original string, a comma-joined list, or ``None`` when empty.
-
-    Raises:
-        ValueError: If the value is not null, a string, or a list of strings.
-
-    """
-    if value is None:
-        return None
-    if isinstance(value, str):
-        return value
-    if isinstance(value, list) and all(isinstance(item, str) for item in value):
-        cleaned = [item.strip() for item in value if isinstance(item, str) and item.strip()]
-        return ",".join(cleaned) if cleaned else None
-    msg = f"Workflow YAML key '{section_name}.{key}' must be null, a string, or a list of strings."
-    raise ValueError(msg)
-
-
-def is_reporting_value_allowed(value: object) -> bool:
-    """Return whether a reporting value is YAML-descriptor safe.
-
-    Scalars, dates, and recursively-checked lists and string-keyed dicts are allowed.
-
-    Args:
-        value (object): The reporting value to check.
-
-    Returns:
-        bool: True if the value (and any nested values) are serialization-safe.
-
-    """
-    if value is None or isinstance(value, (str, int, float, bool, dt.date, dt.datetime)):
-        return True
-    if isinstance(value, list):
-        return all(is_reporting_value_allowed(item) for item in value)
-    if isinstance(value, dict):
-        return all(isinstance(key, str) and is_reporting_value_allowed(item) for key, item in value.items())
-    return False
-
-
-def validate_reporting_section(reporting: dict) -> None:
-    """Validate free-form reporting metrics.
-
-    Args:
-        reporting (dict): The reporting section to validate.
-
-    Raises:
-        ValueError: If any value has an unsupported type.
-
-    """
-    for key, value in reporting.items():
-        if not is_reporting_value_allowed(value):
-            msg = f"Workflow YAML key 'reporting.{key}' has an unsupported value type."
-            raise ValueError(msg)
-
-
-def validate_interaction_type(
-    modality: object,
-    interaction_type: object,
-    field_label: str,
-    modality_label: str,
-) -> None:
-    """Validate the interaction type against the selected modality.
-
-    Args:
-        modality (object): The selected modality.
-        interaction_type (object): The interaction type to validate.
-        field_label (str): Interaction-type field name used in error messages.
-        modality_label (str): Modality field name used in error messages.
-
-    Raises:
-        ValueError: If the modality is ``interaction`` without an interaction type,
-            or the interaction type is not supported.
-
-    """
-    if modality == "interaction" and not interaction_type:
-        msg = f"{field_label} is required when {modality_label} is 'interaction'."
-        raise ValueError(msg)
-    if interaction_type is not None and interaction_type not in INTERACTION_TYPES:
-        msg = (
-            f"Unsupported {field_label} '{interaction_type}'. "
-            f"Supported interaction types are: {', '.join(INTERACTION_TYPES)}."
-        )
-        raise ValueError(msg)
-
-
-def validate_dataset_section(dataset: dict, export_section: dict) -> dict:
-    """Validate and return the dataset descriptor section.
-
-    Checks allowed and required keys, the supported modality/mode values, optional
-    string fields, and that a dataset name exists when no output directory is set.
-
-    Args:
-        dataset (dict): The dataset section to validate.
-        export_section (dict): The validated export section, used to decide whether
-            ``dataset.name`` is required.
-
-    Returns:
-        dict: A copy of the validated dataset section.
-
-    Raises:
-        ValueError: If keys, modality, mode, or the name/output combination are invalid.
-
-    """
-    validate_allowed_section_keys("dataset", dataset, DATASET_KEYS)
-    validate_required_section_keys("dataset", dataset, {"modality", "mode"})
-
-    modality = dataset.get("modality")
-    mode = dataset.get("mode")
-    if modality not in MODALITIES:
-        supported_modalities = ", ".join(MODALITIES)
-        msg = f"Unsupported dataset.modality '{modality}'. Supported modalities are: {supported_modalities}."
-        raise ValueError(msg)
-    if mode not in MODES:
-        msg = f"Unsupported dataset.mode '{mode}'. Supported modes are: {', '.join(MODES)}."
-        raise ValueError(msg)
-
-    for key in ("name", "description", "primary_data_source", "interaction_type"):
-        validate_optional_string("dataset", key, dataset.get(key))
-
-    validate_interaction_type(
-        modality, dataset.get("interaction_type"), "dataset.interaction_type", "dataset.modality"
-    )
-
-    if not export_section.get("output_dir") and not dataset.get("name"):
-        msg = "dataset.name is required when export.output_dir is not provided."
-        raise ValueError(msg)
-    return dict(dataset)
-
-
-def validate_query_section(query_section: dict) -> tuple[dict, str | None, str | None]:
-    """Validate and return the query descriptor section plus executable field options.
-
-    Args:
-        query_section (dict): The query section to validate.
-
-    Returns:
-        tuple[dict, str | None, str | None]: A copy of the query section, the
-        normalized ``fields`` value, and the normalized ``crossref_fields`` value.
-
-    Raises:
-        ValueError: If keys, the query value, or field lists are invalid.
-
-    """
-    validate_allowed_section_keys("query", query_section, QUERY_KEYS, special_errors=QUERY_KEY_ERRORS)
-    validate_required_section_keys("query", query_section, {"value"})
-
-    query_value = query_section.get("value")
-    if not isinstance(query_value, str) or not query_value.strip():
-        msg = "Workflow YAML key 'query.value' must be a non-empty string."
-        raise ValueError(msg)
-
-    for key in ("description", "filtering_strategy"):
-        validate_optional_string("query", key, query_section.get(key))
-    validate_query_builder(query_section.get("builder"))
-    validate_query_composition(query_section.get("composition"))
-    if "include_isoform" in query_section:
-        validate_bool("query", "include_isoform", query_section["include_isoform"])
-
-    fields = normalize_optional_field_list("query", "fields", query_section.get("fields"))
-    crossref_fields = normalize_optional_field_list(
-        "query", "crossref_fields", query_section.get("crossref_fields")
-    )
-    return dict(query_section), fields, crossref_fields
-
-
-def validate_resources_section(resources: dict) -> dict:
-    """Validate and return resource descriptors.
-
-    Args:
-        resources (dict): The resources section to validate.
-
-    Returns:
-        dict: A copy of the validated resources section.
-
-    Raises:
-        ValueError: If keys are unknown or ``primary``/``integration`` are not string lists.
-
-    """
-    validate_allowed_section_keys("resources", resources, RESOURCES_KEYS)
-    for key in ("primary", "integration"):
-        if key in resources:
-            validate_string_list("resources", key, resources[key])
-    return dict(resources)
-
-
-# Per-key validators for the execution section (all share the (section, key, value) signature).
-_EXECUTION_VALIDATORS = {
-    "enrich": validate_bool,
-    "merge_results": validate_bool,
-    "max_workers": validate_int,
-    "total_retries": validate_int,
-    "chembl_pages_to_fetch": validate_pages_to_fetch,
-    "uniprot_timeout": validate_numeric_or_null,
-    "debug": validate_bool,
-}
-
-
-def validate_execution_section(execution: dict) -> dict:
-    """Validate and return executable workflow controls.
-
-    Applies the per-key validators in ``_EXECUTION_VALIDATORS`` to any present keys.
-
-    Args:
-        execution (dict): The execution section to validate.
-
-    Returns:
-        dict: A copy of the validated execution section.
-
-    Raises:
-        ValueError: If a key is unknown or a value fails its type/range validator.
-        TypeError: If a value fails its type validator.
-
-    """
-    validate_allowed_section_keys("execution", execution, EXECUTION_KEYS)
-    for key, validator in _EXECUTION_VALIDATORS.items():
-        if key in execution:
-            validator("execution", key, execution[key])
-    return dict(execution)
-
-
-def validate_harmonization_section(harmonization: dict) -> dict:
-    """Validate and return harmonization descriptors.
-
-    Args:
-        harmonization (dict): The harmonization section to validate.
-
-    Returns:
-        dict: A copy of the validated harmonization section.
-
-    Raises:
-        ValueError: If keys are unknown or string/string-list fields are invalid.
-
-    """
-    validate_allowed_section_keys("harmonization", harmonization, HARMONIZATION_KEYS)
-    for key in ("id_column", "label_column", "sequence_column", "unique_sequence_strategy"):
-        validate_optional_string("harmonization", key, harmonization.get(key))
-    if "metadata_fields" in harmonization:
-        validate_string_list("harmonization", "metadata_fields", harmonization["metadata_fields"])
-    return dict(harmonization)
-
-
-def validate_export_section(export_section: dict) -> dict:
-    """Validate and return export controls.
-
-    Validates string and boolean fields and normalizes the export format.
-
-    Args:
-        export_section (dict): The export section to validate.
-
-    Returns:
-        dict: A copy of the export section with a normalized ``format`` value.
-
-    Raises:
-        ValueError: If keys, string fields, or the export format are invalid.
-        TypeError: If a boolean field has a non-boolean value.
-
-    """
-    validate_allowed_section_keys("export", export_section, EXPORT_KEYS)
-    validate_optional_string("export", "output_dir", export_section.get("output_dir"))
-    validate_optional_string("export", "manifest_file", export_section.get("manifest_file"))
-    validate_optional_string("export", "summary_file", export_section.get("summary_file"))
-
-    export_format = normalize_user_export_format(export_section.get("format", "csv"))
-    if export_format is None:
-        raw_format = export_section.get("format", "csv")
-        msg = f"Unsupported export format '{raw_format}'. Supported formats are: {', '.join(FORMATS)}."
-        raise ValueError(msg)
-
-    for key in ("include_metadata", "include_summary"):
-        if key in export_section:
-            validate_bool("export", key, export_section[key])
-
-    normalized_export = dict(export_section)
-    normalized_export["format"] = export_format
-    return normalized_export
 
 
 def collect_descriptor_sections(values: dict) -> dict:
@@ -848,6 +239,8 @@ def sync_descriptor_from_workflow_values(values: dict) -> dict:
 
     execution = dict(synced.get("execution") or {})
     execution["enrich"] = synced.get("enrich")
+    execution["download_alphafold_structures"] = synced.get("download_alphafold_structures", False)
+    execution["download_pdb_structures"] = synced.get("download_pdb_structures", False)
     execution["max_workers"] = synced.get("workers")
     execution["total_retries"] = synced.get("retries")
     execution["chembl_pages_to_fetch"] = synced.get("chembl_pages_to_fetch")
@@ -914,8 +307,9 @@ def load_workflow_recipe(config_path: str | Path) -> dict:
 def validate_workflow_recipe(recipe: dict) -> dict:
     """Validate and normalize a structured workflow descriptor.
 
-    Rejects credential keys, checks section names and required sections, validates each
-    section, then derives executable values (output directory, query, modality, execution
+    Delegates workflow-v1 descriptor validation to
+    :func:`bioseq_dl.core.workflow.schema.validate_workflow_v1_descriptor`, then derives
+    executable CLI/runtime values (output directory, query, modality, execution
     controls, etc.) and syncs them back into descriptor metadata.
 
     Args:
@@ -929,48 +323,24 @@ def validate_workflow_recipe(recipe: dict) -> dict:
         TypeError: If the root or a section is not a mapping.
 
     """
-    if not isinstance(recipe, dict):
-        msg = "Workflow YAML root must be a mapping."
-        raise TypeError(msg)
-
-    check_forbidden_workflow_recipe_keys(recipe)
+    validated_descriptor = workflow_schema.validate_workflow_v1_descriptor(recipe)
     workflow_descriptor = {str(key): value for key, value in recipe.items()}
-    validate_descriptor_section_names(workflow_descriptor)
-    schema_version = validate_schema_version(workflow_descriptor)
-
-    missing_sections = sorted(REQUIRED_DESCRIPTOR_SECTIONS - set(workflow_descriptor))
-    if missing_sections:
-        missing = ", ".join(missing_sections)
-        msg = f"Workflow YAML is missing required top-level section(s): {missing}."
-        raise ValueError(msg)
-
-    export_section = validate_export_section(require_mapping("export", workflow_descriptor["export"]))
-    dataset = validate_dataset_section(
-        require_mapping("dataset", workflow_descriptor["dataset"]), export_section
+    schema_version = str(validated_descriptor["schema_version"])
+    dataset = dict(validated_descriptor["dataset"])
+    query_descriptor = dict(validated_descriptor["query"])
+    fields = workflow_schema.normalize_optional_field_list("query", "fields", query_descriptor.get("fields"))
+    crossref_fields = workflow_schema.normalize_optional_field_list(
+        "query", "crossref_fields", query_descriptor.get("crossref_fields")
     )
-    query_descriptor, fields, crossref_fields = validate_query_section(
-        require_mapping("query", workflow_descriptor["query"])
-    )
-    validate_query_composition_matches_query_value(query_descriptor, dataset["mode"])
-    execution = validate_execution_section(require_mapping("execution", workflow_descriptor["execution"]))
-
-    resources = {}
-    if "resources" in workflow_descriptor:
-        resources = validate_resources_section(require_mapping("resources", workflow_descriptor["resources"]))
-
-    harmonization = {}
-    if "harmonization" in workflow_descriptor:
-        harmonization = validate_harmonization_section(
-            require_mapping("harmonization", workflow_descriptor["harmonization"])
-        )
-
-    reporting = {}
-    if "reporting" in workflow_descriptor:
-        reporting = require_mapping("reporting", workflow_descriptor["reporting"])
-        validate_reporting_section(reporting)
-
+    execution = dict(validated_descriptor["execution"])
+    resources = dict(validated_descriptor.get("resources", {}))
+    harmonization = dict(validated_descriptor.get("harmonization", {}))
+    export_section = dict(validated_descriptor["export"])
+    reporting = dict(validated_descriptor.get("reporting", {}))
     extra_descriptor_sections = {
-        key: value for key, value in workflow_descriptor.items() if key in DESCRIPTIVE_DESCRIPTOR_SECTIONS
+        key: value
+        for key, value in validated_descriptor.items()
+        if key in workflow_schema.DESCRIPTIVE_DESCRIPTOR_SECTIONS
     }
 
     output_dir = export_section.get("output_dir")
@@ -999,6 +369,8 @@ def validate_workflow_recipe(recipe: dict) -> dict:
             "mode": dataset["mode"],
             "export_format": export_section.get("format", "csv"),
             "enrich": execution.get("enrich", True),
+            "download_alphafold_structures": execution.get("download_alphafold_structures", False),
+            "download_pdb_structures": execution.get("download_pdb_structures", False),
             "workers": execution.get("max_workers", 5),
             "retries": execution.get("total_retries", 3),
             "chembl_pages_to_fetch": execution.get("chembl_pages_to_fetch", -1),
@@ -1022,10 +394,8 @@ def validate_workflow_recipe(recipe: dict) -> dict:
 def collect_workflow_recipe_errors(recipe: object) -> list[str]:
     """Return every section-level validation error found in a descriptor.
 
-    Unlike :func:`validate_workflow_recipe` (which stops at the first error),
-    this runs each independent validation step and accumulates the messages so a
-    user can fix them all in one pass. Validation *within* a single section still
-    stops at that section's first error.
+    Delegates to the shared workflow-v1 schema collector so CLI validation reports use
+    the same rules as runtime descriptor validation.
 
     Args:
         recipe (object): The raw descriptor mapping to validate.
@@ -1034,83 +404,7 @@ def collect_workflow_recipe_errors(recipe: object) -> list[str]:
         list[str]: Human-readable error messages; empty when the descriptor is valid.
 
     """
-    if not isinstance(recipe, dict):
-        return ["Workflow YAML root must be a mapping."]
-
-    errors: list[str] = []
-
-    def _check(step: Callable[[], object]) -> None:
-        try:
-            step()
-        except (ValueError, TypeError) as exc:
-            errors.append(str(exc))
-
-    _check(lambda: check_forbidden_workflow_recipe_keys(recipe))
-    descriptor = {str(key): value for key, value in recipe.items()}
-    _check(lambda: validate_descriptor_section_names(descriptor))
-    _check(lambda: validate_schema_version(descriptor))
-
-    missing_sections = sorted(REQUIRED_DESCRIPTOR_SECTIONS - set(descriptor))
-    if missing_sections:
-        errors.append(
-            f"Workflow YAML is missing required top-level section(s): {', '.join(missing_sections)}."
-        )
-
-    # ``dataset`` validation depends on a validated ``export`` (for the name/output_dir
-    # rule), so resolve export first on a best-effort basis.
-    export_section: dict = {}
-
-    def _validate_export() -> None:
-        nonlocal export_section
-        export_section = validate_export_section(require_mapping("export", descriptor["export"]))
-
-    section_steps: list[tuple[str, Callable[[], object]]] = [
-        ("export", _validate_export),
-        (
-            "dataset",
-            lambda: validate_dataset_section(
-                require_mapping("dataset", descriptor["dataset"]), export_section
-            ),
-        ),
-        ("query", lambda: validate_query_section(require_mapping("query", descriptor["query"]))),
-        (
-            "execution",
-            lambda: validate_execution_section(require_mapping("execution", descriptor["execution"])),
-        ),
-        (
-            "resources",
-            lambda: validate_resources_section(require_mapping("resources", descriptor["resources"])),
-        ),
-        (
-            "harmonization",
-            lambda: validate_harmonization_section(
-                require_mapping("harmonization", descriptor["harmonization"])
-            ),
-        ),
-        (
-            "reporting",
-            lambda: validate_reporting_section(require_mapping("reporting", descriptor["reporting"])),
-        ),
-    ]
-    valid_sections: set[str] = set()
-    for name, step in section_steps:
-        if name in descriptor:
-            before = len(errors)
-            _check(step)
-            if len(errors) == before:
-                valid_sections.add(name)
-
-    # The composition/query.value cross-check spans two sections, so it only runs
-    # once both validated cleanly (their shapes are then safe to index).
-    if {"dataset", "query"} <= valid_sections:
-        _check(
-            lambda: validate_query_composition_matches_query_value(
-                require_mapping("query", descriptor["query"]),
-                require_mapping("dataset", descriptor["dataset"]).get("mode"),
-            )
-        )
-
-    return errors
+    return workflow_schema.collect_workflow_v1_descriptor_errors(recipe)
 
 
 def merge_workflow_recipe(cli_values: dict, recipe_values: dict) -> dict:
@@ -1388,6 +682,365 @@ def write_text_file(path: Path, content: object) -> None:
         handle.write(str(content))
 
 
+def graph_relative_output_path(path: Path, output_dir: Path) -> str:
+    """Return a forward-slash graph artifact path relative to ``output_dir``."""
+    return path.resolve().relative_to(output_dir.resolve()).as_posix()
+
+
+def get_output_graph_metadata(workflow_metadata: dict | None, label: str) -> dict[str, Any]:
+    """Return enrichment metadata for a graph output label when available."""
+    if not isinstance(workflow_metadata, dict):
+        return {}
+    enrichment_metadata = workflow_metadata.get("uniprot_enrichment")
+    if not isinstance(enrichment_metadata, dict):
+        return {}
+    label_metadata = enrichment_metadata.get(label)
+    return label_metadata if isinstance(label_metadata, dict) else {}
+
+
+def row_is_intended_graph_payload(row: dict[str, Any]) -> bool:
+    """Return whether a row carries one of the supported PathwayCommons graph endpoints."""
+    return (row.get("source_database"), row.get("source_endpoint")) in GRAPH_ENRICHMENT_OUTPUTS
+
+
+def has_externalizable_graph_payloads(
+    content: object,
+    output_metadata: dict[str, Any] | None = None,
+) -> bool:
+    """Return whether tabular content contains raw graph payloads."""
+    if not isinstance(content, pl.DataFrame) or GRAPH_JSON_COLUMN not in content.columns:
+        return False
+    if not isinstance(output_metadata, dict) or output_metadata.get("output_kind") != GRAPH_RAW_OUTPUT_KIND:
+        return False
+    if {"source_database", "source_endpoint"}.issubset(set(content.columns)):
+        return any(row_is_intended_graph_payload(row) for row in content.to_dicts())
+    return True
+
+
+def is_empty_graph_payload(value: object, graph_record_count: object = None) -> bool:
+    """Return whether a raw graph payload should be treated as empty."""
+    if (
+        isinstance(graph_record_count, (int, float))
+        and not isinstance(graph_record_count, bool)
+        and int(graph_record_count) == 0
+    ):
+        return True
+    if value is None:
+        return True
+    text = str(value).strip()
+    if not text or text in {"[]", "{}"}:
+        return True
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return False
+    return payload in ({}, [])
+
+
+def graph_payload_json_text(value: object) -> tuple[object, str]:
+    """Return the graph payload object and deterministic JSON text for writing."""
+    if isinstance(value, bytes):
+        try:
+            value = value.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            msg = f"Graph payload bytes are not valid UTF-8: {exc}"
+            raise ValueError(msg) from exc
+    if isinstance(value, str):
+        try:
+            payload = json.loads(value)
+        except json.JSONDecodeError:
+            msg = "Graph payload text is not valid JSON."
+            raise ValueError(msg) from None
+    else:
+        payload = to_json_compatible(value)
+    text = json.dumps(
+        to_json_compatible(payload),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return payload, text
+
+
+def safe_graph_filename_part(value: object) -> str:
+    """Return a deterministic filename component safe for Windows and POSIX."""
+    text = str(value or "").strip()
+    text = text.replace("/", "_").replace("\\", "_")
+    text = re.sub(r"[^A-Za-z0-9._-]+", "_", text)
+    text = text.strip(" ._-")
+    if not text:
+        return ""
+    text = text[:120].rstrip(" .")
+    stem = text.split(".", 1)[0].upper()
+    if stem in WINDOWS_RESERVED_FILENAMES:
+        text = f"graph_{text}"
+    return text
+
+
+def source_query_for_digest(value: object) -> object:
+    """Return the source query as a JSON-native object when possible."""
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return value
+    return value
+
+
+def graph_payload_digest(row: dict[str, Any], payload_text: str) -> str:
+    """Return a stable digest for graph identity and canonical payload text."""
+    digest_payload = {
+        "source_accession": row.get("source_accession"),
+        "source_query": source_query_for_digest(row.get("source_query")),
+        "source_database": row.get("source_database"),
+        "source_endpoint": row.get("source_endpoint"),
+        "graph_payload": json.loads(payload_text),
+    }
+    digest_text = json.dumps(
+        to_json_compatible(digest_payload),
+        sort_keys=True,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        default=str,
+    )
+    return hashlib.sha256(digest_text.encode("utf-8")).hexdigest()
+
+
+def graph_payload_file_name(row: dict[str, Any], export_label: str, digest: str, digest_length: int) -> str:
+    """Return a deterministic graph payload filename for one digest length."""
+    accession_part = safe_graph_filename_part(row.get("source_accession"))
+    if accession_part:
+        return f"{accession_part}__{export_label}__{digest[:digest_length]}.json"
+    return f"query_{digest[:digest_length]}__{export_label}.json"
+
+
+def graph_file_candidates(row: dict[str, Any], export_label: str, digest: str) -> list[str]:
+    """Return deterministic filename candidates for existing-file disambiguation."""
+    candidates = [
+        graph_payload_file_name(row, export_label, digest, length) for length in (16, 24, 32, 40, 64)
+    ]
+    seen: set[str] = set()
+    unique_candidates = []
+    for candidate in candidates:
+        candidate_key = candidate.casefold()
+        if candidate_key in seen:
+            continue
+        seen.add(candidate_key)
+        unique_candidates.append(candidate)
+    return unique_candidates
+
+
+def safe_graph_file_path(output_dir: Path, graph_dir: Path, file_name: str) -> Path:
+    """Return a resolved graph artifact path guaranteed to stay below graph_dir."""
+    if (
+        not file_name
+        or file_name in {".", ".."}
+        or file_name != file_name.rstrip(" .")
+        or ":" in file_name
+        or "/" in file_name
+        or "\\" in file_name
+    ):
+        msg = f"Unsafe graph payload filename: {file_name}"
+        raise ValueError(msg)
+    graph_output_dir = (output_dir / graph_dir).resolve()
+    file_path = (graph_output_dir / file_name).resolve()
+    file_path.relative_to(graph_output_dir)
+    return file_path
+
+
+def existing_file_matches(file_path: Path, payload_bytes: bytes) -> bool:
+    """Return whether an existing artifact exactly matches the new payload bytes."""
+    try:
+        return file_path.read_bytes() == payload_bytes
+    except OSError:
+        return False
+
+
+def select_graph_file_path(
+    row: dict[str, Any],
+    *,
+    output_dir: Path,
+    graph_dir: Path,
+    export_label: str,
+    digest: str,
+    payload_bytes: bytes,
+    used_file_names: set[str],
+) -> Path:
+    """Return a stable graph artifact path without order-dependent suffixes."""
+    for file_name in graph_file_candidates(row, export_label, digest):
+        file_name_key = file_name.casefold()
+        file_path = safe_graph_file_path(output_dir, graph_dir, file_name)
+        if file_name_key in used_file_names:
+            if file_path.exists() and existing_file_matches(file_path, payload_bytes):
+                return file_path
+            continue
+        if file_path.exists() and not existing_file_matches(file_path, payload_bytes):
+            continue
+        used_file_names.add(file_name_key)
+        return file_path
+    msg = "Could not derive a collision-free deterministic graph artifact filename."
+    raise ValueError(msg)
+
+
+def write_graph_payload_atomically(file_path: Path, payload_bytes: bytes) -> tuple[int, str, bool]:
+    """Write a graph payload atomically unless an identical artifact already exists."""
+    payload_hash = hashlib.sha256(payload_bytes).hexdigest()
+    file_size = len(payload_bytes)
+    if file_path.exists():
+        existing_bytes = file_path.read_bytes()
+        if hashlib.sha256(existing_bytes).hexdigest() == payload_hash and existing_bytes == payload_bytes:
+            return file_size, payload_hash, False
+        msg = f"Refusing to overwrite existing graph artifact: {file_path}"
+        raise FileExistsError(msg)
+
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            delete=False,
+            dir=file_path.parent,
+            prefix=f".{file_path.name}.",
+            suffix=".tmp",
+        ) as handle:
+            temp_path = Path(handle.name)
+            handle.write(payload_bytes)
+            handle.flush()
+            os.fsync(handle.fileno())
+        temp_path.replace(file_path)
+    except Exception:
+        if temp_path is not None:
+            with contextlib.suppress(OSError):
+                temp_path.unlink()
+        raise
+    return file_size, payload_hash, True
+
+
+def build_graph_artifact_info(
+    *,
+    export_label: str,
+    row: dict,
+    file_path: Path,
+    relative_path: str,
+    file_size: int,
+    sha256: str,
+) -> dict:
+    """Return metadata for one successfully written graph payload artifact."""
+    return {
+        "label": export_label,
+        "file": file_path.name,
+        "path": relative_path,
+        "category": "graph_payload",
+        "source_database": row.get("source_database"),
+        "endpoint": row.get("source_endpoint"),
+        "graph_format": row.get("graph_format"),
+        "graph_record_count": row.get("graph_record_count"),
+        "file_size_bytes": file_size,
+        "sha256": sha256,
+    }
+
+
+def externalize_graph_payloads(
+    content: pl.DataFrame,
+    *,
+    output_dir: Path,
+    export_label: str,
+) -> tuple[pl.DataFrame, list[dict], dict[str, object]]:
+    """Write graph payload JSON artifacts and return the graph-light export frame."""
+    if GRAPH_JSON_COLUMN not in content.columns:
+        return content, [], {}
+
+    records = content.to_dicts()
+    graph_dir = Path("graphs") / export_label
+    used_file_names: set[str] = set()
+    artifact_infos_by_path: dict[str, dict] = {}
+    artifact_infos: list[dict] = []
+    failures: list[dict[str, object]] = []
+
+    for row_index, row in enumerate(records, start=1):
+        payload_value = row.get(GRAPH_JSON_COLUMN)
+        graph_record_count = row.get("graph_record_count")
+        if is_empty_graph_payload(payload_value, graph_record_count) or not row_is_intended_graph_payload(
+            row
+        ):
+            continue
+        try:
+            _payload, payload_text = graph_payload_json_text(payload_value)
+            payload_bytes = payload_text.encode("utf-8")
+            digest = graph_payload_digest(row, payload_text)
+            file_path = select_graph_file_path(
+                row,
+                output_dir=output_dir,
+                graph_dir=graph_dir,
+                export_label=export_label,
+                digest=digest,
+                payload_bytes=payload_bytes,
+                used_file_names=used_file_names,
+            )
+            file_size, payload_hash, _was_written = write_graph_payload_atomically(file_path, payload_bytes)
+            relative_path = graph_relative_output_path(file_path, output_dir)
+        except Exception as exc:  # noqa: BLE001  # preserve payload and continue exporting other rows
+            log.warning(
+                "Could not write graph payload artifact for %s row %s: %s",
+                export_label,
+                row_index,
+                exc,
+            )
+            failures.append({"row": row_index, "error": str(exc)})
+            continue
+
+        row["graph_file"] = relative_path
+        row["graph_file_size_bytes"] = file_size
+        row["graph_sha256"] = payload_hash
+        row.pop(GRAPH_JSON_COLUMN, None)
+        artifact_key = relative_path.casefold()
+        if artifact_key not in artifact_infos_by_path:
+            artifact_infos_by_path[artifact_key] = build_graph_artifact_info(
+                export_label=export_label,
+                row=row,
+                file_path=file_path,
+                relative_path=relative_path,
+                file_size=file_size,
+                sha256=payload_hash,
+            )
+            artifact_infos.append(artifact_infos_by_path[artifact_key])
+
+    export_df = pl.DataFrame(records, infer_schema_length=None) if records else content
+    for column in GRAPH_FILE_COLUMNS:
+        if column in export_df.columns:
+            dtype = pl.Int64 if column == "graph_file_size_bytes" else pl.String
+            export_df = export_df.with_columns(pl.col(column).cast(dtype))
+
+    graph_metadata: dict[str, object] = {
+        "graph_payload_files_written": len(artifact_infos),
+    }
+    if artifact_infos:
+        graph_metadata["graph_payload_directory"] = graph_dir.as_posix()
+    if failures:
+        graph_metadata["graph_payload_write_failures"] = failures
+    return export_df, artifact_infos, graph_metadata
+
+
+def annotate_graph_payload_metadata(
+    workflow_metadata: dict | None,
+    label: str,
+    graph_metadata: dict[str, object],
+) -> None:
+    """Annotate enrichment metadata with graph artifact export results."""
+    if workflow_metadata is None or not graph_metadata:
+        return
+    enrichment_metadata = workflow_metadata.get("uniprot_enrichment")
+    if not isinstance(enrichment_metadata, dict):
+        return
+    label_metadata = enrichment_metadata.setdefault(label, {})
+    if not isinstance(label_metadata, dict):
+        return
+    label_metadata.setdefault("output_kind", "raw_graph")
+    label_metadata.setdefault("graph_serialization", "json")
+    label_metadata.setdefault("graph_tabularization", "one_row_per_source")
+    label_metadata.update(graph_metadata)
+
+
 def build_output_info(
     label: str,
     output_path: Path,
@@ -1432,6 +1085,8 @@ def export_single_result(
     export_format: str,
     id_column: str | None,
     suffix_results: bool,
+    graph_artifact_infos: list[dict] | None = None,
+    workflow_metadata: dict | None = None,
 ) -> dict | None:
     """Export one workflow result and return output metadata.
 
@@ -1446,6 +1101,8 @@ def export_single_result(
         id_column (str | None): Name of an ID column to insert, if any.
         suffix_results (bool): Whether to suffix the file stem with ``_results`` and
             mark the output category as a primary result.
+        graph_artifact_infos (list[dict] | None): Collector for graph artifact metadata entries.
+        workflow_metadata (dict | None): Workflow metadata to annotate with graph export outcomes.
 
     Returns:
         dict | None: Output-file metadata, or ``None`` if nothing was exported.
@@ -1458,25 +1115,64 @@ def export_single_result(
     tabular_format = normalize_export_format(export_format)
     file_stem = f"{export_label}_results" if suffix_results else export_label
     output_category = "result" if suffix_results else "enrichment"
+    graph_metadata: dict[str, object] = {}
+    export_df = content
+    graph_output_metadata = get_output_graph_metadata(workflow_metadata, export_label)
+    graph_payloads_externalized = False
 
-    if isinstance(content, pl.DataFrame) and tabular_format in {"csv", "parquet"}:
+    if isinstance(content, pl.DataFrame):
         export_df = add_id_column_for_export(content, export_label, id_column)
+        if has_externalizable_graph_payloads(export_df, graph_output_metadata):
+            export_df, artifact_infos, graph_metadata = externalize_graph_payloads(
+                export_df,
+                output_dir=output_dir,
+                export_label=export_label,
+            )
+            graph_payloads_externalized = True
+            if graph_artifact_infos is not None:
+                graph_artifact_infos.extend(artifact_infos)
+            annotate_graph_payload_metadata(workflow_metadata, export_label, graph_metadata)
+
+    if isinstance(export_df, pl.DataFrame) and tabular_format in {"csv", "parquet"}:
         output_path = output_dir / f"{file_stem}.{tabular_format}"
         exported_path = export_dataframe(export_df, output_path, output_format=tabular_format)
-        return build_output_info(export_label, exported_path, content, export_df, output_category)
+        info = build_output_info(
+            export_label,
+            exported_path,
+            content,
+            export_df,
+            output_category,
+        )
+        info.update(graph_metadata)
+        return info
 
     if export_format == "json":
         output_path = output_dir / f"{file_stem}.json"
-        exported_content = content
-        if isinstance(content, pl.DataFrame):
-            exported_content = add_id_column_for_export(content, export_label, id_column)
+        exported_content = export_df
         write_json_file(output_path, exported_content)
-        return build_output_info(export_label, output_path, content, exported_content, output_category)
+        info = build_output_info(
+            export_label,
+            output_path,
+            content,
+            exported_content,
+            output_category,
+        )
+        info.update(graph_metadata)
+        return info
 
     if export_format == "xml":
         output_path = output_dir / f"{file_stem}.xml"
-        write_text_file(output_path, content)
-        return build_output_info(export_label, output_path, content, content, output_category)
+        exported_content = export_df if graph_payloads_externalized else content
+        write_text_file(output_path, exported_content)
+        info = build_output_info(
+            export_label,
+            output_path,
+            content,
+            exported_content,
+            output_category,
+        )
+        info.update(graph_metadata)
+        return info
 
     return None
 
@@ -1486,6 +1182,7 @@ def export_workflow_outputs(
     output_dir: Path,
     export_format: str,
     id_column: str | None,
+    workflow_metadata: dict | None = None,
 ) -> list[dict]:
     """Export workflow outputs and return output-file metadata.
 
@@ -1496,6 +1193,7 @@ def export_workflow_outputs(
         output_dir (Path): Directory to write files into.
         export_format (str): User-facing export format.
         id_column (str | None): Name of an ID column to insert, if any.
+        workflow_metadata (dict | None): Workflow metadata to annotate with graph export outcomes.
 
     Returns:
         list[dict]: Metadata for each exported file.
@@ -1509,6 +1207,7 @@ def export_workflow_outputs(
     for label, content in data.items():
         if label == "uniprot_enrichment":
             continue
+        graph_artifact_infos: list[dict] = []
         info = export_single_result(
             label,
             content,
@@ -1516,18 +1215,30 @@ def export_workflow_outputs(
             export_format,
             id_column,
             suffix_results=True,
+            graph_artifact_infos=graph_artifact_infos,
+            workflow_metadata=workflow_metadata,
         )
         if info:
             output_infos.append(info)
+            output_infos.extend(graph_artifact_infos)
 
     enrichment_data = data.get("uniprot_enrichment")
     if isinstance(enrichment_data, dict):
         for label, content in enrichment_data.items():
+            graph_artifact_infos = []
             info = export_single_result(
-                label, content, output_dir, export_format, id_column, suffix_results=False
+                label,
+                content,
+                output_dir,
+                export_format,
+                id_column,
+                suffix_results=False,
+                graph_artifact_infos=graph_artifact_infos,
+                workflow_metadata=workflow_metadata,
             )
             if info:
                 output_infos.append(info)
+                output_infos.extend(graph_artifact_infos)
 
     return output_infos
 
@@ -1961,6 +1672,14 @@ def build_summary_outputs(output_infos: list[dict]) -> dict:
             output_summary["rows"] = info["rows"]
         if "columns" in info:
             output_summary["columns"] = info["columns"]
+        if info.get("category") == "graph_payload":
+            output_summary["category"] = "graph_payload"
+            if "graph_record_count" in info:
+                output_summary["graph_record_count"] = info["graph_record_count"]
+        if "graph_payload_files_written" in info:
+            output_summary["graph_payload_files_written"] = info["graph_payload_files_written"]
+        if "graph_payload_directory" in info:
+            output_summary["graph_payload_directory"] = info["graph_payload_directory"]
         outputs[output_key] = output_summary
     return outputs
 
@@ -2129,7 +1848,7 @@ def split_pair(s: str) -> tuple[str, str]:
 
     """
     if "=" in s:
-        q, label = s.split("=", 1)
+        q, label = s.rsplit("=", 1)
     elif "|" in s:
         q, label = s.split("|", 1)
     else:
@@ -2282,6 +2001,8 @@ def run_workflow(
             "export_format": workflow_values["export_format"],
             "fields": workflow_values["fields"],
             "enrich": workflow_values["enrich"],
+            "download_alphafold_structures": workflow_values["download_alphafold_structures"],
+            "download_pdb_structures": workflow_values["download_pdb_structures"],
             "max_workers": workflow_values["workers"],
             "total_retries": workflow_values["retries"],
             "chembl_pages_to_fetch": workflow_values["chembl_pages_to_fetch"],
@@ -2289,6 +2010,7 @@ def run_workflow(
             "include_isoform": workflow_values["include_isoform"],
             "interaction_type": workflow_values["interaction_type"],
             "crossref_fields": workflow_values["crossref_fields"],
+            "output_dir": workflow_values["output"],
         }
         if workflow_values["mode"] == "query_composition":
             if "," not in workflow_values["query"]:
@@ -2314,17 +2036,18 @@ def run_workflow(
 
     output_dir = Path(workflow_values["output"])
     logger.info("Exporting workflow results to %s", output_dir)
+    workflow_metadata = meta if isinstance(meta, dict) else {"metadata": meta}
     output_infos = export_workflow_outputs(
         data=data,
         output_dir=output_dir,
         export_format=workflow_values["export_format"],
         id_column=workflow_values["id_column"],
+        workflow_metadata=workflow_metadata,
     )
 
     finished_at = dt.datetime.now(tz=dt.UTC).replace(microsecond=0).isoformat()
     duration_seconds = time.perf_counter() - start_time
     reporting = calculate_reporting_metrics(workflow_values, data, output_infos, duration_seconds)
-    workflow_metadata = meta if isinstance(meta, dict) else {"metadata": meta}
     execution_status, execution_error = determine_execution_status(workflow_metadata, output_infos)
 
     metadata_path = None
@@ -2386,19 +2109,19 @@ def validate_workflow(
     try:
         recipe = load_workflow_recipe(config)
     except (ValueError, TypeError) as exc:
-        typer.echo(f"✗ {exc}", err=True)
+        typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(code=1) from None
 
     errors = collect_workflow_recipe_errors(recipe)
     if errors:
-        typer.echo(f"✗ {config} has {len(errors)} validation error(s):", err=True)
+        typer.echo(f"Error: {config} has {len(errors)} validation error(s):", err=True)
         for error in errors:
             typer.echo(f"  - {error}", err=True)
         raise typer.Exit(code=1) from None
 
     # No errors collected, so this re-derives the normalized values without raising.
     values = validate_workflow_recipe(recipe)
-    typer.echo(f"✓ {config} is a valid workflow descriptor.")
+    typer.echo(f"OK: {config} is a valid workflow descriptor.")
     typer.echo(f"  modality: {values['modality']} | mode: {values['mode']}")
     if values.get("output"):
         typer.echo(f"  output: {values['output']}")

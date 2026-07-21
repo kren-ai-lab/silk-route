@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import contextlib
-import inspect
 import time
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Literal, cast
@@ -11,16 +10,32 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 import polars as pl
 
 from bioseq_dl import ChEMBLInterface, UniprotInterface
+from bioseq_dl.constants.uniprot import get_effective_uniprot_return_fields
 from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
 from bioseq_dl.core.export import normalize_parse_format
-from bioseq_dl.core.utils.crossref_enrichment import normalize_crossref_fields, run_crossref_enrichment
+from bioseq_dl.core.metadata import FetchMetadata
+from bioseq_dl.core.utils.crossref_enrichment import (
+    is_structure_download_workflow_compatible,
+    normalize_crossref_fields,
+    run_crossref_enrichment,
+)
 from bioseq_dl.core.utils.frames import records_to_frame
 from bioseq_dl.logging import get_logger
 
+from .chebi_execution import execute_chebi_request_plan
+from .chebi_query_parser import is_chebi_prefixed_query, parse_chebi_query_builder_string
+from .chembl_query_parser import (
+    get_chembl_prefixed_query_resource,
+    is_chembl_prefixed_query,
+    parse_chembl_query_builder_string,
+)
+from .pubchem_execution import execute_pubchem_request_plan
+from .pubchem_query_parser import is_pubchem_prefixed_query, parse_pubchem_query_builder_string
 from .query_interpreter import (
     UniProtQueryInterpreter,
     build_default_chembl_interpreter,
     build_default_uniprot_interpreter,
+    normalize_standard_units,
 )
 
 if TYPE_CHECKING:
@@ -31,6 +46,27 @@ log = get_logger("bioseq_dl.core.workflow.main")
 
 # Split large ChEMBL ID lists into chunks of this size to keep UniProt queries short.
 CHEMBL_ID_CHUNK_SIZE = 100
+PROTEIN_CHEMBL_QUERY_ERROR = (
+    "ChEMBL-prefixed queries are not valid for protein workflows. "
+    "Use a compound workflow or a protein-ligand interaction workflow."
+)
+PPI_CHEMBL_QUERY_ERROR = (
+    "ChEMBL-prefixed queries are not valid for protein-protein interaction workflows. "
+    "Use a protein-ligand interaction workflow for ChEMBL target or activity queries."
+)
+PROTEIN_COMPOUND_SOURCE_QUERY_ERROR = (
+    "PubChem- and ChEBI-prefixed queries are not valid for protein workflows. "
+    "Use a compound workflow for PubChem or ChEBI queries."
+)
+INTERACTION_COMPOUND_SOURCE_QUERY_ERROR = (
+    "PubChem- and ChEBI-prefixed queries are not valid for interaction workflows. "
+    "Use a compound workflow, or use ChEMBL for protein-ligand interaction workflows."
+)
+COMPOUND_UNSUPPORTED_CHEMBL_RESOURCE_ERROR = (
+    "ChEMBL resource '{resource}' is not valid for compound workflows. "
+    "Use chembl.molecule or chembl.activity for compound workflows, or use a "
+    "protein-ligand interaction workflow for target, assay, or cell-line queries."
+)
 
 
 def calculate_enrichment_execution_time(enrichment_metadata: object) -> float:
@@ -72,6 +108,32 @@ def _elapsed_seconds(started_at: object, finished_at: object) -> float:
 
 # Maps each modality to the result key its primary payload lives under.
 _MODALITY_RESULT_KEY = {"protein": "uniprot", "compound": "chembl", "interaction": "data"}
+_COMPOUND_RESULT_KEYS = ("chembl", "pubchem", "chebi")
+PPI_SOURCE_REQUIREMENTS = {
+    "biogrid": (("biogrid_ids",), ("gene_primary", "organism_id")),
+    "string": (("string_ids",), ("gene_primary", "organism_id")),
+}
+
+
+def _frame_has_columns(frame: object, columns: Iterable[str]) -> bool:
+    """Return whether a Polars frame contains every requested column."""
+    return isinstance(frame, pl.DataFrame) and all(column in frame.columns for column in columns)
+
+
+def _ppi_endpoint_available(frame: object, source: str) -> bool:
+    """Return whether a PPI source has either ID or gene/taxon inputs available."""
+    return any(_frame_has_columns(frame, columns) for columns in PPI_SOURCE_REQUIREMENTS[source])
+
+
+def _ppi_missing_inputs(frame: object, source: str) -> list[str]:
+    """Return concise alternatives needed to enable a skipped PPI source."""
+    available = set(frame.columns) if isinstance(frame, pl.DataFrame) else set()
+    missing_alternatives = []
+    for columns in PPI_SOURCE_REQUIREMENTS[source]:
+        missing = [column for column in columns if column not in available]
+        if missing:
+            missing_alternatives.append("+".join(missing))
+    return missing_alternatives
 
 
 def _apply_label(value: Any, label: str) -> Any:
@@ -104,6 +166,17 @@ def _apply_label(value: Any, label: str) -> Any:
     return {"_label": label}
 
 
+def _has_labelable_records(value: Any) -> bool:
+    """Return whether a query-composition part has real rows to label."""
+    if value is None:
+        return False
+    if isinstance(value, pl.DataFrame):
+        return not value.is_empty()
+    if isinstance(value, list | tuple | dict):
+        return bool(value)
+    return True
+
+
 def attach_label_to_part(part_data: dict, label: str, modality: str) -> dict:
     """Attach a query-composition label to a workflow result part.
 
@@ -122,15 +195,21 @@ def attach_label_to_part(part_data: dict, label: str, modality: str) -> dict:
     """
     if not isinstance(part_data, dict):
         return {}
+    if modality == "compound":
+        labeled = {
+            key: _apply_label(part_data[key], label)
+            for key in _COMPOUND_RESULT_KEYS
+            if _has_labelable_records(part_data.get(key))
+        }
+        if labeled and _has_labelable_records(part_data.get("uniprot")):
+            labeled["uniprot"] = _apply_label(part_data["uniprot"], label)
+        return labeled
+
     key = _MODALITY_RESULT_KEY.get(modality)
     if key is None or part_data.get(key) is None:
         return {}
 
-    labeled = {key: _apply_label(part_data[key], label)}
-    # Compound results also carry the uniprot part; label it too when present.
-    if modality == "compound" and part_data.get("uniprot") is not None:
-        labeled["uniprot"] = _apply_label(part_data["uniprot"], label)
-    return labeled
+    return {key: _apply_label(part_data[key], label)}
 
 
 def activity_filter_metadata(activity_filter: dict) -> dict:
@@ -189,6 +268,33 @@ def filter_chembl_activity_dataframe(df: pl.DataFrame, activity_filter: dict) ->
 
     standard_type = str(activity_filter.get("standard_type", "")).upper()
     type_cond = pl.col("standard_type").cast(pl.String).str.to_uppercase() == standard_type
+    standard_units = activity_filter.get("standard_units")
+    if standard_units is not None and "standard_units" not in df.columns:
+        return df.clear(), {
+            "applied": True,
+            "initial_rows": initial_rows,
+            "filtered_rows": 0,
+            "removed_rows": initial_rows,
+            "reason": "missing_standard_units",
+            "requested_standard_units": standard_units,
+        }
+
+    units_cond = pl.lit(value=True)
+    if standard_units is not None:
+        normalized_units = normalize_standard_units(str(standard_units)).lower()
+        units_cond = (
+            pl.col("standard_units")
+            .cast(pl.String)
+            .str.strip_chars()
+            .str.replace_all("Âµ", "u")
+            .str.replace_all("Î¼", "u")
+            .str.replace_all("µ", "u")
+            .str.replace_all("μ", "u")
+            .str.to_lowercase()
+            .eq(normalized_units)
+            .fill_null(value=False)
+        )
+
     values = pl.col("standard_value").cast(pl.Float64, strict=False)
     value_cond = values.is_not_null()
 
@@ -209,7 +315,7 @@ def filter_chembl_activity_dataframe(df: pl.DataFrame, activity_filter: dict) ->
             else:
                 value_cond &= values < max_value
 
-    filtered = df.filter(type_cond & value_cond)
+    filtered = df.filter(type_cond & value_cond & units_cond)
     filtered_rows = filtered.height
     return filtered, {
         "applied": True,
@@ -289,6 +395,53 @@ def normalize_chembl_pages_to_fetch(value: int | None) -> int:
     return pages_to_fetch
 
 
+def resolve_chembl_search_type_from_query(query: str, default_search_type: str | None) -> str:
+    """Return the ChEMBL resource/search type for a workflow query."""
+    resource = get_chembl_prefixed_query_resource(query)
+    if resource:
+        return resource
+    return default_search_type or "activity"
+
+
+def validate_compound_chembl_query_resource(query: str) -> None:
+    """Validate ChEMBL-prefixed query resources for compound workflows."""
+    resource = get_chembl_prefixed_query_resource(query)
+    if resource is None:
+        return
+    if resource in {"molecule", "activity"}:
+        return
+    msg = COMPOUND_UNSUPPORTED_CHEMBL_RESOURCE_ERROR.format(resource=resource)
+    raise ValueError(msg)
+
+
+def build_chembl_query_structure(query: str) -> dict[str, object] | None:
+    """Parse a ChEMBL-prefixed query string, if one is present."""
+    if not is_chembl_prefixed_query(query):
+        return None
+    return parse_chembl_query_builder_string(query)
+
+
+def is_pubchem_or_chebi_prefixed_query(query: str | None) -> bool:
+    """Return whether a query uses a PubChem or ChEBI workflow prefix."""
+    if query is None:
+        return False
+    return is_pubchem_prefixed_query(query) or is_chebi_prefixed_query(query)
+
+
+def build_pubchem_request_plan(query: str) -> dict[str, object] | None:
+    """Parse a PubChem-prefixed query string, if one is present."""
+    if not is_pubchem_prefixed_query(query):
+        return None
+    return parse_pubchem_query_builder_string(query)
+
+
+def build_chebi_request_plan(query: str) -> dict[str, object] | None:
+    """Parse a ChEBI-prefixed query string, if one is present."""
+    if not is_chebi_prefixed_query(query):
+        return None
+    return parse_chebi_query_builder_string(query)
+
+
 def merge_pair(existing: Any, new: Any) -> Any:
     """Merge two workflow result values: concat DataFrames, extend lists, else pair them.
 
@@ -340,6 +493,43 @@ def merge_enrichment_data(existing: list[Any], new: Any) -> list[Any]:
             else:
                 existing.append({db_ep: db_data})
     return existing
+
+
+def merge_enrichment_endpoint_meta(existing: dict, incoming: dict) -> dict:
+    """Merge two same-endpoint enrichment metadata dicts, keeping graph flags.
+
+    ``FetchMetadata`` merges the fetch buckets accurately but drops non-schema keys
+    (``output_kind`` and the other graph-contract flags), so those are restored from
+    the source dicts afterwards.
+    """
+    if not isinstance(existing, dict):
+        return incoming
+    if not isinstance(incoming, dict):
+        return existing
+    merged = FetchMetadata.from_dict(existing).merge(FetchMetadata.from_dict(incoming)).to_dict()
+    for key in (set(existing) | set(incoming)) - set(merged):
+        merged[key] = incoming.get(key, existing.get(key))
+    return merged
+
+
+def aggregate_part_enrichment_metadata(parts: list[dict]) -> dict:
+    """Aggregate per-part ``uniprot_enrichment`` metadata into one top-level mapping.
+
+    Mirrors the query_first layout (``metadata['uniprot_enrichment'][label]``) so the
+    graph-externalization consumer works the same in both modes.
+    """
+    aggregated: dict = {}
+    for part in parts:
+        part_enrichment = part.get("meta", {}).get("uniprot_enrichment") if isinstance(part, dict) else None
+        if not isinstance(part_enrichment, dict):
+            continue
+        for label, endpoint_meta in part_enrichment.items():
+            aggregated[label] = (
+                merge_enrichment_endpoint_meta(aggregated[label], endpoint_meta)
+                if label in aggregated
+                else endpoint_meta
+            )
+    return aggregated
 
 
 class MainWorkflow:
@@ -511,7 +701,12 @@ class MainWorkflow:
                 {"uniprot": {"skipped_empty_query": True}}
             )
             return
-        fields = args.get("fields", "") or ""
+        fields = ", ".join(
+            get_effective_uniprot_return_fields(
+                args.get("fields", ""),
+                args.get("additional_crossref_fields"),
+            )
+        )
         sort = args.get("sort", "accession asc")
         include_isoform = args.get("include_isoform", False)
         uniprot_timeout = args.get("uniprot_timeout")
@@ -624,19 +819,52 @@ class MainWorkflow:
         parse_format = normalize_parse_format(export_format) or "dataframe"
         max_workers = kwargs.get("max_workers", 4)
         total_retries = kwargs.get("total_retries", 3)
+        download_alphafold_structures = bool(
+            args.get("download_alphafold_structures", kwargs.get("download_alphafold_structures", False))
+        )
+        download_pdb_structures = bool(
+            args.get("download_pdb_structures", kwargs.get("download_pdb_structures", False))
+        )
+        output_dir = args.get("output_dir") or kwargs.get("output_dir")
+        structure_downloads_allowed = is_structure_download_workflow_compatible(
+            args.get("modality") or "protein",
+            args.get("interaction_type"),
+        )
 
         if not enrich_flag:
             self.log.info("Pipeline: enrichment skipped (enrich=False)")
+            _, enriched_meta = run_crossref_enrichment(
+                data=pl.DataFrame(),
+                crossref_fields=cross_ref_fields,
+                format=cast("Literal['json', 'dataframe', 'xml']", parse_format),
+                max_workers=max_workers,
+                total_retries=total_retries,
+                enrich=False,
+                structure_downloads_allowed=structure_downloads_allowed,
+                download_alphafold_structures=download_alphafold_structures,
+                download_pdb_structures=download_pdb_structures,
+                output_dir=output_dir,
+            )
+            context.setdefault("metadata", {})["uniprot_enrichment"] = enriched_meta
             return
 
         if not cross_ref_fields:
             self.log.info(
                 "Pipeline: Skipping CrossRef enrichment because no cross-reference fields were requested."
             )
-            context.setdefault("metadata", {})["uniprot_enrichment"] = {
-                "skipped": True,
-                "reason": "no_crossref_fields",
-            }
+            _, enriched_meta = run_crossref_enrichment(
+                data=input_data if input_data is not None else pl.DataFrame(),
+                crossref_fields=cross_ref_fields,
+                format=cast("Literal['json', 'dataframe', 'xml']", parse_format),
+                max_workers=max_workers,
+                total_retries=total_retries,
+                enrich=True,
+                structure_downloads_allowed=structure_downloads_allowed,
+                download_alphafold_structures=download_alphafold_structures,
+                download_pdb_structures=download_pdb_structures,
+                output_dir=output_dir,
+            )
+            context.setdefault("metadata", {})["uniprot_enrichment"] = enriched_meta
             return
 
         self.log.info("Pipeline: starting CrossRef enrichment with fields=%s", cross_ref_fields)
@@ -647,6 +875,11 @@ class MainWorkflow:
             format=cast("Literal['json', 'dataframe', 'xml']", parse_format),
             max_workers=max_workers,
             total_retries=total_retries,
+            enrich=True,
+            structure_downloads_allowed=structure_downloads_allowed,
+            download_alphafold_structures=download_alphafold_structures,
+            download_pdb_structures=download_pdb_structures,
+            output_dir=output_dir,
         )
         enrich_elapsed = time.time() - enrich_started
         context["data"].setdefault("uniprot_enrichment", enriched)
@@ -668,6 +901,7 @@ class MainWorkflow:
         """
         chembl_search = context.get("searches", {}).get("chembl", {})
         query = chembl_search.get("interpreted_query") or chembl_search.get("query")
+        query_structure = chembl_search.get("query_structure")
         export_format = chembl_search.get("export_format") or self.default_export_format
         pages_to_fetch = normalize_chembl_pages_to_fetch(chembl_search.get("pages_to_fetch", -1))
         limit = int(chembl_search.get("limit", 100))
@@ -682,10 +916,23 @@ class MainWorkflow:
 
         self.log.info("Pipeline: fetching ChEMBL for query=%s search_type=%s", query, search_type)
         instance = ChEMBLInterface()
-        activity_filter = instance.extract_ic50_activity_filter(query) if search_type == "activity" else None
+        activity_filter = None
+        fetch_query = query
+        fetch_method = f"{search_type}-search" if search_type else "activity-search"
+        if isinstance(query_structure, dict):
+            resource = str(query_structure.get("resource") or "")
+            fetch_method = resource
+            if "filters" in query_structure:
+                fetch_query = {"filters": query_structure["filters"]}
+            elif "parameters" in query_structure:
+                fetch_query = query_structure["parameters"]
+            else:
+                fetch_query = query
+        elif search_type == "activity":
+            activity_filter = instance.extract_ic50_activity_filter(query)
         result, meta = instance.fetch_single(
-            query=query,
-            method=f"{search_type}-search",
+            query=fetch_query,
+            method=fetch_method,
             parse=True,
             format=cast("Any", parse_format),
             pages_to_fetch=pages_to_fetch,
@@ -701,18 +948,61 @@ class MainWorkflow:
             result, post_filter_meta = filter_chembl_activity_result(result, activity_filter)
             if isinstance(meta, dict):
                 meta["activity_filter"] = activity_filter_metadata(activity_filter)
-                meta["activity_filter"]["standard_units"] = None
                 meta["api_filter"] = {
                     "applied": True,
                     "endpoint": "activity",
-                    "standard_units_constrained": False,
+                    "standard_units_constrained": activity_filter.get("standard_units") is not None,
                     "pagination_capped": pages_to_fetch != -1,
                 }
                 meta["post_fetch_filter"] = post_filter_meta
                 meta["data_info"] = instance._build_data_info(result)  # noqa: SLF001  # library-internal helper
-        context["data"].setdefault("chembl", result)
-        context["metadata"].setdefault("chembl", meta)
+        context["data"]["chembl"] = result
+        context["metadata"]["chembl"] = meta
         self.log.debug("Pipeline ChEMBL fetch metadata: %s", meta)
+
+    def _step_fetch_pubchem(self, context: dict[str, Any]) -> None:
+        """Execute a PubChem request plan and store normalized compound results."""
+        pubchem_search = context.get("searches", {}).get("pubchem", {})
+        request_plan = pubchem_search.get("request_plan")
+        if not isinstance(request_plan, dict):
+            self.log.debug("Pipeline: missing PubChem request plan; skipping")
+            context.setdefault("data", {})["pubchem"] = pl.DataFrame()
+            context.setdefault("metadata", {}).setdefault(
+                "pubchem", {"skipped": True, "reason": "missing_request_plan"}
+            )
+            return
+
+        self.log.info(
+            "Pipeline: fetching PubChem for resource=%s model=%s",
+            request_plan.get("resource"),
+            request_plan.get("query_model"),
+        )
+        result, metadata = execute_pubchem_request_plan(request_plan)
+        context.setdefault("data", {})["pubchem"] = result
+        context.setdefault("metadata", {})["pubchem"] = metadata
+        self.log.debug("Pipeline PubChem fetch metadata: %s", metadata)
+
+    def _step_fetch_chebi(self, context: dict[str, Any]) -> None:
+        """Execute a ChEBI request plan and store normalized compound results."""
+        chebi_search = context.get("searches", {}).get("chebi", {})
+        request_plan = chebi_search.get("request_plan")
+        if not isinstance(request_plan, dict):
+            self.log.debug("Pipeline: missing ChEBI request plan; skipping")
+            context.setdefault("data", {})["chebi"] = pl.DataFrame()
+            context.setdefault("metadata", {}).setdefault(
+                "chebi", {"skipped": True, "reason": "missing_request_plan"}
+            )
+            return
+
+        self.log.info(
+            "Pipeline: fetching ChEBI for resource=%s model=%s",
+            request_plan.get("resource"),
+            request_plan.get("query_model"),
+        )
+        result, metadata = execute_chebi_request_plan(request_plan)
+        context.setdefault("data", {})["chebi"] = result
+        context.setdefault("metadata", {})["chebi"] = metadata
+        self.log.debug("Pipeline ChEBI fetch metadata: %s", metadata)
 
     def _step_chembl_to_uniprot_query(
         self, context: dict[str, Any], keep_original_query: bool = True
@@ -817,6 +1107,11 @@ class MainWorkflow:
             tuple[dict, dict]: Result data and run metadata.
 
         """
+        if context is None and query is not None and is_chembl_prefixed_query(query):
+            raise ValueError(PROTEIN_CHEMBL_QUERY_ERROR)
+        if context is None and is_pubchem_or_chebi_prefixed_query(query):
+            raise ValueError(PROTEIN_COMPOUND_SOURCE_QUERY_ERROR)
+
         uniprot_interpreter = build_default_uniprot_interpreter()
 
         export_format = export_format or self.default_export_format
@@ -832,6 +1127,11 @@ class MainWorkflow:
             "enrich": enrich,
             "uniprot_timeout": uniprot_timeout,
             "crossref_endpoint_specs": crossref_endpoint_specs,
+            "modality": kwargs.get("modality"),
+            "interaction_type": kwargs.get("interaction_type"),
+            "download_alphafold_structures": kwargs.get("download_alphafold_structures", False),
+            "download_pdb_structures": kwargs.get("download_pdb_structures", False),
+            "output_dir": kwargs.get("output_dir"),
         }
         if context is not None:
             existing_args = context.get("searches", {}).get("uniprot", {}) or {}
@@ -891,12 +1191,15 @@ class MainWorkflow:
         export_format: str | None = None,
         chembl_pages_to_fetch: int | None = None,
         context: dict[str, Any] | None = None,
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> tuple[dict, dict]:
-        """Run the compound modality, routing queries through ChEMBL -> UniProt.
+        """Run the compound modality through the matching compound data source.
 
-        Some queries include just ChEMBL searches; others combine ChEMBL + UniProt.
-        For example: by target ("Proteases"), by activity ("IC50:<1000" or "Ki:<50").
+        Source-prefixed ChEMBL, PubChem, and ChEBI compound queries are routed
+        to their respective backends. Compound workflows keep compound-source
+        outputs and do not automatically map ChEMBL targets back to UniProt;
+        protein-ligand interaction workflows own that cross-entity mapping
+        behavior.
 
         Args:
             query (str): The user-friendly compound query string.
@@ -910,26 +1213,61 @@ class MainWorkflow:
             tuple[dict, dict]: Result data and run metadata.
 
         """
+        pubchem_request_plan = build_pubchem_request_plan(query)
+        if pubchem_request_plan is not None:
+            context = {
+                "searches": {
+                    "pubchem": {
+                        "query": query,
+                        "interpreted_query": query,
+                        "request_plan": pubchem_request_plan,
+                        "modality": "compound",
+                    },
+                },
+                "data": {},
+                "metadata": {"mode": "query_first", "modality": "compound", "origin": "query"},
+            }
+            self._step_fetch_pubchem(context)
+            return context.get("data", {}), context.get("metadata", {})
+
+        chebi_request_plan = build_chebi_request_plan(query)
+        if chebi_request_plan is not None:
+            context = {
+                "searches": {
+                    "chebi": {
+                        "query": query,
+                        "interpreted_query": query,
+                        "request_plan": chebi_request_plan,
+                        "modality": "compound",
+                    },
+                },
+                "data": {},
+                "metadata": {"mode": "query_first", "modality": "compound", "origin": "query"},
+            }
+            self._step_fetch_chebi(context)
+            return context.get("data", {}), context.get("metadata", {})
+
+        validate_compound_chembl_query_resource(query)
         chembl_interpreter = build_default_chembl_interpreter()
-        uniprot_interpreter = build_default_uniprot_interpreter()
         export_format = export_format or self.default_export_format
         pages_to_fetch = normalize_chembl_pages_to_fetch(chembl_pages_to_fetch)
+        query_structure = build_chembl_query_structure(query)
+        resolved_search_type = resolve_chembl_search_type_from_query(query, search_type)
 
         args: dict[str, Any] = {
             "query": query,
             "interpreted_query": None,
             "export_format": export_format,
-            "search_type": search_type,
+            "search_type": resolved_search_type,
             "modality": "compound",
             "pages_to_fetch": pages_to_fetch,
         }
+        if query_structure is not None:
+            args["query_structure"] = query_structure
         if context is None:
             context = {
                 "searches": {
                     "chembl": args,
-                    "uniprot": {
-                        "query": None,
-                    },
                 },
                 "data": {},
                 "metadata": {"mode": "query_first", "modality": "compound", "origin": "query"},
@@ -943,59 +1281,22 @@ class MainWorkflow:
             merged = {**existing_searches, **override}
             context["searches"] = merged
 
-        # Interpret original compound query
-        context["searches"]["chembl"]["interpreted_query"] = chembl_interpreter.interpret(
-            query=args.get("query", "")
-        )
+        if query_structure is None:
+            context["searches"]["chembl"]["interpreted_query"] = chembl_interpreter.interpret(
+                query=args.get("query", "")
+            )
+        else:
+            context["searches"]["chembl"]["interpreted_query"] = query
 
         # Fetch ChEMBL results
-        self._step_fetch_chembl(context, search_type=search_type)
-        # Build UniProt-compatible subquery from ChEMBL IDs (if any)
-        self._step_chembl_to_uniprot_query(context)
-
-        uniprot_query = context.get("searches", {}).get("uniprot", {}).get("query")
-        if not uniprot_query:
-            self.log.debug("Pipeline: no UniProt query generated from ChEMBL IDs")
-            return context.get("data", {}), context.get("metadata", {})
-
-        # Interpret UniProt query and append to ChEMBL IDs search
-        chembl_ids_query = context["searches"]["uniprot"]["query"]
-        # We extract the UniProt part of the original query
-        interpreted_uniprot_query = uniprot_interpreter.interpret(query=query)
-
-        combined_queries: str | list[str]
-        if chembl_ids_query and isinstance(chembl_ids_query, list):
-            combined_list: list[str] = []
-            for chembl_query in chembl_ids_query:
-                if interpreted_uniprot_query:
-                    combined_query = f"({interpreted_uniprot_query}) AND {chembl_query}"
-                else:
-                    combined_query = chembl_query
-                combined_list.append(combined_query)
-            combined_queries = combined_list
-        else:
-            combined_queries = (
-                f"({interpreted_uniprot_query}) AND {chembl_ids_query}"
-                if interpreted_uniprot_query
-                else cast("str", chembl_ids_query)
-            )
-
-        # Combine both queries
-        context["searches"]["uniprot"] = {
-            "query": query,
-            "interpreted_query": combined_queries,
-            "export_format": export_format,
-        }
-
-        run_protein_sig = inspect.signature(self.run_protein)
-        run_protein_args = {k: v for k, v in kwargs.items() if k in run_protein_sig.parameters}
-
-        return self.run_protein(context=context, **run_protein_args)
+        self._step_fetch_chembl(context, search_type=resolved_search_type)
+        return context.get("data", {}), context.get("metadata", {})
 
     def run_interaction(
         self,
         query: str,
         interaction_type: str | None = None,
+        fields: str | None = None,
         export_format: str | None = None,
         **kwargs: Any,
     ) -> tuple[dict, dict]:
@@ -1011,6 +1312,7 @@ class MainWorkflow:
         Args:
             query (str): The user-friendly interaction query string.
             interaction_type (str | None): Interaction kind ('protein-protein' or 'protein-ligand').
+            fields (str | None): Comma-separated UniProt return fields.
             export_format (str | None): Output format; defaults to the workflow default.
             **kwargs: Forwarded to pipeline steps; notable keys: ``uniprot_timeout``,
                 ``chembl_pages_to_fetch``, ``max_workers``, ``total_retries``.
@@ -1037,6 +1339,8 @@ class MainWorkflow:
         if not interaction_type:
             msg = "interaction_type is required for run_interaction"
             raise ValueError(msg)
+        if is_pubchem_or_chebi_prefixed_query(query):
+            raise ValueError(INTERACTION_COMPOUND_SOURCE_QUERY_ERROR)
 
         export_format = export_format or self.default_export_format
 
@@ -1045,6 +1349,7 @@ class MainWorkflow:
 
         args: dict[str, Any] = {
             "query": query,
+            "fields": fields or "",
             "export_format": export_format,
             "interaction_type": interaction_type,
             "modality": "interaction",
@@ -1062,6 +1367,9 @@ class MainWorkflow:
 
         # Fetch interaction candidates
         if interaction_type == "protein-protein":
+            if is_chembl_prefixed_query(query):
+                raise ValueError(PPI_CHEMBL_QUERY_ERROR)
+            context["searches"]["uniprot"]["additional_crossref_fields"] = ["biogrid", "string"]
             # Interpret original interaction query
             context["searches"]["uniprot"]["interpreted_query"] = uniprot_interpreter.interpret(
                 query=args.get("query", "")
@@ -1076,18 +1384,33 @@ class MainWorkflow:
 
             return context.get("data", {}), context.get("metadata", {})
         if interaction_type == "protein-ligand":
+            query_structure = build_chembl_query_structure(query)
+            resolved_search_type = resolve_chembl_search_type_from_query(query, "target")
+            if query_structure is not None and resolved_search_type not in {
+                "target",
+                "activity",
+                "assay",
+            }:
+                msg = (
+                    f"ChEMBL resource '{resolved_search_type}' is not valid for protein-ligand "
+                    "interaction workflows. Use chembl.target, chembl.activity, or chembl.assay."
+                )
+                raise ValueError(msg)
             context["searches"]["chembl"] = {
                 "query": query,
                 "export_format": export_format,
-                "search_type": "target",
+                "search_type": resolved_search_type,
                 "pages_to_fetch": chembl_pages_to_fetch,
             }
-            # Interpret original interaction query
-            context["searches"]["chembl"]["interpreted_query"] = chembl_interpreter.interpret(
-                query=args.get("query", "")
-            )
+            if query_structure is None:
+                context["searches"]["chembl"]["interpreted_query"] = chembl_interpreter.interpret(
+                    query=args.get("query", "")
+                )
+            else:
+                context["searches"]["chembl"]["interpreted_query"] = query
+                context["searches"]["chembl"]["query_structure"] = query_structure
             # For PLI, we first search ChEMBL to get compounds/targets matching the query,
-            self._step_fetch_chembl(context, search_type="target")
+            self._step_fetch_chembl(context, search_type=resolved_search_type)
             # then use those targets to fetch UniProt details.
             self._step_chembl_to_uniprot_query(context, keep_original_query=False)
             uniprot_query = context.get("searches", {}).get("uniprot", {}).get("query")
@@ -1152,6 +1475,7 @@ class MainWorkflow:
                 export_format=export_format,
                 enrich=enrich,
                 crossref_endpoint_specs=crossref_endpoint_specs,
+                interaction_type=interaction_type,
                 **kwargs,
             )
         if modality == "compound":
@@ -1167,6 +1491,7 @@ class MainWorkflow:
         if modality == "interaction":
             return self.run_interaction(
                 query=query,
+                fields=fields,
                 export_format=export_format,
                 enrich=enrich,
                 crossref_endpoint_specs=crossref_endpoint_specs,
@@ -1242,6 +1567,7 @@ class MainWorkflow:
             elif modality == "interaction":
                 part_data, part_meta = self.run_interaction(
                     query=query,
+                    fields=fields,
                     export_format=export_format,
                     enrich=enrich,
                     crossref_endpoint_specs=crossref_endpoint_specs,
@@ -1265,6 +1591,12 @@ class MainWorkflow:
                 combined_enrichment = merge_enrichment_data(combined_enrichment, enrichment_data)
 
             metadata["parts"].append({"query": query, "label": label, "meta": part_meta})
+
+        # Expose enrichment metadata at the top level (keyed by endpoint label), matching
+        # query_first, so graph-payload externalization recognizes composition outputs too.
+        aggregated_enrichment_meta = aggregate_part_enrichment_metadata(metadata["parts"])
+        if aggregated_enrichment_meta:
+            metadata["uniprot_enrichment"] = aggregated_enrichment_meta
 
         # Combined_rows now contains only the labeled data parts in a list.
         # For example
@@ -1314,6 +1646,7 @@ class MainWorkflow:
         args = context.get("searches", {}).get("uniprot", {})
         input_data = context.get("data", {}).get("uniprot")
         export_format = args.get("export_format") or self.default_export_format
+        parse_format = normalize_parse_format(export_format) or "dataframe"
 
         # Extract max_workers and total_retries from kwargs
         max_workers = kwargs.get("max_workers", 4)
@@ -1322,24 +1655,39 @@ class MainWorkflow:
         self.log.info("Pipeline: fetching additional interaction sources for protein-protein interactions")
 
         specs = []
-        # Fetch BioGRID interactions
-        # Check if Biogrid IDs are present in the input data
-        if "biogrid_ids" in input_data.columns:
+        skipped: dict[str, list[str]] = {}
+        # Fetch BioGRID interactions when either BioGRID IDs or gene/taxon inputs are available.
+        if _ppi_endpoint_available(input_data, "biogrid"):
             specs.append(EndpointSpec(database="biogrid", endpoint="interactions"))
         else:
-            self.log.debug("No biogrid_ids column found in input data; skipping BioGRID interaction fetch")
-        # Fetch StringDB interactions
-        if "string_ids" in input_data.columns:
+            skipped["biogrid"] = _ppi_missing_inputs(input_data, "biogrid")
+        # Fetch StringDB interactions when either STRING IDs or gene/taxon inputs are available.
+        if _ppi_endpoint_available(input_data, "string"):
             specs.append(EndpointSpec(database="string", endpoint="interaction_partners"))
         else:
-            self.log.debug("No string_ids column found in input data; skipping StringDB interaction fetch")
+            skipped["string"] = _ppi_missing_inputs(input_data, "string")
+
+        if not specs:
+            available_columns = list(input_data.columns) if isinstance(input_data, pl.DataFrame) else []
+            self.log.warning(
+                "No usable UniProt columns for PPI source fetch; available columns=%s missing=%s",
+                available_columns,
+                skipped,
+            )
+            context["data"].setdefault("uniprot_enrichment", {})
+            context["metadata"].setdefault("uniprot_enrichment", {})
+            context["metadata"]["uniprot_enrichment"]["ppi_sources"] = {
+                "skipped": skipped,
+                "available_columns": available_columns,
+            }
+            return
 
         crossref_enricher = CrossRefEnricher(
             endpoint_specs=specs, max_workers=max_workers, total_retries=total_retries
         )
         enriched, enriched_meta = crossref_enricher.enrich(
             data=input_data if input_data is not None else pl.DataFrame(),
-            format=cast("Literal['json', 'dataframe', 'xml']", export_format),
+            format=cast("Literal['json', 'dataframe', 'xml']", parse_format),
         )
 
         context["data"].setdefault("uniprot_enrichment", enriched)

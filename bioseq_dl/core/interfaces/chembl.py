@@ -8,11 +8,26 @@ import niquests
 
 from bioseq_dl.constants.databases import CHEMBL
 from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
+from bioseq_dl.core.workflow.chembl_query_catalog import (
+    OPERATOR_SUFFIXES,
+    get_chembl_query_builder_field_catalog,
+)
+from bioseq_dl.core.workflow.query_interpreter import normalize_standard_units
 from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
 
 log = get_logger("bioseq_dl.interfaces.chembl")
+
+# Reverse of OPERATOR_SUFFIXES ("__gte" -> "gte"), longest suffix first so
+# "__gte" wins over a would-be "__gt" prefix when splitting a param key.
+_OPERATOR_BY_SUFFIX = tuple(
+    sorted(
+        ((suffix, operator) for operator, suffix in OPERATOR_SUFFIXES.items() if suffix),
+        key=lambda item: len(item[0]),
+        reverse=True,
+    )
+)
 
 # Envelope keys whose list value holds the paginated records, in priority order.
 _PAGINATED_LIST_KEYS = ("activities", "binding_sites", "molecules", "targets", "assays")
@@ -161,6 +176,35 @@ class ChEMBLInterface(BaseAPIInterface):
         """Return ChEMBL cache-ignore keys while preserving pagination in cache keys."""
         return super().get_cache_ignore_keys() - {"pages_to_fetch"}
 
+    def _is_activity_spec(self, spec: dict) -> bool:
+        """Return whether ``spec`` is the open flat-parameter ``activity`` method."""
+        return spec is self.METHODS.get("activity")
+
+    def _prepare_params(self, query: str | dict | list, spec: dict, **overrides: Any) -> dict:
+        """Prepare request params, preserving activity's catalog-defined flat filters.
+
+        The base implementation keeps only keys declared in ``spec["parameters"]``.
+        The activity endpoint accepts an open set of catalog filter fields (with
+        operator suffixes), so those extra dict keys are carried through and later
+        validated against the query catalog in :meth:`fetch`.
+        """
+        params = super()._prepare_params(query, spec, **overrides)
+        if self._is_activity_spec(spec) and isinstance(query, dict):
+            for key, value in query.items():
+                params.setdefault(key, value)
+        return params
+
+    def _make_identifier(self, query: str | dict | list, spec: dict) -> str:
+        """Build a cache identifier, keying activity on its full flat filter set.
+
+        Activity filters live outside ``spec``'s ``is_id`` keys, so the base
+        identifier would collide across distinct filter combinations; key on the
+        whole query dict instead.
+        """
+        if self._is_activity_spec(spec) and isinstance(query, dict):
+            return "_".join(f"{key}={query[key]}" for key in sorted(query))
+        return super()._make_identifier(query, spec)
+
     @staticmethod
     def _parse_filter_number(value: str) -> float | None:
         """Parse a numeric ChEMBL activity filter value."""
@@ -212,6 +256,23 @@ class ChEMBLInterface(BaseAPIInterface):
             "standard_value_max_inclusive": False,
         }
 
+        if re.search(
+            r"\bstandard_units\s*[:=]\s*(?=$|\b(?:AND|OR)\b|\))",
+            query_text,
+            flags=re.IGNORECASE,
+        ):
+            msg = "standard_units must be a non-empty value."
+            raise ValueError(msg)
+
+        units_match = re.search(
+            r"\bstandard_units\s*[:=]\s*(?:\"([^\"]*)\"|'([^']*)'|([^\s()]+))",
+            query_text,
+            flags=re.IGNORECASE,
+        )
+        if units_match:
+            units_value = next((value for value in units_match.groups() if value is not None), "")
+            activity_filter["standard_units"] = normalize_standard_units(units_value)
+
         range_match = re.search(
             rf"\b(?:ic50|standard_value)\s*:\s*{number_pattern}\s*-\s*{number_pattern}\b",
             query_text,
@@ -222,7 +283,7 @@ class ChEMBLInterface(BaseAPIInterface):
             activity_filter["standard_value_max"] = cls._parse_filter_number(range_match.group(2))
 
         comparison_pattern = re.compile(
-            rf"\b(?:ic50|standard_value)\s*(>=|<=|>|<|=)\s*{number_pattern}",
+            rf"\b(?:ic50\s*:?|standard_value)\s*(>=|<=|>|<|=)\s*{number_pattern}",
             flags=re.IGNORECASE,
         )
         for match in comparison_pattern.finditer(query_text):
@@ -239,6 +300,15 @@ class ChEMBLInterface(BaseAPIInterface):
             elif operator == "=":
                 activity_filter["standard_value"] = number
 
+        if not range_match:
+            exact_macro_match = re.search(
+                rf"\bic50\s*:\s*{number_pattern}(?!\s*-)",
+                query_text,
+                flags=re.IGNORECASE,
+            )
+            if exact_macro_match:
+                activity_filter["standard_value"] = cls._parse_filter_number(exact_macro_match.group(1))
+
         return activity_filter
 
     @classmethod
@@ -252,6 +322,8 @@ class ChEMBLInterface(BaseAPIInterface):
         }
         if limit is not None:
             params["limit"] = limit
+        if activity_filter.get("standard_units") is not None:
+            params["standard_units"] = activity_filter["standard_units"]
 
         exact_value = activity_filter.get("standard_value")
         if exact_value is not None:
@@ -275,6 +347,47 @@ class ChEMBLInterface(BaseAPIInterface):
             )
             params[max_key] = cls._format_filter_number(max_value)
         return params
+
+    @staticmethod
+    def _split_activity_param_key(key: str) -> tuple[str, str]:
+        """Split an activity flat-param key into its (field, operator) pair.
+
+        Bare keys map to the ``exact`` operator; suffixed keys such as
+        ``standard_value__lte`` map to ``(standard_value, lte)``.
+        """
+        for suffix, operator in _OPERATOR_BY_SUFFIX:
+            if key.endswith(suffix):
+                return key[: -len(suffix)], operator
+        return key, "exact"
+
+    @classmethod
+    def _validate_activity_flat_params(cls, inputs: dict) -> dict:
+        """Validate flat ChEMBL activity params against the query catalog.
+
+        Accepts every catalog activity field with the operator suffixes that field
+        allows (e.g. ``standard_type``, ``standard_value__lte``, ``pchembl_value__gte``);
+        ``format`` passes through as a control parameter.
+
+        Raises:
+            ValueError: If a field is unknown or an operator is not allowed for it.
+
+        """
+        fields = get_chembl_query_builder_field_catalog("activity")
+        validated = {}
+        for key, value in inputs.items():
+            if key == "format":
+                validated[key] = value
+                continue
+            field, operator = cls._split_activity_param_key(key)
+            if field not in fields:
+                msg = f"Unknown ChEMBL activity field '{field}'."
+                raise ValueError(msg)
+            if operator not in fields[field].allowed_operators:
+                msg = f"Operator '{operator}' is not allowed for ChEMBL activity field '{field}'."
+                raise ValueError(msg)
+            validated[key] = value
+        validated.setdefault("format", "json")
+        return validated
 
     def fetch(self, query: str | dict | list, *, method: str = "activity", **kwargs: Any) -> list:
         """Fetch data from the ChEMBL API.
@@ -312,10 +425,15 @@ class ChEMBLInterface(BaseAPIInterface):
 
         _, _, parameters, inputs = self.initialize_method_parameters(query, method, self.METHODS, **kwargs)
 
-        # Validate and clean parameters
+        # Validate and clean parameters. Activity accepts catalog-defined flat
+        # filters (field + operator suffix), so it validates against the query
+        # catalog instead of the rigid per-key schema used by other methods.
         try:
-            validated_params = validate_parameters(inputs, parameters)
-        except ValueError:
+            if method == "activity":
+                validated_params = self._validate_activity_flat_params(inputs)
+            else:
+                validated_params = validate_parameters(inputs, parameters)
+        except (TypeError, ValueError):
             log.exception("Invalid parameters for method '%s'", method)
             return []
 
@@ -344,8 +462,7 @@ class ChEMBLInterface(BaseAPIInterface):
                         f"{item['field']}__{item['filter_type']}={item['value']}"
                         for item in validated_params["filters"]
                     )
-                    url += query_str
-                    url += f"limit={limit if limit is not None else 20}&format=json"
+                    url += f"{query_str}&limit={limit if limit is not None else 20}&format=json"
         elif method in ["activity-search", "target-search"]:
             query_str = validated_params.get("query", "")
             activity_filter = (
@@ -383,13 +500,18 @@ class ChEMBLInterface(BaseAPIInterface):
 
         """
         allowed_filter_types = {
+            "exact",
             "iexact",
-            "gte",
-            "lte",
+            "contains",
             "icontains",
+            "startswith",
             "istartswith",
             "iendswith",
             "iregex",
+            "gt",
+            "gte",
+            "lt",
+            "lte",
             "range",
             "in",
             "isnull",

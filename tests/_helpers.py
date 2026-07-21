@@ -78,9 +78,9 @@ def read_exported_file(path: Path) -> list[dict]:
         with path.open() as f:
             return json.load(f)
     if suffix == "parquet":
-        import pyarrow.parquet as pq
+        import polars as pl
 
-        return pq.read_table(path).to_pylist()
+        return pl.read_parquet(path).to_dicts()
     if suffix == "xml":
         root = fromstring(path.read_text())  # noqa: S314  # local test-written file
         return [{child.tag: (child.text or "") for child in rec} for rec in root]

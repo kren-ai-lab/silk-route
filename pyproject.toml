@@ -7,14 +7,14 @@ name = "bioseqdownloader"
 dynamic = ["version"]
 description = "Tool to download and integrate biological data from multiple APIs (UniProt, AlphaFold, BioGRID, KEGG, etc.)"
 readme = "README.md"
-license = "GPL-3.0-only"
+license = "MIT"
 authors = [{ name = "Kren AI Lab", email = "krenai@umag.cl" }]
 requires-python = ">=3.11,<3.15"
 
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
@@ -27,7 +27,6 @@ classifiers = [
 
 dependencies = [
     "polars>=1.0",
-    "pyarrow",
     "biopython",
     "zeep",
     "python-dotenv",
@@ -45,6 +44,9 @@ dev = [
     "taskipy>=1.14",
     "ty>=0.0.30",
 ]
+gui = [
+    "nicegui",
+]
 tests = [
     "pytest>=9.0",
     "pytest-cov>=7.1",
@@ -53,6 +55,7 @@ tests = [
 
 [project.scripts]
 bioseq-dl = "bioseq_dl.cli.main:app"
+bioseq-dl-gui = "bioseq_dl.gui.nicegui_app:main"
 
 [project.urls]
 Homepage = "https://github.com/kren-ai-lab/BioSeqDownloader"

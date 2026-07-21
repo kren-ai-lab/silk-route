@@ -47,3 +47,17 @@ def test_partial_cache_does_not_duplicate_or_refetch(interface):
 
     # Every id appears exactly once -- no duplication of the cached subqueries.
     assert sorted(_collect_ids(batch)) == ["a", "b", "c"]
+
+
+def test_fetch_batch_records_metadata_for_bare_value_override(tmp_path):
+    # A fetch_single override returning a bare (non-tuple) value is still tracked as fetched.
+    class BareInterface(FakeRecordsInterface):
+        def fetch_single(self, query, parse=False, *args, **kwargs):
+            return f"bare-{query}"
+
+    iface = BareInterface(cache_dir=str(tmp_path))
+    data, metadata = iface.fetch_batch(["x", "y"], method="get")
+
+    assert set(data) == {"bare-x", "bare-y"}
+    fetched_ids = metadata.get("fetched", {}).get("ids", [])
+    assert len(fetched_ids) == 2

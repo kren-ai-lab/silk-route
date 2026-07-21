@@ -1,0 +1,1758 @@
+"""Tests for GUI workflow YAML builder helpers."""
+
+from __future__ import annotations
+
+import asyncio
+import importlib
+import subprocess
+import sys
+from typing import cast
+
+import pytest
+
+from bioseq_dl.core.workflow.schema import (
+    parse_query_composition_value,
+    validate_workflow_v1_descriptor,
+)
+from bioseq_dl.gui.query_builders.registry import get_query_builder_spec
+from bioseq_dl.gui.yaml_builder import (
+    DEFAULT_OUTPUT_DIRECTORY_NAME_ERROR,
+    LOADED_QUERY_VALUE_WARNING,
+    PRESERVED_SECTIONS_FORM_KEY,
+    PROTEIN_CHEMBL_QUERY_WARNING,
+    QUERY_BUILDER_MISMATCH_WARNING,
+    QUERY_BUILDER_NOT_EDITABLE_WARNING,
+    QUERY_COMPOSITION_BUILDER_RESTORE_NOTE,
+    QUERY_COMPOSITION_NOT_EDITABLE_WARNING,
+    build_workflow_descriptor,
+    build_workflow_filename,
+    descriptor_to_form_values,
+    load_workflow_yaml_text,
+    load_workflow_yaml_to_form_values,
+    merge_preserved_workflow_sections,
+    parse_csv_list,
+    render_workflow_yaml,
+    resolve_query_value_from_form,
+    validate_generated_descriptor,
+    workflow_yaml_form_defaults,
+)
+
+
+class FakeNiceGUIUploadFile:
+    """Fake NiceGUI upload file with an async text method."""
+
+    def __init__(self, name: str, content: str) -> None:
+        """Create a fake upload file."""
+        self.name = name
+        self.content = content
+        self.requested_encoding = ""
+
+    async def text(self, encoding: str) -> str:
+        """Return uploaded text content."""
+        self.requested_encoding = encoding
+        return self.content
+
+
+class FakeNiceGUIUploadEvent:
+    """Fake NiceGUI upload event using the NiceGUI 3.13 file attribute."""
+
+    def __init__(self, name: str, content: str) -> None:
+        """Create a fake upload event."""
+        self.file = FakeNiceGUIUploadFile(name, content)
+
+
+class FakeWorkflowUpload:
+    """Fake NiceGUI upload control with a reset method."""
+
+    def __init__(self) -> None:
+        """Initialize reset call capture."""
+        self.reset_count = 0
+
+    def reset(self) -> None:
+        """Capture upload reset calls."""
+        self.reset_count += 1
+
+
+class FakeUploadHandlerApp:
+    """Small upload handler test double."""
+
+    def __init__(self) -> None:
+        """Initialize captured handler state."""
+        self.loaded_form_values: dict[str, object] | None = None
+        self.warnings: list[str] | None = None
+        self.errors: list[str] | None = None
+        self.workflow_upload = FakeWorkflowUpload()
+        self.loaded_workflow_filename: str | None = None
+        self.loaded_workflow_upload_status: str | None = None
+        self.loaded_workflow_upload_message: str | None = None
+        self.loaded_workflow_upload_warnings: list[str] = []
+
+    def apply_loaded_form_values(self, loaded_form_values: dict[str, object]) -> None:
+        """Capture loaded form values."""
+        self.loaded_form_values = loaded_form_values
+
+    def regenerate_loaded_yaml_preview(self, warnings: list[str]) -> list[str]:
+        """Capture load warnings."""
+        self.warnings = warnings
+        return []
+
+    def show_errors(self, errors: list[str]) -> None:
+        """Capture load errors."""
+        self.errors = errors
+
+    def set_workflow_upload_success(self, filename: object, warnings: list[str]) -> None:
+        """Capture successful upload status state."""
+        self.loaded_workflow_filename = str(filename or "workflow YAML file")
+        self.loaded_workflow_upload_status = "success"
+        self.loaded_workflow_upload_message = (
+            "The form was populated from this file. Upload another YAML file to replace it."
+        )
+        self.loaded_workflow_upload_warnings = list(warnings)
+
+    def set_workflow_upload_error(self, filename: object, message: str) -> None:
+        """Capture failed upload status state."""
+        self.loaded_workflow_filename = str(filename or "workflow YAML file")
+        self.loaded_workflow_upload_status = "error"
+        self.loaded_workflow_upload_message = message
+        self.loaded_workflow_upload_warnings = []
+
+    def reset_workflow_upload(self) -> None:
+        """Reset the fake upload control."""
+        self.workflow_upload.reset()
+
+
+class FakeInteractionTypeSelect:
+    """Small test double for the NiceGUI interaction type select."""
+
+    def __init__(self) -> None:
+        """Initialize visible state and captured updates."""
+        self.visible = True
+        self.value = ""
+        self.update_count = 0
+
+    def update(self) -> None:
+        """Capture update calls."""
+        self.update_count += 1
+
+
+def minimal_form_values() -> dict[str, object]:
+    """Return minimal valid GUI form values."""
+    return {
+        "dataset.name": "example_dataset",
+        "dataset.modality": "protein",
+        "dataset.mode": "query_first",
+        "query.value": "reviewed:true",
+        "execution.enrich": False,
+        "execution.max_workers": 5,
+        "execution.total_retries": 3,
+        "execution.chembl_pages_to_fetch": 1,
+        "execution.debug": False,
+        "export.output_dir": "examples/results/example_dataset",
+        "export.format": "csv",
+        "export.include_metadata": True,
+        "export.include_summary": True,
+        "export.manifest_file": "metadata.json",
+        "export.summary_file": "run_summary.yml",
+    }
+
+
+def assert_query_builder_common_metadata(
+    builder: dict[str, object],
+    *,
+    builder_key: str,
+    source: str,
+) -> None:
+    """Assert common query-builder-v1 metadata fields."""
+    spec = get_query_builder_spec(builder_key)
+    assert builder["schema_version"] == "query-builder-v1"
+    assert builder["source"] == source
+    assert builder["builder_key"] == builder_key
+    assert builder["builder_type"] == spec.builder_type
+
+
+def minimal_workflow_yaml(output_dir: str | None = "results/loaded_dataset") -> str:
+    """Return minimal valid workflow-v1 YAML text."""
+    export_output_dir = f'  output_dir: "{output_dir}"\n' if output_dir else ""
+    return f"""
+schema_version: "workflow-v1"
+dataset:
+  name: loaded_dataset
+  description: Loaded dataset.
+  modality: protein
+  mode: query_first
+query:
+  value: "reviewed:true"
+  fields:
+    - accession
+    - sequence
+  crossref_fields:
+    - xref_pdb
+    - xref_string
+  include_isoform: true
+execution:
+  enrich: false
+  max_workers: 4
+  total_retries: 2
+  chembl_pages_to_fetch: 1
+  uniprot_timeout: 12.5
+  debug: true
+harmonization:
+  id_column: "_id"
+  label_column: "_label"
+  sequence_column: "sequence"
+  unique_sequence_strategy: "exact"
+  metadata_fields:
+    - accession
+    - protein_name
+export:
+{export_output_dir}  format: csv
+  include_metadata: true
+  include_summary: true
+  manifest_file: "metadata.json"
+  summary_file: "run_summary.yml"
+"""
+
+
+def historical_chembl_ic50_builder_metadata(
+    row: dict[str, object],
+    *,
+    builder_key: str = "chembl_ic50_activity",
+) -> dict[str, object]:
+    """Return historical ChEMBL IC50 query-builder-v1 metadata."""
+    return {
+        "schema_version": "query-builder-v1",
+        "source": "chembl",
+        "builder_key": builder_key,
+        "builder_type": "ic50_activity",
+        "rows": [row],
+    }
+
+
+def historical_chembl_ic50_row(
+    comparison_mode: str,
+    *,
+    lower_value: object = "",
+    upper_value: object = "",
+    value: object = "",
+    standard_units: str = "nM",
+) -> dict[str, object]:
+    """Return one historical ChEMBL IC50 metadata row."""
+    return {
+        "comparison_mode": comparison_mode,
+        "lower_value": lower_value,
+        "upper_value": upper_value,
+        "value": value,
+        "standard_units": standard_units,
+    }
+
+
+def chembl_ic50_query_first_yaml(
+    query_value: str,
+    builder: dict[str, object],
+) -> str:
+    """Return a compound query_first workflow carrying ChEMBL IC50 metadata."""
+    return render_workflow_yaml(
+        {
+            "schema_version": "workflow-v1",
+            "dataset": {
+                "name": "ic50_dataset",
+                "modality": "compound",
+                "mode": "query_first",
+            },
+            "query": {"value": query_value, "builder": builder},
+            "execution": {"enrich": False},
+            "export": {"format": "csv", "output_dir": "results/ic50_dataset"},
+        }
+    )
+
+
+def test_build_workflow_descriptor_generates_required_sections() -> None:
+    descriptor = build_workflow_descriptor(minimal_form_values())
+
+    assert list(descriptor) == [
+        "schema_version",
+        "dataset",
+        "query",
+        "execution",
+        "export",
+    ]
+
+
+def test_build_workflow_descriptor_removes_empty_optional_fields() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "dataset.description": "",
+            "dataset.interaction_type": "",
+            "query.fields": "",
+            "query.crossref_fields": "",
+            "execution.uniprot_timeout": "",
+            "harmonization.id_column": "",
+            "harmonization.label_column": "",
+            "harmonization.sequence_column": "",
+            "harmonization.unique_sequence_strategy": "",
+            "harmonization.metadata_fields": "",
+        }
+    )
+
+    assert "description" not in descriptor["dataset"]
+    assert "interaction_type" not in descriptor["dataset"]
+    assert "fields" not in descriptor["query"]
+    assert "crossref_fields" not in descriptor["query"]
+    assert "uniprot_timeout" not in descriptor["execution"]
+    assert "harmonization" not in descriptor
+
+
+def test_parse_csv_list_removes_empty_values() -> None:
+    assert parse_csv_list("accession, id,, protein_name") == ["accession", "id", "protein_name"]
+
+
+def test_build_workflow_descriptor_parses_comma_separated_fields() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.fields": "accession,id",
+            "query.crossref_fields": "go, interpro",
+        }
+    )
+
+    assert descriptor["query"]["fields"] == ["accession", "id"]
+    assert descriptor["query"]["crossref_fields"] == ["go", "interpro"]
+
+
+def test_return_field_selector_writes_stable_field_ids_not_labels() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.fields": "",
+            "query.return_field_selections": ["accession", "protein_name"],
+            "query.return_field_custom": "",
+        }
+    )
+
+    assert descriptor["query"]["fields"] == ["accession", "protein_name"]
+    assert "Accession" not in descriptor["query"]["fields"]
+
+
+def test_return_field_selector_and_custom_fields_combine_deterministically() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.fields": "",
+            "query.return_field_selections": ["length", "accession", "ACCESSION"],
+            "query.return_field_custom": "custom_field, ACCESSION, Custom_Field, xref_pdb",
+        }
+    )
+
+    assert descriptor["query"]["fields"] == ["accession", "length", "custom_field", "xref_pdb"]
+
+
+def test_empty_return_field_controls_omit_query_fields_for_runtime_defaults() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.fields": "",
+            "query.return_field_selections": [],
+            "query.return_field_custom": "",
+        }
+    )
+
+    assert "fields" not in descriptor["query"]
+
+
+@pytest.mark.parametrize(
+    ("label", "expected"),
+    [
+        ("Protein", "protein"),
+        ("Compound", "compound"),
+        ("Interaction", "interaction"),
+    ],
+)
+def test_human_readable_modality_labels_map_to_schema_values(label: str, expected: str) -> None:
+    form_values = minimal_form_values() | {"dataset.modality": label}
+    if label == "Interaction":
+        form_values["dataset.interaction_type"] = "Protein-protein interaction"
+
+    descriptor = build_workflow_descriptor(form_values)
+
+    assert descriptor["dataset"]["modality"] == expected
+
+
+@pytest.mark.parametrize(
+    ("label", "expected"),
+    [
+        ("Query First", "query_first"),
+        ("Query Composition", "query_composition"),
+    ],
+)
+def test_human_readable_workflow_mode_labels_map_to_schema_values(label: str, expected: str) -> None:
+    form_values = minimal_form_values() | {"dataset.mode": label}
+    if expected == "query_composition":
+        form_values["query.composition.entries"] = [
+            {
+                "label": "class_a",
+                "value": "field=value",
+                "description": "",
+                "query_input_mode": "manual",
+            }
+        ]
+
+    descriptor = build_workflow_descriptor(form_values)
+
+    assert descriptor["dataset"]["mode"] == expected
+    assert validate_generated_descriptor(descriptor) == []
+    validate_workflow_v1_descriptor(descriptor)
+    if expected == "query_composition":
+        assert descriptor["query"]["value"] == "field=value=class_a"
+        assert descriptor["query"]["composition"] == [{"label": "class_a", "value": "field=value"}]
+        assert parse_query_composition_value(descriptor["query"]["value"]) == [("field=value", "class_a")]
+
+
+@pytest.mark.parametrize(
+    ("label", "expected"),
+    [("CSV", "csv"), ("JSON", "json"), ("XML", "xml"), ("Parquet", "parquet")],
+)
+def test_human_readable_export_format_labels_map_to_schema_values(label: str, expected: str) -> None:
+    descriptor = build_workflow_descriptor(minimal_form_values() | {"export.format": label})
+
+    assert descriptor["export"]["format"] == expected
+
+
+def test_manual_query_mode_generates_manual_query_value() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.input_mode": "Manual query",
+            "query.value": "reviewed:true AND organism_id:9606",
+        }
+    )
+
+    assert descriptor["query"]["value"] == "reviewed:true AND organism_id:9606"
+
+
+def test_resolve_query_value_from_manual_mode_does_not_call_builder() -> None:
+    form_values = minimal_form_values() | {
+        "query.input_mode": "manual",
+        "query.value": "reviewed:true",
+        "query.uniprot_builder.rows": [
+            {
+                "connector": None,
+                "field": "organism",
+                "values": "",
+                "match_mode": "any",
+            }
+        ],
+    }
+
+    assert resolve_query_value_from_form(form_values) == "reviewed:true"
+
+
+def test_advanced_uniprot_builder_mode_generates_interpreted_query_value() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.input_mode": "Advanced UniProt builder",
+            "query.value": "manual text ignored",
+            "query.uniprot_builder.rows": [
+                {
+                    "connector": None,
+                    "field": "organism",
+                    "values": "Homo sapiens",
+                    "match_mode": "Any",
+                },
+                {
+                    "connector": "AND",
+                    "field": "temperature",
+                    "values": "20-30,50-60",
+                    "match_mode": "Any",
+                },
+            ],
+        }
+    )
+
+    assert descriptor["query"]["value"] == (
+        "organism_id:9606 AND (cc_bpcp_temp_dependence:20-30 OR cc_bpcp_temp_dependence:50-60)"
+    )
+
+
+def test_advanced_uniprot_builder_mode_emits_query_builder_metadata() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.input_mode": "uniprot_builder",
+            "query.uniprot_builder.rows": [
+                {
+                    "connector": None,
+                    "field": "organism",
+                    "values": "Homo sapiens",
+                    "match_mode": "any",
+                    "friendly_query": 'organism_any:"Homo sapiens"',
+                }
+            ],
+        }
+    )
+
+    assert descriptor["query"]["value"] == "organism_id:9606"
+    assert descriptor["query"]["include_isoform"] is False
+    builder = cast("dict[str, object]", descriptor["query"]["builder"])
+    assert_query_builder_common_metadata(
+        builder,
+        builder_key="uniprot",
+        source="uniprot",
+    )
+    assert builder["rows"] == [
+        {
+            "connector": None,
+            "field": "organism",
+            "match_mode": "any",
+            "values": ["Homo sapiens"],
+        }
+    ]
+    assert validate_generated_descriptor(descriptor) == []
+    validate_workflow_v1_descriptor(descriptor)
+    assert "query.uniprot_builder.rows" not in descriptor
+    assert "composition" not in descriptor["query"]
+    assert "friendly_query" not in descriptor["query"]
+
+
+def test_advanced_uniprot_builder_mode_keeps_query_fields_separate() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.input_mode": "uniprot_builder",
+            "query.uniprot_builder.rows": [
+                {
+                    "connector": None,
+                    "field": "organism",
+                    "values": "Homo sapiens",
+                    "match_mode": "any",
+                }
+            ],
+            "query.fields": "accession, protein_name",
+            "query.crossref_fields": "xref_alphafolddb",
+        }
+    )
+
+    assert descriptor["query"]["value"] == "organism_id:9606"
+    assert descriptor["query"]["fields"] == ["accession", "protein_name"]
+    assert descriptor["query"]["crossref_fields"] == ["xref_alphafolddb"]
+
+
+def test_advanced_uniprot_builder_mode_rejects_invalid_rows() -> None:
+    with pytest.raises(ValueError, match="Row 1: values are required"):
+        build_workflow_descriptor(
+            minimal_form_values()
+            | {
+                "query.input_mode": "uniprot_builder",
+                "query.uniprot_builder.rows": [
+                    {
+                        "connector": None,
+                        "field": "organism",
+                        "values": "",
+                        "match_mode": "any",
+                    }
+                ],
+            }
+        )
+
+
+def test_advanced_uniprot_builder_descriptor_validates_as_workflow_v1() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.input_mode": "uniprot_builder",
+            "query.uniprot_builder.rows": [
+                {
+                    "connector": None,
+                    "field": "databases",
+                    "values": "alphafold,pdb",
+                    "match_mode": "any",
+                }
+            ],
+        }
+    )
+
+    assert descriptor["query"]["value"] == "(database:alphafolddb OR database:pdb)"
+    assert validate_generated_descriptor(descriptor) == []
+    validate_workflow_v1_descriptor(descriptor)
+    assert "resources" not in descriptor
+    assert "reporting" not in descriptor
+    builder = cast("dict[str, object]", descriptor["query"]["builder"])
+    assert_query_builder_common_metadata(
+        builder,
+        builder_key="uniprot",
+        source="uniprot",
+    )
+    assert builder["rows"] == [
+        {
+            "connector": None,
+            "field": "databases",
+            "match_mode": "any",
+            "values": ["alphafold", "pdb"],
+        }
+    ]
+    assert "composition" not in descriptor["query"]
+
+
+@pytest.mark.parametrize(
+    ("builder_key", "rows", "expected_query_value"),
+    [
+        (
+            "chembl_target",
+            [
+                {"field": "type", "filter_type": "iexact", "value": "protein"},
+                {"field": "gene_symbol", "filter_type": "icontains", "value": "EGFR"},
+            ],
+            "chembl.target:type__iexact=protein AND gene_symbol__icontains=EGFR",
+        ),
+        (
+            "chembl_assay",
+            [
+                {"field": "label_type", "filter_type": "iexact", "value": "functional"},
+                {"field": "organism", "filter_type": "icontains", "value": "virus"},
+            ],
+            "chembl.assay:label_type__iexact=functional AND organism__icontains=virus",
+        ),
+        (
+            "chembl_cell_line",
+            [{"field": "organism", "filter_type": "icontains", "value": "mus"}],
+            "chembl.cell_line:organism__icontains=mus",
+        ),
+        (
+            "chembl_molecule",
+            [
+                {"field": "name", "filter_type": "iexact", "value": "Imatinib"},
+                {"field": "molecular_weight", "filter_type": "range", "value": "80,200"},
+            ],
+            "chembl.molecule:name__iexact=Imatinib AND molecular_weight__range=80,200",
+        ),
+        (
+            "chembl_activity",
+            [
+                {"field": "target_chembl_id", "filter_type": "exact", "value": "CHEMBL5169197"},
+                {"field": "pchembl_value", "filter_type": "exact", "value": "5.83"},
+            ],
+            "chembl.activity:target_chembl_id=CHEMBL5169197 AND pchembl_value=5.83",
+        ),
+    ],
+)
+def test_advanced_chembl_builder_modes_generate_interpreted_query_value(
+    builder_key: str,
+    rows: list[dict[str, object]],
+    expected_query_value: str,
+) -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.input_mode": "Advanced builder",
+            "query.builder.key": builder_key,
+            "query.chembl_builder.rows": rows,
+        }
+    )
+
+    assert descriptor["query"]["value"] == expected_query_value
+    assert validate_generated_descriptor(descriptor) == []
+    validate_workflow_v1_descriptor(descriptor)
+    builder = cast("dict[str, object]", descriptor["query"]["builder"])
+    assert_query_builder_common_metadata(
+        builder,
+        builder_key=builder_key,
+        source="chembl",
+    )
+    assert builder["rows"] == [
+        {
+            "field": row["field"],
+            "operator": row["filter_type"],
+            "value": row["value"],
+        }
+        for row in rows
+    ]
+    assert "composition" not in descriptor["query"]
+    assert "friendly_query" not in descriptor["query"]
+    assert "query.chembl_builder.rows" not in descriptor
+    assert "resources" not in descriptor
+    assert "reporting" not in descriptor
+
+
+def test_advanced_chembl_builder_rejects_invalid_row() -> None:
+    with pytest.raises(ValueError, match="Row 1: value is required"):
+        build_workflow_descriptor(
+            minimal_form_values()
+            | {
+                "query.input_mode": "advanced_builder",
+                "query.builder.key": "chembl_target",
+                "query.chembl_builder.rows": [
+                    {"field": "gene_symbol", "filter_type": "icontains", "value": ""}
+                ],
+            }
+        )
+
+
+def test_selected_chembl_builder_determines_resource() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.input_mode": "advanced_builder",
+            "query.builder.key": "ChEMBL activity parameter builder",
+            "query.chembl_builder.rows": [
+                {"field": "standard_type", "filter_type": "exact", "value": "IC50"},
+            ],
+        }
+    )
+
+    assert descriptor["query"]["value"] == "chembl.activity:standard_type=IC50"
+
+
+def test_historical_chembl_ic50_range_metadata_restores_without_warning() -> None:
+    yaml_text = chembl_ic50_query_first_yaml(
+        "ic50:0-10 AND standard_units:nM",
+        historical_chembl_ic50_builder_metadata(
+            historical_chembl_ic50_row(
+                "range",
+                lower_value="0",
+                upper_value="10",
+                standard_units="nM",
+            )
+        ),
+    )
+
+    form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert warnings == []
+    assert form_values["query.input_mode"] == "Advanced builder"
+    assert form_values["query.builder.key"] == "chembl_ic50"
+    assert form_values["query.chembl_ic50_builder.row"] == {
+        "condition": "range",
+        "minimum": 0,
+        "maximum": 10,
+        "value": None,
+        "unit": "nM",
+    }
+
+
+@pytest.mark.parametrize(
+    ("historical_mode", "condition", "query_value"),
+    [
+        ("lt", "less_than", "ic50:<1000 AND standard_units:nM"),
+        ("lte", "less_than_or_equal", "ic50:<=1000 AND standard_units:nM"),
+        ("gt", "greater_than", "ic50:>100 AND standard_units:uM"),
+        ("gte", "greater_than_or_equal", "ic50:>=100 AND standard_units:uM"),
+        ("exact", "exact", "ic50:50 AND standard_units:nM"),
+    ],
+)
+def test_historical_chembl_ic50_comparison_modes_restore(
+    historical_mode: str,
+    condition: str,
+    query_value: str,
+) -> None:
+    unit = "uM" if historical_mode in {"gt", "gte"} else "nM"
+    yaml_text = chembl_ic50_query_first_yaml(
+        query_value,
+        historical_chembl_ic50_builder_metadata(
+            historical_chembl_ic50_row(
+                historical_mode,
+                value="100"
+                if historical_mode in {"gt", "gte"}
+                else "1000"
+                if historical_mode in {"lt", "lte"}
+                else "50",
+                standard_units=unit,
+            )
+        ),
+    )
+
+    form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+    descriptor = build_workflow_descriptor(form_values)
+    builder = cast("dict[str, object]", descriptor["query"]["builder"])
+
+    assert warnings == []
+    assert form_values["query.chembl_ic50_builder.row"]["condition"] == condition
+    assert descriptor["query"]["value"] == query_value
+    assert_query_builder_common_metadata(builder, builder_key="chembl_ic50", source="chembl")
+    row = cast("list[dict[str, object]]", builder["rows"])[0]
+    assert row["condition"] == condition
+    assert row["unit"] == unit
+    assert "comparison_mode" not in row
+    assert "standard_units" not in row
+
+
+def test_historical_chembl_ic50_metadata_saves_as_canonical_format() -> None:
+    yaml_text = chembl_ic50_query_first_yaml(
+        "ic50:0-10 AND standard_units:nM",
+        historical_chembl_ic50_builder_metadata(
+            historical_chembl_ic50_row(
+                "range",
+                lower_value="0",
+                upper_value="10",
+                standard_units="nM",
+            )
+        ),
+    )
+    form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    descriptor = build_workflow_descriptor(form_values)
+    builder = cast("dict[str, object]", descriptor["query"]["builder"])
+
+    assert warnings == []
+    assert descriptor["query"]["value"] == "ic50:0-10 AND standard_units:nM"
+    assert_query_builder_common_metadata(builder, builder_key="chembl_ic50", source="chembl")
+    assert builder["rows"] == [{"condition": "range", "unit": "nM", "minimum": 0, "maximum": 10}]
+    assert "chembl_ic50_activity" not in str(builder)
+    assert "comparison_mode" not in str(builder)
+    assert "lower_value" not in str(builder)
+    assert "upper_value" not in str(builder)
+    assert "standard_units" not in str(builder)
+
+
+def test_current_canonical_chembl_ic50_metadata_still_restores() -> None:
+    yaml_text = chembl_ic50_query_first_yaml(
+        "ic50:0-10 AND standard_units:nM",
+        {
+            "schema_version": "query-builder-v1",
+            "source": "chembl",
+            "builder_key": "chembl_ic50",
+            "builder_type": "ic50_activity",
+            "rows": [{"condition": "range", "minimum": 0, "maximum": 10, "unit": "nM"}],
+        },
+    )
+
+    form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert warnings == []
+    assert form_values["query.input_mode"] == "Advanced builder"
+    assert form_values["query.builder.key"] == "chembl_ic50"
+    assert form_values["query.chembl_ic50_builder.row"]["condition"] == "range"
+
+
+def test_historical_chembl_ic50_three_entry_composition_restores_all_entries() -> None:
+    composition = [
+        {
+            "label": "very_high",
+            "value": "ic50:0-10 AND standard_units:nM",
+            "builder": historical_chembl_ic50_builder_metadata(
+                historical_chembl_ic50_row(
+                    "range",
+                    lower_value="0",
+                    upper_value="10",
+                    standard_units="nM",
+                )
+            ),
+        },
+        {
+            "label": "high",
+            "value": "ic50:<1000 AND standard_units:nM",
+            "builder": historical_chembl_ic50_builder_metadata(
+                historical_chembl_ic50_row("lt", value="1000", standard_units="nM")
+            ),
+        },
+        {
+            "label": "weak",
+            "value": "ic50:>=100 AND standard_units:uM",
+            "builder": historical_chembl_ic50_builder_metadata(
+                historical_chembl_ic50_row("gte", value="100", standard_units="uM")
+            ),
+        },
+    ]
+    yaml_text = render_workflow_yaml(
+        {
+            "schema_version": "workflow-v1",
+            "dataset": {
+                "name": "ic50_dataset",
+                "modality": "compound",
+                "mode": "query_composition",
+            },
+            "query": {
+                "value": (
+                    "ic50:0-10 AND standard_units:nM=very_high,"
+                    "ic50:<1000 AND standard_units:nM=high,"
+                    "ic50:>=100 AND standard_units:uM=weak"
+                ),
+                "composition": composition,
+            },
+            "execution": {"enrich": False},
+            "export": {"format": "csv", "output_dir": "results/ic50_dataset"},
+        }
+    )
+
+    form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+    descriptor = build_workflow_descriptor(form_values)
+
+    assert warnings == []
+    assert [entry["query_builder_key"] for entry in form_values["query.composition.entries"]] == [
+        "chembl_ic50",
+        "chembl_ic50",
+        "chembl_ic50",
+    ]
+    assert descriptor["query"]["value"] == (
+        "ic50:0-10 AND standard_units:nM=very_high,"
+        "ic50:<1000 AND standard_units:nM=high,"
+        "ic50:>=100 AND standard_units:uM=weak"
+    )
+    assert all(
+        entry["builder"]["builder_key"] == "chembl_ic50" for entry in descriptor["query"]["composition"]
+    )
+    assert "chembl_ic50_activity" not in str(descriptor["query"]["composition"])
+
+
+def test_malformed_historical_chembl_ic50_row_shape_falls_back_to_manual_mode() -> None:
+    malformed_builder = historical_chembl_ic50_builder_metadata(
+        {
+            "comparison_mode": "range",
+            "lower_value": "0",
+            "value": "",
+            "standard_units": "nM",
+        }
+    )
+    yaml_text = chembl_ic50_query_first_yaml("ic50:0-10 AND standard_units:nM", malformed_builder)
+
+    form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert QUERY_BUILDER_NOT_EDITABLE_WARNING in warnings
+    assert form_values["query.input_mode"] == "Manual query"
+    assert form_values["query.value"] == "ic50:0-10 AND standard_units:nM"
+
+
+def test_unknown_historical_chembl_ic50_builder_key_remains_unsupported() -> None:
+    yaml_text = chembl_ic50_query_first_yaml(
+        "ic50:0-10 AND standard_units:nM",
+        historical_chembl_ic50_builder_metadata(
+            historical_chembl_ic50_row(
+                "range",
+                lower_value="0",
+                upper_value="10",
+                standard_units="nM",
+            ),
+            builder_key="chembl_ic50_activity_v0",
+        ),
+    )
+
+    form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert QUERY_BUILDER_NOT_EDITABLE_WARNING in warnings
+    assert form_values["query.input_mode"] == "Manual query"
+
+
+def test_historical_chembl_ic50_metadata_query_mismatch_warns() -> None:
+    yaml_text = chembl_ic50_query_first_yaml(
+        "ic50:0-20 AND standard_units:nM",
+        historical_chembl_ic50_builder_metadata(
+            historical_chembl_ic50_row(
+                "range",
+                lower_value="0",
+                upper_value="10",
+                standard_units="nM",
+            )
+        ),
+    )
+
+    form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert QUERY_BUILDER_MISMATCH_WARNING in warnings
+    assert form_values["query.input_mode"] == "Manual query"
+
+
+def test_invalid_historical_chembl_ic50_composition_entry_falls_back_independently() -> None:
+    composition = [
+        {
+            "label": "valid",
+            "value": "ic50:<1000 AND standard_units:nM",
+            "builder": historical_chembl_ic50_builder_metadata(
+                historical_chembl_ic50_row("lt", value="1000", standard_units="nM")
+            ),
+        },
+        {
+            "label": "manual",
+            "value": "ic50:0-10 AND standard_units:nM",
+            "builder": historical_chembl_ic50_builder_metadata(
+                historical_chembl_ic50_row(
+                    "range",
+                    lower_value="0",
+                    upper_value="20",
+                    standard_units="nM",
+                )
+            ),
+        },
+    ]
+    yaml_text = render_workflow_yaml(
+        {
+            "schema_version": "workflow-v1",
+            "dataset": {
+                "name": "ic50_dataset",
+                "modality": "compound",
+                "mode": "query_composition",
+            },
+            "query": {
+                "value": ("ic50:<1000 AND standard_units:nM=valid,ic50:0-10 AND standard_units:nM=manual"),
+                "composition": composition,
+            },
+            "execution": {"enrich": False},
+            "export": {"format": "csv", "output_dir": "results/ic50_dataset"},
+        }
+    )
+
+    form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+    entries = cast("list[dict[str, object]]", form_values["query.composition.entries"])
+
+    assert warnings == [QUERY_COMPOSITION_BUILDER_RESTORE_NOTE.format(index=2, label="manual")]
+    assert entries[0]["query_input_mode"] == "advanced_builder"
+    assert entries[0]["query_builder_key"] == "chembl_ic50"
+    assert entries[1]["query_input_mode"] == "manual"
+    assert entries[1]["value"] == "ic50:0-10 AND standard_units:nM"
+
+
+def test_interaction_descriptor_includes_interaction_type_when_provided() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "dataset.modality": "interaction",
+            "dataset.interaction_type": "protein-protein",
+        }
+    )
+
+    assert descriptor["dataset"]["interaction_type"] == "protein-protein"
+
+
+def test_non_interaction_descriptor_omits_interaction_type() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "dataset.modality": "protein",
+            "dataset.interaction_type": "protein-protein",
+        }
+    )
+
+    assert "interaction_type" not in descriptor["dataset"]
+
+
+def test_non_empty_harmonization_id_column_includes_harmonization_section() -> None:
+    descriptor = build_workflow_descriptor(minimal_form_values() | {"harmonization.id_column": "_id"})
+
+    assert descriptor["harmonization"] == {"id_column": "_id"}
+
+
+def test_harmonization_metadata_fields_are_parsed_as_csv() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {"harmonization.metadata_fields": ("accession, protein_name, , organism_name, sequence")}
+    )
+
+    assert descriptor["harmonization"]["metadata_fields"] == [
+        "accession",
+        "protein_name",
+        "organism_name",
+        "sequence",
+    ]
+
+
+def test_empty_harmonization_metadata_fields_are_omitted() -> None:
+    descriptor = build_workflow_descriptor(minimal_form_values() | {"harmonization.metadata_fields": " , , "})
+
+    assert "harmonization" not in descriptor
+
+
+def test_complete_harmonization_block_validates_as_workflow_v1() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "harmonization.id_column": "_id",
+            "harmonization.label_column": "_label",
+            "harmonization.sequence_column": "sequence",
+            "harmonization.unique_sequence_strategy": "exact",
+            "harmonization.metadata_fields": ("accession, protein_name, organism_name, sequence"),
+        }
+    )
+
+    assert descriptor["harmonization"] == {
+        "id_column": "_id",
+        "label_column": "_label",
+        "sequence_column": "sequence",
+        "unique_sequence_strategy": "exact",
+        "metadata_fields": [
+            "accession",
+            "protein_name",
+            "organism_name",
+            "sequence",
+        ],
+    }
+    assert validate_generated_descriptor(descriptor) == []
+    assert "resources" not in descriptor
+    assert "reporting" not in descriptor
+    assert "builder" not in descriptor["query"]
+    assert "composition" not in descriptor["query"]
+
+
+def test_validation_returns_error_for_missing_query_value() -> None:
+    descriptor = build_workflow_descriptor(minimal_form_values() | {"query.value": ""})
+
+    errors = validate_generated_descriptor(descriptor)
+
+    assert any("query.value" in error for error in errors)
+
+
+def test_validation_returns_error_for_missing_interaction_type() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "dataset.modality": "interaction",
+            "dataset.interaction_type": "",
+        }
+    )
+
+    errors = validate_generated_descriptor(descriptor)
+
+    assert any("interaction_type" in error for error in errors)
+
+
+def test_no_interaction_label_is_rejected_for_interaction_modality() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "dataset.modality": "Interaction",
+            "dataset.interaction_type": "No interaction",
+        }
+    )
+
+    errors = validate_generated_descriptor(descriptor)
+
+    assert errors == ["dataset.interaction_type is required when dataset.modality is 'interaction'."]
+
+
+def test_default_output_directory_mode_uses_dataset_name() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "export.output_dir_mode": "Use default results folder",
+            "export.output_dir": "ignored/custom/path",
+        }
+    )
+
+    assert descriptor["export"]["output_dir"] == "results/example_dataset"
+
+
+def test_numeric_execution_strings_are_converted_to_numbers() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "execution.max_workers": "5",
+            "execution.total_retries": "3",
+            "execution.chembl_pages_to_fetch": "-1",
+        }
+    )
+
+    assert descriptor["execution"]["max_workers"] == 5
+    assert descriptor["execution"]["total_retries"] == 3
+    assert descriptor["execution"]["chembl_pages_to_fetch"] == -1
+    assert validate_generated_descriptor(descriptor) == []
+
+
+def test_numeric_execution_integer_floats_are_converted_to_numbers() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "execution.max_workers": 5.0,
+            "execution.total_retries": 3.0,
+            "execution.chembl_pages_to_fetch": -1.0,
+        }
+    )
+
+    assert descriptor["execution"]["max_workers"] == 5
+    assert descriptor["execution"]["total_retries"] == 3
+    assert descriptor["execution"]["chembl_pages_to_fetch"] == -1
+    assert validate_generated_descriptor(descriptor) == []
+
+
+def test_optional_uniprot_timeout_empty_string_is_omitted() -> None:
+    descriptor = build_workflow_descriptor(minimal_form_values() | {"execution.uniprot_timeout": "  "})
+
+    assert "uniprot_timeout" not in descriptor["execution"]
+
+
+def test_optional_uniprot_timeout_string_is_converted_to_number() -> None:
+    descriptor = build_workflow_descriptor(minimal_form_values() | {"execution.uniprot_timeout": " 12.5 "})
+
+    assert descriptor["execution"]["uniprot_timeout"] == 12.5
+
+
+def test_invalid_required_integer_string_raises_clear_error() -> None:
+    with pytest.raises(ValueError, match=r"execution\.chembl_pages_to_fetch must be an integer"):
+        build_workflow_descriptor(minimal_form_values() | {"execution.chembl_pages_to_fetch": "abc"})
+
+
+def test_non_integer_required_float_raises_clear_error() -> None:
+    with pytest.raises(ValueError, match=r"execution\.max_workers must be an integer"):
+        build_workflow_descriptor(minimal_form_values() | {"execution.max_workers": 1.5})
+
+
+def test_non_integer_required_string_raises_clear_error() -> None:
+    with pytest.raises(ValueError, match=r"execution\.max_workers must be an integer"):
+        build_workflow_descriptor(minimal_form_values() | {"execution.max_workers": "1.5"})
+
+
+def test_boolean_required_integer_raises_clear_error() -> None:
+    with pytest.raises(TypeError, match=r"execution\.max_workers must be an integer"):
+        build_workflow_descriptor(minimal_form_values() | {"execution.max_workers": True})
+
+
+def test_empty_required_integer_string_raises_clear_error() -> None:
+    with pytest.raises(
+        ValueError,
+        match=r"execution\.max_workers is required and must be an integer",
+    ):
+        build_workflow_descriptor(minimal_form_values() | {"execution.max_workers": ""})
+
+
+def test_custom_output_directory_mode_normalizes_relative_path() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "export.output_dir_mode": "Use custom relative path",
+            "export.output_dir": "  custom\\nested\\results  ",
+        }
+    )
+
+    assert descriptor["export"]["output_dir"] == "custom/nested/results"
+
+
+@pytest.mark.parametrize("output_dir", ["C:\\results\\dataset", "/results/dataset"])
+def test_absolute_output_directories_are_rejected(output_dir: str) -> None:
+    with pytest.raises(ValueError, match="must be a relative path"):
+        build_workflow_descriptor(
+            minimal_form_values()
+            | {
+                "export.output_dir_mode": "Use custom relative path",
+                "export.output_dir": output_dir,
+            }
+        )
+
+
+def test_output_directory_path_traversal_is_rejected() -> None:
+    with pytest.raises(ValueError, match="must not contain path traversal"):
+        build_workflow_descriptor(
+            minimal_form_values()
+            | {
+                "export.output_dir_mode": "Use custom relative path",
+                "export.output_dir": "results/../outside",
+            }
+        )
+
+
+def test_prevalidation_allows_missing_dataset_name_with_output_directory() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "dataset.name": "",
+            "export.output_dir": "results/unnamed_dataset",
+        }
+    )
+
+    assert validate_generated_descriptor(descriptor) == []
+
+
+def test_prevalidation_requires_dataset_name_without_output_directory() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "dataset.name": "",
+            "export.output_dir": "",
+        }
+    )
+
+    errors = validate_generated_descriptor(descriptor)
+
+    assert errors == [DEFAULT_OUTPUT_DIRECTORY_NAME_ERROR]
+
+
+def test_default_output_directory_error_explains_dataset_name_source() -> None:
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "dataset.name": "",
+            "export.output_dir_mode": "Use default results folder",
+        }
+    )
+
+    errors = validate_generated_descriptor(descriptor)
+
+    assert errors == [DEFAULT_OUTPUT_DIRECTORY_NAME_ERROR]
+    assert "results/{dataset.name}" in errors[0]
+
+
+def test_default_generated_descriptor_validates_as_workflow_v1() -> None:
+    form_values = workflow_yaml_form_defaults()
+    form_values["dataset.name"] = "default_dataset"
+    form_values["query.value"] = "reviewed:true"
+
+    descriptor = build_workflow_descriptor(form_values)
+
+    assert descriptor["schema_version"] == "workflow-v1"
+    assert descriptor["execution"]["enrich"] is False
+    assert descriptor["execution"]["max_workers"] == 5
+    assert descriptor["execution"]["total_retries"] == 3
+    assert descriptor["execution"]["chembl_pages_to_fetch"] == -1
+    assert "uniprot_timeout" not in descriptor["execution"]
+    assert validate_generated_descriptor(descriptor) == []
+
+
+@pytest.mark.parametrize(
+    ("dataset_name", "expected"),
+    [
+        (None, "workflow-v1.yml"),
+        ("", "workflow-v1.yml"),
+        ("My Dataset", "my_dataset.workflow-v1.yml"),
+        ("../Unsafe\\Name", "unsafe_name.workflow-v1.yml"),
+        ("Dataset: 2026 / Final", "dataset_2026_final.workflow-v1.yml"),
+    ],
+)
+def test_build_workflow_filename_is_safe(dataset_name: object, expected: str) -> None:
+    assert build_workflow_filename(dataset_name) == expected
+
+
+def test_load_workflow_yaml_text_parses_mapping() -> None:
+    descriptor = load_workflow_yaml_text(minimal_workflow_yaml())
+
+    assert descriptor["schema_version"] == "workflow-v1"
+    assert descriptor["query"]["value"] == "reviewed:true"
+
+
+def test_descriptor_to_form_values_loads_supported_fields() -> None:
+    descriptor = load_workflow_yaml_text(minimal_workflow_yaml())
+
+    form_values = descriptor_to_form_values(descriptor)
+
+    assert form_values["dataset.name"] == "loaded_dataset"
+    assert form_values["dataset.description"] == "Loaded dataset."
+    assert form_values["dataset.modality"] == "Protein"
+    assert form_values["dataset.mode"] == "Query First"
+    assert form_values["dataset.interaction_type"] == "No interaction"
+    assert form_values["query.value"] == "reviewed:true"
+    assert form_values["query.input_mode"] == "Manual query"
+    assert form_values["query.include_isoform"] is True
+    assert form_values["execution.max_workers"] == 4
+    assert form_values["execution.total_retries"] == 2
+    assert form_values["execution.chembl_pages_to_fetch"] == 1
+    assert form_values["execution.uniprot_timeout"] == 12.5
+    assert form_values["execution.debug"] is True
+    assert form_values["harmonization.id_column"] == "_id"
+    assert form_values["harmonization.label_column"] == "_label"
+    assert form_values["harmonization.sequence_column"] == "sequence"
+    assert form_values["harmonization.unique_sequence_strategy"] == "exact"
+    assert form_values["export.format"] == "CSV"
+    assert form_values["export.include_metadata"] is True
+    assert form_values["export.include_summary"] is True
+
+
+def test_loaded_list_fields_become_comma_separated_text() -> None:
+    form_values, _warnings = load_workflow_yaml_to_form_values(minimal_workflow_yaml())
+
+    assert form_values["query.fields"] == "accession, sequence"
+    assert form_values["query.return_field_selections"] == ["accession", "sequence"]
+    assert form_values["query.return_field_custom"] == ""
+    assert form_values["query.crossref_fields"] == "xref_pdb, xref_string"
+    assert form_values["harmonization.metadata_fields"] == "accession, protein_name"
+
+
+def test_loading_custom_return_fields_restores_advanced_input() -> None:
+    yaml_text = minimal_workflow_yaml().replace(
+        "    - accession\n    - sequence\n",
+        "    - sequence\n    - custom_field\n    - xref_pdb\n    - accession\n",
+    )
+
+    form_values, _warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert form_values["query.fields"] == "sequence, custom_field, xref_pdb, accession"
+    assert form_values["query.return_field_selections"] == ["accession", "sequence"]
+    assert form_values["query.return_field_custom"] == "custom_field, xref_pdb"
+
+
+def test_loaded_return_fields_round_trip_unchanged_until_controls_change() -> None:
+    yaml_text = minimal_workflow_yaml().replace(
+        "    - accession\n    - sequence\n",
+        "    - sequence\n    - custom_field\n    - xref_pdb\n    - accession\n",
+    )
+    form_values, _warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    descriptor = build_workflow_descriptor(form_values)
+
+    assert descriptor["query"]["fields"] == ["sequence", "custom_field", "xref_pdb", "accession"]
+    assert "query.return_field_selections" not in descriptor["query"]
+    assert "query.return_field_custom" not in descriptor["query"]
+
+
+def test_missing_optional_list_fields_become_empty_strings() -> None:
+    yaml_text = """
+schema_version: "workflow-v1"
+dataset:
+  name: loaded_dataset
+  modality: protein
+  mode: query_first
+query:
+  value: "reviewed:true"
+execution:
+  enrich: false
+export:
+  format: csv
+"""
+
+    form_values, _warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert form_values["query.fields"] == ""
+    assert form_values["query.return_field_selections"] == []
+    assert form_values["query.return_field_custom"] == ""
+    assert form_values["query.crossref_fields"] == ""
+    assert form_values["harmonization.metadata_fields"] == ""
+
+
+def test_loaded_output_dir_selects_custom_output_directory_mode() -> None:
+    form_values, _warnings = load_workflow_yaml_to_form_values(minimal_workflow_yaml())
+
+    assert form_values["export.output_dir_mode"] == "Use custom relative path"
+    assert form_values["export.output_dir"] == "results/loaded_dataset"
+
+
+def test_missing_output_dir_selects_default_output_directory_mode() -> None:
+    form_values, _warnings = load_workflow_yaml_to_form_values(minimal_workflow_yaml(output_dir=None))
+
+    assert form_values["export.output_dir_mode"] == "Use default results folder"
+    assert form_values["export.output_dir"] == ""
+
+
+def test_loaded_query_value_warns_and_uses_manual_query_mode() -> None:
+    form_values, warnings = load_workflow_yaml_to_form_values(minimal_workflow_yaml())
+
+    assert form_values["query.input_mode"] == "Manual query"
+    assert form_values["query.value"] == "reviewed:true"
+    assert LOADED_QUERY_VALUE_WARNING in warnings
+
+
+def test_loaded_protein_descriptor_with_chembl_query_warns() -> None:
+    yaml_text = minimal_workflow_yaml().replace(
+        'value: "reviewed:true"',
+        'value: "chembl.target:gene_symbol__iexact=EGFR"',
+    )
+
+    _form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert PROTEIN_CHEMBL_QUERY_WARNING in warnings
+
+
+def test_invalid_yaml_raises_clear_error() -> None:
+    with pytest.raises(ValueError, match="Invalid YAML"):
+        load_workflow_yaml_text("dataset: [")
+
+
+def test_non_mapping_yaml_raises_clear_error() -> None:
+    with pytest.raises(TypeError, match="root must be a mapping"):
+        load_workflow_yaml_text("- one\n- two\n")
+
+
+def test_invalid_schema_version_is_rejected_on_load() -> None:
+    yaml_text = minimal_workflow_yaml().replace('"workflow-v1"', '"workflow-v2"')
+
+    with pytest.raises(ValueError, match="Unsupported workflow schema_version"):
+        load_workflow_yaml_to_form_values(yaml_text)
+
+
+def test_query_builder_metadata_warns_and_is_not_exposed_as_editable_form_value() -> None:
+    yaml_text = minimal_workflow_yaml().replace(
+        "  include_isoform: true\n",
+        "  include_isoform: true\n  builder:\n    name: uniprot\n",
+    )
+
+    form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert QUERY_BUILDER_NOT_EDITABLE_WARNING in warnings
+    assert "query.builder" not in form_values
+    assert "query.composition" not in form_values
+
+
+def test_query_composition_metadata_warns_and_is_not_exposed_as_editable_form_value() -> None:
+    yaml_text = minimal_workflow_yaml().replace(
+        "  include_isoform: true\n",
+        ("  include_isoform: true\n  composition:\n    - label: reviewed\n      value: reviewed:true\n"),
+    )
+
+    form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
+
+    assert QUERY_COMPOSITION_NOT_EDITABLE_WARNING in warnings
+    assert "query.composition" not in form_values
+
+
+def workflow_yaml_with_preserved_sections() -> str:
+    """Return workflow YAML carrying read-only sections the GUI cannot edit."""
+    with_builder = minimal_workflow_yaml().replace(
+        "  include_isoform: true\n",
+        "  include_isoform: true\n  builder:\n    name: uniprot\n",
+    )
+    return with_builder + "resources:\n  primary:\n    - uniprot\nreporting:\n  total_records: 10\n"
+
+
+def test_preserved_sections_survive_load_then_regeneration() -> None:
+    # Regression: read-only metadata promised as "kept with the descriptor" must not
+    # be dropped when the preview is regenerated from loaded form values (Codex #3).
+    form_values, _warnings = load_workflow_yaml_to_form_values(workflow_yaml_with_preserved_sections())
+
+    descriptor = build_workflow_descriptor(form_values)
+
+    assert descriptor["resources"] == {"primary": ["uniprot"]}
+    assert descriptor["reporting"] == {"total_records": 10}
+    assert descriptor["query"]["builder"] == {"name": "uniprot"}
+    assert validate_generated_descriptor(descriptor) == []
+
+
+def test_regenerated_preserved_sections_are_not_aliased_to_loaded_values() -> None:
+    # Mutating the regenerated descriptor must not corrupt the stashed sections.
+    form_values, _warnings = load_workflow_yaml_to_form_values(workflow_yaml_with_preserved_sections())
+
+    first = build_workflow_descriptor(form_values)
+    cast("dict", first["resources"])["primary"].append("mutated")
+    second = build_workflow_descriptor(form_values)
+
+    assert second["resources"] == {"primary": ["uniprot"]}
+
+
+def test_builder_does_not_require_nicegui_to_be_installed() -> None:
+    sys.modules.pop("nicegui", None)
+    module = importlib.import_module("bioseq_dl.gui.yaml_builder")
+
+    assert module.build_workflow_descriptor(minimal_form_values())["schema_version"] == "workflow-v1"
+
+
+def test_yaml_builder_import_does_not_load_gui_cli_or_interfaces() -> None:
+    import_script = """
+import sys
+import bioseq_dl.gui.yaml_builder
+
+blocked_prefixes = (
+    "bioseq_dl.cli.workflows",
+    "bioseq_dl.core.export",
+    "bioseq_dl.core.interfaces",
+    "bioseq_dl.core.workflow.main_workflow",
+    "bioseq_dl.core.workflow.query_interpreter",
+    "nicegui",
+    "pandas",
+)
+for blocked_prefix in blocked_prefixes:
+    loaded = [
+        module_name
+        for module_name in sys.modules
+        if module_name == blocked_prefix or module_name.startswith(f"{blocked_prefix}.")
+    ]
+    if loaded:
+        raise RuntimeError(f"Unexpected imports for {blocked_prefix}: {loaded}")
+"""
+
+    subprocess.run(  # noqa: S603
+        [sys.executable, "-c", import_script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_read_upload_event_text_uses_nicegui_file_text() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    event = FakeNiceGUIUploadEvent("workflow.yml", minimal_workflow_yaml())
+
+    yaml_text = asyncio.run(module.read_upload_event_text(event))
+
+    assert yaml_text == minimal_workflow_yaml()
+    assert event.file.requested_encoding == "utf-8"
+
+
+def test_load_yaml_upload_uses_event_file_name_and_async_text() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    app = FakeUploadHandlerApp()
+    event = FakeNiceGUIUploadEvent("workflow.yaml", minimal_workflow_yaml())
+
+    asyncio.run(module.WorkflowYamlBuilderApp.load_yaml_upload(app, event))
+
+    assert app.errors is None
+    assert app.loaded_form_values is not None
+    assert app.loaded_form_values["query.value"] == "reviewed:true"
+    assert app.loaded_form_values["query.input_mode"] == "Manual query"
+    assert app.warnings is not None
+    assert LOADED_QUERY_VALUE_WARNING in app.warnings
+    assert event.file.requested_encoding == "utf-8"
+    assert app.workflow_upload.reset_count == 1
+    assert app.loaded_workflow_filename == "workflow.yaml"
+    assert app.loaded_workflow_upload_status == "success"
+    assert app.loaded_workflow_upload_message == (
+        "The form was populated from this file. Upload another YAML file to replace it."
+    )
+    assert LOADED_QUERY_VALUE_WARNING in app.loaded_workflow_upload_warnings
+
+
+def test_load_yaml_upload_rejects_unsupported_event_file_name() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    app = FakeUploadHandlerApp()
+    event = FakeNiceGUIUploadEvent("workflow.txt", minimal_workflow_yaml())
+
+    asyncio.run(module.WorkflowYamlBuilderApp.load_yaml_upload(app, event))
+
+    assert app.errors == ["Unsupported file type. Upload a .yml or .yaml workflow file."]
+    assert app.loaded_form_values is None
+    assert event.file.requested_encoding == ""
+    assert app.workflow_upload.reset_count == 1
+    assert app.loaded_workflow_filename == "workflow.txt"
+    assert app.loaded_workflow_upload_status == "error"
+    assert app.loaded_workflow_upload_message == (
+        "Unsupported file type. Upload a .yml or .yaml workflow file."
+    )
+    assert app.loaded_workflow_upload_warnings == []
+
+
+def test_load_yaml_upload_resets_upload_control_after_invalid_yaml() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    app = FakeUploadHandlerApp()
+    event = FakeNiceGUIUploadEvent("workflow.yml", "dataset: [")
+
+    asyncio.run(module.WorkflowYamlBuilderApp.load_yaml_upload(app, event))
+
+    assert app.errors is not None
+    assert app.errors[0].startswith("Could not load workflow YAML: Invalid YAML")
+    assert app.loaded_form_values is None
+    assert event.file.requested_encoding == "utf-8"
+    assert app.workflow_upload.reset_count == 1
+    assert app.loaded_workflow_filename == "workflow.yml"
+    assert app.loaded_workflow_upload_status == "error"
+    assert app.loaded_workflow_upload_message is not None
+    assert app.loaded_workflow_upload_message.startswith("Could not load workflow YAML: Invalid YAML")
+    assert app.loaded_workflow_upload_warnings == []
+
+
+def test_load_yaml_upload_replaces_previous_success_with_error_status() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    app = FakeUploadHandlerApp()
+
+    asyncio.run(
+        module.WorkflowYamlBuilderApp.load_yaml_upload(
+            app,
+            FakeNiceGUIUploadEvent("first.workflow-v1.yml", minimal_workflow_yaml()),
+        )
+    )
+    asyncio.run(
+        module.WorkflowYamlBuilderApp.load_yaml_upload(
+            app,
+            FakeNiceGUIUploadEvent("second.workflow-v1.yml", "dataset: ["),
+        )
+    )
+
+    assert app.loaded_workflow_filename == "second.workflow-v1.yml"
+    assert app.loaded_workflow_upload_status == "error"
+    assert app.loaded_workflow_upload_message is not None
+    assert app.loaded_workflow_upload_message.startswith("Could not load workflow YAML: Invalid YAML")
+    assert app.loaded_workflow_upload_warnings == []
+    assert app.workflow_upload.reset_count == 2
+
+
+def test_interaction_type_selector_visibility_helper_matches_modality() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+
+    assert module.should_show_interaction_type_selector({"dataset.modality": "Interaction"})
+    assert not module.should_show_interaction_type_selector({"dataset.modality": "Protein"})
+    assert not module.should_show_interaction_type_selector({"dataset.modality": "Compound"})
+
+
+def test_update_interaction_type_visibility_resets_non_interaction_value() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    app = object.__new__(module.WorkflowYamlBuilderApp)
+    app.form_values = {
+        "dataset.modality": "Protein",
+        "dataset.interaction_type": "Protein-ligand interaction",
+    }
+    app.interaction_type_select = FakeInteractionTypeSelect()
+
+    module.WorkflowYamlBuilderApp.update_interaction_type_visibility(app)
+
+    assert app.form_values["dataset.interaction_type"] == "No interaction"
+    assert app.interaction_type_select.value == "No interaction"
+    assert app.interaction_type_select.visible is False
+    assert app.interaction_type_select.update_count == 1
+
+
+def test_update_interaction_type_visibility_shows_interaction_value() -> None:
+    pytest.importorskip("nicegui")
+    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    app = object.__new__(module.WorkflowYamlBuilderApp)
+    app.form_values = {
+        "dataset.modality": "Interaction",
+        "dataset.interaction_type": "Protein-protein interaction",
+    }
+    app.interaction_type_select = FakeInteractionTypeSelect()
+    app.interaction_type_select.visible = False
+
+    module.WorkflowYamlBuilderApp.update_interaction_type_visibility(app)
+
+    assert app.form_values["dataset.interaction_type"] == "Protein-protein interaction"
+    assert app.interaction_type_select.visible is True
+    assert app.interaction_type_select.update_count == 1
+
+
+PRESERVED_CHEMBL_BUILDER = {
+    "builder_key": "chembl",
+    "source": "chembl",
+    "resource": "molecule",
+    "rows": [{"connector": None, "field": "max_phase", "value": "4"}],
+}
+
+
+def test_merge_preserved_does_not_clobber_form_built_builder() -> None:
+    # A form-built builder wins over the preserved one.
+    form_builder = {"builder_key": "uniprot", "source": "uniprot", "rows": []}
+    descriptor: dict[str, object] = {"query": {"value": "organism_id:9606", "builder": form_builder}}
+    preserved = {"query": {"builder": dict(PRESERVED_CHEMBL_BUILDER)}}
+
+    merge_preserved_workflow_sections(descriptor, preserved)
+
+    assert descriptor["query"]["builder"] == form_builder
+
+
+def test_merge_preserved_does_not_inject_builder_into_composition_query() -> None:
+    # A composition-mode query keeps no builder; the preserved one is not injected.
+    descriptor: dict[str, object] = {"query": {"composition": [{"label": "a", "query": "x"}]}}
+    preserved = {"query": {"builder": dict(PRESERVED_CHEMBL_BUILDER)}}
+
+    merge_preserved_workflow_sections(descriptor, preserved)
+
+    assert "builder" not in descriptor["query"]
+
+
+def test_merge_preserved_reattaches_builder_when_form_built_none() -> None:
+    # Manual mode (no form builder, no composition): the preserved builder is reattached.
+    descriptor: dict[str, object] = {"query": {"value": "reviewed:true"}}
+    preserved = {"query": {"builder": dict(PRESERVED_CHEMBL_BUILDER)}}
+
+    merge_preserved_workflow_sections(descriptor, preserved)
+
+    assert descriptor["query"]["builder"] == PRESERVED_CHEMBL_BUILDER
+
+
+def test_build_descriptor_form_builder_wins_over_preserved() -> None:
+    # Building a UniProt query with a ChEMBL builder in preserved sections yields the
+    # UniProt builder in the saved descriptor.
+    descriptor = build_workflow_descriptor(
+        minimal_form_values()
+        | {
+            "query.input_mode": "uniprot_builder",
+            "query.uniprot_builder.rows": [
+                {
+                    "connector": None,
+                    "field": "organism",
+                    "values": "Homo sapiens",
+                    "match_mode": "any",
+                }
+            ],
+            PRESERVED_SECTIONS_FORM_KEY: {"query": {"builder": dict(PRESERVED_CHEMBL_BUILDER)}},
+        }
+    )
+
+    builder = cast("dict[str, object]", descriptor["query"]["builder"])
+    assert builder["source"] == "uniprot"
+    assert descriptor["query"]["value"] == "organism_id:9606"

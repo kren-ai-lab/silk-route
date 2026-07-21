@@ -65,6 +65,20 @@ def _extract_nested_values(value: object) -> list[str]:
     return result
 
 
+def _request_exception_status_code(exc: RequestException) -> int | None:
+    """Return an HTTP status code from a niquests exception, when available."""
+    response = getattr(exc, "response", None)
+    status_code = getattr(response, "status_code", None)
+    return int(status_code) if isinstance(status_code, int) else None
+
+
+def _request_exception_url(exc: RequestException, fallback_url: str) -> str:
+    """Return the best URL for a failed request without assuming response shape."""
+    response = getattr(exc, "response", None)
+    url = getattr(response, "url", None)
+    return str(url or fallback_url)
+
+
 class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have concrete defaults
     """Abstract base class for all BioSeqDownloader API interfaces."""
 
@@ -116,20 +130,24 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
 
         return cache_dir, config_dir
 
-    def _resolve_output_dir(self, output_dir: str | None, *, init_subdir: str | None = None) -> str:
-        """Resolve a download output dir and ensure it exists.
+    def _resolve_output_dir(
+        self, output_dir: str | None, *, init_subdir: str | None = None, create: bool = True
+    ) -> str:
+        """Resolve a download output dir, creating it unless ``create`` is False.
 
         Precedence: explicit ``output_dir`` > packaged ``init.yml`` ``download_folder``
         (when ``init_subdir`` is given) > ``self.cache_dir``. Shared by the
-        file-downloading interfaces (AlphaFold / PDB / SABIO-RK). Call after
-        ``super().__init__`` so ``self.cache_dir`` is set.
+        file-downloading interfaces (AlphaFold / PDB / SABIO-RK); pass ``create=False``
+        to resolve the path without touching the filesystem (no downloads pending).
+        Call after ``super().__init__`` so ``self.cache_dir`` is set.
         """
         fallback = self.cache_dir
         if init_subdir:
             packaged_init = load_packaged_config(init_subdir, "init.yml") or {}
             fallback = packaged_init.get("download_folder") or self.cache_dir
         out_dir = output_dir or fallback
-        Path(out_dir).mkdir(parents=True, exist_ok=True)
+        if create:
+            Path(out_dir).mkdir(parents=True, exist_ok=True)
         return out_dir
 
     def __init__(
@@ -1049,18 +1067,26 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
             for future, i in future_to_index.items():
                 log.debug("Waiting for future result for query at index %s", i)
                 batch_query = index_query_map[i]
-                metadata.fetched.add(self._identifier_for(batch_query, spec, **kwargs), batch_query)
                 try:
                     result = future.result()
 
                     if isinstance(result, tuple) and len(result) == 2:  # noqa: PLR2004  # (data, metadata) pair
-                        data, _ = result
+                        data, child_metadata = result
                         results.append(data)
+                        metadata = metadata.merge(FetchMetadata.from_dict(child_metadata))
                     else:
+                        # A fetch_single override returning a bare value carries no child
+                        # metadata; still record it as fetched so it appears in the summary.
                         results.append(result)
+                        metadata.fetched.add(self._identifier_for(batch_query, spec, **kwargs), batch_query)
 
                 except Exception:
                     log.exception("Error fetching query at index %s (%s)", i, queries[i])
+                    metadata.failed.add(
+                        self._identifier_for(batch_query, spec, **kwargs),
+                        batch_query,
+                        "request_error",
+                    )
                 self._delay()
         metadata.finished_at = datetime.now(UTC).isoformat()
 
@@ -1288,8 +1314,21 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                     log.warning("No content returned for URL %s.", current_url)
                     break
                 data = response.json()
-            except RequestException:
-                log.exception("Error fetching page %s", current_url)
+            except RequestException as exc:
+                status_code = _request_exception_status_code(exc)
+                url = _request_exception_url(exc, current_url)
+                if status_code in {HTTPStatus.NOT_FOUND, HTTPStatus.GONE}:
+                    log.warning(
+                        "Resource unavailable while fetching %s (HTTP %s); skipping this result.",
+                        url,
+                        status_code,
+                    )
+                else:
+                    log.warning(
+                        "Recoverable request error while fetching %s: %s; skipping remaining pages.",
+                        url,
+                        exc,
+                    )
                 break
 
             records.extend(extract_records(data))
@@ -1322,7 +1361,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
 
         """
         if not data:
-            log.warning("Tried to parse data but the data is empty or None.")
+            log.debug("No data available to parse; returning an empty result.")
             return {}
 
         if isinstance(data, Response):
