@@ -10,10 +10,22 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from bioseq_dl.core.workflow.chebi_query_catalog import get_chebi_query_builder_field_catalog
-from bioseq_dl.core.workflow.chembl_query_catalog import get_chembl_query_builder_field_catalog
-from bioseq_dl.core.workflow.pubchem_query_catalog import get_pubchem_query_builder_field_catalog
-from bioseq_dl.core.workflow.query_field_catalog import get_uniprot_query_builder_field_catalog
+from bioseq_dl.core.workflow.chebi_query_catalog import (
+    ChEBIQueryFieldCatalogEntry,
+    get_chebi_query_builder_field_catalog,
+)
+from bioseq_dl.core.workflow.chembl_query_catalog import (
+    ChEMBLQueryFieldCatalogEntry,
+    get_chembl_query_builder_field_catalog,
+)
+from bioseq_dl.core.workflow.pubchem_query_catalog import (
+    PubChemQueryFieldCatalogEntry,
+    get_pubchem_query_builder_field_catalog,
+)
+from bioseq_dl.core.workflow.query_field_catalog import (
+    UniProtQueryFieldCatalogEntry,
+    get_uniprot_query_builder_field_catalog,
+)
 from bioseq_dl.gui.query_builders.chembl import (
     CHEMBL_IC50_BUILDER_KEY,
     IC50_STANDARD_UNITS,
@@ -152,7 +164,7 @@ def get_uniprot_builder_field_value(label_or_value: object) -> str:
     return UNIPROT_BUILDER_FIELD_LABEL_TO_VALUE.get(text, text)
 
 
-def get_uniprot_builder_field_entry(label_or_value: object) -> object:
+def get_uniprot_builder_field_entry(label_or_value: object) -> UniProtQueryFieldCatalogEntry:
     """Return catalog metadata for a visible field label or field key."""
     field = get_uniprot_builder_field_value(label_or_value)
     return get_uniprot_query_builder_field_metadata(field)
@@ -221,7 +233,7 @@ def build_uniprot_builder_ui_rows(form_rows: object) -> list[dict[str, object]]:
     ] or [make_uniprot_builder_ui_row()]
 
 
-def builder_field_label(catalog: dict[str, object], field: object) -> str:
+def builder_field_label(catalog: Mapping[str, Any], field: object) -> str:
     """Return a visible "Label (key)" field label, or the raw field when unknown."""
     field_text = str(field)
     if field_text in catalog:
@@ -229,7 +241,7 @@ def builder_field_label(catalog: dict[str, object], field: object) -> str:
     return field_text
 
 
-def builder_field_value(catalog: dict[str, object], label_or_value: object) -> str:
+def builder_field_value(catalog: Mapping[str, Any], label_or_value: object) -> str:
     """Return the internal field key for a visible field label or raw field key."""
     text = str(label_or_value)
     for key, entry in catalog.items():
@@ -238,18 +250,18 @@ def builder_field_value(catalog: dict[str, object], label_or_value: object) -> s
     return text
 
 
-def builder_field_entry(catalog: dict[str, object], label_or_value: object) -> object:
+def builder_field_entry(catalog: Mapping[str, Any], label_or_value: object) -> Any:
     """Return the catalog entry for a visible field label or field key."""
     return catalog[builder_field_value(catalog, label_or_value)]
 
 
-def builder_field_options(catalog: dict[str, object]) -> list[str]:
+def builder_field_options(catalog: Mapping[str, Any]) -> list[str]:
     """Return visible field option labels for a catalog."""
     return [builder_field_label(catalog, key) for key in catalog]
 
 
 def builder_field_help(
-    catalog: dict[str, object],
+    catalog: Mapping[str, Any],
     label_or_value: object,
     *,
     operator_attr: str,
@@ -275,7 +287,9 @@ def get_active_chembl_builder_label(builder_label_or_key: object) -> str:
     return get_query_builder_label("chembl_target")
 
 
-def get_chembl_field_catalog_for_builder(builder_label_or_key: object) -> dict[str, object]:
+def get_chembl_field_catalog_for_builder(
+    builder_label_or_key: object,
+) -> dict[str, ChEMBLQueryFieldCatalogEntry]:
     """Return the ChEMBL field catalog for the selected builder."""
     return get_chembl_query_builder_field_catalog(get_chembl_builder_resource(builder_label_or_key))
 
@@ -290,7 +304,9 @@ def get_chembl_builder_field_value(builder_label_or_key: object, label_or_value:
     return builder_field_value(get_chembl_field_catalog_for_builder(builder_label_or_key), label_or_value)
 
 
-def get_chembl_field_entry(builder_label_or_key: object, label_or_value: object) -> object:
+def get_chembl_field_entry(
+    builder_label_or_key: object, label_or_value: object
+) -> ChEMBLQueryFieldCatalogEntry:
     """Return ChEMBL catalog metadata for a visible field label or field key."""
     return builder_field_entry(get_chembl_field_catalog_for_builder(builder_label_or_key), label_or_value)
 
@@ -452,7 +468,9 @@ def get_active_pubchem_builder_label(builder_label_or_key: object) -> str:
     return get_query_builder_label("pubchem_compound")
 
 
-def get_pubchem_field_catalog_for_builder(builder_label_or_key: object) -> dict[str, object]:
+def get_pubchem_field_catalog_for_builder(
+    builder_label_or_key: object,
+) -> dict[str, PubChemQueryFieldCatalogEntry]:
     """Return the PubChem field catalog for the selected builder."""
     return get_pubchem_query_builder_field_catalog(get_pubchem_builder_resource(builder_label_or_key))
 
@@ -467,7 +485,9 @@ def get_pubchem_builder_field_value(builder_label_or_key: object, label_or_value
     return builder_field_value(get_pubchem_field_catalog_for_builder(builder_label_or_key), label_or_value)
 
 
-def get_pubchem_field_entry(builder_label_or_key: object, label_or_value: object) -> object:
+def get_pubchem_field_entry(
+    builder_label_or_key: object, label_or_value: object
+) -> PubChemQueryFieldCatalogEntry:
     """Return PubChem catalog metadata for a visible field label or field key."""
     return builder_field_entry(get_pubchem_field_catalog_for_builder(builder_label_or_key), label_or_value)
 
@@ -548,7 +568,9 @@ def get_active_chebi_builder_label(builder_label_or_key: object) -> str:
     return get_query_builder_label("chebi_entity")
 
 
-def get_chebi_field_catalog_for_builder(builder_label_or_key: object) -> dict[str, object]:
+def get_chebi_field_catalog_for_builder(
+    builder_label_or_key: object,
+) -> dict[str, ChEBIQueryFieldCatalogEntry]:
     """Return the ChEBI field catalog for the selected builder."""
     return get_chebi_query_builder_field_catalog(get_chebi_builder_resource(builder_label_or_key))
 
@@ -563,7 +585,9 @@ def get_chebi_builder_field_value(builder_label_or_key: object, label_or_value: 
     return builder_field_value(get_chebi_field_catalog_for_builder(builder_label_or_key), label_or_value)
 
 
-def get_chebi_field_entry(builder_label_or_key: object, label_or_value: object) -> object:
+def get_chebi_field_entry(
+    builder_label_or_key: object, label_or_value: object
+) -> ChEBIQueryFieldCatalogEntry:
     """Return ChEBI catalog metadata for a visible field label or field key."""
     return builder_field_entry(get_chebi_field_catalog_for_builder(builder_label_or_key), label_or_value)
 
