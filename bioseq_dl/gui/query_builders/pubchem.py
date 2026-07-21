@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from bioseq_dl.core.workflow.pubchem_query_catalog import get_pubchem_query_builder_field_catalog
 from bioseq_dl.core.workflow.query_interpreter import strip_surrounding_quotes
+from bioseq_dl.gui.query_builders.common import quote_builder_value
 
 MIN_THRESHOLD = 0
 MAX_THRESHOLD = 100
@@ -31,13 +32,6 @@ def normalize_pubchem_resource(resource: str) -> str:
 def normalize_pubchem_field(field: str) -> str:
     """Normalize a PubChem field key."""
     return str(field).strip().lower()
-
-
-def quote_pubchem_value(value: str) -> str:
-    """Quote a PubChem query value."""
-    cleaned = strip_surrounding_quotes(str(value))
-    escaped = cleaned.replace('"', '\\"')
-    return f'"{escaped}"'
 
 
 def parse_pubchem_builder_threshold(value: int | str | None) -> int:
@@ -98,7 +92,7 @@ def build_pubchem_parameter_fragment(row: PubChemQueryBuilderRow) -> str:
             threshold = parse_pubchem_builder_threshold(row.threshold)
             return f"{field}={value} AND threshold={threshold}"
         return f"{field}={value}"
-    return f"{field}={quote_pubchem_value(value)}"
+    return f"{field}={quote_builder_value(value)}"
 
 
 def build_pubchem_friendly_query(row: PubChemQueryBuilderRow) -> str:

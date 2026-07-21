@@ -9,11 +9,14 @@ from bioseq_dl.core.workflow.pubchem_query_catalog import (
     STRUCTURE_SEARCH_MODEL,
     get_pubchem_query_builder_resource_catalog,
 )
-from bioseq_dl.core.workflow.query_prefixes import is_source_prefixed_query
+from bioseq_dl.core.workflow.query_prefixes import (
+    is_source_prefixed_query,
+    split_and_conditions,
+    split_field_value_condition,
+)
 
 PUBCHEM_QUERY_PATTERN = re.compile(r"^pubchem\.(?P<resource>[a-z_]+):(?P<body>.+)$", re.IGNORECASE)
 PUBCHEM_BUILDER_QUERY_PREFIXES = ("pubchem.compound:", "pubchem.structure:")
-MIN_QUOTED_VALUE_LENGTH = 2
 MIN_THRESHOLD = 0
 MAX_THRESHOLD = 100
 
@@ -36,38 +39,6 @@ def get_pubchem_prefixed_query_resource(query: str) -> str | None:
     return match.group("resource").lower()
 
 
-def strip_pubchem_value_quotes(value: str) -> str:
-    """Strip one matching pair of surrounding quotes from a PubChem value."""
-    stripped = value.strip()
-    if len(stripped) >= MIN_QUOTED_VALUE_LENGTH and stripped[0] == stripped[-1] and stripped[0] in {"'", '"'}:
-        return stripped[1:-1]
-    return stripped
-
-
-def split_pubchem_conditions(body: str) -> list[str]:
-    """Split a PubChem query-builder body into AND-separated conditions."""
-    return [fragment.strip() for fragment in body.split(" AND ") if fragment.strip()]
-
-
-def split_pubchem_condition(fragment: str) -> tuple[str, str]:
-    """Split one PubChem query condition into field and value."""
-    if "=" not in fragment:
-        msg = f"Invalid PubChem query condition '{fragment}'."
-        raise ValueError(msg)
-    field, value = fragment.split("=", 1)
-    field = field.strip()
-    value = strip_pubchem_value_quotes(value)
-    if not field or not value:
-        msg = f"Invalid PubChem query condition '{fragment}'."
-        raise ValueError(msg)
-    return field, value
-
-
-def format_pubchem_supported_fields(fields: tuple[str, ...]) -> str:
-    """Format supported PubChem executable fields for an error message."""
-    return ", ".join(fields)
-
-
 def parse_pubchem_threshold(value: str) -> int:
     """Parse and validate a PubChem 2-D similarity threshold."""
     if not re.fullmatch(r"\d+", value.strip()):
@@ -85,9 +56,9 @@ def parse_pubchem_compound_parameters(fragments: list[str]) -> dict[str, str]:
     if len(fragments) != 1:
         msg = "PubChem compound queries require exactly one lookup condition."
         raise ValueError(msg)
-    field, value = split_pubchem_condition(fragments[0])
+    field, value = split_field_value_condition(fragments[0], "PubChem")
     if field not in COMPOUND_FIELDS:
-        supported = format_pubchem_supported_fields(COMPOUND_FIELD_NAMES)
+        supported = ", ".join(COMPOUND_FIELD_NAMES)
         msg = f"Unsupported PubChem compound field '{field}'. Supported fields are: {supported}."
         raise ValueError(msg)
     if field == "cid" and (not re.fullmatch(r"\d+", value) or int(value) <= 0):
@@ -100,9 +71,9 @@ def parse_pubchem_structure_parameters(fragments: list[str]) -> dict[str, object
     """Parse PubChem structure search parameters."""
     raw_parameters: dict[str, str] = {}
     for fragment in fragments:
-        field, value = split_pubchem_condition(fragment)
+        field, value = split_field_value_condition(fragment, "PubChem")
         if field not in STRUCTURE_FIELDS and field != "threshold":
-            supported = format_pubchem_supported_fields((*STRUCTURE_FIELD_NAMES, "threshold"))
+            supported = ", ".join((*STRUCTURE_FIELD_NAMES, "threshold"))
             msg = f"Unsupported PubChem structure field '{field}'. Supported fields are: {supported}."
             raise ValueError(msg)
         if field in raw_parameters:
@@ -150,7 +121,7 @@ def parse_pubchem_query_builder_string(query: str) -> dict[str, object]:
         msg = f"Unsupported PubChem resource '{resource_key}'. Supported resources are: {supported}."
         raise ValueError(msg)
 
-    fragments = split_pubchem_conditions(match.group("body"))
+    fragments = split_and_conditions(match.group("body"))
     if not fragments:
         msg = "PubChem query builder string must contain at least one condition."
         raise ValueError(msg)

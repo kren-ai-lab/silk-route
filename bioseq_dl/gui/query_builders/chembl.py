@@ -16,6 +16,7 @@ from bioseq_dl.core.workflow.query_interpreter import (
     split_quoted_csv_values,
     strip_surrounding_quotes,
 )
+from bioseq_dl.gui.query_builders.common import format_builder_row_error
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -278,11 +279,6 @@ def split_chembl_builder_values(value: str) -> list[str]:
     ]
 
 
-def format_chembl_builder_row_error(row_index: int, message: str) -> str:
-    """Return a user-facing ChEMBL builder validation error."""
-    return f"Row {row_index + 1}: {message}"
-
-
 def validate_chembl_builder_rows(rows: Sequence[ChEMBLFilterQueryBuilderRow]) -> None:
     """Validate ChEMBL query builder rows."""
     resources = get_chembl_query_builder_resource_catalog()
@@ -294,12 +290,12 @@ def validate_chembl_builder_rows(rows: Sequence[ChEMBLFilterQueryBuilderRow]) ->
     for index, row in enumerate(rows):
         resource = normalize_chembl_resource(row.resource)
         if resource not in resources:
-            msg = format_chembl_builder_row_error(index, f"resource '{row.resource}' is not supported.")
+            msg = format_builder_row_error(index, f"resource '{row.resource}' is not supported.")
             raise ValueError(msg)
         if selected_resource is None:
             selected_resource = resource
         elif resource != selected_resource:
-            msg = format_chembl_builder_row_error(
+            msg = format_builder_row_error(
                 index,
                 "all rows in one ChEMBL query builder must use the same resource.",
             )
@@ -308,12 +304,12 @@ def validate_chembl_builder_rows(rows: Sequence[ChEMBLFilterQueryBuilderRow]) ->
         fields = get_chembl_query_builder_field_catalog(resource)
         field = normalize_chembl_field(row.field)
         if field not in fields:
-            msg = format_chembl_builder_row_error(index, f"field '{row.field}' is not supported.")
+            msg = format_builder_row_error(index, f"field '{row.field}' is not supported.")
             raise ValueError(msg)
 
         filter_type = normalize_chembl_filter_type(row.filter_type)
         if filter_type not in fields[field].allowed_operators:
-            msg = format_chembl_builder_row_error(
+            msg = format_builder_row_error(
                 index,
                 f"operator '{row.filter_type}' is not allowed for field '{field}'.",
             )
@@ -321,15 +317,15 @@ def validate_chembl_builder_rows(rows: Sequence[ChEMBLFilterQueryBuilderRow]) ->
 
         values = split_chembl_builder_values(row.value)
         if not values:
-            msg = format_chembl_builder_row_error(index, "value is required.")
+            msg = format_builder_row_error(index, "value is required.")
             raise ValueError(msg)
         if any(" AND " in value for value in values):
-            msg = format_chembl_builder_row_error(
+            msg = format_builder_row_error(
                 index, "value cannot contain ' AND ', which separates ChEMBL query conditions."
             )
             raise ValueError(msg)
         if filter_type == "range" and len(values) != RANGE_VALUE_COUNT:
-            msg = format_chembl_builder_row_error(index, "range requires exactly two comma-separated values.")
+            msg = format_builder_row_error(index, "range requires exactly two comma-separated values.")
             raise ValueError(msg)
 
 

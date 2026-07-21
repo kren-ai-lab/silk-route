@@ -37,34 +37,6 @@ class PubChemQueryResourceCatalogEntry:
     query_builder_visible: bool = True
 
 
-def make_pubchem_field(
-    *,
-    key: str,
-    label: str,
-    description: str,
-    placeholder: str,
-    examples: tuple[str, ...],
-    supported_modes: tuple[str, ...],
-    native_input_kind: str,
-    resolver_kind: str,
-    query_builder_visible: bool = True,
-    notes: str | None = None,
-) -> PubChemQueryFieldCatalogEntry:
-    """Create one PubChem field catalog entry."""
-    return PubChemQueryFieldCatalogEntry(
-        key=key,
-        label=label,
-        description=description,
-        placeholder=placeholder,
-        examples=examples,
-        supported_modes=supported_modes,
-        native_input_kind=native_input_kind,
-        resolver_kind=resolver_kind,
-        query_builder_visible=query_builder_visible,
-        notes=notes,
-    )
-
-
 def build_pubchem_resource(
     *,
     key: str,
@@ -95,7 +67,7 @@ def get_pubchem_query_resource_catalog() -> dict[str, PubChemQueryResourceCatalo
             description="Compound lookup by PubChem CID, name, InChI, or InChIKey.",
             query_model=COMPOUND_LOOKUP_MODEL,
             fields=(
-                make_pubchem_field(
+                PubChemQueryFieldCatalogEntry(
                     key="cid",
                     label="CID",
                     description="PubChem compound identifier.",
@@ -105,7 +77,7 @@ def get_pubchem_query_resource_catalog() -> dict[str, PubChemQueryResourceCatalo
                     native_input_kind="cid",
                     resolver_kind="compound_identifier",
                 ),
-                make_pubchem_field(
+                PubChemQueryFieldCatalogEntry(
                     key="name",
                     label="Name",
                     description="Compound name or synonym resolved by PubChem.",
@@ -115,7 +87,7 @@ def get_pubchem_query_resource_catalog() -> dict[str, PubChemQueryResourceCatalo
                     native_input_kind="text",
                     resolver_kind="name_lookup",
                 ),
-                make_pubchem_field(
+                PubChemQueryFieldCatalogEntry(
                     key="inchikey",
                     label="InChIKey",
                     description="Standard InChIKey used for compound lookup.",
@@ -125,7 +97,7 @@ def get_pubchem_query_resource_catalog() -> dict[str, PubChemQueryResourceCatalo
                     native_input_kind="inchikey",
                     resolver_kind="inchikey_lookup",
                 ),
-                make_pubchem_field(
+                PubChemQueryFieldCatalogEntry(
                     key="inchi",
                     label="InChI",
                     description="InChI string used for compound lookup.",
@@ -143,7 +115,7 @@ def get_pubchem_query_resource_catalog() -> dict[str, PubChemQueryResourceCatalo
             description="Executable PubChem structure lookup and search fields.",
             query_model=STRUCTURE_SEARCH_MODEL,
             fields=(
-                make_pubchem_field(
+                PubChemQueryFieldCatalogEntry(
                     key="smiles_identity",
                     label="SMILES identity",
                     description="SMILES identity lookup.",
@@ -153,7 +125,7 @@ def get_pubchem_query_resource_catalog() -> dict[str, PubChemQueryResourceCatalo
                     native_input_kind="smiles",
                     resolver_kind="smiles_identity",
                 ),
-                make_pubchem_field(
+                PubChemQueryFieldCatalogEntry(
                     key="smiles_substructure",
                     label="SMILES substructure",
                     description="SMILES pattern used for substructure search.",
@@ -163,7 +135,7 @@ def get_pubchem_query_resource_catalog() -> dict[str, PubChemQueryResourceCatalo
                     native_input_kind="smiles",
                     resolver_kind="smiles_substructure",
                 ),
-                make_pubchem_field(
+                PubChemQueryFieldCatalogEntry(
                     key="similarity_2d_cid",
                     label="2-D similarity CID",
                     description="2-D similarity search using a PubChem reference CID.",

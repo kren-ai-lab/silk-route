@@ -5,11 +5,12 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
+from bioseq_dl.core.workflow.query_interpreter import strip_surrounding_quotes
+
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
 SOURCE_QUERY_PREFIX_PATTERN = re.compile(r"^(?P<source>[a-z][a-z0-9_]*)\.[a-z_]+:")
-SUPPORTED_SOURCE_PREFIXES = ("chembl", "pubchem", "chebi")
 
 
 def get_query_source_prefix(query: str) -> str | None:
@@ -33,6 +34,20 @@ def is_any_source_prefixed_query(query: str, sources: Iterable[str]) -> bool:
     return source in {str(candidate or "").strip().lower() for candidate in sources}
 
 
-def is_supported_source_prefixed_query(query: str) -> bool:
-    """Return whether a query uses a source prefix recognized by workflow planning."""
-    return is_any_source_prefixed_query(query, SUPPORTED_SOURCE_PREFIXES)
+def split_and_conditions(body: str) -> list[str]:
+    """Split a source query-builder body into AND-separated conditions."""
+    return [fragment.strip() for fragment in body.split(" AND ") if fragment.strip()]
+
+
+def split_field_value_condition(fragment: str, source_label: str) -> tuple[str, str]:
+    """Split one ``field=value`` condition, raising with the source label if malformed."""
+    if "=" not in fragment:
+        msg = f"Invalid {source_label} query condition '{fragment}'."
+        raise ValueError(msg)
+    field, value = fragment.split("=", 1)
+    field = field.strip()
+    value = strip_surrounding_quotes(value)
+    if not field or not value:
+        msg = f"Invalid {source_label} query condition '{fragment}'."
+        raise ValueError(msg)
+    return field, value

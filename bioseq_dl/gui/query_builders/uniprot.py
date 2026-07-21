@@ -14,6 +14,7 @@ from bioseq_dl.core.workflow.query_interpreter import (
     split_quoted_csv_values,
     strip_surrounding_quotes,
 )
+from bioseq_dl.gui.query_builders.common import format_builder_row_error
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -74,11 +75,6 @@ def get_uniprot_query_builder_field_metadata(field: str) -> UniProtQueryFieldCat
         msg = f"Field '{field}' is not supported by the UniProt query builder."
         raise ValueError(msg)
     return catalog[normalized_field]
-
-
-def format_builder_row_error(row_index: int, message: str) -> str:
-    """Return a user-facing validation error with one-based row context."""
-    return f"Row {row_index + 1}: {message}"
 
 
 def validate_uniprot_query_builder_rows(rows: Sequence[UniProtQueryBuilderRow]) -> None:

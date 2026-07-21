@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from bioseq_dl.core.workflow.chebi_query_catalog import get_chebi_query_builder_field_catalog
 from bioseq_dl.core.workflow.query_interpreter import strip_surrounding_quotes
+from bioseq_dl.gui.query_builders.common import quote_builder_value
 
 CHEBI_ID_PATTERN = re.compile(r"^CHEBI:\d+$")
 
@@ -28,13 +29,6 @@ def normalize_chebi_resource(resource: str) -> str:
 def normalize_chebi_field(field: str) -> str:
     """Normalize a ChEBI field key."""
     return str(field).strip().lower()
-
-
-def quote_chebi_value(value: str) -> str:
-    """Quote a ChEBI query value."""
-    cleaned = strip_surrounding_quotes(str(value))
-    escaped = cleaned.replace('"', '\\"')
-    return f'"{escaped}"'
 
 
 def validate_chebi_builder_row(row: ChEBIQueryBuilderRow) -> None:
@@ -62,7 +56,7 @@ def build_chebi_parameter_fragment(row: ChEBIQueryBuilderRow) -> str:
     value = strip_surrounding_quotes(str(row.value)).strip()
     if field == "chebi_id":
         return f"{field}={value}"
-    return f"{field}={quote_chebi_value(value)}"
+    return f"{field}={quote_builder_value(value)}"
 
 
 def build_chebi_friendly_query(row: ChEBIQueryBuilderRow) -> str:

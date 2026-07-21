@@ -34,30 +34,6 @@ class ChEBIQueryResourceCatalogEntry:
     query_builder_visible: bool = True
 
 
-def make_chebi_field(
-    *,
-    key: str,
-    label: str,
-    description: str,
-    placeholder: str,
-    examples: tuple[str, ...],
-    supported_operators: tuple[str, ...],
-    resolver_kind: str,
-    query_builder_visible: bool = True,
-) -> ChEBIQueryFieldCatalogEntry:
-    """Create one ChEBI field catalog entry."""
-    return ChEBIQueryFieldCatalogEntry(
-        key=key,
-        label=label,
-        description=description,
-        placeholder=placeholder,
-        examples=examples,
-        supported_operators=supported_operators,
-        resolver_kind=resolver_kind,
-        query_builder_visible=query_builder_visible,
-    )
-
-
 def build_chebi_resource(
     *,
     key: str,
@@ -88,7 +64,7 @@ def get_chebi_query_resource_catalog() -> dict[str, ChEBIQueryResourceCatalogEnt
             description="Executable ChEBI entity lookup and text search fields.",
             query_model=ENTITY_QUERY_MODEL,
             fields=(
-                make_chebi_field(
+                ChEBIQueryFieldCatalogEntry(
                     key="chebi_id",
                     label="ChEBI ID",
                     description="Native ChEBI identifier.",
@@ -97,7 +73,7 @@ def get_chebi_query_resource_catalog() -> dict[str, ChEBIQueryResourceCatalogEnt
                     supported_operators=("exact",),
                     resolver_kind="chebi_id",
                 ),
-                make_chebi_field(
+                ChEBIQueryFieldCatalogEntry(
                     key="name",
                     label="Name",
                     description="ChEBI name searched and filtered as an exact entity name.",
@@ -106,7 +82,7 @@ def get_chebi_query_resource_catalog() -> dict[str, ChEBIQueryResourceCatalogEnt
                     supported_operators=("exact",),
                     resolver_kind="exact_name_search",
                 ),
-                make_chebi_field(
+                ChEBIQueryFieldCatalogEntry(
                     key="name_contains",
                     label="Name contains",
                     description="ChEBI name text search.",
