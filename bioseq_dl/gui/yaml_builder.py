@@ -6,7 +6,7 @@ import re
 from collections.abc import Mapping
 from copy import deepcopy
 from pathlib import PurePosixPath, PureWindowsPath
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import yaml
 
@@ -26,6 +26,13 @@ from bioseq_dl.gui.uniprot_return_fields import (
     return_fields_from_selection,
     split_known_and_custom_return_fields,
 )
+
+if TYPE_CHECKING:
+    # Type-only imports; the builders are imported lazily inside functions at runtime
+    # to keep the module free of the query_builders package on import.
+    from bioseq_dl.gui.query_builders.chebi import ChEBIQueryBuilderRow
+    from bioseq_dl.gui.query_builders.chembl import ChEMBLIC50QueryBuilderRow
+    from bioseq_dl.gui.query_builders.pubchem import PubChemQueryBuilderRow
 
 DEFAULT_MAX_WORKERS = 5
 DEFAULT_TOTAL_RETRIES = 3
@@ -1095,7 +1102,7 @@ def build_chembl_builder_rows_from_form(form_values: Mapping[str, object]) -> li
     ]
 
 
-def build_chembl_ic50_builder_row_from_form(form_values: Mapping[str, object]) -> object:
+def build_chembl_ic50_builder_row_from_form(form_values: Mapping[str, object]) -> ChEMBLIC50QueryBuilderRow:
     """Build a pure ChEMBL IC50 query builder row from GUI form values."""
     from bioseq_dl.gui.query_builders.chembl import ChEMBLIC50QueryBuilderRow  # noqa: PLC0415
 
@@ -1118,7 +1125,7 @@ def build_chembl_ic50_builder_row_from_form(form_values: Mapping[str, object]) -
     )
 
 
-def build_pubchem_builder_row_from_form(form_values: Mapping[str, object]) -> object:
+def build_pubchem_builder_row_from_form(form_values: Mapping[str, object]) -> PubChemQueryBuilderRow:
     """Build a pure PubChem query builder row from GUI form values."""
     from bioseq_dl.gui.query_builders.pubchem import (  # noqa: PLC0415
         PubChemQueryBuilderRow,
@@ -1147,7 +1154,7 @@ def build_pubchem_builder_row_from_form(form_values: Mapping[str, object]) -> ob
     )
 
 
-def build_chebi_builder_row_from_form(form_values: Mapping[str, object]) -> object:
+def build_chebi_builder_row_from_form(form_values: Mapping[str, object]) -> ChEBIQueryBuilderRow:
     """Build a pure ChEBI query builder row from GUI form values."""
     from bioseq_dl.gui.query_builders.chebi import ChEBIQueryBuilderRow  # noqa: PLC0415
 
