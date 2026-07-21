@@ -13,6 +13,7 @@ from bioseq_dl import ChEMBLInterface, UniprotInterface
 from bioseq_dl.constants.uniprot import get_effective_uniprot_return_fields
 from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
 from bioseq_dl.core.export import normalize_parse_format
+from bioseq_dl.core.interfaces.chembl import CHEMBL_DEFAULT_PAGE_SIZE
 from bioseq_dl.core.metadata import FetchMetadata
 from bioseq_dl.core.utils.crossref_enrichment import (
     is_structure_download_workflow_compatible,
@@ -904,7 +905,7 @@ class MainWorkflow:
         query_structure = chembl_search.get("query_structure")
         export_format = chembl_search.get("export_format") or self.default_export_format
         pages_to_fetch = normalize_chembl_pages_to_fetch(chembl_search.get("pages_to_fetch", -1))
-        limit = int(chembl_search.get("limit", 100))
+        limit = int(chembl_search.get("limit", CHEMBL_DEFAULT_PAGE_SIZE))
         parse_format = normalize_parse_format(export_format) or "dataframe"
         # Because there is two types of queries associated with 2 different methods,
         #   we need to check which one to use.

@@ -1,6 +1,8 @@
 """ChEMBL API interface."""
 
+import math
 import re
+from functools import partial
 from typing import Any, ClassVar
 from urllib.parse import urlencode
 
@@ -18,6 +20,19 @@ from bioseq_dl.logging import get_logger
 from .base import BaseAPIInterface
 
 log = get_logger("bioseq_dl.interfaces.chembl")
+
+CHEMBL_DEFAULT_PAGE_SIZE = 1000
+
+_CHEMBL_PAGE_SIZE_METHODS = {
+    "activity",
+    "binding_site",
+    "target",
+    "assay",
+    "cell_line",
+    "molecule",
+    "activity-search",
+    "target-search",
+}
 
 # Reverse of OPERATOR_SUFFIXES ("__gte" -> "gte"), longest suffix first so
 # "__gte" wins over a would-be "__gt" prefix when splitting a param key.
@@ -45,6 +60,64 @@ def _next_chembl_page(data: Any) -> str | None:
     """Return the absolute URL of the next ChEMBL page, or None when exhausted."""
     next_path = data.get("page_meta", {}).get("next") if isinstance(data, dict) else None
     return f"https://www.ebi.ac.uk{next_path}" if next_path else None
+
+
+def _chembl_total_pages_from_data(data: Any) -> int | None:
+    """Return the ChEMBL API total page count from page metadata, when valid."""
+    page_meta = data.get("page_meta") if isinstance(data, dict) else None
+    if not isinstance(page_meta, dict):
+        return None
+    try:
+        total_count = int(page_meta.get("total_count"))
+        limit = int(page_meta.get("limit"))
+    except (TypeError, ValueError):
+        return None
+    if total_count < 0 or limit <= 0:
+        return None
+    return math.ceil(total_count / limit)
+
+
+def _chembl_response_page_size_from_data(data: Any) -> int | None:
+    """Return the ChEMBL response page size from page metadata, when valid."""
+    page_meta = data.get("page_meta") if isinstance(data, dict) else None
+    if not isinstance(page_meta, dict):
+        return None
+    try:
+        limit = int(page_meta.get("limit"))
+    except (TypeError, ValueError):
+        return None
+    return limit if limit > 0 else None
+
+
+def _log_chembl_first_page(
+    data: Any,
+    page_records: list,
+    *,
+    requested_page_size: int,
+) -> None:
+    """Log first-page ChEMBL page-size details and warn if the API lowers it."""
+    response_page_size = _chembl_response_page_size_from_data(data)
+    log.debug(
+        "ChEMBL first page: requested_page_size=%s, response_page_size=%s, records=%s",
+        requested_page_size,
+        response_page_size,
+        len(page_records),
+    )
+    if response_page_size is not None and response_page_size != requested_page_size:
+        log.warning(
+            "ChEMBL API returned page size %s after requesting %s",
+            response_page_size,
+            requested_page_size,
+        )
+
+
+def _chembl_cache_kwargs_with_page_size(kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Ensure ChEMBL cache keys include the effective default page size."""
+    if kwargs.get("method") not in _CHEMBL_PAGE_SIZE_METHODS or "limit" in kwargs:
+        return kwargs
+    updated = dict(kwargs)
+    updated["limit"] = CHEMBL_DEFAULT_PAGE_SIZE
+    return updated
 
 
 # For the moment, only activity is necessary, but more methods can be added later.
@@ -175,6 +248,10 @@ class ChEMBLInterface(BaseAPIInterface):
     def get_cache_ignore_keys(self) -> set[str]:
         """Return ChEMBL cache-ignore keys while preserving pagination in cache keys."""
         return super().get_cache_ignore_keys() - {"pages_to_fetch"}
+
+    def _make_cache_key(self, input_obj: str | dict | list, **kwargs: Any) -> str:
+        """Build a cache key that includes ChEMBL's effective page size."""
+        return super()._make_cache_key(input_obj, **_chembl_cache_kwargs_with_page_size(kwargs))
 
     def _is_activity_spec(self, spec: dict) -> bool:
         """Return whether ``spec`` is the open flat-parameter ``activity`` method."""
@@ -403,6 +480,8 @@ class ChEMBLInterface(BaseAPIInterface):
         """
         pages_to_fetch = kwargs.get("pages_to_fetch", 1)
         limit = kwargs.get("limit")
+        if limit is None:
+            limit = CHEMBL_DEFAULT_PAGE_SIZE
         try:
             pages_to_fetch = int(pages_to_fetch)
         except (TypeError, ValueError):
@@ -437,6 +516,7 @@ class ChEMBLInterface(BaseAPIInterface):
             log.exception("Invalid parameters for method '%s'", method)
             return []
 
+        configured_endpoint = method
         if method in ["activity", "binding_site"]:
             # Convert dictionary to a query string
             query = "&".join(f"{key}={value}" for key, value in validated_params.items())
@@ -451,10 +531,7 @@ class ChEMBLInterface(BaseAPIInterface):
         elif method in ["target", "assay", "cell_line", "molecule"]:
             if "query" in validated_params:
                 query_str = validated_params.pop("query")
-                url = (
-                    f"{CHEMBL.API_URL}{method}/search.json"
-                    f"?limit={limit if limit is not None else 20}&q={query_str}"
-                )
+                url = f"{CHEMBL.API_URL}{method}/search.json?limit={limit}&q={query_str}"
             else:
                 url = f"{CHEMBL.API_URL}{method}?"
                 if self.validate_filter_rules(validated_params["filters"]):
@@ -462,31 +539,39 @@ class ChEMBLInterface(BaseAPIInterface):
                         f"{item['field']}__{item['filter_type']}={item['value']}"
                         for item in validated_params["filters"]
                     )
-                    url += f"{query_str}&limit={limit if limit is not None else 20}&format=json"
+                    url += f"{query_str}&limit={limit}&format=json"
         elif method in ["activity-search", "target-search"]:
             query_str = validated_params.get("query", "")
             activity_filter = (
                 self.extract_ic50_activity_filter(query_str) if method == "activity-search" else None
             )
             if activity_filter:
-                filter_params = self.build_activity_filter_params(
-                    activity_filter, limit if limit is not None else 20
-                )
+                filter_params = self.build_activity_filter_params(activity_filter, limit)
                 url = f"{CHEMBL.API_URL}activity.json?{urlencode(filter_params)}"
+                configured_endpoint = "activity"
             else:
                 url = (
                     f"{CHEMBL.API_URL}{method.replace('-', '/')}.json"
-                    f"?limit={limit if limit is not None else 20}&q={query_str.replace(' ', '%20')}"
+                    f"?limit={limit}&q={query_str.replace(' ', '%20')}"
                 )
         else:
             log.error("Method %s is not implemented in fetch.", method)
             return []
 
+        log.debug(
+            "ChEMBL request configuration: endpoint=%s, page_size=%s, pages_to_fetch=%s",
+            configured_endpoint,
+            limit,
+            pages_to_fetch,
+        )
         return self._fetch_paginated(
             url,
             next_link=_next_chembl_page,
             extract_records=_extract_chembl_records,
             pages_to_fetch=pages_to_fetch,
+            progress_label="ChEMBL",
+            total_pages_from_data=_chembl_total_pages_from_data,
+            first_page_callback=partial(_log_chembl_first_page, requested_page_size=limit),
         )
 
     def validate_filter_rules(self, filters: dict) -> bool:

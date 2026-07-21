@@ -79,6 +79,38 @@ def _request_exception_url(exc: RequestException, fallback_url: str) -> str:
     return str(url or fallback_url)
 
 
+def _effective_pagination_target(pages_to_fetch: int, api_total_pages: int | None) -> int | None:
+    """Return the page count callers should report for this pagination run."""
+    if pages_to_fetch == -1:
+        return api_total_pages
+    if pages_to_fetch > 0:
+        return min(pages_to_fetch, api_total_pages) if api_total_pages is not None else pages_to_fetch
+    return None
+
+
+def _format_pagination_page(page_count: int, target_pages: int | None) -> str:
+    """Format a fetched page count with an optional denominator."""
+    return f"{page_count}/{target_pages}" if target_pages else str(page_count)
+
+
+def _should_log_pagination_info(
+    page_count: int,
+    target_pages: int | None,
+    progress_interval: int,
+    *,
+    configured_limit_reached: bool,
+    next_url: str | None,
+) -> bool:
+    """Return whether this successful page should emit an INFO progress line."""
+    return (
+        page_count == 1
+        or (progress_interval > 0 and page_count % progress_interval == 0)
+        or configured_limit_reached
+        or next_url is None
+        or (target_pages is not None and page_count >= target_pages)
+    )
+
+
 class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have concrete defaults
     """Abstract base class for all BioSeqDownloader API interfaces."""
 
@@ -1277,6 +1309,10 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         next_link: Callable[[Any], str | None],
         extract_records: Callable[[Any], list],
         pages_to_fetch: int = 1,
+        progress_label: str | None = None,
+        total_pages_from_data: Callable[[Any], int | None] | None = None,
+        first_page_callback: Callable[[Any, list], None] | None = None,
+        progress_interval: int = 10,
     ) -> list:
         """Follow JSON-body pagination from ``first_url``, accumulating records.
 
@@ -1292,6 +1328,13 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                 URL, or None when exhausted.
             extract_records (Callable[[Any], list]): Maps a parsed page to its records.
             pages_to_fetch (int): ``-1`` fetches all pages; a positive N caps at N.
+            progress_label (str | None): Optional API label enabling pagination
+                progress logs.
+            total_pages_from_data (Callable[[Any], int | None] | None): Optional
+                callback deriving the API's total page count from a parsed page.
+            first_page_callback (Callable[[Any, list], None] | None): Optional
+                callback invoked once with the first parsed page and extracted records.
+            progress_interval (int): INFO progress interval for opted-in callers.
 
         Returns:
             list: Records across the fetched pages; empty on error or an invalid
@@ -1305,7 +1348,14 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         records: list = []
         current_url: str | None = first_url
         remaining = pages_to_fetch
+        fetched_pages = 0
+        api_total_pages: int | None = None
+        stopped_after_failure = False
+        configured_limit_reached = False
         while current_url:
+            if progress_label:
+                log.debug("%s pagination: requesting page %s", progress_label, fetched_pages + 1)
+            page_started_at = time.monotonic()
             try:
                 response = self.session.get(current_url, headers={"Content-Type": "application/json"})
                 self._delay()
@@ -1329,15 +1379,101 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                         url,
                         exc,
                     )
+                stopped_after_failure = True
                 break
 
-            records.extend(extract_records(data))
+            page_records = extract_records(data)
+            records.extend(page_records)
+            fetched_pages += 1
 
+            if fetched_pages == 1 and first_page_callback is not None:
+                first_page_callback(data, page_records)
+
+            if api_total_pages is None and total_pages_from_data is not None:
+                api_total_pages = total_pages_from_data(data)
+
+            next_url = next_link(data)
             if remaining > 0:
                 remaining -= 1
                 if remaining == 0:
-                    break
-            current_url = next_link(data)
+                    configured_limit_reached = next_url is not None
+
+            if progress_label:
+                target_pages = _effective_pagination_target(pages_to_fetch, api_total_pages)
+                page_display = _format_pagination_page(fetched_pages, target_pages)
+                log.debug(
+                    "%s pagination: fetched page %s (page_records=%s, accumulated_records=%s, elapsed=%.2fs)",
+                    progress_label,
+                    page_display,
+                    len(page_records),
+                    len(records),
+                    time.monotonic() - page_started_at,
+                )
+                if _should_log_pagination_info(
+                    fetched_pages,
+                    target_pages,
+                    progress_interval,
+                    configured_limit_reached=configured_limit_reached,
+                    next_url=next_url,
+                ):
+                    if configured_limit_reached and api_total_pages is not None:
+                        log.info(
+                            "%s pagination progress: %s/%s requested pages fetched "
+                            "(API total pages=%s, accumulated_records=%s)",
+                            progress_label,
+                            fetched_pages,
+                            pages_to_fetch,
+                            api_total_pages,
+                            len(records),
+                        )
+                    elif target_pages is not None:
+                        log.info(
+                            "%s pagination progress: %s/%s pages fetched, %s records accumulated",
+                            progress_label,
+                            fetched_pages,
+                            target_pages,
+                            len(records),
+                        )
+                    else:
+                        log.info(
+                            "%s pagination progress: %s pages fetched, %s records accumulated",
+                            progress_label,
+                            fetched_pages,
+                            len(records),
+                        )
+
+            if remaining == 0:
+                break
+            current_url = next_url
+
+        if progress_label:
+            if stopped_after_failure:
+                log.warning(
+                    "%s pagination stopped after a request failure: %s pages fetched, %s records preserved",
+                    progress_label,
+                    fetched_pages,
+                    len(records),
+                )
+            elif fetched_pages:
+                if configured_limit_reached:
+                    api_total_suffix = (
+                        f", API total pages={api_total_pages}" if api_total_pages is not None else ""
+                    )
+                    log.info(
+                        "%s pagination completed at configured limit: %s pages fetched, "
+                        "%s records accumulated%s",
+                        progress_label,
+                        fetched_pages,
+                        len(records),
+                        api_total_suffix,
+                    )
+                else:
+                    log.info(
+                        "%s pagination completed: %s pages fetched, %s records accumulated",
+                        progress_label,
+                        fetched_pages,
+                        len(records),
+                    )
         return records
 
     def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> Any:
