@@ -322,16 +322,17 @@ def test_add_id_column_skips_when_no_column_or_already_present():
 def test_to_json_compatible_handles_frames_dates_paths():
     from pathlib import Path
 
+    path = Path("/data/x")
     value = {
         "df": pl.DataFrame({"a": [1]}),
         "when": dt.date(2026, 6, 26),
-        "path": Path("/data/x"),
+        "path": path,
         "series": pl.Series([1, 2]),
     }
     out = to_json_compatible(value)
     assert out["df"] == [{"a": 1}]
     assert out["when"] == "2026-06-26"
-    assert out["path"] == "/data/x"
+    assert out["path"] == str(path)
     assert out["series"] == [1, 2]
 
 

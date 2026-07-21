@@ -13,6 +13,28 @@ ACTIVITY_URL = "https://www.ebi.ac.uk/chembl/api/data/activity"
 MOLECULE_URL = "https://www.ebi.ac.uk/chembl/api/data/molecule"
 
 
+class PaginatedResponse:
+    def __init__(self, payload):
+        self.status_code = 200
+        self._payload = payload
+
+    def raise_for_status(self):
+        return None
+
+    def json(self):
+        return self._payload
+
+
+class PaginatedSession:
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.urls = []
+
+    def get(self, url, **_kwargs):
+        self.urls.append(url)
+        return self.responses.pop(0)
+
+
 @pytest.fixture
 def interface(tmp_path):
     return ChEMBLInterface(
@@ -32,6 +54,25 @@ def test_fetch_unwraps_activities_list(interface, niquests_mock):
     sent = niquests_mock.calls[0].request.url
     assert sent.startswith(ACTIVITY_URL)
     assert "target_chembl_id=CHEMBL279" in sent
+
+
+def test_fetch_activity_follows_successful_pagination(interface):
+    interface.session = PaginatedSession(
+        [
+            PaginatedResponse(
+                {
+                    "activities": [{"activity_id": 1}],
+                    "page_meta": {"next": "/chembl/api/data/activity?page=2"},
+                }
+            ),
+            PaginatedResponse({"activities": [{"activity_id": 2}], "page_meta": {"next": None}}),
+        ]
+    )
+
+    result = interface.fetch({"target_chembl_id": "CHEMBL279"}, method="activity", pages_to_fetch=-1)
+
+    assert result == [{"activity_id": 1}, {"activity_id": 2}]
+    assert len(interface.session.urls) == 2
 
 
 def test_fetch_activity_accepts_catalog_flat_filters(interface, niquests_mock):

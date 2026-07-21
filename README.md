@@ -2,7 +2,7 @@
 
 **BioSeqDownloader** is a Python package and command-line tool for reproducible biological data retrieval. It provides database-specific interfaces, parsing helpers, enrichment and mapping utilities, YAML workflow descriptors, metadata capture, and export to CSV, JSON, XML, and Parquet.
 
-The validated workflow surface currently focuses on UniProt protein retrieval, ChEMBL activity retrieval with UniProt target mapping, and interaction-oriented retrieval through the existing interfaces. BLAST-backed UniProt sequence search is exposed in the CLI, but should be treated as experimental and requires BLAST+ plus local database setup.
+The validated workflow surface currently focuses on UniProt protein retrieval, compound retrieval through supported ChEMBL, PubChem, and ChEBI query prefixes, and interaction-oriented retrieval through the existing interfaces. BLAST-backed UniProt sequence search is exposed in the CLI, but should be treated as experimental and requires BLAST+ plus local database setup.
 
 ### Available Database Interfaces
 
@@ -24,7 +24,7 @@ Currently available CLI/API interfaces include:
 | Pathway Commons | Biological pathways |
 | PDB  | Protein Data Bank |
 | Pride  | Proteomics data repository |
-| PubChem | Chemical molecule database; not part of the validated YAML compound workflow |
+| PubChem | Chemical molecule database |
 | Reactome | Pathway database |
 | RefSeq  | NCBI Reference Sequence Database |
 | Rhea  | Biochemical reactions database |
@@ -176,7 +176,7 @@ bioseq-dl workflow validate examples/workflows/protein_query_first_minimal.yml
 ```
 
 ```text
-✗ my-workflow.yml has 2 validation error(s):
+Error: my-workflow.yml has 2 validation error(s):
   - Unsupported dataset.modality 'rna'. Supported modalities are: protein, compound, interaction.
   - Unsupported export format 'xlsx'. Supported formats are: csv, json, xml, parquet.
 ```
@@ -189,7 +189,9 @@ YAML descriptors use top-level `schema_version`, `dataset`, `query`, `resources`
 
 ChEMBL workflow fetches retrieve all available pages by default. In YAML, `execution.chembl_pages_to_fetch: -1` means all pages; a positive value caps the number of pages. ChEMBL `limit` remains records per page, not total records and not a page count. Large ChEMBL queries can take longer when all pages are fetched; use a positive page cap for quick validation runs.
 
-For IC50 queries, the ChEMBL workflow enforces `standard_type = IC50` and numeric `standard_value` constraints for requested ranges. `standard_units` is preserved when returned by ChEMBL; unit normalization to nM belongs to a later workflow enhancement.
+Compound workflow queries can use ChEMBL, PubChem, or ChEBI source-prefixed syntax. ChEMBL supports resource-prefixed queries such as `chembl.molecule:name__iexact=Imatinib` and IC50 activity macros such as `ic50:<1000 AND standard_units:nM`. PubChem supports `pubchem.compound:` lookups by CID, name, InChI, or InChIKey and `pubchem.structure:` searches for SMILES identity, SMILES substructure, and 2-D CID similarity with an optional threshold. ChEBI supports `chebi.entity:` lookups by `chebi_id`, exact `name`, or `name_contains`. Protein-ligand interaction workflows continue to use ChEMBL as their chemical source.
+
+For IC50 queries, the ChEMBL workflow enforces `standard_type = IC50`, applies numeric `standard_value` filters for exact values, ranges, `<`, `<=`, `>`, and `>=`, and can constrain `standard_units`. Accepted GUI IC50 units are `nM`, `uM`, `mM`, and `pM`; micro symbols such as `µM` and `μM` are normalized to `uM`. BioSeqDownloader constrains the requested unit but does not perform implicit numeric unit conversion.
 
 Allowed top-level descriptor sections are: `schema_version`, `dataset`, `query`, `resources`, `execution`, `harmonization`, `export`, `reporting`, `interaction_retrieval`, `activity_retrieval`, `chemical_metadata_integration`, `protein_target_integration`, `temperature_enrichment`, and `cross_source_integration`.
 
@@ -204,32 +206,40 @@ from bioseq_dl.core.workflow.schema import get_workflow_v1_schema_definition
 The optional NiceGUI interface prepares `workflow-v1` YAML descriptors; workflow
 execution still happens through the CLI. The Query section supports Manual
 query mode, which writes `query.value` directly, and Advanced builder mode,
-which currently offers UniProt and ChEMBL builders and stores only the final
-interpreted string in `query.value`. Friendly query previews and builder rows
-are reserved for future GUI reconstruction rather than saved to YAML.
+which offers UniProt, ChEMBL, PubChem, and ChEBI builders. The executable query
+is always `query.value`. Optional `query.builder` metadata is non-executable
+GUI state with `schema_version: query-builder-v1`; supported metadata can
+restore editable controls on load, while malformed or unsupported metadata
+falls back to manual/read-only handling without changing `query.value`.
 Human-friendly GUI labels are translated to exact workflow-v1 schema values.
 The GUI can also load an existing `workflow-v1` YAML file and populate the
-supported form fields. When loading a YAML file, the saved query text opens in
-Manual query mode. Reconstructing visual builder rows is planned for a later
-version with `query.builder` metadata. Metadata such as `query.builder`,
-`query.composition`, `resources`, and `reporting` may validate as workflow-v1
+supported form fields. Supported `query-builder-v1` metadata restores editable
+builder rows; unsupported metadata falls back without changing `query.value`.
+Metadata such as `resources` and `reporting` may validate as workflow-v1
 descriptor metadata and is shown as read-only in this GUI version.
 `query.fields` and `query.crossref_fields` remain separate optional inputs and
-are not advanced-builder search conditions.
+are not advanced-builder search conditions. For UniProt return fields, the GUI
+offers a searchable common-field selector plus an Advanced return fields input
+for custom field IDs. The YAML stores stable field IDs in `query.fields`, never
+visible labels. Enrichment-required `xref_*` request fields may still be added
+internally at runtime when enrichment sources need them.
 In the Advanced UniProt builder, Connector combines a row with the previous row
 using `AND` or `OR`, while Match mode combines comma-separated values inside
 one row as `Any`, `All`, or `Not`. Values containing spaces can be quoted. The
 builder prepares UniProt query text; live validation happens later when the
 workflow runs.
 Query builders are registered per database/resource: UniProt uses connectors
-and match modes, while ChEMBL target, assay, cell line, and molecule builders
-use resource filters that are combined with `AND`; ChEMBL activity uses flat
-parameters. For ChEMBL, use the `in` filter type for multiple values in one
-field. These builders produce final interpreted `query.value` strings for the
-descriptor; live ChEMBL access happens later in the workflow run.
+and match modes; ChEMBL target, assay, cell line, and molecule builders use
+resource filters combined with `AND`; ChEMBL activity uses flat parameters;
+ChEMBL IC50 has dedicated range/comparison/unit controls; PubChem has compound
+and structure builders; and ChEBI has an entity builder. For ChEMBL, use the
+`in` filter type for multiple values in one field. These builders produce final
+interpreted `query.value` strings for the descriptor; live API access happens
+later in the workflow run.
 Advanced query builders are filtered by the selected dataset modality and
 interaction type. Protein datasets expose the UniProt builder. Compound
-datasets expose compatible ChEMBL molecule and activity builders.
+datasets expose compatible ChEMBL molecule, ChEMBL activity, ChEMBL IC50,
+PubChem, and ChEBI builders.
 Protein-ligand interaction datasets expose compatible ChEMBL target, assay, and
 activity builders. Protein-protein interaction datasets expose the UniProt
 builder. Manual query mode remains available for every dataset setting.
@@ -301,7 +311,7 @@ Workflows support:
 - `metadata.json` for detailed technical metadata
 - `run_summary.yml` for a compact execution report
 
-The validated compound workflow is ChEMBL activity retrieval with UniProt target mapping. PubChem remains available through its database interface, but it is not part of the validated YAML compound workflow.
+The validated compound workflow supports ChEMBL, PubChem, and ChEBI source-prefixed compound queries. PubChem and ChEBI are available only through the supported workflow-v1 query forms; not every lower-level interface method is exposed through workflow YAML.
 
 #### Modalities
 
@@ -394,8 +404,9 @@ bioseq-dl workflow run \
 3. Writes the combined result file plus metadata and summary files
 
 **Query syntax:**
-- Use `=` or `|` as delimiter: `query=label` or `query|label`
+- Use the final `=` or `|` as delimiter: `query=label` or `query|label`
 - Separate multiple labeled queries with commas: `query1=label1,query2=label2,query3=label3`
+- Internal `=` characters remain part of the query, for example `chembl.molecule:name__iexact=Imatinib=imatinib`
 
 **Output structure:**
 ```
@@ -421,17 +432,16 @@ bioseq-dl workflow run \
 ```
 
 **What happens:**
-1. Performs ChEMBL activity retrieval with UniProt target mapping for activity records in different IC50 ranges
+1. Performs ChEMBL activity retrieval for activity records in different IC50 ranges
 2. Creates two labeled datasets: `active` (`standard_value` 10-50) and `inactive` (`standard_value` 50-100)
 3. Enforces `standard_type = IC50` and numeric `standard_value` filtering after retrieval
-4. Preserves `standard_units` when ChEMBL returns it, without constraining units to nM
-5. Writes ChEMBL activity results and available UniProt target-mapping output
+4. Constrains `standard_units` when requested, without converting numeric values between units
+5. Writes ChEMBL activity results and metadata
 
 **Output files:**
 ```
 workflow_compound/
 |-- chembl_results.csv
-|-- uniprot_results.csv
 |-- metadata.json
 `-- run_summary.yml
 ```
@@ -471,7 +481,9 @@ bioseq-dl workflow run \
 | Find all thermophilic proteins | protein | query_first | `temperature:*` |
 | Compare two temperature optima | protein | query_composition | `temperature:20=temp_low,temperature:80=temp_high` |
 | Classify compounds by activity | compound | query_composition | `ic50:10-50=active,ic50:50-100=inactive` |
-| Fetch IC50 activity records | compound | query_first | `ic50:<1000` |
+| Fetch IC50 activity records | compound | query_first | `ic50:<1000 AND standard_units:nM` |
+| Fetch PubChem compounds | compound | query_first | `pubchem.compound:name="glucose"` |
+| Fetch ChEBI entities | compound | query_first | `chebi.entity:chebi_id=CHEBI:15377` |
 
 ---
 

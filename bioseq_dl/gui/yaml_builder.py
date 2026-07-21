@@ -6,15 +6,33 @@ import re
 from collections.abc import Mapping
 from copy import deepcopy
 from pathlib import PurePosixPath, PureWindowsPath
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import yaml
 
+from bioseq_dl.constants.uniprot import (
+    XREF_MAPPING,
+    get_default_uniprot_return_fields,
+    get_effective_uniprot_return_fields,
+    get_required_uniprot_fields_for_enrichment,
+)
 from bioseq_dl.core.workflow.schema import (
     WORKFLOW_SCHEMA_VERSION,
     get_workflow_v1_schema_definition,
+    parse_query_composition_value,
     validate_workflow_v1_descriptor,
 )
+from bioseq_dl.gui.uniprot_return_fields import (
+    return_fields_from_selection,
+    split_known_and_custom_return_fields,
+)
+
+if TYPE_CHECKING:
+    # Type-only imports; the builders are imported lazily inside functions at runtime
+    # to keep the module free of the query_builders package on import.
+    from bioseq_dl.gui.query_builders.chebi import ChEBIQueryBuilderRow
+    from bioseq_dl.gui.query_builders.chembl import ChEMBLIC50QueryBuilderRow
+    from bioseq_dl.gui.query_builders.pubchem import PubChemQueryBuilderRow
 
 DEFAULT_MAX_WORKERS = 5
 DEFAULT_TOTAL_RETRIES = 3
@@ -25,8 +43,8 @@ DEFAULT_OUTPUT_DIRECTORY_NAME_ERROR = (
 )
 LEGACY_OUTPUT_DIRECTORY_NAME_ERROR = "dataset.name is required when export.output_dir is not provided."
 LOADED_QUERY_VALUE_WARNING = (
-    "Loaded the saved query text in Manual query mode. Builder rows can be restored "
-    "in a later version when GUI builder metadata is saved."
+    "Loaded the saved query text in Manual query mode. Visual builder reconstruction "
+    "is available for YAML files saved with query.builder metadata."
 )
 QUERY_BUILDER_NOT_EDITABLE_WARNING = (
     "This file includes query.builder metadata. It is kept with the descriptor and "
@@ -35,6 +53,33 @@ QUERY_BUILDER_NOT_EDITABLE_WARNING = (
 QUERY_COMPOSITION_NOT_EDITABLE_WARNING = (
     "This file includes query.composition metadata. It is kept with the descriptor "
     "and shown as read-only in this GUI version."
+)
+QUERY_BUILDER_MISMATCH_WARNING = (
+    "query.builder metadata did not match query.value. The saved query text was "
+    "loaded in Manual query mode and the original metadata was preserved."
+)
+QUERY_BUILDER_MODE_WARNING = (
+    "query.builder metadata is restored only for Query First workflows. The saved "
+    "query text was loaded in Manual query mode and the original metadata was preserved."
+)
+QUERY_COMPOSITION_VALUE_PARSED_NOTE = (
+    "Loaded query_composition entries from query.value. Add descriptions or builders if needed before saving."
+)
+QUERY_COMPOSITION_PARSE_ERROR_NOTE = (
+    "This query_composition value could not be split into labeled query entries. "
+    "The saved query text was loaded for manual review."
+)
+QUERY_COMPOSITION_BUILDER_RESTORE_NOTE = (
+    "Composition entry {index} ('{label}') has builder metadata that could not be restored. "
+    "Only that entry was loaded as a manual query."
+)
+UNSUPPORTED_ENRICHMENT_SOURCE_WARNING = (
+    "This file includes cross-reference fields that are not shown as selectable enrichment "
+    "sources in this GUI version. They are preserved in the advanced cross-reference field."
+)
+STRUCTURE_DOWNLOAD_NORMALIZED_WARNING = (
+    "One or more structure-download flags were disabled because the workflow context, "
+    "enrichment setting, or matching enrichment source did not make them executable."
 )
 PROTEIN_CHEMBL_QUERY_WARNING = (
     "The loaded query looks like a ChEMBL query while the dataset is set to Protein. "
@@ -84,6 +129,7 @@ REPEATED_FILENAME_SEPARATOR = re.compile(r"_+")
 PRESERVED_TOP_LEVEL_SECTIONS = tuple(NON_EDITABLE_METADATA_WARNINGS)
 # Non-widget slot in the form-values dict that carries the preserved sections.
 PRESERVED_SECTIONS_FORM_KEY = "__preserved_sections__"
+LOADED_INCOMPATIBLE_ENRICHMENT_PASSTHROUGH_FORM_KEY = "__loaded_incompatible_enrichment_passthrough__"
 
 MODALITY_LABEL_TO_VALUE = {
     "Protein": "protein",
@@ -125,6 +171,32 @@ CHEMBL_BUILDER_RESOURCE_BY_KEY = {
     "chembl_molecule": "molecule",
     "chembl_activity": "activity",
 }
+CHEMBL_IC50_BUILDER_KEY = "chembl_ic50"
+PUBCHEM_BUILDER_RESOURCE_BY_KEY = {
+    "pubchem_compound": "compound",
+    "pubchem_structure": "structure",
+}
+CHEBI_BUILDER_RESOURCE_BY_KEY = {
+    "chebi_entity": "entity",
+}
+ENRICHMENT_SOURCE_OPTIONS: dict[str, str] = {
+    "AlphaFold": XREF_MAPPING["AlphaFold"][1],
+    "BioGRID": XREF_MAPPING["BioGRID"][1],
+    "ChEMBL": XREF_MAPPING["ChEMBL"][1],
+    "ChEBI": XREF_MAPPING["ChEBI"][1],
+    "GO": XREF_MAPPING["GO"][1],
+    "InterPro": XREF_MAPPING["InterPro"][1],
+    "KEGG": XREF_MAPPING["KEGG"][1],
+    "PDB": XREF_MAPPING["PDB"][1],
+    "Reactome": XREF_MAPPING["Reactome"][1],
+    "RefSeq": XREF_MAPPING["RefSeq"][1],
+    "Rhea": XREF_MAPPING["Rhea"][1],
+    "SABIO-RK": XREF_MAPPING["SABIO-RK"][1],
+    "STRING": XREF_MAPPING["StringDB"][1],
+    "PathwayCommons Fetch": "pathwaycommons_fetch",
+    "PathwayCommons Top Pathways": "pathwaycommons_top_pathways",
+    "PathwayCommons Neighborhood": "pathwaycommons_neighborhood",
+}
 
 DEFAULT_FORM_VALUES: dict[str, object] = {
     "dataset.name": "",
@@ -150,10 +222,58 @@ DEFAULT_FORM_VALUES: dict[str, object] = {
             "value": "",
         }
     ],
-    "query.fields": "",
+    "query.chembl_ic50_builder.row": {
+        "condition": "range",
+        "minimum": 0,
+        "maximum": 10,
+        "value": None,
+        "unit": "nM",
+    },
+    "query.pubchem_builder.row": {
+        "field": "name",
+        "value": "",
+        "threshold": None,
+    },
+    "query.chebi_builder.row": {
+        "field": "name_contains",
+        "value": "",
+    },
+    "query.composition.entries": [
+        {
+            "label": "",
+            "value": "",
+            "description": "",
+            "query_input_mode": "manual",
+            "query_builder_key": "uniprot",
+            "uniprot_builder_rows": [],
+            "chembl_builder_rows": [],
+            "chembl_ic50_builder_row": {
+                "condition": "range",
+                "minimum": 0,
+                "maximum": 10,
+                "value": None,
+                "unit": "nM",
+            },
+            "pubchem_builder_row": {
+                "field": "name",
+                "value": "",
+                "threshold": None,
+            },
+            "chebi_builder_row": {
+                "field": "name_contains",
+                "value": "",
+            },
+        }
+    ],
+    "query.fields": ", ".join(get_default_uniprot_return_fields()),
+    "query.return_field_selections": get_default_uniprot_return_fields(),
+    "query.return_field_custom": "",
     "query.crossref_fields": "",
     "query.include_isoform": False,
     "execution.enrich": False,
+    "execution.enrichment_sources": [],
+    "execution.download_alphafold_structures": False,
+    "execution.download_pdb_structures": False,
     "execution.max_workers": DEFAULT_MAX_WORKERS,
     "execution.total_retries": DEFAULT_TOTAL_RETRIES,
     "execution.chembl_pages_to_fetch": DEFAULT_CHEMBL_PAGES_TO_FETCH,
@@ -183,7 +303,13 @@ def workflow_yaml_form_defaults() -> dict[str, object]:
     """Return mutable default form values for GUI binding."""
     schema = get_workflow_v1_schema_definition()
     defaults = deepcopy(DEFAULT_FORM_VALUES)
+    gui_controlled_defaults = {
+        "execution.download_alphafold_structures",
+        "execution.download_pdb_structures",
+    }
     for field_name in defaults:
+        if field_name in gui_controlled_defaults:
+            continue
         schema_default = schema.get(field_name, {}).get("default")
         if schema_default is not None:
             defaults[field_name] = schema_default
@@ -279,25 +405,25 @@ def collect_load_warnings(descriptor: Mapping[str, object]) -> list[str]:
     dataset = get_mapping_section(descriptor, "dataset")
     query = get_mapping_section(descriptor, "query")
     query_value = str(query.get("value") or "").strip()
-    if query_value:
-        warnings.append(LOADED_QUERY_VALUE_WARNING)
     if dataset.get("modality") == "protein" and query_value.lower().startswith("chembl."):
         warnings.append(PROTEIN_CHEMBL_QUERY_WARNING)
-    if "builder" in query:
-        warnings.append(QUERY_BUILDER_NOT_EDITABLE_WARNING)
-    if "composition" in query:
+    if dataset.get("mode") != "query_composition" and "composition" in query:
         warnings.append(QUERY_COMPOSITION_NOT_EDITABLE_WARNING)
     for section_name, warning in NON_EDITABLE_METADATA_WARNINGS.items():
         if section_name in descriptor:
             warnings.append(warning)
+    if has_unsupported_enrichment_sources(query.get("crossref_fields")):
+        warnings.append(UNSUPPORTED_ENRICHMENT_SOURCE_WARNING)
     return warnings
 
 
 def extract_preserved_workflow_sections(descriptor: Mapping[str, object]) -> dict[str, object]:
-    """Capture descriptor sections the GUI shows read-only but must not drop on save.
+    """Capture descriptor sections the GUI must carry through load/save.
 
-    Covers the non-editable top-level sections plus ``query.builder`` /
-    ``query.composition``, which the form controls cannot round-trip yet.
+    ``query.composition`` is regenerated from editable composition entries in
+    query_composition mode. ``query.builder`` is preserved when it cannot be restored
+    into editable builder state; successfully restored builder metadata is regenerated
+    from the form instead.
     """
     preserved: dict[str, object] = {
         key: deepcopy(descriptor[key]) for key in PRESERVED_TOP_LEVEL_SECTIONS if key in descriptor
@@ -313,17 +439,329 @@ def merge_preserved_workflow_sections(
     descriptor: dict[str, object], preserved: Mapping[str, object]
 ) -> dict[str, object]:
     """Re-attach preserved read-only sections onto a regenerated descriptor."""
+    query_mode_keys = ("builder", "composition")
     for key, value in preserved.items():
         if key == "query" and isinstance(value, Mapping):
             query = descriptor.get("query")
             if not isinstance(query, dict):
                 query = {}
                 descriptor["query"] = query
+            # A form-regenerated builder/composition owns the query's mode: the
+            # preserved one never overwrites it or cross-injects the other mode.
+            form_owns_mode = any(mode_key in query for mode_key in query_mode_keys)
             for sub_key, sub_value in value.items():
-                query[sub_key] = deepcopy(sub_value)
+                if sub_key in query_mode_keys and form_owns_mode:
+                    continue
+                query.setdefault(sub_key, deepcopy(sub_value))
         else:
             descriptor[key] = deepcopy(value)
     return descriptor
+
+
+def remove_preserved_query_builder(form_values: dict[str, object]) -> None:
+    """Drop preserved read-only query.builder metadata after editable restoration."""
+    preserved = form_values.get(PRESERVED_SECTIONS_FORM_KEY)
+    if not isinstance(preserved, dict):
+        return
+    query = preserved.get("query")
+    if not isinstance(query, dict):
+        return
+    query.pop("builder", None)
+    if not query:
+        preserved.pop("query", None)
+
+
+def remove_preserved_query_composition(form_values: dict[str, object]) -> None:
+    """Drop preserved read-only query.composition metadata after editable restoration."""
+    preserved = form_values.get(PRESERVED_SECTIONS_FORM_KEY)
+    if not isinstance(preserved, dict):
+        return
+    query = preserved.get("query")
+    if not isinstance(query, dict):
+        return
+    query.pop("composition", None)
+    if not query:
+        preserved.pop("query", None)
+
+
+def make_query_composition_entry() -> dict[str, object]:
+    """Return one empty mutable query-composition form entry."""
+    return deepcopy(cast("list[dict[str, object]]", DEFAULT_FORM_VALUES["query.composition.entries"]))[0]
+
+
+def build_query_composition_entry_form_values(entry: Mapping[str, object]) -> dict[str, object]:
+    """Adapt entry-local builder state to existing single-query helper inputs."""
+    return {
+        "dataset.mode": "query_first",
+        "query.input_mode": entry.get("query_input_mode", "manual"),
+        "query.value": entry.get("value", ""),
+        "query.builder.key": entry.get("query_builder_key", "uniprot"),
+        "query.uniprot_builder.rows": entry.get("uniprot_builder_rows", []),
+        "query.chembl_builder.rows": entry.get("chembl_builder_rows", []),
+        "query.chembl_ic50_builder.row": entry.get("chembl_ic50_builder_row", {}),
+        "query.pubchem_builder.row": entry.get("pubchem_builder_row", {}),
+        "query.chebi_builder.row": entry.get("chebi_builder_row", {}),
+    }
+
+
+def validate_query_composition_entry_builder_compatibility(
+    entry: Mapping[str, object],
+    *,
+    modality: str,
+    interaction_type: str | None,
+) -> None:
+    """Validate one advanced composition-entry builder against the dataset context."""
+    if normalize_query_input_mode(entry.get("query_input_mode", "manual")) == "manual":
+        return
+    from bioseq_dl.gui.query_builders.registry import (  # noqa: PLC0415
+        get_query_builder_spec,
+        is_query_builder_compatible,
+    )
+
+    builder_key = normalize_query_builder_key(entry.get("query_builder_key", "uniprot"))
+    spec = get_query_builder_spec(builder_key)
+    if not is_query_builder_compatible(spec, modality, interaction_type):
+        msg = f"Query builder '{builder_key}' is not compatible with this dataset."
+        raise ValueError(msg)
+
+
+def resolve_query_composition_entry_value(
+    entry: Mapping[str, object],
+    *,
+    modality: str,
+    interaction_type: str | None,
+) -> str:
+    """Resolve one query-composition entry to an executable query string."""
+    validate_query_composition_entry_builder_compatibility(
+        entry,
+        modality=modality,
+        interaction_type=interaction_type,
+    )
+    return resolve_query_value_from_form(build_query_composition_entry_form_values(entry))
+
+
+def build_query_composition_entry_builder_metadata(
+    entry: Mapping[str, object],
+    *,
+    modality: str,
+    interaction_type: str | None,
+) -> dict[str, object] | None:
+    """Build or preserve optional query-builder metadata for one composition entry."""
+    if normalize_query_input_mode(entry.get("query_input_mode", "manual")) == "manual":
+        preserved_builder = entry.get("preserved_builder")
+        return deepcopy(preserved_builder) if isinstance(preserved_builder, dict) else None
+    validate_query_composition_entry_builder_compatibility(
+        entry,
+        modality=modality,
+        interaction_type=interaction_type,
+    )
+    return build_query_builder_metadata_from_form(build_query_composition_entry_form_values(entry))
+
+
+def build_query_composition_metadata(
+    entries: object,
+    *,
+    modality: str,
+    interaction_type: str | None,
+) -> list[dict[str, object]]:
+    """Build validated editable query.composition metadata from form entries."""
+    if not isinstance(entries, list) or not entries:
+        msg = "Add at least one labeled query."
+        raise ValueError(msg)
+
+    metadata: list[dict[str, object]] = []
+    seen_labels: set[str] = set()
+    for index, entry in enumerate(entries, start=1):
+        if not isinstance(entry, Mapping):
+            msg = f"Entry {index}: labeled query must be a mapping."
+            raise TypeError(msg)
+        label = str(entry.get("label") or "").strip()
+        description = str(entry.get("description") or "").strip()
+        value = resolve_query_composition_entry_value(
+            entry,
+            modality=modality,
+            interaction_type=interaction_type,
+        ).strip()
+        if not label:
+            msg = f"Entry {index}: label is required."
+            raise ValueError(msg)
+        if not value:
+            msg = f"Entry {index}: value is required."
+            raise ValueError(msg)
+        if "," in label:
+            msg = f"Entry {index}: label cannot contain commas."
+            raise ValueError(msg)
+        if "=" in label:
+            msg = f"Entry {index}: label cannot contain equals signs."
+            raise ValueError(msg)
+        if "," in value:
+            msg = f"Entry {index}: query value cannot contain commas in query_composition mode."
+            raise ValueError(msg)
+        if label in seen_labels:
+            msg = f"Entry {index}: label '{label}' is duplicated."
+            raise ValueError(msg)
+        seen_labels.add(label)
+        item: dict[str, object] = {"label": label, "value": value}
+        if description:
+            item["description"] = description
+        builder_metadata = build_query_composition_entry_builder_metadata(
+            entry,
+            modality=modality,
+            interaction_type=interaction_type,
+        )
+        if builder_metadata is not None:
+            item["builder"] = builder_metadata
+        metadata.append(item)
+    return metadata
+
+
+def build_query_composition_value(composition: list[dict[str, object]]) -> str:
+    """Build the executable comma-separated query=label representation."""
+    return ",".join(f"{entry['value']}={entry['label']}" for entry in composition)
+
+
+def build_query_composition_builder_restore_note(
+    entry: Mapping[str, object],
+    index: int,
+) -> str:
+    """Build a load warning for one composition entry with non-restorable metadata."""
+    label = str(entry.get("label") or "unlabeled").strip()
+    return QUERY_COMPOSITION_BUILDER_RESTORE_NOTE.format(
+        index=index,
+        label=label or "unlabeled",
+    )
+
+
+def fallback_query_composition_entry_to_manual(
+    entry: dict[str, object],
+    builder_metadata: object,
+) -> None:
+    """Convert one restored composition entry to manual mode, preserving metadata if possible."""
+    entry["query_input_mode"] = "manual"
+    if isinstance(builder_metadata, dict):
+        entry["preserved_builder"] = deepcopy(builder_metadata)
+    else:
+        entry.pop("preserved_builder", None)
+
+
+def validate_restored_query_composition_entry_builder(
+    entry: dict[str, object],
+    builder_metadata: object,
+    *,
+    index: int,
+    modality: str,
+    interaction_type: str | None,
+) -> str | None:
+    """Fallback one entry if restored builder state cannot be regenerated."""
+    if normalize_query_input_mode(entry.get("query_input_mode", "manual")) == "manual":
+        return None
+    try:
+        resolve_query_composition_entry_value(
+            entry,
+            modality=modality,
+            interaction_type=interaction_type,
+        )
+        build_query_composition_entry_builder_metadata(
+            entry,
+            modality=modality,
+            interaction_type=interaction_type,
+        )
+    except (TypeError, ValueError):
+        fallback_query_composition_entry_to_manual(entry, builder_metadata)
+        return build_query_composition_builder_restore_note(entry, index)
+    return None
+
+
+def restore_query_composition_entry_builder_state(
+    entry: dict[str, object],
+    builder_metadata: object,
+    *,
+    index: int,
+    modality: str,
+    interaction_type: str | None,
+) -> str | None:
+    """Restore one composition entry builder or preserve it for manual fallback."""
+    try:
+        from bioseq_dl.gui.query_builders.metadata import (  # noqa: PLC0415
+            restore_query_builder_metadata,
+        )
+
+        restoration = restore_query_builder_metadata(
+            builder_metadata,
+            entry.get("value", ""),
+            modality,
+            interaction_type,
+        )
+    except (TypeError, ValueError):
+        fallback_query_composition_entry_to_manual(entry, builder_metadata)
+        return build_query_composition_builder_restore_note(entry, index)
+
+    entry["query_input_mode"] = "advanced_builder"
+    entry["query_builder_key"] = restoration.builder_key
+    if restoration.builder_key == "uniprot":
+        entry["uniprot_builder_rows"] = [dict(row) for row in restoration.form_rows]
+    elif restoration.builder_key == CHEMBL_IC50_BUILDER_KEY:
+        entry["chembl_ic50_builder_row"] = dict(restoration.form_rows[0])
+    elif restoration.builder_key in CHEMBL_BUILDER_RESOURCE_BY_KEY:
+        entry["chembl_builder_rows"] = [dict(row) for row in restoration.form_rows]
+    elif restoration.builder_key in PUBCHEM_BUILDER_RESOURCE_BY_KEY:
+        entry["pubchem_builder_row"] = dict(restoration.form_rows[0])
+    elif restoration.builder_key in CHEBI_BUILDER_RESOURCE_BY_KEY:
+        entry["chebi_builder_row"] = dict(restoration.form_rows[0])
+    return validate_restored_query_composition_entry_builder(
+        entry,
+        builder_metadata,
+        index=index,
+        modality=modality,
+        interaction_type=interaction_type,
+    )
+
+
+def load_query_composition_entries(
+    query_section: Mapping[str, object],
+    *,
+    modality: str,
+    interaction_type: str | None,
+) -> tuple[list[dict[str, object]], list[str]]:
+    """Restore query-composition form entries and soft per-entry warnings."""
+    composition = query_section.get("composition")
+    if composition is not None:
+        if not isinstance(composition, list):
+            msg = "query.composition must be a list of mappings."
+            raise TypeError(msg)
+        entries: list[dict[str, object]] = []
+        notes: list[str] = []
+        for index, item in enumerate(composition, start=1):
+            if not isinstance(item, Mapping):
+                msg = f"query.composition[{index}] must be a mapping."
+                raise TypeError(msg)
+            entry = make_query_composition_entry()
+            entry["label"] = str(item.get("label") or "").strip()
+            entry["value"] = str(item.get("value") or "").strip()
+            entry["description"] = str(item.get("description") or "").strip()
+            builder_metadata = item.get("builder")
+            if builder_metadata is not None:
+                note = restore_query_composition_entry_builder_state(
+                    entry,
+                    builder_metadata,
+                    index=index,
+                    modality=modality,
+                    interaction_type=interaction_type,
+                )
+                if note:
+                    notes.append(note)
+            entries.append(entry)
+        build_query_composition_metadata(entries, modality=modality, interaction_type=interaction_type)
+        return entries, notes
+
+    entries = []
+    for value, label in parse_query_composition_value(str(query_section.get("value") or "")):
+        entry = make_query_composition_entry()
+        entry["label"] = label
+        entry["value"] = value
+        entries.append(entry)
+    build_query_composition_metadata(entries, modality=modality, interaction_type=interaction_type)
+    return entries, [QUERY_COMPOSITION_VALUE_PARSED_NOTE]
 
 
 def load_workflow_yaml_text(yaml_text: str) -> dict[str, object]:
@@ -337,6 +775,48 @@ def load_workflow_yaml_text(yaml_text: str) -> dict[str, object]:
         msg = "Workflow YAML root must be a mapping."
         raise TypeError(msg)
     return cast("dict[str, object]", descriptor)
+
+
+def is_structure_download_descriptor_context_valid(
+    descriptor: Mapping[str, object],
+    source: str,
+) -> bool:
+    """Return whether a loaded descriptor may keep an active structure-download flag."""
+    dataset = get_mapping_section(descriptor, "dataset")
+    query = get_mapping_section(descriptor, "query")
+    execution = get_mapping_section(descriptor, "execution")
+    interaction_type = dataset.get("interaction_type")
+    no_interaction = interaction_type in {None, "", "no_interaction", "no-interaction", "no interaction"}
+    if dataset.get("modality") != "protein" or not no_interaction:
+        return False
+    if execution.get("enrich") is not True:
+        return False
+    source_keys = {field.casefold() for field in parse_csv_list(query.get("crossref_fields"))}
+    return source.casefold() in source_keys
+
+
+def normalize_loaded_structure_download_flags(
+    descriptor: Mapping[str, object],
+) -> tuple[dict[str, object], list[str]]:
+    """Disable loaded active structure-download flags that the GUI cannot regenerate validly."""
+    normalized_descriptor = deepcopy(dict(descriptor))
+    execution = normalized_descriptor.get("execution")
+    if not isinstance(execution, dict):
+        return normalized_descriptor, []
+
+    normalized_any = False
+    flag_sources = {
+        "download_alphafold_structures": "alphafold",
+        "download_pdb_structures": "pdb",
+    }
+    for flag_name, source in flag_sources.items():
+        if execution.get(flag_name) is True and not is_structure_download_descriptor_context_valid(
+            normalized_descriptor,
+            source,
+        ):
+            execution[flag_name] = False
+            normalized_any = True
+    return normalized_descriptor, [STRUCTURE_DOWNLOAD_NORMALIZED_WARNING] if normalized_any else []
 
 
 def descriptor_to_form_values(descriptor: Mapping[str, object]) -> dict[str, object]:
@@ -368,8 +848,15 @@ def descriptor_to_form_values(descriptor: Mapping[str, object]) -> dict[str, obj
         QUERY_INPUT_MODE_LABEL_TO_VALUE,
     )
     form_values["query.value"] = str(query.get("value") or "")
-    form_values["query.fields"] = csv_text_from_value(query.get("fields"))
+    query_fields = csv_text_from_value(query.get("fields"))
+    form_values["query.fields"] = query_fields
+    return_field_selections, return_field_custom = split_known_and_custom_return_fields(query_fields)
+    form_values["query.return_field_selections"] = return_field_selections
+    form_values["query.return_field_custom"] = ", ".join(return_field_custom)
     form_values["query.crossref_fields"] = csv_text_from_value(query.get("crossref_fields"))
+    form_values["execution.enrichment_sources"] = enrichment_sources_from_crossref_fields(
+        query.get("crossref_fields")
+    )
     form_values["query.include_isoform"] = parse_bool(query.get("include_isoform", False))
 
     for key in (
@@ -379,6 +866,8 @@ def descriptor_to_form_values(descriptor: Mapping[str, object]) -> dict[str, obj
         "chembl_pages_to_fetch",
         "uniprot_timeout",
         "debug",
+        "download_alphafold_structures",
+        "download_pdb_structures",
     ):
         field_name = f"execution.{key}"
         if key in execution:
@@ -411,15 +900,110 @@ def descriptor_to_form_values(descriptor: Mapping[str, object]) -> dict[str, obj
             form_values[field_name] = export[key]
 
     form_values[PRESERVED_SECTIONS_FORM_KEY] = extract_preserved_workflow_sections(descriptor)
+    if query.get("crossref_fields") is not None and not is_enrichment_workflow_compatible(form_values):
+        form_values[LOADED_INCOMPATIBLE_ENRICHMENT_PASSTHROUGH_FORM_KEY] = True
     return form_values
+
+
+def restore_loaded_query_builder_form_values(
+    descriptor: Mapping[str, object],
+    form_values: dict[str, object],
+) -> str | None:
+    """Restore advanced query-builder form values or return a manual-mode load note."""
+    query = get_mapping_section(descriptor, "query")
+    metadata = query.get("builder")
+    if metadata is None:
+        return LOADED_QUERY_VALUE_WARNING if str(query.get("value") or "").strip() else None
+
+    dataset = get_mapping_section(descriptor, "dataset")
+    if dataset.get("mode") != "query_first":
+        return QUERY_BUILDER_MODE_WARNING
+
+    modality = str(dataset.get("modality") or "")
+    interaction_type_value = dataset.get("interaction_type")
+    interaction_type = str(interaction_type_value) if interaction_type_value else None
+    try:
+        from bioseq_dl.gui.query_builders.metadata import (  # noqa: PLC0415
+            QueryBuilderMetadataMismatchError,
+            restore_query_builder_metadata,
+        )
+
+        restoration = restore_query_builder_metadata(
+            metadata,
+            query.get("value"),
+            modality,
+            interaction_type,
+        )
+    except QueryBuilderMetadataMismatchError:
+        return QUERY_BUILDER_MISMATCH_WARNING
+    except (TypeError, ValueError):
+        return QUERY_BUILDER_NOT_EDITABLE_WARNING
+
+    form_values["query.input_mode"] = get_labeled_option_default(
+        "advanced_builder",
+        QUERY_INPUT_MODE_LABEL_TO_VALUE,
+    )
+    form_values["query.builder.key"] = restoration.builder_key
+    if restoration.builder_key == "uniprot":
+        form_values["query.uniprot_builder.rows"] = [dict(row) for row in restoration.form_rows]
+    elif restoration.builder_key == CHEMBL_IC50_BUILDER_KEY:
+        form_values["query.chembl_ic50_builder.row"] = dict(restoration.form_rows[0])
+    elif restoration.builder_key in CHEMBL_BUILDER_RESOURCE_BY_KEY:
+        form_values["query.chembl_builder.rows"] = [dict(row) for row in restoration.form_rows]
+    elif restoration.builder_key in PUBCHEM_BUILDER_RESOURCE_BY_KEY:
+        form_values["query.pubchem_builder.row"] = dict(restoration.form_rows[0])
+    elif restoration.builder_key in CHEBI_BUILDER_RESOURCE_BY_KEY:
+        form_values["query.chebi_builder.row"] = dict(restoration.form_rows[0])
+    remove_preserved_query_builder(form_values)
+    return None
+
+
+def restore_loaded_query_composition_form_values(
+    descriptor: Mapping[str, object],
+    form_values: dict[str, object],
+) -> list[str]:
+    """Restore editable query-composition entries and return soft load notes."""
+    query = get_mapping_section(descriptor, "query")
+    dataset = get_mapping_section(descriptor, "dataset")
+    modality = str(dataset.get("modality") or "")
+    interaction_type_value = dataset.get("interaction_type")
+    interaction_type = str(interaction_type_value) if interaction_type_value else None
+    try:
+        entries, notes = load_query_composition_entries(
+            query,
+            modality=modality,
+            interaction_type=interaction_type,
+        )
+    except (TypeError, ValueError):
+        if query.get("composition") is not None:
+            raise
+        entry = make_query_composition_entry()
+        entry["value"] = str(query.get("value") or "").strip()
+        form_values["query.composition.entries"] = [entry]
+        return [QUERY_COMPOSITION_PARSE_ERROR_NOTE]
+
+    form_values["query.composition.entries"] = entries
+    remove_preserved_query_composition(form_values)
+    return notes
 
 
 def load_workflow_yaml_to_form_values(yaml_text: str) -> tuple[dict[str, object], list[str]]:
     """Parse, validate, and convert workflow YAML text to form values and warnings."""
     descriptor = load_workflow_yaml_text(yaml_text)
+    descriptor, structure_download_warnings = normalize_loaded_structure_download_flags(descriptor)
     validated_descriptor = validate_workflow_v1_descriptor(descriptor)
     form_values = descriptor_to_form_values(validated_descriptor)
-    warnings = collect_load_warnings(validated_descriptor)
+    warnings = structure_download_warnings + collect_load_warnings(validated_descriptor)
+    dataset = get_mapping_section(validated_descriptor, "dataset")
+    if dataset.get("mode") == "query_composition":
+        warnings.extend(restore_loaded_query_composition_form_values(validated_descriptor, form_values))
+    else:
+        query_builder_note = restore_loaded_query_builder_form_values(
+            validated_descriptor,
+            form_values,
+        )
+        if query_builder_note:
+            warnings.append(query_builder_note)
     return form_values, warnings
 
 
@@ -518,6 +1102,79 @@ def build_chembl_builder_rows_from_form(form_values: Mapping[str, object]) -> li
     ]
 
 
+def build_chembl_ic50_builder_row_from_form(form_values: Mapping[str, object]) -> ChEMBLIC50QueryBuilderRow:
+    """Build a pure ChEMBL IC50 query builder row from GUI form values."""
+    from bioseq_dl.gui.query_builders.chembl import ChEMBLIC50QueryBuilderRow  # noqa: PLC0415
+
+    builder_key = normalize_query_builder_key(get_form_value(form_values, "query.builder.key"))
+    if builder_key != CHEMBL_IC50_BUILDER_KEY:
+        msg = f"Query builder '{builder_key}' is not the ChEMBL IC50 builder."
+        raise ValueError(msg)
+
+    raw_row = get_form_value(form_values, "query.chembl_ic50_builder.row")
+    if not isinstance(raw_row, Mapping):
+        msg = "Advanced ChEMBL IC50 builder row must be a mapping."
+        raise TypeError(msg)
+
+    return ChEMBLIC50QueryBuilderRow(
+        condition=str(get_builder_row_value(raw_row, "condition", "range")),
+        minimum=get_builder_row_value(raw_row, "minimum", None),
+        maximum=get_builder_row_value(raw_row, "maximum", None),
+        value=get_builder_row_value(raw_row, "value", None),
+        unit=str(get_builder_row_value(raw_row, "unit", "nM")),
+    )
+
+
+def build_pubchem_builder_row_from_form(form_values: Mapping[str, object]) -> PubChemQueryBuilderRow:
+    """Build a pure PubChem query builder row from GUI form values."""
+    from bioseq_dl.gui.query_builders.pubchem import (  # noqa: PLC0415
+        PubChemQueryBuilderRow,
+        normalize_pubchem_builder_threshold_state,
+    )
+
+    builder_key = normalize_query_builder_key(get_form_value(form_values, "query.builder.key"))
+    if builder_key not in PUBCHEM_BUILDER_RESOURCE_BY_KEY:
+        msg = f"Query builder '{builder_key}' is not a PubChem builder."
+        raise ValueError(msg)
+
+    raw_row = get_form_value(form_values, "query.pubchem_builder.row")
+    if not isinstance(raw_row, Mapping):
+        msg = "Advanced PubChem builder row must be a mapping."
+        raise TypeError(msg)
+
+    field = str(get_builder_row_value(raw_row, "field", ""))
+    return PubChemQueryBuilderRow(
+        resource=PUBCHEM_BUILDER_RESOURCE_BY_KEY[builder_key],
+        field=field,
+        value=str(get_builder_row_value(raw_row, "value", "")),
+        threshold=normalize_pubchem_builder_threshold_state(
+            field,
+            get_builder_row_value(raw_row, "threshold", None),
+        ),
+    )
+
+
+def build_chebi_builder_row_from_form(form_values: Mapping[str, object]) -> ChEBIQueryBuilderRow:
+    """Build a pure ChEBI query builder row from GUI form values."""
+    from bioseq_dl.gui.query_builders.chebi import ChEBIQueryBuilderRow  # noqa: PLC0415
+
+    builder_key = normalize_query_builder_key(get_form_value(form_values, "query.builder.key"))
+    if builder_key not in CHEBI_BUILDER_RESOURCE_BY_KEY:
+        msg = f"Query builder '{builder_key}' is not a ChEBI builder."
+        raise ValueError(msg)
+
+    raw_row = get_form_value(form_values, "query.chebi_builder.row")
+    if not isinstance(raw_row, Mapping):
+        msg = "Advanced ChEBI builder row must be a mapping."
+        raise TypeError(msg)
+
+    return ChEBIQueryBuilderRow(
+        resource=CHEBI_BUILDER_RESOURCE_BY_KEY[builder_key],
+        field=str(get_builder_row_value(raw_row, "field", "")),
+        value=str(get_builder_row_value(raw_row, "value", "")),
+    )
+
+
 def resolve_query_value_from_form(form_values: Mapping[str, object]) -> str:
     """Resolve the executable query.value from manual or advanced query form values."""
     mode = normalize_query_input_mode(get_form_value(form_values, "query.input_mode"))
@@ -543,6 +1200,85 @@ def resolve_query_value_from_form(form_values: Mapping[str, object]) -> str:
             raise ValueError(msg)
         return build_chembl_interpreted_query(rows)
 
+    if builder_key == CHEMBL_IC50_BUILDER_KEY:
+        from bioseq_dl.gui.query_builders.chembl import build_chembl_ic50_interpreted_query  # noqa: PLC0415
+
+        return build_chembl_ic50_interpreted_query(build_chembl_ic50_builder_row_from_form(form_values))
+
+    if builder_key in PUBCHEM_BUILDER_RESOURCE_BY_KEY:
+        from bioseq_dl.gui.query_builders.pubchem import build_pubchem_interpreted_query  # noqa: PLC0415
+
+        row = build_pubchem_builder_row_from_form(form_values)
+        return build_pubchem_interpreted_query(row)
+
+    if builder_key in CHEBI_BUILDER_RESOURCE_BY_KEY:
+        from bioseq_dl.gui.query_builders.chebi import build_chebi_interpreted_query  # noqa: PLC0415
+
+        row = build_chebi_builder_row_from_form(form_values)
+        return build_chebi_interpreted_query(row)
+
+    msg = f"Unsupported query builder '{builder_key}'."
+    raise ValueError(msg)
+
+
+def build_query_builder_metadata_from_form(form_values: Mapping[str, object]) -> dict[str, object] | None:
+    """Build optional neutral metadata for the selected advanced query builder."""
+    workflow_mode = normalize_labeled_value(
+        get_form_value(form_values, "dataset.mode"),
+        WORKFLOW_MODE_LABEL_TO_VALUE,
+    )
+    if workflow_mode != "query_first":
+        return None
+
+    mode = normalize_query_input_mode(get_form_value(form_values, "query.input_mode"))
+    if mode == "manual":
+        return None
+
+    builder_key = normalize_query_builder_key(get_form_value(form_values, "query.builder.key"))
+    if builder_key == "uniprot":
+        from bioseq_dl.gui.query_builders.metadata import (  # noqa: PLC0415
+            build_uniprot_query_builder_metadata,
+        )
+
+        return build_uniprot_query_builder_metadata(build_uniprot_builder_rows_from_form(form_values))
+
+    if builder_key in CHEMBL_BUILDER_RESOURCE_BY_KEY:
+        from bioseq_dl.gui.query_builders.metadata import (  # noqa: PLC0415
+            build_chembl_query_builder_metadata,
+        )
+
+        return build_chembl_query_builder_metadata(
+            builder_key,
+            build_chembl_builder_rows_from_form(form_values),
+        )
+
+    if builder_key == CHEMBL_IC50_BUILDER_KEY:
+        from bioseq_dl.gui.query_builders.metadata import (  # noqa: PLC0415
+            build_chembl_ic50_query_builder_metadata,
+        )
+
+        return build_chembl_ic50_query_builder_metadata(build_chembl_ic50_builder_row_from_form(form_values))
+
+    if builder_key in PUBCHEM_BUILDER_RESOURCE_BY_KEY:
+        from bioseq_dl.gui.query_builders.metadata import (  # noqa: PLC0415
+            build_pubchem_query_builder_metadata,
+        )
+
+        return build_pubchem_query_builder_metadata(
+            builder_key,
+            build_pubchem_builder_row_from_form(form_values),
+        )
+
+    if builder_key in CHEBI_BUILDER_RESOURCE_BY_KEY:
+        from bioseq_dl.gui.query_builders.metadata import (  # noqa: PLC0415
+            build_chebi_query_builder_metadata,
+        )
+
+        return build_chebi_query_builder_metadata(
+            builder_key,
+            build_chebi_builder_row_from_form(form_values),
+        )
+
     msg = f"Unsupported query builder '{builder_key}'."
     raise ValueError(msg)
 
@@ -555,6 +1291,147 @@ def parse_csv_list(value: object) -> list[str]:
         return [str(item).strip() for item in value if str(item).strip()]
     normalized = str(value).replace("\r\n", "\n").replace("\n", ",")
     return [item.strip() for item in normalized.split(",") if item.strip()]
+
+
+def get_enrichment_source_options() -> dict[str, str]:
+    """Return GUI labels mapped to executable enrichment source keys."""
+    return dict(ENRICHMENT_SOURCE_OPTIONS)
+
+
+def normalize_enrichment_sources(value: object) -> list[str]:
+    """Normalize GUI enrichment source selections to executable source keys."""
+    raw_values = (
+        [str(item).strip() for item in value if str(item).strip()]
+        if isinstance(value, (list, tuple, set))
+        else parse_csv_list(value)
+    )
+    options = get_enrichment_source_options()
+    label_to_key = {label.casefold(): key for label, key in options.items()}
+    key_lookup = {key.casefold(): key for key in options.values()}
+    normalized: list[str] = []
+    for raw_value in raw_values:
+        lookup_value = raw_value.casefold()
+        source_key = label_to_key.get(lookup_value) or key_lookup.get(lookup_value)
+        if source_key and source_key not in normalized:
+            normalized.append(source_key)
+    return normalized
+
+
+def enrichment_sources_from_crossref_fields(value: object) -> list[str]:
+    """Infer selectable GUI enrichment sources from cross-reference fields."""
+    options = get_enrichment_source_options()
+    source_keys = {key.casefold(): key for key in options.values()}
+    sources: list[str] = []
+    for field in parse_csv_list(value):
+        lookup_value = field.casefold()
+        source_key = source_keys.get(lookup_value)
+        if source_key and source_key not in sources:
+            sources.append(source_key)
+    return sources
+
+
+def selected_enrichment_source_keys(form_values: Mapping[str, object]) -> set[str]:
+    """Return canonical selected enrichment source keys from visible and advanced state."""
+    selected_sources = set(
+        normalize_enrichment_sources(get_form_value(form_values, "execution.enrichment_sources"))
+    )
+    selected_sources.update(
+        enrichment_sources_from_crossref_fields(get_form_value(form_values, "query.crossref_fields"))
+    )
+    return selected_sources
+
+
+def is_structure_download_source_selected(form_values: Mapping[str, object], source: str) -> bool:
+    """Return whether a canonical structure source is selected for enrichment."""
+    return source in selected_enrichment_source_keys(form_values)
+
+
+def can_enable_structure_download(form_values: Mapping[str, object], source: str) -> bool:
+    """Return whether a structure-download flag may serialize as true."""
+    return (
+        is_enrichment_workflow_compatible(form_values)
+        and parse_bool(get_form_value(form_values, "execution.enrich"))
+        and is_structure_download_source_selected(form_values, source)
+    )
+
+
+def has_unsupported_enrichment_sources(value: object) -> bool:
+    """Return whether cross-reference fields include values outside GUI source choices."""
+    fields = parse_csv_list(value)
+    if not fields:
+        return False
+    known_keys = {key.casefold() for key in get_enrichment_source_options().values()}
+    return any(field.casefold() not in known_keys for field in fields)
+
+
+def crossref_fields_from_enrichment_sources(
+    sources: object,
+    *,
+    existing_crossref_fields: object = None,
+    preserve_known_existing: bool = True,
+) -> str:
+    """Return cross-reference field text synchronized with GUI source selections."""
+    selected_sources = normalize_enrichment_sources(sources)
+    fields = list(selected_sources)
+    for field in parse_csv_list(existing_crossref_fields):
+        if field in fields:
+            continue
+        mapped_sources = enrichment_sources_from_crossref_fields([field])
+        if mapped_sources and (
+            not preserve_known_existing or any(source in selected_sources for source in mapped_sources)
+        ):
+            continue
+        fields.append(field)
+    return ", ".join(fields)
+
+
+def crossref_fields_without_selectable_sources(value: object) -> str:
+    """Return cross-reference fields after removing GUI-selectable enrichment sources."""
+    fields = [
+        field for field in parse_csv_list(value) if not enrichment_sources_from_crossref_fields([field])
+    ]
+    return ", ".join(fields)
+
+
+def return_fields_for_yaml(form_values: Mapping[str, object]) -> str:
+    """Resolve GUI return-field selector state to the canonical query.fields text."""
+    explicit_fields = csv_text_from_value(get_form_value(form_values, "query.fields"))
+    if explicit_fields:
+        return explicit_fields
+    if has_form_value(form_values, "query.return_field_selections") or has_form_value(
+        form_values, "query.return_field_custom"
+    ):
+        return return_fields_from_selection(
+            get_form_value(form_values, "query.return_field_selections"),
+            get_form_value(form_values, "query.return_field_custom"),
+        )
+    return explicit_fields
+
+
+def get_effective_uniprot_return_field_text(
+    fields: object,
+    crossref_fields: object = None,
+) -> str:
+    """Return comma-separated UniProt fields after default and enrichment-field resolution."""
+    return ", ".join(get_effective_uniprot_return_fields(fields, crossref_fields))
+
+
+def get_required_uniprot_return_field_text(crossref_fields: object) -> str:
+    """Return comma-separated UniProt fields required by enrichment selections."""
+    return ", ".join(get_required_uniprot_fields_for_enrichment(crossref_fields))
+
+
+def is_enrichment_workflow_compatible(form_values: Mapping[str, object]) -> bool:
+    """Return whether protein cross-reference enrichment can execute for this workflow."""
+    modality = normalize_labeled_value(
+        get_form_value(form_values, "dataset.modality"),
+        MODALITY_LABEL_TO_VALUE,
+    )
+    interaction_type = normalize_labeled_value(
+        get_form_value(form_values, "dataset.interaction_type"),
+        INTERACTION_TYPE_LABEL_TO_VALUE,
+    )
+    return modality == "protein" and interaction_type is None
 
 
 def build_workflow_filename(dataset_name: object) -> str:
@@ -735,19 +1612,76 @@ def build_dataset_section(form_values: Mapping[str, object]) -> dict[str, object
 
 def build_query_section(form_values: Mapping[str, object]) -> dict[str, object]:
     """Build the workflow query section."""
-    query: dict[str, object] = {
-        "value": resolve_query_value_from_form(form_values),
-        "include_isoform": parse_bool(get_form_value(form_values, "query.include_isoform")),
-    }
-    add_optional_list(query, "fields", get_form_value(form_values, "query.fields"))
-    add_optional_list(query, "crossref_fields", get_form_value(form_values, "query.crossref_fields"))
-    return cast("dict[str, object]", remove_empty_values(query))
+    workflow_mode = normalize_labeled_value(
+        get_form_value(form_values, "dataset.mode"),
+        WORKFLOW_MODE_LABEL_TO_VALUE,
+    )
+    if workflow_mode == "query_composition":
+        modality = str(
+            normalize_labeled_value(
+                get_form_value(form_values, "dataset.modality"),
+                MODALITY_LABEL_TO_VALUE,
+            )
+        )
+        interaction_type_value = normalize_labeled_value(
+            get_form_value(form_values, "dataset.interaction_type"),
+            INTERACTION_TYPE_LABEL_TO_VALUE,
+        )
+        interaction_type = str(interaction_type_value) if interaction_type_value else None
+        composition = build_query_composition_metadata(
+            get_form_value(form_values, "query.composition.entries"),
+            modality=modality,
+            interaction_type=interaction_type,
+        )
+        query: dict[str, object] = {
+            "value": build_query_composition_value(composition),
+            "include_isoform": parse_bool(get_form_value(form_values, "query.include_isoform")),
+        }
+    else:
+        query = {
+            "value": resolve_query_value_from_form(form_values),
+            "include_isoform": parse_bool(get_form_value(form_values, "query.include_isoform")),
+        }
+    add_optional_list(query, "fields", return_fields_for_yaml(form_values))
+    crossref_fields = get_form_value(form_values, "query.crossref_fields")
+    enrichment_compatible = is_enrichment_workflow_compatible(form_values)
+    if (
+        enrichment_compatible
+        and parse_bool(get_form_value(form_values, "execution.enrich"))
+        and has_form_value(form_values, "execution.enrichment_sources")
+    ):
+        crossref_fields = crossref_fields_from_enrichment_sources(
+            get_form_value(form_values, "execution.enrichment_sources"),
+            existing_crossref_fields=crossref_fields,
+        )
+    elif not enrichment_compatible and not parse_bool(
+        form_values.get(LOADED_INCOMPATIBLE_ENRICHMENT_PASSTHROUGH_FORM_KEY)
+    ):
+        crossref_fields = crossref_fields_without_selectable_sources(crossref_fields)
+    add_optional_list(query, "crossref_fields", crossref_fields)
+    cleaned_query = cast("dict[str, object]", remove_empty_values(query))
+    if workflow_mode == "query_composition":
+        cleaned_query["composition"] = composition
+    else:
+        builder_metadata = build_query_builder_metadata_from_form(form_values)
+        if builder_metadata is not None:
+            cleaned_query["builder"] = builder_metadata
+    return cleaned_query
 
 
 def build_execution_section(form_values: Mapping[str, object]) -> dict[str, object]:
     """Build the workflow execution section."""
+    download_alphafold_structures = can_enable_structure_download(form_values, "alphafold") and parse_bool(
+        get_form_value(form_values, "execution.download_alphafold_structures")
+    )
+    download_pdb_structures = can_enable_structure_download(form_values, "pdb") and parse_bool(
+        get_form_value(form_values, "execution.download_pdb_structures")
+    )
     execution: dict[str, object] = {
-        "enrich": parse_bool(get_form_value(form_values, "execution.enrich")),
+        "enrich": is_enrichment_workflow_compatible(form_values)
+        and parse_bool(get_form_value(form_values, "execution.enrich")),
+        "download_alphafold_structures": download_alphafold_structures,
+        "download_pdb_structures": download_pdb_structures,
         "max_workers": parse_required_int(
             get_form_value(form_values, "execution.max_workers"),
             "execution.max_workers",

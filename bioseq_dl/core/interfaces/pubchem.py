@@ -10,12 +10,20 @@ from niquests.exceptions import RequestException
 # Add the import for your database in constants
 from bioseq_dl.constants.databases import PUBCHEM
 from bioseq_dl.constants.pubchem import COMPOUND_TEMPLATE, GENE_TEMPLATE, OPTIONS, PROTEIN_TEMPLATE
+from bioseq_dl.core.exceptions import RequestError
 from bioseq_dl.core.utils.base_auxiliary_methods import validate_parameters
 from bioseq_dl.logging import get_logger
 
 from .base import BaseAPIInterface
 
 log = get_logger("bioseq_dl.interfaces.pubchem")
+WORKFLOW_COMPOUND_PROPERTIES_METHOD = "workflow/compound-properties"
+WORKFLOW_COMPOUND_PROPERTIES = (
+    "MolecularFormula,MolecularWeight,CanonicalSMILES,IsomericSMILES,InChI,InChIKey,IUPACName"
+)
+# Default Threshold for a similarity_2d search. The request builder and the cache-identifier
+# builder must agree on this so an unset threshold and an explicit 90 map to one cache entry.
+DEFAULT_SIMILARITY_THRESHOLD = 90
 
 # PubChem has 2 main API access points: PUG-REST and PUG-View.
 # PUG-REST is used for short requests with simple inputs and outputs.
@@ -106,6 +114,19 @@ class PubChemInterface(BaseAPIInterface):
                 "group_queries": [None],
                 "separator": None,
             }
+        },
+        WORKFLOW_COMPOUND_PROPERTIES_METHOD: {
+            "http_method": "GET",
+            "path_param": None,
+            "parameters": {
+                "namespace": (str, None, True),
+                "identifier": (str, None, True),
+                "search_mode": (str, "lookup", False),
+                "max_records": (int, 100, False),
+                "threshold": (int, None, False),
+            },
+            "group_queries": [None],
+            "separator": None,
         },
     }
 
@@ -351,6 +372,102 @@ class PubChemInterface(BaseAPIInterface):
             name_type = validated_params.pop("name_type")
         return http_method, inputs, validated_params, option, name_type
 
+    @staticmethod
+    def _build_workflow_compound_properties_request(query: dict[str, Any]) -> Request:
+        """Build a PUG-REST property request for workflow compound lookups."""
+        namespace = str(query.get("namespace") or "")
+        identifier = str(query.get("identifier") or "")
+        search_mode = str(query.get("search_mode") or "lookup")
+        if not namespace or not identifier:
+            msg = "PubChem workflow compound property queries require namespace and identifier."
+            raise ValueError(msg)
+
+        base_url = PUBCHEM.API_URL.rstrip("/")
+        params: dict[str, Any] = {}
+        data: dict[str, Any] | None = None
+        headers: dict[str, str] | None = None
+        http_method = "GET"
+        if search_mode == "lookup":
+            if namespace == "inchi":
+                url = f"{base_url}/pug/compound/inchi/property/{WORKFLOW_COMPOUND_PROPERTIES}/JSON"
+                http_method = "POST"
+                data = {"inchi": identifier}
+                headers = {"Content-Type": "application/x-www-form-urlencoded"}
+            else:
+                namespace_path = urllib.parse.quote(namespace, safe="")
+                identifier_path = urllib.parse.quote(identifier, safe="")
+                url = (
+                    f"{base_url}/pug/compound/{namespace_path}/{identifier_path}/property/"
+                    f"{WORKFLOW_COMPOUND_PROPERTIES}/JSON"
+                )
+        elif search_mode in {"identity", "substructure"}:
+            search_prefixes = {"identity": "fastidentity", "substructure": "fastsubstructure"}
+            identifier_path = urllib.parse.quote(identifier, safe="")
+            url = (
+                f"{base_url}/pug/compound/{search_prefixes[search_mode]}/smiles/{identifier_path}/property/"
+                f"{WORKFLOW_COMPOUND_PROPERTIES}/JSON"
+            )
+            params["MaxRecords"] = int(query.get("max_records") or 100)
+        elif search_mode == "similarity_2d":
+            identifier_path = urllib.parse.quote(identifier, safe="")
+            url = (
+                f"{base_url}/pug/compound/fastsimilarity_2d/cid/{identifier_path}/property/"
+                f"{WORKFLOW_COMPOUND_PROPERTIES}/JSON"
+            )
+            params["MaxRecords"] = int(query.get("max_records") or 100)
+            threshold = query.get("threshold")
+            params["Threshold"] = int(threshold) if threshold is not None else DEFAULT_SIMILARITY_THRESHOLD
+        else:
+            msg = (
+                "Unsupported PubChem workflow search mode "
+                f"'{search_mode}'. Supported modes are: lookup, identity, substructure, similarity_2d."
+            )
+            raise ValueError(msg)
+
+        return Request(method=http_method, url=url, params=params, data=data, headers=headers)
+
+    def _fetch_workflow_compound_properties(self, query: object) -> dict | list:
+        """Fetch PubChem compound properties for an executable workflow request."""
+        if not isinstance(query, dict):
+            msg = "PubChem workflow compound property queries must be mappings."
+            raise TypeError(msg)
+
+        request = self._build_workflow_compound_properties_request(query)
+        prepared = self.session.prepare_request(request)
+        log.debug("Prepared PubChem workflow request: %s", prepared.url)
+
+        try:
+            response = self.session.send(prepared)
+            self._delay()
+            response.raise_for_status()
+            payload = response.json()
+        except (RequestException, ValueError) as exc:
+            log.exception("Error fetching PubChem workflow properties for %s", query.get("identifier"))
+            msg = f"PubChem workflow request failed for {query.get('identifier')}: {exc}"
+            raise RequestError(msg) from exc
+        return self._unwrap_pug_envelope(payload, "pug/compound", "property", query)
+
+    def _make_identifier(self, query: str | dict | list, spec: dict) -> str:
+        """Build cache identifiers for PubChem requests."""
+        if spec == self.METHODS[WORKFLOW_COMPOUND_PROPERTIES_METHOD] and isinstance(query, dict):
+            search_mode = query.get("search_mode", "lookup")
+            identifier = {
+                "namespace": query.get("namespace"),
+                "identifier": query.get("identifier"),
+                "search_mode": search_mode,
+                "max_records": query.get("max_records", 100),
+                "properties": WORKFLOW_COMPOUND_PROPERTIES,
+            }
+            # Only similarity_2d sends Threshold; mirror the request default so an
+            # unset threshold and an explicit default map to the same cache entry.
+            if search_mode == "similarity_2d":
+                threshold = query.get("threshold")
+                identifier["threshold"] = (
+                    int(threshold) if threshold is not None else DEFAULT_SIMILARITY_THRESHOLD
+                )
+            return json.dumps(identifier, sort_keys=True)
+        return super()._make_identifier(query, spec)
+
     def fetch(self, query: str | dict | list, *, method: str = "DEFAULT", **kwargs: Any) -> dict | list | str:
         """Fetch compound or protein data from PubChem.
 
@@ -366,6 +483,9 @@ class PubChemInterface(BaseAPIInterface):
             dict | list | str: The fetched, envelope-unwrapped response, or ``{}`` on failure.
 
         """
+        if method == WORKFLOW_COMPOUND_PROPERTIES_METHOD:
+            return self._fetch_workflow_compound_properties(query)
+
         resolved = self._resolve_request(query, method, kwargs)
         if resolved is None:
             return {}
@@ -381,7 +501,6 @@ class PubChemInterface(BaseAPIInterface):
 
         prepared = self.session.prepare_request(response)
         log.debug("Prepared request: %s", prepared.url)
-        log.info("Prepared request: %s", prepared.url)
 
         try:
             response = self.session.send(prepared)

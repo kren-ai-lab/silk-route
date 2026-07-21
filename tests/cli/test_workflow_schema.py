@@ -104,6 +104,30 @@ def test_allowed_top_level_sections_are_exactly_workflow_v1_sections() -> None:
     assert len(ALLOWED_DESCRIPTOR_SECTION_NAMES) == len(KNOWN_DESCRIPTOR_SECTIONS)
 
 
+def test_every_accepted_section_key_is_in_the_schema_definition() -> None:
+    # Every validated key must appear in the schema definition, or GUI/YAML generators
+    # can't see it and it fails to round-trip.
+    from bioseq_dl.core.workflow.schema import (
+        DATASET_KEYS,
+        EXECUTION_KEYS,
+        EXPORT_KEYS,
+        HARMONIZATION_KEYS,
+        QUERY_KEYS,
+        get_workflow_v1_schema_definition,
+    )
+
+    definition = set(get_workflow_v1_schema_definition())
+    for section, keys in (
+        ("dataset", DATASET_KEYS),
+        ("query", QUERY_KEYS),
+        ("execution", EXECUTION_KEYS),
+        ("harmonization", HARMONIZATION_KEYS),
+        ("export", EXPORT_KEYS),
+    ):
+        missing = {key for key in keys if f"{section}.{key}" not in definition}
+        assert not missing, f"{section} keys missing from schema definition: {missing}"
+
+
 def test_valid_minimal_workflow_v1_descriptor() -> None:
     values = validate_workflow_recipe(base_workflow_descriptor())
 

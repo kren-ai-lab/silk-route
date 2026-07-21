@@ -5,7 +5,9 @@ from __future__ import annotations
 import pytest
 from niquests_mock import startswith
 
+from bioseq_dl.core.interfaces.base import BaseAPIInterface
 from bioseq_dl.core.interfaces.proteindatabank import PDBInterface
+from bioseq_dl.core.metadata import FetchMetadata
 from tests._helpers import load_fixture
 from tests.core.interfaces._contract import CachingContract, HttpErrorContract
 
@@ -41,6 +43,37 @@ def test_parse_extracts_requested_fields(interface):
     parsed = interface.parse(body, fields_to_extract={"id": "rcsb_id", "title": "struct.title"})
 
     assert parsed == {"id": body["rcsb_id"], "title": body["struct"]["title"]}
+
+
+def test_download_batch_fetches_dict_queries(monkeypatch, tmp_path):
+    interface = PDBInterface(
+        download_structures=True,
+        cache_dir=str(tmp_path),
+        config_dir=str(tmp_path),
+        min_wait=0,
+        max_wait=0,
+        use_config=False,
+    )
+
+    fetched = []
+
+    def fake_single(self, query, parse=False, *args, **kwargs):
+        fetched.append(query)
+        pdb_id = query if isinstance(query, str) else query.get("id")
+        return [{"id": pdb_id}], FetchMetadata().to_dict()
+
+    downloaded = []
+    monkeypatch.setattr(BaseAPIInterface, "fetch_single", fake_single)
+    monkeypatch.setattr(interface, "fetch_structure", lambda pid: downloaded.append(pid) or f"/x/{pid}.pdb")
+    monkeypatch.setattr(interface, "_display_downloaded_structure_path", lambda path: path)
+
+    interface.fetch_batch(["4HHB", {"id": "1ABC"}])
+
+    # Both the string and the dict query are fetched (dict is no longer silently dropped).
+    assert "4HHB" in fetched
+    assert {"id": "1ABC"} in fetched
+    # Structure download is attempted only for the string PDB id.
+    assert downloaded == ["4HHB"]
 
 
 class TestPdbContract(CachingContract, HttpErrorContract):

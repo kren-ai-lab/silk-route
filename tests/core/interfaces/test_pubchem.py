@@ -5,7 +5,11 @@ from __future__ import annotations
 import pytest
 from niquests_mock import startswith
 
-from bioseq_dl.core.interfaces.pubchem import PubChemInterface
+from bioseq_dl.core.exceptions import RequestError
+from bioseq_dl.core.interfaces.pubchem import (
+    WORKFLOW_COMPOUND_PROPERTIES_METHOD,
+    PubChemInterface,
+)
 from tests._helpers import load_fixture
 from tests.core.interfaces._contract import CachingContract, HttpErrorContract
 
@@ -38,6 +42,39 @@ def test_parse_extracts_requested_fields(interface):
     )
 
     assert parsed == {"title": body["Record"]["RecordTitle"]}
+
+
+WORKFLOW_LOOKUP_URL = "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/aspirin/property/"
+
+
+def test_workflow_fetch_raises_request_error_on_http_failure(interface, niquests_mock):
+    # HTTP failure must raise RequestError so the base records request_error.
+    niquests_mock.get(url=startswith(WORKFLOW_LOOKUP_URL)).respond(status_code=503)
+
+    query = {"namespace": "name", "identifier": "aspirin", "search_mode": "lookup"}
+    with pytest.raises(RequestError, match="PubChem workflow request failed"):
+        interface.fetch(query, method=WORKFLOW_COMPOUND_PROPERTIES_METHOD)
+
+
+@pytest.mark.parametrize(("threshold", "expected"), [(0, 0), (95, 95), (None, 90)])
+def test_workflow_similarity_threshold_is_honored(interface, threshold, expected):
+    query = {"namespace": "cid", "identifier": "2244", "search_mode": "similarity_2d"}
+    if threshold is not None:
+        query["threshold"] = threshold
+    request = interface._build_workflow_compound_properties_request(query)
+    assert request.params["Threshold"] == expected
+
+
+def test_workflow_similarity_cache_key_matches_default_threshold(interface):
+    # An unset threshold and an explicit 90 hit the same cache entry (request uses 90).
+    spec = interface.METHODS[WORKFLOW_COMPOUND_PROPERTIES_METHOD]
+    base = {"namespace": "cid", "identifier": "2244", "search_mode": "similarity_2d"}
+    assert interface._make_identifier(base, spec) == interface._make_identifier(
+        {**base, "threshold": 90}, spec
+    )
+    assert interface._make_identifier(base, spec) != interface._make_identifier(
+        {**base, "threshold": 50}, spec
+    )
 
 
 class TestPubchemContract(CachingContract, HttpErrorContract):

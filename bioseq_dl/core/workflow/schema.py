@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import datetime as dt
 from copy import deepcopy
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 WORKFLOW_SCHEMA_VERSION = "workflow-v1"
 MODALITIES = ["protein", "compound", "interaction"]
@@ -64,6 +68,8 @@ QUERY_KEYS = {
 RESOURCES_KEYS = {"primary", "integration"}
 EXECUTION_KEYS = {
     "enrich",
+    "download_alphafold_structures",
+    "download_pdb_structures",
     "max_workers",
     "total_retries",
     "chembl_pages_to_fetch",
@@ -176,6 +182,15 @@ _WORKFLOW_V1_SCHEMA_DEFINITION: dict[str, object] = {
         "description": "Interaction type required when dataset.modality is interaction.",
         "gui_visible": True,
     },
+    "dataset.primary_data_source": {
+        "type": "string",
+        "required": False,
+        "default": None,
+        "allowed_values": None,
+        "role": "optional_input",
+        "description": "Optional primary data source label recorded in the descriptor.",
+        "gui_visible": False,
+    },
     "query.value": {
         "type": "string",
         "required": True,
@@ -184,6 +199,24 @@ _WORKFLOW_V1_SCHEMA_DEFINITION: dict[str, object] = {
         "role": "required_input",
         "description": "Executable query string.",
         "gui_visible": True,
+    },
+    "query.description": {
+        "type": "string",
+        "required": False,
+        "default": None,
+        "allowed_values": None,
+        "role": "optional_input",
+        "description": "Human-readable query description.",
+        "gui_visible": False,
+    },
+    "query.filtering_strategy": {
+        "type": "string",
+        "required": False,
+        "default": None,
+        "allowed_values": None,
+        "role": "optional_input",
+        "description": "Descriptive note about the query's filtering strategy.",
+        "gui_visible": False,
     },
     "query.fields": {
         "type": "string_list",
@@ -239,6 +272,24 @@ _WORKFLOW_V1_SCHEMA_DEFINITION: dict[str, object] = {
         "description": "Enable supported enrichment behavior.",
         "gui_visible": True,
     },
+    "execution.download_alphafold_structures": {
+        "type": "boolean",
+        "required": False,
+        "default": False,
+        "allowed_values": None,
+        "role": "optional_input",
+        "description": "Download AlphaFold PDB structure files during AlphaFold enrichment.",
+        "gui_visible": False,
+    },
+    "execution.download_pdb_structures": {
+        "type": "boolean",
+        "required": False,
+        "default": False,
+        "allowed_values": None,
+        "role": "optional_input",
+        "description": "Download local PDB structure files during PDB enrichment.",
+        "gui_visible": False,
+    },
     "execution.max_workers": {
         "type": "integer",
         "required": False,
@@ -265,6 +316,15 @@ _WORKFLOW_V1_SCHEMA_DEFINITION: dict[str, object] = {
         "role": "optional_input",
         "description": "ChEMBL page cap. Use -1 for all pages or a positive integer.",
         "gui_visible": True,
+    },
+    "execution.merge_results": {
+        "type": "boolean",
+        "required": False,
+        "default": None,
+        "allowed_values": None,
+        "role": "optional_input",
+        "description": "Merge per-source results into a single output when supported.",
+        "gui_visible": False,
     },
     "execution.uniprot_timeout": {
         "type": "number",
@@ -634,6 +694,10 @@ def validate_query_composition(value: object) -> None:
         if "description" in item and description is not None and not isinstance(description, str):
             msg = f"Workflow YAML key 'query.composition[{index}].description' must be a string or null."
             raise ValueError(msg)
+        builder = item.get("builder")
+        if "builder" in item and not isinstance(builder, dict):
+            msg = f"Workflow YAML key 'query.composition[{index}].builder' must be a mapping."
+            raise TypeError(msg)
 
 
 def parse_query_composition_value(query_value: str) -> list[tuple[str, str]]:
@@ -646,7 +710,7 @@ def parse_query_composition_value(query_value: str) -> list[tuple[str, str]]:
         if "=" not in query_part:
             msg = "query.composition does not match executable query.value."
             raise ValueError(msg)
-        query_text, label = query_part.split("=", 1)
+        query_text, label = query_part.rsplit("=", 1)
         query_text = query_text.strip()
         label = label.strip()
         if not query_text or not label:
@@ -782,6 +846,9 @@ def validate_execution_section(execution: dict[str, object]) -> dict[str, object
     validate_allowed_section_keys("execution", execution, EXECUTION_KEYS)
     if "enrich" in execution:
         validate_bool("execution", "enrich", execution["enrich"])
+    for key in ("download_alphafold_structures", "download_pdb_structures"):
+        if key in execution:
+            validate_bool("execution", key, execution[key])
     if "merge_results" in execution:
         validate_bool("execution", "merge_results", execution["merge_results"])
     if "max_workers" in execution:
@@ -795,6 +862,29 @@ def validate_execution_section(execution: dict[str, object]) -> dict[str, object
     if "debug" in execution:
         validate_bool("execution", "debug", execution["debug"])
     return dict(execution)
+
+
+def validate_structure_download_controls(dataset: dict[str, object], execution: dict[str, object]) -> None:
+    """Reject active structure downloads outside protein metadata enrichment."""
+    active_keys = [
+        key
+        for key in ("download_alphafold_structures", "download_pdb_structures")
+        if execution.get(key) is True
+    ]
+    if not active_keys:
+        return
+
+    modality = dataset.get("modality")
+    interaction_type = dataset.get("interaction_type")
+    if modality != "protein" or interaction_type is not None:
+        keys = ", ".join(f"execution.{key}" for key in active_keys)
+        msg = f"{keys} may be true only for protein workflows with no interaction_type."
+        raise ValueError(msg)
+
+    if execution.get("enrich") is not True:
+        keys = ", ".join(f"execution.{key}" for key in active_keys)
+        msg = f"{keys} require execution.enrich: true."
+        raise ValueError(msg)
 
 
 def validate_harmonization_section(harmonization: dict[str, object]) -> dict[str, object]:
@@ -841,6 +931,101 @@ def validate_export_section(export_section: dict[str, object]) -> dict[str, obje
     return normalized_export
 
 
+def _collect_validation_step_error(errors: list[str], step: Callable[[], object]) -> None:
+    """Append a validation step error without stopping multi-error collection."""
+    try:
+        step()
+    except (ValueError, TypeError) as exc:
+        errors.append(str(exc))
+
+
+def _validate_export_section_from_descriptor(descriptor: dict[str, object]) -> dict[str, object]:
+    """Validate the export section while collecting workflow descriptor errors."""
+    return validate_export_section(require_mapping("export", descriptor["export"]))
+
+
+def collect_workflow_v1_descriptor_errors(recipe: object) -> list[str]:
+    """Return every section-level workflow-v1 validation error found."""
+    if not isinstance(recipe, dict):
+        return ["Workflow YAML root must be a mapping."]
+
+    errors: list[str] = []
+
+    _collect_validation_step_error(errors, lambda: check_forbidden_workflow_recipe_keys(recipe))
+    descriptor = {str(key): value for key, value in recipe.items()}
+    _collect_validation_step_error(errors, lambda: validate_descriptor_section_names(descriptor))
+    _collect_validation_step_error(errors, lambda: validate_schema_version(descriptor))
+
+    missing_sections = sorted(REQUIRED_DESCRIPTOR_SECTIONS - set(descriptor))
+    if missing_sections:
+        errors.append(
+            f"Workflow YAML is missing required top-level section(s): {', '.join(missing_sections)}."
+        )
+
+    export_section: dict[str, object] = {}
+
+    section_steps: list[tuple[str, Callable[[], object]]] = [
+        ("export", lambda: _validate_export_section_from_descriptor(descriptor)),
+        (
+            "dataset",
+            lambda: validate_dataset_section(
+                require_mapping("dataset", descriptor["dataset"]), export_section
+            ),
+        ),
+        ("query", lambda: validate_query_section(require_mapping("query", descriptor["query"]))),
+        (
+            "execution",
+            lambda: validate_execution_section(require_mapping("execution", descriptor["execution"])),
+        ),
+        (
+            "resources",
+            lambda: validate_resources_section(require_mapping("resources", descriptor["resources"])),
+        ),
+        (
+            "harmonization",
+            lambda: validate_harmonization_section(
+                require_mapping("harmonization", descriptor["harmonization"])
+            ),
+        ),
+        (
+            "reporting",
+            lambda: validate_reporting_section(require_mapping("reporting", descriptor["reporting"])),
+        ),
+    ]
+    valid_sections: set[str] = set()
+    for name, step in section_steps:
+        if name in descriptor:
+            before = len(errors)
+            if name == "export":
+                try:
+                    export_section = _validate_export_section_from_descriptor(descriptor)
+                except (ValueError, TypeError) as exc:
+                    errors.append(str(exc))
+            else:
+                _collect_validation_step_error(errors, step)
+            if len(errors) == before:
+                valid_sections.add(name)
+
+    if {"dataset", "query"} <= valid_sections:
+        _collect_validation_step_error(
+            errors,
+            lambda: validate_query_composition_matches_query_value(
+                require_mapping("query", descriptor["query"]),
+                require_mapping("dataset", descriptor["dataset"]).get("mode"),
+            ),
+        )
+    if {"dataset", "execution"} <= valid_sections:
+        _collect_validation_step_error(
+            errors,
+            lambda: validate_structure_download_controls(
+                require_mapping("dataset", descriptor["dataset"]),
+                require_mapping("execution", descriptor["execution"]),
+            ),
+        )
+
+    return errors
+
+
 def validate_workflow_v1_descriptor(recipe: object) -> dict[str, object]:
     """Validate and return a lightweight normalized workflow-v1 descriptor."""
     if not isinstance(recipe, dict):
@@ -866,6 +1051,7 @@ def validate_workflow_v1_descriptor(recipe: object) -> dict[str, object]:
     query = validate_query_section(require_mapping("query", workflow_descriptor["query"]))
     validate_query_composition_matches_query_value(query, dataset["mode"])
     execution = validate_execution_section(require_mapping("execution", workflow_descriptor["execution"]))
+    validate_structure_download_controls(dataset, execution)
 
     validated: dict[str, object] = {
         "schema_version": schema_version,
