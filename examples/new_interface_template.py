@@ -16,7 +16,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, ClassVar
 
-import requests
+import niquests
 
 from bioseq_dl.core.interfaces.base import BaseAPIInterface
 from bioseq_dl.logging import get_logger
@@ -62,7 +62,7 @@ class YourDatabaseInterface(BaseAPIInterface):
             self._delay()
             response.raise_for_status()
             return response.json()
-        except requests.exceptions.RequestException:
+        except niquests.exceptions.RequestException:
             log.exception("Error fetching %s for method '%s'", query, method)
             return {}
 
