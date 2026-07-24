@@ -13,7 +13,7 @@ Optional positional args restrict capture to the named APIs.
 Captures drive the **real interface** so the request (URL, params, method, body)
 is exactly what production builds, and record the **raw HTTP body** the interface
 receives -- i.e. exactly what the offline tests register with ``responses``.
-Text APIs (kegg, sabiork) are stored as a JSON string.
+Text APIs (kegg) are stored as a JSON string.
 
 Credentialed / non-HTTP APIs (biogrid, brenda, refseq) are only captured when
 the relevant env vars are set; otherwise they are skipped with a log line.
@@ -249,7 +249,6 @@ def capture_sabiork() -> None:
         "sabiork",
         "kineticlaws",
         SabiorkInterface(**_tmp_kwargs()),
-        as_text=True,
         query={"UniProtKB_AC": "P00330"},
         method="kineticlaws",
     )
