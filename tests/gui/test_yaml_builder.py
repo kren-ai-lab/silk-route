@@ -1558,7 +1558,6 @@ for blocked_prefix in blocked_prefixes:
 
 
 def test_read_upload_event_text_uses_nicegui_file_text() -> None:
-    pytest.importorskip("nicegui")
     module = importlib.import_module("silkroute.gui.nicegui_app")
     event = FakeNiceGUIUploadEvent("workflow.yml", minimal_workflow_yaml())
 
@@ -1569,7 +1568,6 @@ def test_read_upload_event_text_uses_nicegui_file_text() -> None:
 
 
 def test_load_yaml_upload_uses_event_file_name_and_async_text() -> None:
-    pytest.importorskip("nicegui")
     module = importlib.import_module("silkroute.gui.nicegui_app")
     app = FakeUploadHandlerApp()
     event = FakeNiceGUIUploadEvent("workflow.yaml", minimal_workflow_yaml())
@@ -1593,7 +1591,6 @@ def test_load_yaml_upload_uses_event_file_name_and_async_text() -> None:
 
 
 def test_load_yaml_upload_rejects_unsupported_event_file_name() -> None:
-    pytest.importorskip("nicegui")
     module = importlib.import_module("silkroute.gui.nicegui_app")
     app = FakeUploadHandlerApp()
     event = FakeNiceGUIUploadEvent("workflow.txt", minimal_workflow_yaml())
@@ -1613,7 +1610,6 @@ def test_load_yaml_upload_rejects_unsupported_event_file_name() -> None:
 
 
 def test_load_yaml_upload_resets_upload_control_after_invalid_yaml() -> None:
-    pytest.importorskip("nicegui")
     module = importlib.import_module("silkroute.gui.nicegui_app")
     app = FakeUploadHandlerApp()
     event = FakeNiceGUIUploadEvent("workflow.yml", "dataset: [")
@@ -1633,7 +1629,6 @@ def test_load_yaml_upload_resets_upload_control_after_invalid_yaml() -> None:
 
 
 def test_load_yaml_upload_replaces_previous_success_with_error_status() -> None:
-    pytest.importorskip("nicegui")
     module = importlib.import_module("silkroute.gui.nicegui_app")
     app = FakeUploadHandlerApp()
 
@@ -1659,7 +1654,6 @@ def test_load_yaml_upload_replaces_previous_success_with_error_status() -> None:
 
 
 def test_interaction_type_selector_visibility_helper_matches_modality() -> None:
-    pytest.importorskip("nicegui")
     module = importlib.import_module("silkroute.gui.nicegui_app")
 
     assert module.should_show_interaction_type_selector({"dataset.modality": "Interaction"})
@@ -1668,7 +1662,6 @@ def test_interaction_type_selector_visibility_helper_matches_modality() -> None:
 
 
 def test_update_interaction_type_visibility_resets_non_interaction_value() -> None:
-    pytest.importorskip("nicegui")
     module = importlib.import_module("silkroute.gui.nicegui_app")
     app = object.__new__(module.WorkflowYamlBuilderApp)
     app.form_values = {
@@ -1686,7 +1679,6 @@ def test_update_interaction_type_visibility_resets_non_interaction_value() -> No
 
 
 def test_update_interaction_type_visibility_shows_interaction_value() -> None:
-    pytest.importorskip("nicegui")
     module = importlib.import_module("silkroute.gui.nicegui_app")
     app = object.__new__(module.WorkflowYamlBuilderApp)
     app.form_values = {
