@@ -26,31 +26,31 @@ classifiers = [
 ]
 
 dependencies = [
-    "polars>=1.0",
-    "biopython",
-    "zeep",
-    "python-dotenv",
-    "pyyaml",
-    "typer",
-    "dicttoxml",
+    "polars>=1.20,<2.0",
+    "biopython>=1.83,<2.0",
+    "zeep>=4.3,<5.0",
+    "python-dotenv>=1.0,<2.0",
+    "pyyaml>=6.0.2,<7.0",
+    "typer>=0.26,<1.0",
+    "dicttoxml>=1.7,<2.0",
     "platformdirs>=4.0,<5.0",
-    "niquests>=3.19",
+    "niquests>=3.19,<4.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pyrefly>=1.0.0",
-    "ruff>=0.15",
-    "taskipy>=1.14",
-    "ty>=0.0.30",
+    "pyrefly>=1.0,<2.0",
+    "ruff>=0.15,<0.16",
+    "taskipy>=1.14,<2.0",
+    "ty>=0.0.30,<0.1",
 ]
 gui = [
-    "nicegui",
+    "nicegui>=3.0,<4.0",
 ]
 tests = [
-    "pytest>=9.0",
-    "pytest-cov>=7.1",
-    "niquests-mock>=0.4.0",
+    "pytest>=9.0,<10.0",
+    "pytest-cov>=7.1,<8.0",
+    "niquests-mock>=0.4,<0.5",
 ]
 
 [project.scripts]
@@ -58,8 +58,8 @@ silkroute = "silkroute.cli.main:app"
 silkroute-gui = "silkroute.gui.nicegui_app:main"
 
 [project.urls]
-Homepage = "https://github.com/kren-ai-lab/SilkRoute"
-Issues = "https://github.com/kren-ai-lab/SilkRoute/issues"
+Homepage = "https://github.com/kren-ai-lab/silk-route"
+Issues = "https://github.com/kren-ai-lab/silk-route/issues"
 
 [tool.hatch.version]
 path = "silkroute/__init__.py"
@@ -98,7 +98,11 @@ ignore = [
     # decomposed (CLI export helpers, PubChemInterface.fetch). The rest are
     # inherently-branchy method/format dispatchers (fetch/parse routing by
     # method+option+format, CLI run() commands); kept ignored as accepted complexity.
-    "C901", "PLR0911", "PLR0912", "PLR0915",
+    "C901",
+    "PLR0911",
+    "PLR0912",
+    "PLR0915",
+    "CPY001",
 ]
 
 [tool.ruff.lint.per-file-ignores]
