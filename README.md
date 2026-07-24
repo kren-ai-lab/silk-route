@@ -1,6 +1,6 @@
-# BioSeqDownloader
+# SilkRoute
 
-**BioSeqDownloader** is a Python package and command-line tool for reproducible biological data retrieval. It provides database-specific interfaces, parsing helpers, enrichment and mapping utilities, YAML workflow descriptors, metadata capture, and export to CSV, JSON, XML, and Parquet.
+**SilkRoute** is a Python package and command-line tool for reproducible biological data retrieval. It provides database-specific interfaces, parsing helpers, enrichment and mapping utilities, YAML workflow descriptors, metadata capture, and export to CSV, JSON, XML, and Parquet.
 
 The validated workflow surface currently focuses on UniProt protein retrieval, compound retrieval through supported ChEMBL, PubChem, and ChEBI query prefixes, and interaction-oriented retrieval through the existing interfaces. BLAST-backed UniProt sequence search is exposed in the CLI, but should be treated as experimental and requires BLAST+ plus local database setup.
 
@@ -64,14 +64,14 @@ Currently available CLI/API interfaces include:
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/ProteinEngineering-PESB2/BioSeqDownloader
-   cd BioSeqDownloader
+   git clone https://github.com/kren-ai-lab/SilkRoute
+   cd SilkRoute
    ```
 
 2. **(Recommended)** Create and activate a virtual environment:
    ```bash
-   conda create -n bioseqdownloader python=3.13
-   conda activate bioseqdownloader
+   conda create -n silkroute python=3.13
+   conda activate silkroute
    ```
 
 3. **Install the package and dependencies:**
@@ -87,8 +87,8 @@ Currently available CLI/API interfaces include:
 5. **(Optional) Set credentials.**
    No setup step is required — the library ships its configuration internally and
    works on first import. For APIs needing credentials (BioGRID, BRENDA, RefSeq),
-   set the `BIOSEQ_DL_*` environment variables (or place a `.env`; a template lives
-   at `bioseq_dl/config/.env.example`). See the credentials section below.
+   set the `SILKROUTE_*` environment variables (or place a `.env`; a template lives
+   at `silkroute/config/.env.example`). See the credentials section below.
 
 ---
 
@@ -96,8 +96,8 @@ Currently available CLI/API interfaces include:
 
 | Database | Requirement | Credential Source |
 |-----------|--------------|-------------------|
-| **BioGRID** | Access Key ([request here](https://webservice.thebiogrid.org/)) | `BIOSEQ_DL_BIOGRID_API_KEY` (or `.env`) |
-| **BRENDA** | Email and password ([register here](https://www.brenda-enzymes.org/login.php)) | `BIOSEQ_DL_BRENDA_EMAIL` and `BIOSEQ_DL_BRENDA_PASSWORD` (or `.env`) |
+| **BioGRID** | Access Key ([request here](https://webservice.thebiogrid.org/)) | `SILKROUTE_BIOGRID_API_KEY` (or `.env`) |
+| **BRENDA** | Email and password ([register here](https://www.brenda-enzymes.org/login.php)) | `SILKROUTE_BRENDA_EMAIL` and `SILKROUTE_BRENDA_PASSWORD` (or `.env`) |
 
 ---
 
@@ -106,14 +106,14 @@ Currently available CLI/API interfaces include:
 ### Command Overview
 To explore all available commands:
 ```bash
-bioseq-dl --help
+silkroute --help
 ```
 
 ### Command-Line Interface (CLI)
 
 **Example 1 - Search antimicrobial proteins (length 50-51) in UniProt:**
 ```bash
-bioseq-dl search uniprot by-query \
+silkroute search uniprot by-query \
 --query "(length:[50 TO 51]) AND antimicrobial AND reviewed:true" \
 --fields accession,protein_name,gene_primary,sequence,ec \
 --crossref-fields alphafold,pdb \
@@ -122,7 +122,7 @@ bioseq-dl search uniprot by-query \
 
 **Example 2 - Search UniProt entries by accession IDs:**
 ```bash
-bioseq-dl search uniprot by-ids \
+silkroute search uniprot by-ids \
 --input unknown_ids.csv \
 --column accession \
 --output-dir search_ids_test \
@@ -131,7 +131,7 @@ bioseq-dl search uniprot by-ids \
 
 **Example 3 - Experimental BLAST-backed UniProt sequence search:**
 ```bash
-bioseq-dl search uniprot by-sequences \
+silkroute search uniprot by-sequences \
 --database uniprotkb_reviewed \
 --seq-column sequence \
 --min-identity 100.0 \
@@ -148,7 +148,7 @@ Commands that export parsed tabular results can write Parquet files when `parque
 
 ### Workflow YAML descriptors
 
-BioSeqDownloader supports structured YAML descriptors for reproducible workflow runs. These descriptors must declare `schema_version: "workflow-v1"` and define dataset, query, execution, harmonization, export, and reporting information. See [`docs/workflow_yaml.md`](docs/workflow_yaml.md) for the full implemented schema, field behavior, forbidden keys, credential policy, and examples.
+SilkRoute supports structured YAML descriptors for reproducible workflow runs. These descriptors must declare `schema_version: "workflow-v1"` and define dataset, query, execution, harmonization, export, and reporting information. See [`docs/workflow_yaml.md`](docs/workflow_yaml.md) for the full implemented schema, field behavior, forbidden keys, credential policy, and examples.
 
 The `workflow` namespace has two commands:
 
@@ -158,21 +158,21 @@ The `workflow` namespace has two commands:
 Workflow runs can be described with a structured dataset descriptor and executed with:
 
 ```bash
-bioseq-dl workflow run --config examples/workflows/protein_query_first_minimal.yml
+silkroute workflow run --config examples/workflows/protein_query_first_minimal.yml
 ```
 
 CLI arguments override YAML values, so a descriptor can be reused with a different output directory or export format:
 
 ```bash
-bioseq-dl workflow run --config examples/workflows/protein_query_first_minimal.yml -o result_override
-bioseq-dl workflow run --config examples/workflows/protein_query_first_minimal.yml -e csv
+silkroute workflow run --config examples/workflows/protein_query_first_minimal.yml -o result_override
+silkroute workflow run --config examples/workflows/protein_query_first_minimal.yml -e csv
 ```
 
 Before running, validate a descriptor to catch schema problems early. All
 section-level errors are reported at once:
 
 ```bash
-bioseq-dl workflow validate examples/workflows/protein_query_first_minimal.yml
+silkroute workflow validate examples/workflows/protein_query_first_minimal.yml
 ```
 
 ```text
@@ -191,7 +191,7 @@ ChEMBL workflow fetches retrieve all available pages by default. In YAML, `execu
 
 Compound workflow queries can use ChEMBL, PubChem, or ChEBI source-prefixed syntax. ChEMBL supports resource-prefixed queries such as `chembl.molecule:name__iexact=Imatinib` and IC50 activity macros such as `ic50:<1000 AND standard_units:nM`. PubChem supports `pubchem.compound:` lookups by CID, name, InChI, or InChIKey and `pubchem.structure:` searches for SMILES identity, SMILES substructure, and 2-D CID similarity with an optional threshold. ChEBI supports `chebi.entity:` lookups by `chebi_id`, exact `name`, or `name_contains`. Protein-ligand interaction workflows continue to use ChEMBL as their chemical source.
 
-For IC50 queries, the ChEMBL workflow enforces `standard_type = IC50`, applies numeric `standard_value` filters for exact values, ranges, `<`, `<=`, `>`, and `>=`, and can constrain `standard_units`. Accepted GUI IC50 units are `nM`, `uM`, `mM`, and `pM`; micro symbols such as `µM` and `μM` are normalized to `uM`. BioSeqDownloader constrains the requested unit but does not perform implicit numeric unit conversion.
+For IC50 queries, the ChEMBL workflow enforces `standard_type = IC50`, applies numeric `standard_value` filters for exact values, ranges, `<`, `<=`, `>`, and `>=`, and can constrain `standard_units`. Accepted GUI IC50 units are `nM`, `uM`, `mM`, and `pM`; micro symbols such as `µM` and `μM` are normalized to `uM`. SilkRoute constrains the requested unit but does not perform implicit numeric unit conversion.
 
 Allowed top-level descriptor sections are: `schema_version`, `dataset`, `query`, `resources`, `execution`, `harmonization`, `export`, `reporting`, `interaction_retrieval`, `activity_retrieval`, `chemical_metadata_integration`, `protein_target_integration`, `temperature_enrichment`, and `cross_source_integration`.
 
@@ -200,7 +200,7 @@ There are no legacy top-level workflow YAML examples. GUI or YAML generator
 tools can inspect the lightweight schema definition with:
 
 ```python
-from bioseq_dl.core.workflow.schema import get_workflow_v1_schema_definition
+from silkroute.core.workflow.schema import get_workflow_v1_schema_definition
 ```
 
 The optional NiceGUI interface prepares `workflow-v1` YAML descriptors; workflow
@@ -258,8 +258,8 @@ pip install -e ".[gui]"
 Launch the GUI with either command:
 
 ```bash
-bioseq-dl-gui
-python -m bioseq_dl.gui.nicegui_app
+silkroute-gui
+python -m silkroute.gui.nicegui_app
 ```
 
 ```yaml
@@ -333,8 +333,8 @@ In YAML, set the execution mode with `dataset.mode`. In the CLI, use `--mode` or
 #### Command Structure
 
 ```bash
-bioseq-dl workflow run [OPTIONS]
-bioseq-dl workflow validate CONFIG.yml
+silkroute workflow run [OPTIONS]
+silkroute workflow validate CONFIG.yml
 ```
 
 ##### Required Options
@@ -360,7 +360,7 @@ bioseq-dl workflow validate CONFIG.yml
 Search for proteins with temperature information and export the workflow result:
 
 ```bash
-bioseq-dl workflow run \
+silkroute workflow run \
   -o result \
   -q "temperature:*" \
   --modality "protein" \
@@ -390,7 +390,7 @@ result/
 Compare proteins at different temperature optima using labeled queries:
 
 ```bash
-bioseq-dl workflow run \
+silkroute workflow run \
   -o workflow_test \
   -q "temperature:99=temp_99,temperature:98=temp_98" \
   --modality "protein" \
@@ -423,7 +423,7 @@ result/
 Classify compounds by bioactivity levels (IC50 ranges):
 
 ```bash
-bioseq-dl workflow run \
+silkroute workflow run \
   -o workflow_compound \
   -q "ic50:10-50=active,ic50:50-100=inactive" \
   --modality "compound" \
@@ -463,7 +463,7 @@ If `harmonization.id_column` is set, exported tabular files receive a determinis
 
 **Multi-threading and Performance:**
 ```bash
-bioseq-dl workflow run \
+silkroute workflow run \
   -o result \
   -q "temperature:*" \
   -m "protein" \
@@ -493,7 +493,7 @@ bioseq-dl workflow run \
 
 You can also use the Python API to interact with the tool. Here's an example of how to use the UniProt interface:
 ```python
-from bioseq_dl import UniprotInterface
+from silkroute import UniprotInterface
 import polars as pl
 
 df = pl.DataFrame({
@@ -518,7 +518,7 @@ print(results_df)
 
 An enricher module is also available to enrich your data with cross references. Here's an example for a given results_df from UniProt:
 ```python
-from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
+from silkroute.core.crossref_enricher import CrossRefEnricher, EndpointSpec
 
 specs = [
     EndpointSpec(database="alphafold", endpoint="prediction"),
@@ -544,23 +544,23 @@ Credentials can be provided in this order of precedence:
 2. Environment variables (including values loaded from a .env file)
 
 Create a `.env` file in one of these locations:
-- Path specified by `BIOSEQ_DL_ENV_FILE`
+- Path specified by `SILKROUTE_ENV_FILE`
 - Project working directory (`.env`)
-- `~/.config/bioseq_dl/.env` or a per-interface config directory (e.g., `~/.config/bioseq_dl/biogrid/.env`)
+- `~/.config/silkroute/.env` or a per-interface config directory (e.g., `~/.config/silkroute/biogrid/.env`)
 
 Supported environment variables:
-- `BIOSEQ_DL_BIOGRID_API_KEY` (legacy: `BIOGRID_API_KEY`, `biogrid_api_key`)
-- `BIOSEQ_DL_BRENDA_EMAIL` (legacy: `BRENDA_EMAIL`)
-- `BIOSEQ_DL_BRENDA_PASSWORD` (legacy: `BRENDA_PASSWORD`)
-- `BIOSEQ_DL_REFSEQ_EMAIL` (legacy: `NCBI_EMAIL`, `ENTREZ_EMAIL`)
+- `SILKROUTE_BIOGRID_API_KEY`
+- `SILKROUTE_BRENDA_EMAIL`
+- `SILKROUTE_BRENDA_PASSWORD`
+- `SILKROUTE_REFSEQ_EMAIL`
 
 Notes:
 - Credentials come only from environment variables or a `.env` file — never from
   packaged config.
 - Do not commit `.env` files to version control.
-- A safe template is available at `bioseq_dl/config/.env.example`.
+- A safe template is available at `silkroute/config/.env.example`.
 
-Configuration ships **inside the package** (`bioseq_dl/config/<api>/`) and is loaded
+Configuration ships **inside the package** (`silkroute/config/<api>/`) and is loaded
 from there automatically — no setup step, no copying to `~/.config`. The relevant
 files per API are:
 
@@ -579,8 +579,8 @@ files per API are:
   ```
   Keys are the endpoint names; under each, `output_column: api.response.path`.
 
-The only user-facing configuration is **credentials**, supplied via `BIOSEQ_DL_*`
-environment variables or a `.env` file (template: `bioseq_dl/config/.env.example`).
+The only user-facing configuration is **credentials**, supplied via `SILKROUTE_*`
+environment variables or a `.env` file (template: `silkroute/config/.env.example`).
 Download locations are set per call via the interface `output_dir` argument.
 
 

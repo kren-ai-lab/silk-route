@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from bioseq_dl.core.utils.base_auxiliary_methods import get_nested
+from silkroute.core.utils.base_auxiliary_methods import get_nested
 
 
 def test_empty_path_returns_whole_object():

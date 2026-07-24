@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from bioseq_dl.core.credentials import (
+from silkroute.core.credentials import (
     get_env_value,
     is_valid_secret,
     load_environment_files,
@@ -48,22 +48,22 @@ def test_resolve_secret_returns_none_when_nothing(monkeypatch):
 
 def test_load_environment_files_reads_env(tmp_path, monkeypatch):
     env = tmp_path / ".env"
-    env.write_text("BIOSEQ_DL_TEST_SECRET=hello\n")
-    monkeypatch.setenv("BIOSEQ_DL_ENV_FILE", str(env))
-    monkeypatch.delenv("BIOSEQ_DL_TEST_SECRET", raising=False)
+    env.write_text("SILKROUTE_TEST_SECRET=hello\n")
+    monkeypatch.setenv("SILKROUTE_ENV_FILE", str(env))
+    monkeypatch.delenv("SILKROUTE_TEST_SECRET", raising=False)
 
     load_environment_files()
 
-    assert get_env_value(["BIOSEQ_DL_TEST_SECRET"]) == "hello"
+    assert get_env_value(["SILKROUTE_TEST_SECRET"]) == "hello"
 
 
 def test_load_environment_files_does_not_override(tmp_path, monkeypatch):
     env = tmp_path / ".env"
-    env.write_text("BIOSEQ_DL_TEST_SECRET=fromfile\n")
-    monkeypatch.setenv("BIOSEQ_DL_ENV_FILE", str(env))
-    monkeypatch.setenv("BIOSEQ_DL_TEST_SECRET", "preset")
+    env.write_text("SILKROUTE_TEST_SECRET=fromfile\n")
+    monkeypatch.setenv("SILKROUTE_ENV_FILE", str(env))
+    monkeypatch.setenv("SILKROUTE_TEST_SECRET", "preset")
 
     load_environment_files()
 
     # Existing env var is not overridden by the .env file.
-    assert get_env_value(["BIOSEQ_DL_TEST_SECRET"]) == "preset"
+    assert get_env_value(["SILKROUTE_TEST_SECRET"]) == "preset"

@@ -11,7 +11,7 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
-from bioseq_dl.core.utils.crossref_enrichment import (
+from silkroute.core.utils.crossref_enrichment import (
     has_enrichment_result_value,
     is_empty_enrichment_input,
     normalize_crossref_fields,

@@ -11,7 +11,7 @@ import json
 import polars as pl
 import pytest
 
-from bioseq_dl.cli._shared import fetch_auto, save_or_print, unwrap
+from silkroute.cli._shared import fetch_auto, save_or_print, unwrap
 
 
 class _FakeInterface:
@@ -84,11 +84,11 @@ def test_save_writes_metadata_sidecar(tmp_path):
     df = pl.DataFrame({"id": ["X"]})
     out = tmp_path / "out.csv"
 
-    save_or_print((df, {"api_name": "test", "tool": {"name": "bioseq_dl"}}), str(out))
+    save_or_print((df, {"api_name": "test", "tool": {"name": "silkroute"}}), str(out))
 
     sidecar = tmp_path / "out.metadata.json"
     assert sidecar.exists()
-    assert json.loads(sidecar.read_text()) == {"api_name": "test", "tool": {"name": "bioseq_dl"}}
+    assert json.loads(sidecar.read_text()) == {"api_name": "test", "tool": {"name": "silkroute"}}
 
 
 def test_sidecar_tracks_actual_saved_file(tmp_path):
@@ -131,7 +131,7 @@ def test_no_sidecar_when_write_metadata_false(tmp_path):
 
 
 def test_metadata_enabled_defaults_true_without_context():
-    from bioseq_dl.cli._shared import _metadata_enabled
+    from silkroute.cli._shared import _metadata_enabled
 
     # No active click context (direct call) -> sidecars enabled by default.
     assert _metadata_enabled() is True

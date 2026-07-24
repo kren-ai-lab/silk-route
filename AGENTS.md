@@ -4,7 +4,7 @@ This file provides guidance to AI agents when working with code in this reposito
 
 ## Project Overview
 
-**BioSeqDownloader** is a Python library and CLI to download and integrate biological
+**SilkRoute** is a Python library and CLI to download and integrate biological
 data from many web APIs (UniProt, AlphaFold, BioGRID, KEGG, ChEMBL, Reactome, etc.).
 It is part of the Kren AI Lab ecosystem alongside **Sylphy** (sequence encoders /
 embeddings) and **Roxy** (classical descriptors).
@@ -15,7 +15,7 @@ Input: identifiers / queries per database. Output: parsed records as
 ## Package Layout
 
 ```
-bioseq_dl/
+silkroute/
   __init__.py             # public API (lazy via __getattr__) + __version__
   cli/
     main.py               # Typer root app
@@ -45,7 +45,7 @@ uv run task lint-fix
 uv run task format
 uv run task ty            # ty check
 uv run task pyrefly
-uv run bioseq-dl --help
+uv run silkroute --help
 ```
 
 ## Architecture Notes
@@ -59,7 +59,7 @@ uv run bioseq-dl --help
 ## Key Invariants
 
 - No import side effects: the top-level public API is lazy (`__getattr__`); importing
-  `bioseq_dl` must not pull heavy deps (e.g. `zeep` for BRENDA).
+  `silkroute` must not pull heavy deps (e.g. `zeep` for BRENDA).
 - Use `logging` (`get_logger`), never `print`.
 - A `fetch` override returns the empty of its own success type (a list endpoint
   returns `[]`, an object endpoint `{}`); never `None`. The error-vs-empty reason

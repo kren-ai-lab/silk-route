@@ -1,4 +1,4 @@
-name: bioseqdownloader
+name: silkroute
 channels:
   - bioconda
   - defaults

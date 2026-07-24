@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from bioseq_dl.core.interfaces.pubchem import PubChemInterface
+from silkroute.core.interfaces.pubchem import PubChemInterface
 
 
 @pytest.fixture

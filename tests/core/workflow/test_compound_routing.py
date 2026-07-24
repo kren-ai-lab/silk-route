@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from bioseq_dl.core.workflow.main_workflow import MainWorkflow
+from silkroute.core.workflow.main_workflow import MainWorkflow
 
 
 @pytest.fixture

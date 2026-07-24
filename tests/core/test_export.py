@@ -7,7 +7,7 @@ from typing import Any
 import polars as pl
 import pytest
 
-from bioseq_dl.core.export import (
+from silkroute.core.export import (
     DATAFRAME_EXPORT_FORMAT_ERROR,
     export_dataframe,
     normalize_export_format,

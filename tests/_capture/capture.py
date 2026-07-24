@@ -5,15 +5,15 @@ fixtures replayed by the offline tests can be regenerated from the real APIs.
 
 Usage::
 
-    BIOSEQ_DL_CAPTURE=1 uv run python -m tests._capture.capture
-    BIOSEQ_DL_CAPTURE=1 uv run python -m tests._capture.capture rhea chebi
+    SILKROUTE_CAPTURE=1 uv run python -m tests._capture.capture
+    SILKROUTE_CAPTURE=1 uv run python -m tests._capture.capture rhea chebi
 
 Optional positional args restrict capture to the named APIs.
 
 Captures drive the **real interface** so the request (URL, params, method, body)
 is exactly what production builds, and record the **raw HTTP body** the interface
 receives -- i.e. exactly what the offline tests register with ``responses``.
-Text APIs (kegg, sabiork) are stored as a JSON string.
+Text APIs (kegg) are stored as a JSON string.
 
 Credentialed / non-HTTP APIs (biogrid, brenda, refseq) are only captured when
 the relevant env vars are set; otherwise they are skipped with a log line.
@@ -64,8 +64,8 @@ def _capture_raw(api, case, interface, *, as_text=False, **fetch_kwargs):
 
 def _tmp_kwargs() -> dict:
     return {
-        "cache_dir": tempfile.mkdtemp(prefix="bioseq-capture-"),
-        "config_dir": tempfile.mkdtemp(prefix="bioseq-capture-cfg-"),
+        "cache_dir": tempfile.mkdtemp(prefix="silkroute-capture-"),
+        "config_dir": tempfile.mkdtemp(prefix="silkroute-capture-cfg-"),
         "min_wait": 0,
         "max_wait": 0,
         "use_config": False,
@@ -76,7 +76,7 @@ def _tmp_kwargs() -> dict:
 
 
 def capture_rhea() -> None:
-    from bioseq_dl.core.interfaces.rhea import RheaInterface
+    from silkroute.core.interfaces.rhea import RheaInterface
 
     _capture_raw(
         "rhea", "reaction", RheaInterface(**_tmp_kwargs()), query="RHEA:10000", method="rhea", limit=1
@@ -84,20 +84,20 @@ def capture_rhea() -> None:
 
 
 def capture_chebi() -> None:
-    from bioseq_dl.core.interfaces.chebi import ChEBIInterface
+    from silkroute.core.interfaces.chebi import ChEBIInterface
 
     _capture_raw("chebi", "compound", ChEBIInterface(**_tmp_kwargs()), query="15377", method="compound")
 
 
 def capture_alphafold() -> None:
-    from bioseq_dl.core.interfaces.alphafold import AlphafoldInterface
+    from silkroute.core.interfaces.alphafold import AlphafoldInterface
 
-    cfg = tempfile.mkdtemp(prefix="bioseq-capture-cfg-")
+    cfg = tempfile.mkdtemp(prefix="silkroute-capture-cfg-")
     with (Path(cfg) / "init.yml").open("w") as f:
         f.write(f"download_folder: {cfg}\n")
     iface = AlphafoldInterface(
         structures=None,
-        cache_dir=tempfile.mkdtemp(prefix="bioseq-capture-"),
+        cache_dir=tempfile.mkdtemp(prefix="silkroute-capture-"),
         config_dir=cfg,
         min_wait=0,
         max_wait=0,
@@ -107,7 +107,7 @@ def capture_alphafold() -> None:
 
 
 def capture_genontology() -> None:
-    from bioseq_dl.core.interfaces.genontology import GenOntologyInterface
+    from silkroute.core.interfaces.genontology import GenOntologyInterface
 
     _capture_raw(
         "genontology",
@@ -119,20 +119,20 @@ def capture_genontology() -> None:
 
 
 def capture_pride() -> None:
-    from bioseq_dl.core.interfaces.pride import PrideInterface
+    from silkroute.core.interfaces.pride import PrideInterface
 
     _capture_raw("pride", "project", PrideInterface(**_tmp_kwargs()), query="PXD000001", method="projects")
 
 
 def capture_pdb() -> None:
-    from bioseq_dl.core.interfaces.proteindatabank import PDBInterface
+    from silkroute.core.interfaces.proteindatabank import PDBInterface
 
     iface = PDBInterface(download_structures=False, **_tmp_kwargs())
     _capture_raw("pdb", "entry", iface, query="4HHB", method="entry")
 
 
 def capture_stringdb() -> None:
-    from bioseq_dl.core.interfaces.stringdb import StringInterface
+    from silkroute.core.interfaces.stringdb import StringInterface
 
     _capture_raw(
         "stringdb",
@@ -144,7 +144,7 @@ def capture_stringdb() -> None:
 
 
 def capture_interpro() -> None:
-    from bioseq_dl.core.interfaces.interpro import InterproInterface
+    from silkroute.core.interfaces.interpro import InterproInterface
 
     _capture_raw(
         "interpro",
@@ -156,7 +156,7 @@ def capture_interpro() -> None:
 
 
 def capture_reactome() -> None:
-    from bioseq_dl.core.interfaces.reactome import ReactomeInterface
+    from silkroute.core.interfaces.reactome import ReactomeInterface
 
     _capture_raw(
         "reactome",
@@ -168,7 +168,7 @@ def capture_reactome() -> None:
 
 
 def capture_chembl() -> None:
-    from bioseq_dl.core.interfaces.chembl import ChEMBLInterface
+    from silkroute.core.interfaces.chembl import ChEMBLInterface
 
     _capture_raw(
         "chembl",
@@ -181,7 +181,7 @@ def capture_chembl() -> None:
 
 
 def capture_pubchem() -> None:
-    from bioseq_dl.core.interfaces.pubchem import PubChemInterface
+    from silkroute.core.interfaces.pubchem import PubChemInterface
 
     _capture_raw(
         "pubchem",
@@ -194,7 +194,7 @@ def capture_pubchem() -> None:
 
 
 def capture_kegg() -> None:
-    from bioseq_dl.core.interfaces.kegg import KEGGInterface
+    from silkroute.core.interfaces.kegg import KEGGInterface
 
     _capture_raw(
         "kegg",
@@ -207,7 +207,7 @@ def capture_kegg() -> None:
 
 
 def capture_panther() -> None:
-    from bioseq_dl.core.interfaces.panther import PantherInterface
+    from silkroute.core.interfaces.panther import PantherInterface
 
     _capture_raw(
         "panther",
@@ -219,7 +219,7 @@ def capture_panther() -> None:
 
 
 def capture_pathwaycommons() -> None:
-    from bioseq_dl.core.interfaces.pathwaycommons import PathwayCommonsInterface
+    from silkroute.core.interfaces.pathwaycommons import PathwayCommonsInterface
 
     _capture_raw(
         "pathwaycommons",
@@ -231,7 +231,7 @@ def capture_pathwaycommons() -> None:
 
 
 def capture_biodbnet() -> None:
-    from bioseq_dl.core.interfaces.biodbnet import BioDBNetInterface
+    from silkroute.core.interfaces.biodbnet import BioDBNetInterface
 
     _capture_raw(
         "biodbnet",
@@ -243,13 +243,12 @@ def capture_biodbnet() -> None:
 
 
 def capture_sabiork() -> None:
-    from bioseq_dl.core.interfaces.sabiork import SabiorkInterface
+    from silkroute.core.interfaces.sabiork import SabiorkInterface
 
     _capture_raw(
         "sabiork",
         "kineticlaws",
         SabiorkInterface(**_tmp_kwargs()),
-        as_text=True,
         query={"UniProtKB_AC": "P00330"},
         method="kineticlaws",
     )
@@ -259,11 +258,11 @@ def capture_sabiork() -> None:
 
 
 def capture_biogrid() -> None:
-    key = os.getenv("BIOSEQ_DL_BIOGRID_API_KEY") or os.getenv("BIOGRID_API_KEY")
+    key = os.getenv("SILKROUTE_BIOGRID_API_KEY")
     if not key:
-        print("skip biogrid: no BIOSEQ_DL_BIOGRID_API_KEY")  # noqa: T201
+        print("skip biogrid: no SILKROUTE_BIOGRID_API_KEY")  # noqa: T201
         return
-    from bioseq_dl.core.interfaces.biogrid import BioGRIDInterface
+    from silkroute.core.interfaces.biogrid import BioGRIDInterface
 
     iface = BioGRIDInterface(api_key=key, **_tmp_kwargs())
     _capture_raw(
@@ -276,7 +275,7 @@ def capture_biogrid() -> None:
 
 
 def capture_uniprot() -> None:
-    from bioseq_dl.core.interfaces.uniprot import UniprotInterface
+    from silkroute.core.interfaces.uniprot import UniprotInterface
 
     iface = UniprotInterface()
     job = iface.submit_id_mapping("UniProtKB_AC-ID", "UniProtKB", ["P12345"])
@@ -286,11 +285,11 @@ def capture_uniprot() -> None:
 
 
 def capture_refseq() -> None:
-    email = os.getenv("BIOSEQ_DL_REFSEQ_EMAIL") or os.getenv("NCBI_EMAIL")
+    email = os.getenv("SILKROUTE_REFSEQ_EMAIL")
     if not email:
-        print("skip refseq: no BIOSEQ_DL_REFSEQ_EMAIL")  # noqa: T201
+        print("skip refseq: no SILKROUTE_REFSEQ_EMAIL")  # noqa: T201
         return
-    from bioseq_dl.core.interfaces.refseq import RefSeqInterface
+    from silkroute.core.interfaces.refseq import RefSeqInterface
 
     iface = RefSeqInterface(email=email, **_tmp_kwargs())
     data = iface.fetch("NP_000537", method="protein")
@@ -298,19 +297,19 @@ def capture_refseq() -> None:
 
 
 def capture_brenda() -> None:
-    email = os.getenv("BIOSEQ_DL_BRENDA_EMAIL")
-    password = os.getenv("BIOSEQ_DL_BRENDA_PASSWORD")
+    email = os.getenv("SILKROUTE_BRENDA_EMAIL")
+    password = os.getenv("SILKROUTE_BRENDA_PASSWORD")
     if not (email and password):
-        print("skip brenda: no BIOSEQ_DL_BRENDA_EMAIL / BIOSEQ_DL_BRENDA_PASSWORD")  # noqa: T201
+        print("skip brenda: no SILKROUTE_BRENDA_EMAIL / SILKROUTE_BRENDA_PASSWORD")  # noqa: T201
         return
-    from bioseq_dl.core.interfaces.brenda import BrendaInterface
+    from silkroute.core.interfaces.brenda import BrendaInterface
 
     # BrendaInterface hardcodes min_wait/max_wait, so don't pass them via _tmp_kwargs.
     iface = BrendaInterface(
         email=email,
         password=password,
-        cache_dir=tempfile.mkdtemp(prefix="bioseq-capture-"),
-        config_dir=tempfile.mkdtemp(prefix="bioseq-capture-cfg-"),
+        cache_dir=tempfile.mkdtemp(prefix="silkroute-capture-"),
+        config_dir=tempfile.mkdtemp(prefix="silkroute-capture-cfg-"),
         use_config=False,
     )
     data = iface.fetch({"ecNumber": "1.1.1.1", "organism": "Homo sapiens"}, method="getKmValue")
@@ -344,13 +343,13 @@ CAPTURES = {
 
 
 def main(argv: list[str]) -> int:
-    if os.getenv("BIOSEQ_DL_CAPTURE") != "1":
-        print("Refusing to run: set BIOSEQ_DL_CAPTURE=1 to capture fixtures from the network.")  # noqa: T201
+    if os.getenv("SILKROUTE_CAPTURE") != "1":
+        print("Refusing to run: set SILKROUTE_CAPTURE=1 to capture fixtures from the network.")  # noqa: T201
         return 1
 
-    # Load credentials from .env (BIOSEQ_DL_BIOGRID_API_KEY, BIOSEQ_DL_REFSEQ_EMAIL, ...)
+    # Load credentials from .env (SILKROUTE_BIOGRID_API_KEY, SILKROUTE_REFSEQ_EMAIL, ...)
     # so the credentialed captures can find them.
-    from bioseq_dl.core.credentials import load_environment_files
+    from silkroute.core.credentials import load_environment_files
 
     load_environment_files()
 

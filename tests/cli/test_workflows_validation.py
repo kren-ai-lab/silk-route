@@ -12,7 +12,7 @@ import datetime as dt
 import polars as pl
 import pytest
 
-from bioseq_dl.cli.workflows import (
+from silkroute.cli.workflows import (
     add_id_column_for_export,
     build_default_workflow_values,
     check_forbidden_workflow_recipe_keys,

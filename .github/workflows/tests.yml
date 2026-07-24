@@ -3,14 +3,14 @@ name: tests
 on:
   push:
     paths:
-      - "bioseq_dl/**"
+      - "silkroute/**"
       - "tests/**"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/tests.yml"
   pull_request:
     paths:
-      - "bioseq_dl/**"
+      - "silkroute/**"
       - "tests/**"
       - "pyproject.toml"
       - "uv.lock"
@@ -29,6 +29,6 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
-        run: uv sync --extra dev --extra tests
+        run: uv sync --extra dev --extra tests --extra gui
       - name: Run tests
         run: uv run pytest -q

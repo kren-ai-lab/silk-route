@@ -7,7 +7,7 @@ import sys
 
 import pytest
 
-from bioseq_dl.gui.query_builders.uniprot import (
+from silkroute.gui.query_builders.uniprot import (
     UniProtQueryBuilderRow,
     build_uniprot_friendly_query,
     build_uniprot_interpreted_query,
@@ -100,7 +100,7 @@ def test_databases_field_builds_interpreted_query_and_db_alias_is_rejected():
 def test_query_builder_import_does_not_import_nicegui():
     import_script = """
 import sys
-import bioseq_dl.gui.query_builders.uniprot
+import silkroute.gui.query_builders.uniprot
 
 if "nicegui" in sys.modules:
     raise RuntimeError("Importing pure UniProt query builder utilities loaded NiceGUI.")

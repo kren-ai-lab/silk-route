@@ -7,7 +7,7 @@ from typing import Any
 import polars as pl
 import pytest
 
-from bioseq_dl.core.workflow.main_workflow import (
+from silkroute.core.workflow.main_workflow import (
     PPI_CHEMBL_QUERY_ERROR,
     PROTEIN_CHEMBL_QUERY_ERROR,
     MainWorkflow,

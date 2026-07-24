@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import polars as pl
 
-from bioseq_dl.core.export import export_dataframe
+from silkroute.core.export import export_dataframe
 from tests._helpers import read_exported_file
 
 

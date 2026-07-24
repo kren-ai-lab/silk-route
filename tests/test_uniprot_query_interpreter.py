@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from bioseq_dl.core.workflow.query_interpreter import (
+from silkroute.core.workflow.query_interpreter import (
     build_default_uniprot_interpreter,
     split_quoted_csv_values,
 )

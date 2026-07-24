@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-import bioseq_dl.core.interfaces.brenda as brenda_mod
-from bioseq_dl.core.interfaces.brenda import BrendaInterface
+import silkroute.core.interfaces.brenda as brenda_mod
+from silkroute.core.interfaces.brenda import BrendaInterface
 from tests._helpers import load_fixture
 
 

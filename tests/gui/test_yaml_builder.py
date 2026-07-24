@@ -4,18 +4,19 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import inspect
 import subprocess
 import sys
 from typing import cast
 
 import pytest
 
-from bioseq_dl.core.workflow.schema import (
+from silkroute.core.workflow.schema import (
     parse_query_composition_value,
     validate_workflow_v1_descriptor,
 )
-from bioseq_dl.gui.query_builders.registry import get_query_builder_spec
-from bioseq_dl.gui.yaml_builder import (
+from silkroute.gui.query_builders.registry import get_query_builder_spec
+from silkroute.gui.yaml_builder import (
     DEFAULT_OUTPUT_DIRECTORY_NAME_ERROR,
     LOADED_QUERY_VALUE_WARNING,
     PRESERVED_SECTIONS_FORM_KEY,
@@ -36,6 +37,13 @@ from bioseq_dl.gui.yaml_builder import (
     validate_generated_descriptor,
     workflow_yaml_form_defaults,
 )
+
+
+def test_gui_branding_uses_silkroute() -> None:
+    nicegui_app = importlib.import_module("silkroute.gui.nicegui_app")
+    source = inspect.getsource(nicegui_app)
+
+    assert "SilkRoute Workflow YAML Builder" in source
 
 
 class FakeNiceGUIUploadFile:
@@ -1512,7 +1520,7 @@ def test_regenerated_preserved_sections_are_not_aliased_to_loaded_values() -> No
 
 def test_builder_does_not_require_nicegui_to_be_installed() -> None:
     sys.modules.pop("nicegui", None)
-    module = importlib.import_module("bioseq_dl.gui.yaml_builder")
+    module = importlib.import_module("silkroute.gui.yaml_builder")
 
     assert module.build_workflow_descriptor(minimal_form_values())["schema_version"] == "workflow-v1"
 
@@ -1520,14 +1528,14 @@ def test_builder_does_not_require_nicegui_to_be_installed() -> None:
 def test_yaml_builder_import_does_not_load_gui_cli_or_interfaces() -> None:
     import_script = """
 import sys
-import bioseq_dl.gui.yaml_builder
+import silkroute.gui.yaml_builder
 
 blocked_prefixes = (
-    "bioseq_dl.cli.workflows",
-    "bioseq_dl.core.export",
-    "bioseq_dl.core.interfaces",
-    "bioseq_dl.core.workflow.main_workflow",
-    "bioseq_dl.core.workflow.query_interpreter",
+    "silkroute.cli.workflows",
+    "silkroute.core.export",
+    "silkroute.core.interfaces",
+    "silkroute.core.workflow.main_workflow",
+    "silkroute.core.workflow.query_interpreter",
     "nicegui",
     "pandas",
 )
@@ -1550,8 +1558,7 @@ for blocked_prefix in blocked_prefixes:
 
 
 def test_read_upload_event_text_uses_nicegui_file_text() -> None:
-    pytest.importorskip("nicegui")
-    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    module = importlib.import_module("silkroute.gui.nicegui_app")
     event = FakeNiceGUIUploadEvent("workflow.yml", minimal_workflow_yaml())
 
     yaml_text = asyncio.run(module.read_upload_event_text(event))
@@ -1561,8 +1568,7 @@ def test_read_upload_event_text_uses_nicegui_file_text() -> None:
 
 
 def test_load_yaml_upload_uses_event_file_name_and_async_text() -> None:
-    pytest.importorskip("nicegui")
-    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    module = importlib.import_module("silkroute.gui.nicegui_app")
     app = FakeUploadHandlerApp()
     event = FakeNiceGUIUploadEvent("workflow.yaml", minimal_workflow_yaml())
 
@@ -1585,8 +1591,7 @@ def test_load_yaml_upload_uses_event_file_name_and_async_text() -> None:
 
 
 def test_load_yaml_upload_rejects_unsupported_event_file_name() -> None:
-    pytest.importorskip("nicegui")
-    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    module = importlib.import_module("silkroute.gui.nicegui_app")
     app = FakeUploadHandlerApp()
     event = FakeNiceGUIUploadEvent("workflow.txt", minimal_workflow_yaml())
 
@@ -1605,8 +1610,7 @@ def test_load_yaml_upload_rejects_unsupported_event_file_name() -> None:
 
 
 def test_load_yaml_upload_resets_upload_control_after_invalid_yaml() -> None:
-    pytest.importorskip("nicegui")
-    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    module = importlib.import_module("silkroute.gui.nicegui_app")
     app = FakeUploadHandlerApp()
     event = FakeNiceGUIUploadEvent("workflow.yml", "dataset: [")
 
@@ -1625,8 +1629,7 @@ def test_load_yaml_upload_resets_upload_control_after_invalid_yaml() -> None:
 
 
 def test_load_yaml_upload_replaces_previous_success_with_error_status() -> None:
-    pytest.importorskip("nicegui")
-    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    module = importlib.import_module("silkroute.gui.nicegui_app")
     app = FakeUploadHandlerApp()
 
     asyncio.run(
@@ -1651,8 +1654,7 @@ def test_load_yaml_upload_replaces_previous_success_with_error_status() -> None:
 
 
 def test_interaction_type_selector_visibility_helper_matches_modality() -> None:
-    pytest.importorskip("nicegui")
-    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    module = importlib.import_module("silkroute.gui.nicegui_app")
 
     assert module.should_show_interaction_type_selector({"dataset.modality": "Interaction"})
     assert not module.should_show_interaction_type_selector({"dataset.modality": "Protein"})
@@ -1660,8 +1662,7 @@ def test_interaction_type_selector_visibility_helper_matches_modality() -> None:
 
 
 def test_update_interaction_type_visibility_resets_non_interaction_value() -> None:
-    pytest.importorskip("nicegui")
-    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    module = importlib.import_module("silkroute.gui.nicegui_app")
     app = object.__new__(module.WorkflowYamlBuilderApp)
     app.form_values = {
         "dataset.modality": "Protein",
@@ -1678,8 +1679,7 @@ def test_update_interaction_type_visibility_resets_non_interaction_value() -> No
 
 
 def test_update_interaction_type_visibility_shows_interaction_value() -> None:
-    pytest.importorskip("nicegui")
-    module = importlib.import_module("bioseq_dl.gui.nicegui_app")
+    module = importlib.import_module("silkroute.gui.nicegui_app")
     app = object.__new__(module.WorkflowYamlBuilderApp)
     app.form_values = {
         "dataset.modality": "Interaction",

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from bioseq_dl.core.workflow.schema import validate_structure_download_controls
+from silkroute.core.workflow.schema import validate_structure_download_controls
 
 
 @pytest.mark.parametrize("key", ["download_alphafold_structures", "download_pdb_structures"])

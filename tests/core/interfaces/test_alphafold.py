@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from niquests_mock import startswith
 
-from bioseq_dl.core.interfaces.alphafold import AlphafoldInterface
+from silkroute.core.interfaces.alphafold import AlphafoldInterface
 from tests._helpers import load_fixture
 from tests.core.interfaces._contract import CachingContract, HttpErrorContract
 

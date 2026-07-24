@@ -11,7 +11,7 @@ import sys
 
 import pytest
 
-from bioseq_dl.gui import form_helpers as fh
+from silkroute.gui import form_helpers as fh
 
 
 class _FakeUploadFile:

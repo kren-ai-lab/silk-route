@@ -7,7 +7,7 @@ import sys
 
 import pytest
 
-from bioseq_dl.gui.query_builders.chembl import (
+from silkroute.gui.query_builders.chembl import (
     ChEMBLFilterQueryBuilderRow,
     build_chembl_interpreted_query,
 )
@@ -95,7 +95,7 @@ def test_chembl_builder_rejects_value_with_condition_separator():
 def test_chembl_builder_import_does_not_import_nicegui():
     import_script = """
 import sys
-import bioseq_dl.gui.query_builders.chembl
+import silkroute.gui.query_builders.chembl
 
 if "nicegui" in sys.modules:
     raise RuntimeError("Importing pure ChEMBL query builder utilities loaded NiceGUI.")

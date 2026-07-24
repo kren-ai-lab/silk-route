@@ -11,9 +11,9 @@ import polars as pl
 import pytest
 from niquests_mock import startswith
 
-from bioseq_dl.core.interfaces.uniprot import API_URL, UniprotInterface
-from bioseq_dl.core.workflow import main_workflow as workflow_module
-from bioseq_dl.core.workflow.main_workflow import MainWorkflow
+from silkroute.core.interfaces.uniprot import API_URL, UniprotInterface
+from silkroute.core.workflow import main_workflow as workflow_module
+from silkroute.core.workflow.main_workflow import MainWorkflow
 from tests._helpers import load_fixture
 
 
@@ -342,7 +342,7 @@ def test_query_composition_labels_and_merges(workflow, monkeypatch):
 
 
 def test_merge_enrichment_endpoint_meta_preserves_graph_flags():
-    from bioseq_dl.core.workflow.main_workflow import merge_enrichment_endpoint_meta
+    from silkroute.core.workflow.main_workflow import merge_enrichment_endpoint_meta
 
     a = {"output_kind": "raw_graph", "fetched": {"ids": ["P1"]}}
     b = {"output_kind": "raw_graph", "fetched": {"ids": ["P2"]}}

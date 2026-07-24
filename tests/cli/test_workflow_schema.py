@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from bioseq_dl.cli.workflows import (
+from silkroute.cli.workflows import (
     ALLOWED_DESCRIPTOR_SECTION_NAMES,
     KNOWN_DESCRIPTOR_SECTIONS,
     WORKFLOW_SCHEMA_VERSION,
@@ -107,7 +107,7 @@ def test_allowed_top_level_sections_are_exactly_workflow_v1_sections() -> None:
 def test_every_accepted_section_key_is_in_the_schema_definition() -> None:
     # Every validated key must appear in the schema definition, or GUI/YAML generators
     # can't see it and it fails to round-trip.
-    from bioseq_dl.core.workflow.schema import (
+    from silkroute.core.workflow.schema import (
         DATASET_KEYS,
         EXECUTION_KEYS,
         EXPORT_KEYS,
@@ -394,9 +394,9 @@ def test_schema_version_and_gui_query_metadata_are_preserved_in_outputs() -> Non
     assert normalized_descriptor["query"]["composition"] == descriptor["query"]["composition"]
     assert metadata["normalized_workflow_values"]["schema_version"] == WORKFLOW_SCHEMA_VERSION
     assert set(metadata["tool"]) == EXPECTED_TOOL_IDENTITY_KEYS
-    assert metadata["tool"]["tool_name"] == "BioSeqDownloader"
-    assert metadata["tool"]["distribution_name"] == "bioseqdownloader"
-    assert metadata["tool"]["import_package_name"] == "bioseq_dl"
+    assert metadata["tool"]["tool_name"] == "SilkRoute"
+    assert metadata["tool"]["distribution_name"] == "silkroute"
+    assert metadata["tool"]["import_package_name"] == "silkroute"
     assert metadata["tool"]["version"]
     assert set(summary["tool"]) == EXPECTED_TOOL_IDENTITY_KEYS
     assert summary["tool"] == metadata["tool"]

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from bioseq_dl.constants.uniprot import (
+from silkroute.constants.uniprot import (
     get_effective_uniprot_return_fields,
     get_required_uniprot_fields_for_enrichment,
 )

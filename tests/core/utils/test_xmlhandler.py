@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 
 import polars as pl
 
-from bioseq_dl.core.utils.xmlhandler import (
+from silkroute.core.utils.xmlhandler import (
     dict_to_element,
     dict_to_elementtree,
     elementtree_to_dataframe,

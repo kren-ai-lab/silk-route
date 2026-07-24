@@ -1,4 +1,4 @@
-"""CLI tests for ``bioseq-dl workflow validate`` (offline, no execution)."""
+"""CLI tests for ``silkroute workflow validate`` (offline, no execution)."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ import textwrap
 
 from typer.testing import CliRunner
 
-from bioseq_dl.cli.main import app
-from bioseq_dl.cli.workflows import collect_workflow_recipe_errors
+from silkroute.cli.main import app
+from silkroute.cli.workflows import collect_workflow_recipe_errors
 
 runner = CliRunner()
 

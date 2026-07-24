@@ -14,8 +14,8 @@ import polars as pl
 import pytest
 from niquests.exceptions import RequestException
 
-from bioseq_dl.core.dbconfig import DBConfig
-from bioseq_dl.core.interfaces.base import BaseAPIInterface
+from silkroute.core.dbconfig import DBConfig
+from silkroute.core.interfaces.base import BaseAPIInterface
 
 
 class FakeInterface(BaseAPIInterface):
@@ -243,11 +243,11 @@ def test_resolve_dirs_explicit_config_dir_preserved():
 def test_packaged_fields_loaded_without_user_config_dir(tmp_path):
     # use_config=True + a non-existent config dir must NOT raise: field maps come
     # from packaged resources, not the user directory.
-    from bioseq_dl import ChEBIInterface
+    from silkroute import ChEBIInterface
 
     iface = ChEBIInterface(cache_dir=str(tmp_path), config_dir=str(tmp_path / "missing"), use_config=True)
     fields = iface.get_config("fields")
-    assert fields  # non-empty, loaded from bioseq_dl/config/chebi/fields.yml
+    assert fields  # non-empty, loaded from silkroute/config/chebi/fields.yml
     assert "compounds" in fields
 
 
@@ -269,7 +269,7 @@ def test_fetch_paginated_http_410_warns_without_traceback_and_preserves_partial_
         ]
     )
 
-    with caplog.at_level("WARNING", logger="bioseq_dl.interfaces.base"):
+    with caplog.at_level("WARNING", logger="silkroute.interfaces.base"):
         records = iface._fetch_paginated(
             page_one,
             next_link=lambda data: data.get("next"),
@@ -288,7 +288,7 @@ def test_fetch_paginated_other_request_errors_warn_without_traceback(iface, capl
     url = "https://example.test/page/1"
     iface.session = PaginatedSession([PaginatedResponse(url, 500)])
 
-    with caplog.at_level("WARNING", logger="bioseq_dl.interfaces.base"):
+    with caplog.at_level("WARNING", logger="silkroute.interfaces.base"):
         records = iface._fetch_paginated(
             url,
             next_link=lambda data: data.get("next"),

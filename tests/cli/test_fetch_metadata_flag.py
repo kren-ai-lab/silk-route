@@ -10,7 +10,7 @@ import polars as pl
 import pytest
 from typer.testing import CliRunner
 
-from bioseq_dl.cli.main import app
+from silkroute.cli.main import app
 
 runner = CliRunner()
 
@@ -21,12 +21,12 @@ class _FakeKEGG:
 
     def fetch_single(self, *args, **kwargs):
         df = pl.DataFrame({"id": ["hsa:1"], "value": [42]})
-        return df, {"api_name": "kegg", "tool": {"name": "bioseq_dl", "version": "0.1.0"}}
+        return df, {"api_name": "kegg", "tool": {"name": "silkroute", "version": "0.1.0"}}
 
 
 @pytest.fixture
 def _patch_kegg(monkeypatch):
-    monkeypatch.setattr("bioseq_dl.cli.interfaces.kegg.KEGGInterface", _FakeKEGG)
+    monkeypatch.setattr("silkroute.cli.interfaces.kegg.KEGGInterface", _FakeKEGG)
 
 
 @pytest.mark.usefixtures("_patch_kegg")

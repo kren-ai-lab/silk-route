@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from bioseq_dl.core.exceptions import ConfigError
-from bioseq_dl.core.interfaces.reactome import ReactomeInterface
+from silkroute.core.exceptions import ConfigError
+from silkroute.core.interfaces.reactome import ReactomeInterface
 
 
 @pytest.fixture

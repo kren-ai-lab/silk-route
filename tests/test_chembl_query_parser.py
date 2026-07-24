@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from bioseq_dl.core.workflow.chembl_query_parser import parse_chembl_query_builder_string
+from silkroute.core.workflow.chembl_query_parser import parse_chembl_query_builder_string
 
 
 def test_chembl_filter_list_query_converts_to_filters_structure():

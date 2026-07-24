@@ -11,8 +11,8 @@ from xml.etree.ElementTree import ElementTree, fromstring, tostring
 
 import polars as pl
 
-from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
-from bioseq_dl.core.metadata import FetchMetadata
+from silkroute.core.crossref_enricher import CrossRefEnricher, EndpointSpec
+from silkroute.core.metadata import FetchMetadata
 
 
 def test_graph_row_result_xml_is_parseable():

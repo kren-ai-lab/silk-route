@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from bioseq_dl.core.utils.base_auxiliary_methods import (
+from silkroute.core.utils.base_auxiliary_methods import (
     get_primary_keys,
     validate_parameters,
 )

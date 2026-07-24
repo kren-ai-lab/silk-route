@@ -1,1 +1,2414 @@
-"EntryID\tOrganism\tUniprotID\tECNumber\tparameter.name\tparameter.type\tparameter.associatedSpecies\tparameter.startValue\tparameter.endValue\tparameter.standardDeviation\tparameter.unit\tReaction\tTemperature\tpH\tTissue\n56535\tSaccharomyces cerevisiae\tP00330\t1.1.1.1\tS\tconcentration\tAcetaldehyde\t0.0\t0.008\t-\tM\tEthanol + NAD+ = Acetaldehyde + NADH + H+\t30.0\t6.5\t-\n56535\tSaccharomyces cerevisiae\tP00330\t1.1.1.1\tN\tconcentration\tNADH\t1.8E-4\t\t-\tM\tEthanol + NAD+ = Acetaldehyde + NADH + H+\t30.0\t6.5\t-\n56535\tSaccharomyces cerevisiae\tP00330\t1.1.1.1\tE\tconcentration\tEnzyme\t\t\t-\t-\tEthanol + NAD+ = Acetaldehyde + NADH + H+\t30.0\t6.5\t-\n56535\tSaccharomyces cerevisiae\tP00330\t1.1.1.1\tKm\tKm\tAcetaldehyde\t4.62E-4\t\t2.4E-5\tM\tEthanol + NAD+ = Acetaldehyde + NADH + H+\t30.0\t6.5\t-\n56535\tSaccharomyces cerevisiae\tP00330\t1.1.1.1\tkcat\tkcat\t\t176.0\t\t2.3E0\ts^(-1)\tEthanol + NAD+ = Acetaldehyde + NADH + H+\t30.0\t6.5\t-\n56564\tSaccharomyces cerevisiae\tP00330\t1.1.1.1\tADHADH1Knad\tKm\tNAD+\t1.7E-4\t\t-\tM\tEthanol + NAD+ = Acetaldehyde + NADH + H+\t-\t-\t-\n56564\tSaccharomyces cerevisiae\tP00330\t1.1.1.1\tADHADH1Kinadh\tKi\tNADH\t3.1E-5\t\t-\tM\tEthanol + NAD+ = Acetaldehyde + NADH + H+\t-\t-\t-\n56564\tSaccharomyces cerevisiae\tP00330\t1.1.1.1\tADHADH1kcat\tkcat\t\t176.0\t\t-\ts^(-1)\tEthanol + NAD+ = Acetaldehyde + NADH + H+\t-\t-\t-\n56564\tSaccharomyces cerevisiae\tP00330\t1.1.1.1\tNAD\tconcentration\tNAD+\t0.00150329\t\t-\tM\tEthanol + NAD+ = Acetaldehyde + NADH + H+\t-\t-\t-\n56564\tSaccharomyces cerevisiae\tP00330\t1.1.1.1\tAcAld\tconcentration\tAcetaldehyde\t1.781406E-4\t\t-\tM\tEthanol + NAD+ = Acetaldehyde + NADH + H+\t-\t-\t-\n56564\tSaccharomyces cerevisiae\tP00330\t1.1.1.1\tADHADH1Knadh\tKm\tNADH\t1.1E-4\t\t-\tM\tEthanol + NAD+ = Acetaldehyde + NADH + H+\t-\t-\t-\n56564\tSaccharomyces cerevisiae\tP00330\t1.1.1.1\tADHADH1Kinad\tKi\tNAD+\t9.2E-4\t\t-\tM\tEthanol + NAD+ = Acetaldehyde + NADH + H+\t-\t-\t-\n56564\tSaccharomyces cerevisiae\tP00330\t1.1.1.1\tADH1\tconcentration\tEnzyme\t1.639085E-4\t\t-\tM\tEthanol + NAD+ = Acetaldehyde + NADH + H+\t-\t-\t-\n56564\tSaccharomyces cerevisiae\tP00330\t1.1.1.1\tADHADH1Kiacald\tKi\tAcetaldehyde\t0.0011\t\t-\tM\tEthanol + NAD+ = Acetaldehyde + NADH + H+\t-\t-\t-\n56564\tSaccharomyces cerevisiae\tP00330\t1.1.1.1\tADHADH1Kacald\tKm\tAcetaldehyde\t4.622E-4\t\t-\tM\tEthanol + NAD+ = Acetaldehyde + NADH + H+\t-\t-\t-\n56564\tSaccharomyces cerevisiae\tP00330\t1.1.1.1\tNADH\tconcentration\tNADH\t8.67097E-5\t\t-\tM\tEthanol + NAD+ = Acetaldehyde + NADH + H+\t-\t-\t-\n56564\tSaccharomyces cerevisiae\tP00330\t1.1.1.1\tEtOH\tconcentration\tEthanol\t0.2218903\t\t-\tM\tEthanol + NAD+ = Acetaldehyde + NADH + H+\t-\t-\t-\n56564\tSaccharomyces cerevisiae\tP00330\t1.1.1.1\tADHADH1Kietoh\tKi\tEthanol\t0.09\t\t-\tM\tEthanol + NAD+ = Acetaldehyde + NADH + H+\t-\t-\t-\n56564\tSaccharomyces cerevisiae\tP00330\t1.1.1.1\tKeqADH\tKeq\t\t14492.75\t\t-\t-\tEthanol + NAD+ = Acetaldehyde + NADH + H+\t-\t-\t-\n56564\tSaccharomyces cerevisiae\tP00330\t1.1.1.1\tADHADH1Ketoh\tKm\tEthanol\t0.017\t\t-\tM\tEthanol + NAD+ = Acetaldehyde + NADH + H+\t-\t-\t-\n"
+{
+  "meta": {
+    "page": 1,
+    "page_size": 1000,
+    "total_count": 2,
+    "total_pages": 1
+  },
+  "data": [
+    {
+      "schema": "draft.v1.schema.json",
+      "general": {
+        "organism": {
+          "id": 4,
+          "name": "Saccharomyces cerevisiae",
+          "ncbi_taxonomy_id": 4932,
+          "ncbi_taxonomy_lineage": [
+            "root",
+            "cellular organisms",
+            "Eukaryota",
+            "Opisthokonta",
+            "Fungi",
+            "Dikarya",
+            "Ascomycota",
+            "saccharomyceta",
+            "Saccharomycotina",
+            "Saccharomycetes",
+            "Saccharomycetales",
+            "Saccharomycetaceae",
+            "Saccharomyces",
+            "Saccharomyces cerevisiae"
+          ]
+        },
+        "tissue": {
+          "id": null,
+          "name": null
+        },
+        "strain": {
+          "id": null,
+          "name": null
+        },
+        "experiment_type": "InVitro",
+        "mechanism": null,
+        "publication_id": 5564,
+        "comment": "-",
+        "date_inserted": "2016-06-08T16:19:53+00:00",
+        "date_updated": "2016-11-24T10:15:15+00:00"
+      },
+      "reaction": {
+        "equation": "NADH + H+ + Acetaldehyde = NAD+ + Ethanol",
+        "equation_normalized": null,
+        "is_transport": false,
+        "id": 597,
+        "species": [
+          {
+            "stoch_value": "1",
+            "compound": {
+              "id": 0,
+              "name": "Enzyme"
+            },
+            "role": "Catalyst",
+            "location": {
+              "id": null,
+              "name": null,
+              "go_term": null
+            },
+            "protein_complex_names": null,
+            "protein_complex_ids": null,
+            "comment": "purified"
+          },
+          {
+            "stoch_value": "1",
+            "compound": {
+              "id": 37,
+              "name": "NAD+"
+            },
+            "role": "Product",
+            "location": {
+              "id": null,
+              "name": null,
+              "go_term": null
+            },
+            "protein_complex_names": null,
+            "protein_complex_ids": null,
+            "comment": "-"
+          },
+          {
+            "stoch_value": "1",
+            "compound": {
+              "id": 56,
+              "name": "Ethanol"
+            },
+            "role": "Product",
+            "location": {
+              "id": null,
+              "name": null,
+              "go_term": null
+            },
+            "protein_complex_names": null,
+            "protein_complex_ids": null,
+            "comment": "-"
+          },
+          {
+            "stoch_value": "1",
+            "compound": {
+              "id": 38,
+              "name": "NADH"
+            },
+            "role": "Substrate",
+            "location": {
+              "id": null,
+              "name": null,
+              "go_term": null
+            },
+            "protein_complex_names": null,
+            "protein_complex_ids": null,
+            "comment": "-"
+          },
+          {
+            "stoch_value": "1",
+            "compound": {
+              "id": 39,
+              "name": "H+"
+            },
+            "role": "Substrate",
+            "location": {
+              "id": null,
+              "name": null,
+              "go_term": null
+            },
+            "protein_complex_names": null,
+            "protein_complex_ids": null,
+            "comment": "-"
+          },
+          {
+            "stoch_value": "1",
+            "compound": {
+              "id": 1292,
+              "name": "Acetaldehyde"
+            },
+            "role": "Substrate",
+            "location": {
+              "id": null,
+              "name": null,
+              "go_term": null
+            },
+            "protein_complex_names": null,
+            "protein_complex_ids": null,
+            "comment": "-"
+          }
+        ],
+        "pathways": [
+          {
+            "id": 1,
+            "name": "Glycolysis/Gluconeogenesis"
+          },
+          {
+            "id": 165,
+            "name": "Glycolysis classical"
+          },
+          {
+            "id": 394,
+            "name": "Pyruvate metabolism"
+          },
+          {
+            "id": 421,
+            "name": "Metabolic pathways"
+          },
+          {
+            "id": 422,
+            "name": "Biosynthesis of secondary metabolites"
+          },
+          {
+            "id": 423,
+            "name": "Microbial metabolism in diverse environments"
+          }
+        ]
+      },
+      "kineticlaw": {
+        "kinlaw_type": {
+          "id": 23,
+          "name": "Michaelis-Menten",
+          "sbo_term": "SBO:0000029"
+        },
+        "reversible": "Reversible",
+        "formula": "E*kcat*S/(Km+S)",
+        "formula_subst": null,
+        "variables": [],
+        "parameter": [
+          {
+            "name": "kcat",
+            "role": "Constant",
+            "parameter_type": {
+              "id": 7,
+              "name": "kcat",
+              "sbo_term": "SBO:0000025"
+            },
+            "species": {
+              "species_ref_type": "Species",
+              "species_key": null,
+              "ref_status_actual": null
+            },
+            "start_value": 176,
+            "end_value": null,
+            "standard_deviation": 2.3,
+            "unit": {
+              "id": 24,
+              "name": "s^(-1)",
+              "n_name": "s^(-1)"
+            },
+            "comment": "-",
+            "n_start_value": 176,
+            "n_end_value": null,
+            "n_standard_deviation": 2.3
+          },
+          {
+            "name": "Km",
+            "role": "Constant",
+            "parameter_type": {
+              "id": 8,
+              "name": "Km",
+              "sbo_term": "SBO:0000027"
+            },
+            "species": {
+              "species_ref_type": "Species",
+              "species_key": "1 | Acetaldehyde | Substrate",
+              "ref_status_actual": null
+            },
+            "start_value": 0.462,
+            "end_value": null,
+            "standard_deviation": 0.024,
+            "unit": {
+              "id": 29,
+              "name": "mM",
+              "n_name": "M"
+            },
+            "comment": "-",
+            "n_start_value": 0.000462,
+            "n_end_value": null,
+            "n_standard_deviation": 2.4e-05
+          },
+          {
+            "name": "S",
+            "role": "Variable",
+            "parameter_type": {
+              "id": 9,
+              "name": "concentration",
+              "sbo_term": "SBO:0000196"
+            },
+            "species": {
+              "species_ref_type": "Species",
+              "species_key": "1 | Acetaldehyde | Substrate",
+              "ref_status_actual": null
+            },
+            "start_value": 0,
+            "end_value": 8,
+            "standard_deviation": null,
+            "unit": {
+              "id": 29,
+              "name": "mM",
+              "n_name": "M"
+            },
+            "comment": "-",
+            "n_start_value": 0,
+            "n_end_value": 0.008,
+            "n_standard_deviation": null
+          },
+          {
+            "name": "E",
+            "role": "Variable",
+            "parameter_type": {
+              "id": 9,
+              "name": "concentration",
+              "sbo_term": "SBO:0000196"
+            },
+            "species": {
+              "species_ref_type": "Species",
+              "species_key": "1 | Enzyme | Catalyst",
+              "ref_status_actual": null
+            },
+            "start_value": null,
+            "end_value": null,
+            "standard_deviation": null,
+            "unit": {
+              "id": 0,
+              "name": "-",
+              "n_name": null
+            },
+            "comment": "-",
+            "n_start_value": null,
+            "n_end_value": null,
+            "n_standard_deviation": null
+          },
+          {
+            "name": "N",
+            "role": "Variable",
+            "parameter_type": {
+              "id": 9,
+              "name": "concentration",
+              "sbo_term": "SBO:0000196"
+            },
+            "species": {
+              "species_ref_type": "Species",
+              "species_key": "1 | NADH | Substrate",
+              "ref_status_actual": null
+            },
+            "start_value": 0.18,
+            "end_value": null,
+            "standard_deviation": null,
+            "unit": {
+              "id": 29,
+              "name": "mM",
+              "n_name": "M"
+            },
+            "comment": "-",
+            "n_start_value": 0.00017999999999999998,
+            "n_end_value": null,
+            "n_standard_deviation": null
+          }
+        ]
+      },
+      "enzyme_description": {
+        "ec_number": "1.1.1.1",
+        "wildtype": "Wildtype",
+        "enzyme_name": "alcohol dehydrogenase",
+        "mutant_spec": "isozyme Adh1p, C-terminal GST-tag",
+        "is_recombinant": true,
+        "expressed_in": "Saccharomyces cerevisiae",
+        "proteins": [
+          {
+            "stoch_value": null,
+            "uniprot_id": "P00330",
+            "name": null,
+            "molweight_kda": null,
+            "molweight_dev": null
+          }
+        ],
+        "go_term": "GO:0004022"
+      },
+      "experimental_conditions": {
+        "buffer": "83 mM potassium phosphate, 40 mM KCl, 5 mM MgCl2",
+        "comment": "experimental conditions are taken from PMID: 21943900.",
+        "envvar_ph": {
+          "start_value": 6.5,
+          "end_value": null
+        },
+        "envvar_temperature": {
+          "start_value": 30,
+          "end_value": null,
+          "unit": "\u00b0C"
+        },
+        "envvars_other": []
+      },
+      "signalling": {
+        "signalling_event": {
+          "signalling_event_description": {
+            "id": 1,
+            "name": "-"
+          },
+          "event_types": []
+        },
+        "species_modification": []
+      },
+      "id": 56535,
+      "publication": {
+        "publication_id": 5564,
+        "pubmed_id": "23831062",
+        "title": "A model of yeast glycolysis based on a consistent kinetic characterisation of all its enzymes.",
+        "author": "Smallbone K, Messiha HL, Carroll KM, Winder CL, Malys N, Dunn WB, Murabito E, Swainston N, Dada JO, Khan F, Pir P, Simeonidis E, Spasi\u0107 I, Wishart J, Weichart D, Hayes NW, Jameson D, Broomhead DS, Oliver SG, Gaskell SJ, McCarthy JE, Paton NW, Westerhoff HV, Kell DB, Mendes P",
+        "journal": "FEBS Lett",
+        "volume": "587",
+        "pages": "2832-41",
+        "year": 2013,
+        "data_identifier": null,
+        "base_url": null
+      },
+      "external_links": {
+        "compound": [
+          {
+            "id": 37,
+            "key": "ChebiID",
+            "value": "44215"
+          },
+          {
+            "id": 37,
+            "key": "ChebiID",
+            "value": "13389"
+          },
+          {
+            "id": 37,
+            "key": "ChebiID",
+            "value": "15846"
+          },
+          {
+            "id": 37,
+            "key": "ChebiID",
+            "value": "7422"
+          },
+          {
+            "id": 37,
+            "key": "ChebiID",
+            "value": "57540"
+          },
+          {
+            "id": 37,
+            "key": "ChebiID",
+            "value": "44281"
+          },
+          {
+            "id": 37,
+            "key": "ChebiID",
+            "value": "44214"
+          },
+          {
+            "id": 37,
+            "key": "ChebiID",
+            "value": "21901"
+          },
+          {
+            "id": 37,
+            "key": "ChebiID",
+            "value": "13394"
+          },
+          {
+            "id": 37,
+            "key": "ChebiID",
+            "value": "13393"
+          },
+          {
+            "id": 37,
+            "key": "ChemSpiderID",
+            "value": "5682"
+          },
+          {
+            "id": 37,
+            "key": "KeggCompoundID",
+            "value": "C00003"
+          },
+          {
+            "id": 37,
+            "key": "MetaCycCompoundID",
+            "value": "NAD"
+          },
+          {
+            "id": 37,
+            "key": "MetaNetXCompoundID",
+            "value": "MNXM8"
+          },
+          {
+            "id": 37,
+            "key": "PubChemSID",
+            "value": "3305"
+          },
+          {
+            "id": 37,
+            "key": "PubChemCID",
+            "value": "5893"
+          },
+          {
+            "id": 37,
+            "key": "ReactomeCompoundID",
+            "value": "113526"
+          },
+          {
+            "id": 37,
+            "key": "ReactomeCompoundID",
+            "value": "192307"
+          },
+          {
+            "id": 37,
+            "key": "ReactomeCompoundID",
+            "value": "194653"
+          },
+          {
+            "id": 37,
+            "key": "ReactomeCompoundID",
+            "value": "29360"
+          },
+          {
+            "id": 37,
+            "key": "ReactomeCompoundID",
+            "value": "352330"
+          },
+          {
+            "id": 38,
+            "key": "ChebiID",
+            "value": "16908"
+          },
+          {
+            "id": 38,
+            "key": "ChebiID",
+            "value": "7423"
+          },
+          {
+            "id": 38,
+            "key": "ChebiID",
+            "value": "57945"
+          },
+          {
+            "id": 38,
+            "key": "ChebiID",
+            "value": "44216"
+          },
+          {
+            "id": 38,
+            "key": "ChebiID",
+            "value": "21902"
+          },
+          {
+            "id": 38,
+            "key": "ChebiID",
+            "value": "13396"
+          },
+          {
+            "id": 38,
+            "key": "ChebiID",
+            "value": "13395"
+          },
+          {
+            "id": 38,
+            "key": "KeggCompoundID",
+            "value": "C00004"
+          },
+          {
+            "id": 38,
+            "key": "MetaCycCompoundID",
+            "value": "NADH"
+          },
+          {
+            "id": 38,
+            "key": "MetaNetXCompoundID",
+            "value": "MNXM10"
+          },
+          {
+            "id": 38,
+            "key": "PubChemSID",
+            "value": "3306"
+          },
+          {
+            "id": 38,
+            "key": "PubChemCID",
+            "value": "439153"
+          },
+          {
+            "id": 38,
+            "key": "ReactomeCompoundID",
+            "value": "192305"
+          },
+          {
+            "id": 38,
+            "key": "ReactomeCompoundID",
+            "value": "194697"
+          },
+          {
+            "id": 38,
+            "key": "ReactomeCompoundID",
+            "value": "29362"
+          },
+          {
+            "id": 38,
+            "key": "ReactomeCompoundID",
+            "value": "73473"
+          },
+          {
+            "id": 39,
+            "key": "ChebiID",
+            "value": "15378"
+          },
+          {
+            "id": 39,
+            "key": "ChebiID",
+            "value": "5584"
+          },
+          {
+            "id": 39,
+            "key": "ChebiID",
+            "value": "29234"
+          },
+          {
+            "id": 39,
+            "key": "ChebiID",
+            "value": "29233"
+          },
+          {
+            "id": 39,
+            "key": "ChebiID",
+            "value": "24636"
+          },
+          {
+            "id": 39,
+            "key": "ChebiID",
+            "value": "13357"
+          },
+          {
+            "id": 39,
+            "key": "ChebiID",
+            "value": "10744"
+          },
+          {
+            "id": 39,
+            "key": "KeggCompoundID",
+            "value": "C00080"
+          },
+          {
+            "id": 39,
+            "key": "MetaCycCompoundID",
+            "value": "PROTON"
+          },
+          {
+            "id": 39,
+            "key": "MetaNetXCompoundID",
+            "value": "MNXM1"
+          },
+          {
+            "id": 39,
+            "key": "PubChemSID",
+            "value": "3380"
+          },
+          {
+            "id": 39,
+            "key": "PubChemCID",
+            "value": "1038"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "1132304"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "113529"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "1470067"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "156540"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "163953"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "193465"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "194688"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "2000349"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "2872447"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "351626"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "372511"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "374900"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "425969"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "425978"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "425999"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "427899"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "428040"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "428548"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "5668577"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "70106"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "74722"
+          },
+          {
+            "id": 56,
+            "key": "ChebiID",
+            "value": "16236"
+          },
+          {
+            "id": 56,
+            "key": "ChebiID",
+            "value": "4879"
+          },
+          {
+            "id": 56,
+            "key": "ChebiID",
+            "value": "44594"
+          },
+          {
+            "id": 56,
+            "key": "ChebiID",
+            "value": "42377"
+          },
+          {
+            "id": 56,
+            "key": "ChebiID",
+            "value": "30880"
+          },
+          {
+            "id": 56,
+            "key": "ChebiID",
+            "value": "30878"
+          },
+          {
+            "id": 56,
+            "key": "ChebiID",
+            "value": "23978"
+          },
+          {
+            "id": 56,
+            "key": "ChebiID",
+            "value": "14222"
+          },
+          {
+            "id": 56,
+            "key": "KeggCompoundID",
+            "value": "C00469"
+          },
+          {
+            "id": 56,
+            "key": "MetaCycCompoundID",
+            "value": "ETOH"
+          },
+          {
+            "id": 56,
+            "key": "MetaNetXCompoundID",
+            "value": "MNXM733715"
+          },
+          {
+            "id": 56,
+            "key": "PubChemSID",
+            "value": "3752"
+          },
+          {
+            "id": 56,
+            "key": "PubChemCID",
+            "value": "702"
+          },
+          {
+            "id": 56,
+            "key": "ReactomeCompoundID",
+            "value": "113748"
+          },
+          {
+            "id": 56,
+            "key": "ReactomeCompoundID",
+            "value": "30203"
+          },
+          {
+            "id": 1292,
+            "key": "ChebiID",
+            "value": "15343"
+          },
+          {
+            "id": 1292,
+            "key": "ChebiID",
+            "value": "40533"
+          },
+          {
+            "id": 1292,
+            "key": "ChebiID",
+            "value": "2383"
+          },
+          {
+            "id": 1292,
+            "key": "ChebiID",
+            "value": "22158"
+          },
+          {
+            "id": 1292,
+            "key": "ChebiID",
+            "value": "13703"
+          },
+          {
+            "id": 1292,
+            "key": "KeggCompoundID",
+            "value": "C00084"
+          },
+          {
+            "id": 1292,
+            "key": "MetaCycCompoundID",
+            "value": "ACETALD"
+          },
+          {
+            "id": 1292,
+            "key": "MetaNetXCompoundID",
+            "value": "MNXM75"
+          },
+          {
+            "id": 1292,
+            "key": "PubChemSID",
+            "value": "3384"
+          },
+          {
+            "id": 1292,
+            "key": "PubChemCID",
+            "value": "177"
+          },
+          {
+            "id": 1292,
+            "key": "ReactomeCompoundID",
+            "value": "113532"
+          },
+          {
+            "id": 1292,
+            "key": "ReactomeCompoundID",
+            "value": "113681"
+          },
+          {
+            "id": 1292,
+            "key": "ReactomeCompoundID",
+            "value": "113745"
+          },
+          {
+            "id": 1292,
+            "key": "ReactomeCompoundID",
+            "value": "29510"
+          },
+          {
+            "id": 37,
+            "key": "InChI",
+            "value": "InChI=1S/C21H27N7O14P2/c22-17-12-19(25-7-24-17)28(8-26-12)21-16(32)14(30)11(41-21)6-39-44(36,37)42-43(34,35)38-5-10-13(29)15(31)20(40-10)27-3-1-2-9(4-27)18(23)33/h1-4,7-8,10-11,13-16,20-21,29-32H,5-6H2,(H5-,22,23,24,25,33,34,35,36,37)/p+1/t10-,11-,13-,14-,15-,16-,20-,21-/m1/s1"
+          },
+          {
+            "id": 37,
+            "key": "SMILES",
+            "value": "c1cc(c[n+](c1)[C@H]2[C@@H]([C@@H]([C@H](O2)COP(=O)(O)OP(=O)(O)OC[C@@H]3[C@H]([C@H]([C@@H](O3)n4cnc5c4ncnc5N)O)O)O)O)C(=O)N"
+          },
+          {
+            "id": 38,
+            "key": "InChI",
+            "value": "InChI=1S/C21H29N7O14P2/c22-17-12-19(25-7-24-17)28(8-26-12)21-16(32)14(30)11(41-21)6-39-44(36,37)42-43(34,35)38-5-10-13(29)15(31)20(40-10)27-3-1-2-9(4-27)18(23)33/h1,3-4,7-8,10-11,13-16,20-21,29-32H,2,5-6H2,(H2,23,33)(H,34,35)(H,36,37)(H2,22,24,25)/t10-,11-,13-,14-,15-,16-,20-,21-/m1/s1"
+          },
+          {
+            "id": 38,
+            "key": "SMILES",
+            "value": "NC(=O)C=1CC=CN(C=1)C5OC(COP(O)(=O)OP(O)(=O)OCC2OC(C(O)C2(O))n4cnc3c(N)ncnc34)C(O)C5(O)"
+          },
+          {
+            "id": 39,
+            "key": "InChI",
+            "value": "InChI=1S/p+1"
+          },
+          {
+            "id": 39,
+            "key": "SMILES",
+            "value": "[H]"
+          },
+          {
+            "id": 56,
+            "key": "InChI",
+            "value": "InChI=1S/C2H6O/c1-2-3/h3H,2H2,1H3"
+          },
+          {
+            "id": 56,
+            "key": "SMILES",
+            "value": "CCO"
+          },
+          {
+            "id": 1292,
+            "key": "InChI",
+            "value": "InChI=1S/C2H4O/c1-2-3/h2H,1H3"
+          },
+          {
+            "id": 1292,
+            "key": "SMILES",
+            "value": "CC=O"
+          }
+        ],
+        "reaction": [
+          {
+            "id": 597,
+            "key": "KeggPathwayID",
+            "value": "01120"
+          },
+          {
+            "id": 597,
+            "key": "KeggPathwayID",
+            "value": "00010"
+          },
+          {
+            "id": 597,
+            "key": "KeggPathwayID",
+            "value": "01100"
+          },
+          {
+            "id": 597,
+            "key": "KeggPathwayID",
+            "value": "00620"
+          },
+          {
+            "id": 597,
+            "key": "KeggPathwayID",
+            "value": "01110"
+          },
+          {
+            "id": 597,
+            "key": "KeggReactionID",
+            "value": "R00754"
+          },
+          {
+            "id": 597,
+            "key": "MetaCycReactionID",
+            "value": "ALCOHOL-DEHYDROG-RXN"
+          },
+          {
+            "id": 597,
+            "key": "MetaNetXReactionID",
+            "value": "MNXR95725"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-GGA-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-DDI-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-HSA-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-CFA-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-DRE-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-CEL-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-SSC-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-BTA-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-SPO-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-MMU-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-DME-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-ATH-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-XTR-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-SCE-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-OSA-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-RNO-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-TGU-71707"
+          },
+          {
+            "id": 597,
+            "key": "RheaReactionID",
+            "value": "25291"
+          },
+          {
+            "id": 597,
+            "key": "RheaReactionID",
+            "value": "25290"
+          },
+          {
+            "id": 597,
+            "key": "RheaReactionID",
+            "value": "25292"
+          },
+          {
+            "id": 597,
+            "key": "RheaReactionID",
+            "value": "25293"
+          }
+        ],
+        "uniprot": [],
+        "kinlaw_entry": [
+          {
+            "id": 56535,
+            "key": "UniProtKB_AC",
+            "value": "P00330"
+          }
+        ]
+      }
+    },
+    {
+      "schema": "draft.v1.schema.json",
+      "general": {
+        "organism": {
+          "id": 4,
+          "name": "Saccharomyces cerevisiae",
+          "ncbi_taxonomy_id": 4932,
+          "ncbi_taxonomy_lineage": [
+            "root",
+            "cellular organisms",
+            "Eukaryota",
+            "Opisthokonta",
+            "Fungi",
+            "Dikarya",
+            "Ascomycota",
+            "saccharomyceta",
+            "Saccharomycotina",
+            "Saccharomycetes",
+            "Saccharomycetales",
+            "Saccharomycetaceae",
+            "Saccharomyces",
+            "Saccharomyces cerevisiae"
+          ]
+        },
+        "tissue": {
+          "id": null,
+          "name": null
+        },
+        "strain": {
+          "id": null,
+          "name": null
+        },
+        "experiment_type": "InSilico",
+        "mechanism": null,
+        "publication_id": 5565,
+        "comment": "Bio Model Import",
+        "date_inserted": "2016-06-16T10:36:16+00:00",
+        "date_updated": "2016-11-24T10:15:26+00:00"
+      },
+      "reaction": {
+        "equation": "NADH + H+ + Acetaldehyde = NAD+ + Ethanol",
+        "equation_normalized": null,
+        "is_transport": false,
+        "id": 597,
+        "species": [
+          {
+            "stoch_value": "1",
+            "compound": {
+              "id": 0,
+              "name": "Enzyme"
+            },
+            "role": "Catalyst",
+            "location": {
+              "id": null,
+              "name": null,
+              "go_term": null
+            },
+            "protein_complex_names": null,
+            "protein_complex_ids": null,
+            "comment": "-"
+          },
+          {
+            "stoch_value": "1",
+            "compound": {
+              "id": 37,
+              "name": "NAD+"
+            },
+            "role": "Product",
+            "location": {
+              "id": null,
+              "name": null,
+              "go_term": null
+            },
+            "protein_complex_names": null,
+            "protein_complex_ids": null,
+            "comment": "-"
+          },
+          {
+            "stoch_value": "1",
+            "compound": {
+              "id": 56,
+              "name": "Ethanol"
+            },
+            "role": "Product",
+            "location": {
+              "id": null,
+              "name": null,
+              "go_term": null
+            },
+            "protein_complex_names": null,
+            "protein_complex_ids": null,
+            "comment": "-"
+          },
+          {
+            "stoch_value": "1",
+            "compound": {
+              "id": 38,
+              "name": "NADH"
+            },
+            "role": "Substrate",
+            "location": {
+              "id": null,
+              "name": null,
+              "go_term": null
+            },
+            "protein_complex_names": null,
+            "protein_complex_ids": null,
+            "comment": "-"
+          },
+          {
+            "stoch_value": "1",
+            "compound": {
+              "id": 39,
+              "name": "H+"
+            },
+            "role": "Substrate",
+            "location": {
+              "id": null,
+              "name": null,
+              "go_term": null
+            },
+            "protein_complex_names": null,
+            "protein_complex_ids": null,
+            "comment": "-"
+          },
+          {
+            "stoch_value": "1",
+            "compound": {
+              "id": 1292,
+              "name": "Acetaldehyde"
+            },
+            "role": "Substrate",
+            "location": {
+              "id": null,
+              "name": null,
+              "go_term": null
+            },
+            "protein_complex_names": null,
+            "protein_complex_ids": null,
+            "comment": "-"
+          }
+        ],
+        "pathways": [
+          {
+            "id": 1,
+            "name": "Glycolysis/Gluconeogenesis"
+          },
+          {
+            "id": 165,
+            "name": "Glycolysis classical"
+          },
+          {
+            "id": 394,
+            "name": "Pyruvate metabolism"
+          },
+          {
+            "id": 421,
+            "name": "Metabolic pathways"
+          },
+          {
+            "id": 422,
+            "name": "Biosynthesis of secondary metabolites"
+          },
+          {
+            "id": 423,
+            "name": "Microbial metabolism in diverse environments"
+          }
+        ]
+      },
+      "kineticlaw": {
+        "kinlaw_type": {
+          "id": 38,
+          "name": "Ordered Bi Bi",
+          "sbo_term": "SBO:0000433"
+        },
+        "reversible": "Reversible",
+        "formula": "ADH1*ADHADH1kcat*(-EtOH*NAD/(ADHADH1Kacald*ADHADH1Kinadh*KeqADH)+AcAld*NADH/(ADHADH1Kacald*ADHADH1Kinadh))/(1+ADHADH1Knad*EtOH/(ADHADH1Ketoh*ADHADH1Kinad)+ADHADH1Knadh*AcAld/(ADHADH1Kacald*ADHADH1Kinadh)+NAD/ADHADH1Kinad+EtOH*NAD/(ADHADH1Ketoh*ADHADH1Kinad)+ADHADH1Knadh*AcAld*NAD/(ADHADH1Kacald*ADHADH1Kinad*ADHADH1Kinadh)+EtOH*AcAld*NAD/(ADHADH1Ketoh*ADHADH1Kiacald*ADHADH1Kinad)+NADH/ADHADH1Kinadh+ADHADH1Knad*EtOH*NADH/(ADHADH1Ketoh*ADHADH1Kinad*ADHADH1Kinadh)+AcAld*NADH/(ADHADH1Kacald*ADHADH1Kinadh)+EtOH*AcAld*NADH/(ADHADH1Kacald*ADHADH1Kietoh*ADHADH1Kinadh))",
+        "formula_subst": null,
+        "variables": [],
+        "parameter": [
+          {
+            "name": "ADHADH1kcat",
+            "role": "Constant",
+            "parameter_type": {
+              "id": 7,
+              "name": "kcat",
+              "sbo_term": "SBO:0000025"
+            },
+            "species": {
+              "species_ref_type": "Species",
+              "species_key": null,
+              "ref_status_actual": null
+            },
+            "start_value": 176,
+            "end_value": null,
+            "standard_deviation": null,
+            "unit": {
+              "id": 24,
+              "name": "s^(-1)",
+              "n_name": "s^(-1)"
+            },
+            "comment": "-",
+            "n_start_value": 176,
+            "n_end_value": null,
+            "n_standard_deviation": null
+          },
+          {
+            "name": "KeqADH",
+            "role": "Constant",
+            "parameter_type": {
+              "id": 10,
+              "name": "Keq",
+              "sbo_term": "SBO:0000281"
+            },
+            "species": {
+              "species_ref_type": "Species",
+              "species_key": null,
+              "ref_status_actual": null
+            },
+            "start_value": 14492.7536231884,
+            "end_value": null,
+            "standard_deviation": null,
+            "unit": {
+              "id": 0,
+              "name": "-",
+              "n_name": "-"
+            },
+            "comment": "-",
+            "n_start_value": 14492.7536231884,
+            "n_end_value": null,
+            "n_standard_deviation": null
+          },
+          {
+            "name": "AcAld",
+            "role": "Variable",
+            "parameter_type": {
+              "id": 9,
+              "name": "concentration",
+              "sbo_term": "SBO:0000196"
+            },
+            "species": {
+              "species_ref_type": "Species",
+              "species_key": "1 | Acetaldehyde | Substrate",
+              "ref_status_actual": null
+            },
+            "start_value": 0.178140579850657,
+            "end_value": null,
+            "standard_deviation": null,
+            "unit": {
+              "id": 29,
+              "name": "mM",
+              "n_name": "M"
+            },
+            "comment": "-",
+            "n_start_value": 0.00017814057985065702,
+            "n_end_value": null,
+            "n_standard_deviation": null
+          },
+          {
+            "name": "ADHADH1Kacald",
+            "role": "Constant",
+            "parameter_type": {
+              "id": 8,
+              "name": "Km",
+              "sbo_term": "SBO:0000027"
+            },
+            "species": {
+              "species_ref_type": "Species",
+              "species_key": "1 | Acetaldehyde | Substrate",
+              "ref_status_actual": null
+            },
+            "start_value": 0.4622,
+            "end_value": null,
+            "standard_deviation": null,
+            "unit": {
+              "id": 29,
+              "name": "mM",
+              "n_name": "M"
+            },
+            "comment": "-",
+            "n_start_value": 0.0004622,
+            "n_end_value": null,
+            "n_standard_deviation": null
+          },
+          {
+            "name": "ADHADH1Kiacald",
+            "role": "Constant",
+            "parameter_type": {
+              "id": 1,
+              "name": "Ki",
+              "sbo_term": "SBO:0000261"
+            },
+            "species": {
+              "species_ref_type": "Species",
+              "species_key": "1 | Acetaldehyde | Substrate",
+              "ref_status_actual": null
+            },
+            "start_value": 1.1,
+            "end_value": null,
+            "standard_deviation": null,
+            "unit": {
+              "id": 29,
+              "name": "mM",
+              "n_name": "M"
+            },
+            "comment": "-",
+            "n_start_value": 0.0011,
+            "n_end_value": null,
+            "n_standard_deviation": null
+          },
+          {
+            "name": "ADH1",
+            "role": "Variable",
+            "parameter_type": {
+              "id": 9,
+              "name": "concentration",
+              "sbo_term": "SBO:0000196"
+            },
+            "species": {
+              "species_ref_type": "Species",
+              "species_key": "1 | Enzyme | Catalyst",
+              "ref_status_actual": null
+            },
+            "start_value": 0.163908510928009,
+            "end_value": null,
+            "standard_deviation": null,
+            "unit": {
+              "id": 29,
+              "name": "mM",
+              "n_name": "M"
+            },
+            "comment": "-",
+            "n_start_value": 0.000163908510928009,
+            "n_end_value": null,
+            "n_standard_deviation": null
+          },
+          {
+            "name": "ADHADH1Ketoh",
+            "role": "Constant",
+            "parameter_type": {
+              "id": 8,
+              "name": "Km",
+              "sbo_term": "SBO:0000027"
+            },
+            "species": {
+              "species_ref_type": "Species",
+              "species_key": "1 | Ethanol | Product",
+              "ref_status_actual": null
+            },
+            "start_value": 17,
+            "end_value": null,
+            "standard_deviation": null,
+            "unit": {
+              "id": 29,
+              "name": "mM",
+              "n_name": "M"
+            },
+            "comment": "-",
+            "n_start_value": 0.017,
+            "n_end_value": null,
+            "n_standard_deviation": null
+          },
+          {
+            "name": "ADHADH1Kietoh",
+            "role": "Constant",
+            "parameter_type": {
+              "id": 1,
+              "name": "Ki",
+              "sbo_term": "SBO:0000261"
+            },
+            "species": {
+              "species_ref_type": "Species",
+              "species_key": "1 | Ethanol | Product",
+              "ref_status_actual": null
+            },
+            "start_value": 90,
+            "end_value": null,
+            "standard_deviation": null,
+            "unit": {
+              "id": 29,
+              "name": "mM",
+              "n_name": "M"
+            },
+            "comment": "-",
+            "n_start_value": 0.09,
+            "n_end_value": null,
+            "n_standard_deviation": null
+          },
+          {
+            "name": "EtOH",
+            "role": "Variable",
+            "parameter_type": {
+              "id": 9,
+              "name": "concentration",
+              "sbo_term": "SBO:0000196"
+            },
+            "species": {
+              "species_ref_type": "Species",
+              "species_key": "1 | Ethanol | Product",
+              "ref_status_actual": null
+            },
+            "start_value": 221.890311417536,
+            "end_value": null,
+            "standard_deviation": null,
+            "unit": {
+              "id": 29,
+              "name": "mM",
+              "n_name": "M"
+            },
+            "comment": "-",
+            "n_start_value": 0.221890311417536,
+            "n_end_value": null,
+            "n_standard_deviation": null
+          },
+          {
+            "name": "ADHADH1Kinadh",
+            "role": "Constant",
+            "parameter_type": {
+              "id": 1,
+              "name": "Ki",
+              "sbo_term": "SBO:0000261"
+            },
+            "species": {
+              "species_ref_type": "Species",
+              "species_key": "1 | NADH | Substrate",
+              "ref_status_actual": null
+            },
+            "start_value": 0.031,
+            "end_value": null,
+            "standard_deviation": null,
+            "unit": {
+              "id": 29,
+              "name": "mM",
+              "n_name": "M"
+            },
+            "comment": "-",
+            "n_start_value": 3.1e-05,
+            "n_end_value": null,
+            "n_standard_deviation": null
+          },
+          {
+            "name": "ADHADH1Knadh",
+            "role": "Constant",
+            "parameter_type": {
+              "id": 8,
+              "name": "Km",
+              "sbo_term": "SBO:0000027"
+            },
+            "species": {
+              "species_ref_type": "Species",
+              "species_key": "1 | NADH | Substrate",
+              "ref_status_actual": null
+            },
+            "start_value": 0.11,
+            "end_value": null,
+            "standard_deviation": null,
+            "unit": {
+              "id": 29,
+              "name": "mM",
+              "n_name": "M"
+            },
+            "comment": "-",
+            "n_start_value": 0.00011,
+            "n_end_value": null,
+            "n_standard_deviation": null
+          },
+          {
+            "name": "NADH",
+            "role": "Variable",
+            "parameter_type": {
+              "id": 9,
+              "name": "concentration",
+              "sbo_term": "SBO:0000196"
+            },
+            "species": {
+              "species_ref_type": "Species",
+              "species_key": "1 | NADH | Substrate",
+              "ref_status_actual": null
+            },
+            "start_value": 0.0867096979846952,
+            "end_value": null,
+            "standard_deviation": null,
+            "unit": {
+              "id": 29,
+              "name": "mM",
+              "n_name": "M"
+            },
+            "comment": "-",
+            "n_start_value": 8.67096979846952e-05,
+            "n_end_value": null,
+            "n_standard_deviation": null
+          },
+          {
+            "name": "ADHADH1Kinad",
+            "role": "Constant",
+            "parameter_type": {
+              "id": 1,
+              "name": "Ki",
+              "sbo_term": "SBO:0000261"
+            },
+            "species": {
+              "species_ref_type": "Species",
+              "species_key": "1 | NAD+ | Product",
+              "ref_status_actual": null
+            },
+            "start_value": 0.92,
+            "end_value": null,
+            "standard_deviation": null,
+            "unit": {
+              "id": 29,
+              "name": "mM",
+              "n_name": "M"
+            },
+            "comment": "-",
+            "n_start_value": 0.00092,
+            "n_end_value": null,
+            "n_standard_deviation": null
+          },
+          {
+            "name": "ADHADH1Knad",
+            "role": "Constant",
+            "parameter_type": {
+              "id": 8,
+              "name": "Km",
+              "sbo_term": "SBO:0000027"
+            },
+            "species": {
+              "species_ref_type": "Species",
+              "species_key": "1 | NAD+ | Product",
+              "ref_status_actual": null
+            },
+            "start_value": 0.17,
+            "end_value": null,
+            "standard_deviation": null,
+            "unit": {
+              "id": 29,
+              "name": "mM",
+              "n_name": "M"
+            },
+            "comment": "-",
+            "n_start_value": 0.00017,
+            "n_end_value": null,
+            "n_standard_deviation": null
+          },
+          {
+            "name": "NAD",
+            "role": "Variable",
+            "parameter_type": {
+              "id": 9,
+              "name": "concentration",
+              "sbo_term": "SBO:0000196"
+            },
+            "species": {
+              "species_ref_type": "Species",
+              "species_key": "1 | NAD+ | Product",
+              "ref_status_actual": null
+            },
+            "start_value": 1.50329030201531,
+            "end_value": null,
+            "standard_deviation": null,
+            "unit": {
+              "id": 29,
+              "name": "mM",
+              "n_name": "M"
+            },
+            "comment": "-",
+            "n_start_value": 0.0015032903020153101,
+            "n_end_value": null,
+            "n_standard_deviation": null
+          }
+        ]
+      },
+      "enzyme_description": {
+        "ec_number": "1.1.1.1",
+        "wildtype": "Wildtype",
+        "enzyme_name": "alcohol dehydrogenase",
+        "mutant_spec": "isozyme Adh1p",
+        "is_recombinant": false,
+        "expressed_in": null,
+        "proteins": [
+          {
+            "stoch_value": null,
+            "uniprot_id": "P00330",
+            "name": null,
+            "molweight_kda": null,
+            "molweight_dev": null
+          }
+        ],
+        "go_term": "GO:0004022"
+      },
+      "experimental_conditions": {
+        "buffer": null,
+        "comment": null,
+        "envvar_ph": {
+          "start_value": null,
+          "end_value": null
+        },
+        "envvar_temperature": {
+          "start_value": null,
+          "end_value": null,
+          "unit": null
+        },
+        "envvars_other": []
+      },
+      "signalling": {
+        "signalling_event": {
+          "signalling_event_description": {
+            "id": 1,
+            "name": "-"
+          },
+          "event_types": []
+        },
+        "species_modification": []
+      },
+      "id": 56564,
+      "publication": {
+        "publication_id": 5565,
+        "pubmed_id": null,
+        "title": "Smallbone2013 - Glycolysis in S.cerevisiae - Iteration 18",
+        "author": "Smallbone K, Messiha HL, Carroll KM, Winder CL, Malys N, Dunn WB, Murabito E, Swainston N, Dada JO, Khan F, Pir P, Simeonidis E, Spasi\u0107 I, Wishart J, Weichart D, Hayes NW, Jameson D, Broomhead DS, Oliver SG, Gaskell SJ, McCarthy JE, Paton NW, Westerhoff HV, Kell DB, Mendes P",
+        "journal": "FEBS Lett",
+        "volume": "587",
+        "pages": "2832-41",
+        "year": 2013,
+        "data_identifier": "smallbone18",
+        "base_url": null
+      },
+      "external_links": {
+        "compound": [
+          {
+            "id": 37,
+            "key": "ChebiID",
+            "value": "44215"
+          },
+          {
+            "id": 37,
+            "key": "ChebiID",
+            "value": "13389"
+          },
+          {
+            "id": 37,
+            "key": "ChebiID",
+            "value": "15846"
+          },
+          {
+            "id": 37,
+            "key": "ChebiID",
+            "value": "7422"
+          },
+          {
+            "id": 37,
+            "key": "ChebiID",
+            "value": "57540"
+          },
+          {
+            "id": 37,
+            "key": "ChebiID",
+            "value": "44281"
+          },
+          {
+            "id": 37,
+            "key": "ChebiID",
+            "value": "44214"
+          },
+          {
+            "id": 37,
+            "key": "ChebiID",
+            "value": "21901"
+          },
+          {
+            "id": 37,
+            "key": "ChebiID",
+            "value": "13394"
+          },
+          {
+            "id": 37,
+            "key": "ChebiID",
+            "value": "13393"
+          },
+          {
+            "id": 37,
+            "key": "ChemSpiderID",
+            "value": "5682"
+          },
+          {
+            "id": 37,
+            "key": "KeggCompoundID",
+            "value": "C00003"
+          },
+          {
+            "id": 37,
+            "key": "MetaCycCompoundID",
+            "value": "NAD"
+          },
+          {
+            "id": 37,
+            "key": "MetaNetXCompoundID",
+            "value": "MNXM8"
+          },
+          {
+            "id": 37,
+            "key": "PubChemSID",
+            "value": "3305"
+          },
+          {
+            "id": 37,
+            "key": "PubChemCID",
+            "value": "5893"
+          },
+          {
+            "id": 37,
+            "key": "ReactomeCompoundID",
+            "value": "113526"
+          },
+          {
+            "id": 37,
+            "key": "ReactomeCompoundID",
+            "value": "192307"
+          },
+          {
+            "id": 37,
+            "key": "ReactomeCompoundID",
+            "value": "194653"
+          },
+          {
+            "id": 37,
+            "key": "ReactomeCompoundID",
+            "value": "29360"
+          },
+          {
+            "id": 37,
+            "key": "ReactomeCompoundID",
+            "value": "352330"
+          },
+          {
+            "id": 38,
+            "key": "ChebiID",
+            "value": "16908"
+          },
+          {
+            "id": 38,
+            "key": "ChebiID",
+            "value": "7423"
+          },
+          {
+            "id": 38,
+            "key": "ChebiID",
+            "value": "57945"
+          },
+          {
+            "id": 38,
+            "key": "ChebiID",
+            "value": "44216"
+          },
+          {
+            "id": 38,
+            "key": "ChebiID",
+            "value": "21902"
+          },
+          {
+            "id": 38,
+            "key": "ChebiID",
+            "value": "13396"
+          },
+          {
+            "id": 38,
+            "key": "ChebiID",
+            "value": "13395"
+          },
+          {
+            "id": 38,
+            "key": "KeggCompoundID",
+            "value": "C00004"
+          },
+          {
+            "id": 38,
+            "key": "MetaCycCompoundID",
+            "value": "NADH"
+          },
+          {
+            "id": 38,
+            "key": "MetaNetXCompoundID",
+            "value": "MNXM10"
+          },
+          {
+            "id": 38,
+            "key": "PubChemSID",
+            "value": "3306"
+          },
+          {
+            "id": 38,
+            "key": "PubChemCID",
+            "value": "439153"
+          },
+          {
+            "id": 38,
+            "key": "ReactomeCompoundID",
+            "value": "192305"
+          },
+          {
+            "id": 38,
+            "key": "ReactomeCompoundID",
+            "value": "194697"
+          },
+          {
+            "id": 38,
+            "key": "ReactomeCompoundID",
+            "value": "29362"
+          },
+          {
+            "id": 38,
+            "key": "ReactomeCompoundID",
+            "value": "73473"
+          },
+          {
+            "id": 39,
+            "key": "ChebiID",
+            "value": "15378"
+          },
+          {
+            "id": 39,
+            "key": "ChebiID",
+            "value": "5584"
+          },
+          {
+            "id": 39,
+            "key": "ChebiID",
+            "value": "29234"
+          },
+          {
+            "id": 39,
+            "key": "ChebiID",
+            "value": "29233"
+          },
+          {
+            "id": 39,
+            "key": "ChebiID",
+            "value": "24636"
+          },
+          {
+            "id": 39,
+            "key": "ChebiID",
+            "value": "13357"
+          },
+          {
+            "id": 39,
+            "key": "ChebiID",
+            "value": "10744"
+          },
+          {
+            "id": 39,
+            "key": "KeggCompoundID",
+            "value": "C00080"
+          },
+          {
+            "id": 39,
+            "key": "MetaCycCompoundID",
+            "value": "PROTON"
+          },
+          {
+            "id": 39,
+            "key": "MetaNetXCompoundID",
+            "value": "MNXM1"
+          },
+          {
+            "id": 39,
+            "key": "PubChemSID",
+            "value": "3380"
+          },
+          {
+            "id": 39,
+            "key": "PubChemCID",
+            "value": "1038"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "1132304"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "113529"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "1470067"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "156540"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "163953"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "193465"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "194688"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "2000349"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "2872447"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "351626"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "372511"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "374900"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "425969"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "425978"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "425999"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "427899"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "428040"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "428548"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "5668577"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "70106"
+          },
+          {
+            "id": 39,
+            "key": "ReactomeCompoundID",
+            "value": "74722"
+          },
+          {
+            "id": 56,
+            "key": "ChebiID",
+            "value": "16236"
+          },
+          {
+            "id": 56,
+            "key": "ChebiID",
+            "value": "4879"
+          },
+          {
+            "id": 56,
+            "key": "ChebiID",
+            "value": "44594"
+          },
+          {
+            "id": 56,
+            "key": "ChebiID",
+            "value": "42377"
+          },
+          {
+            "id": 56,
+            "key": "ChebiID",
+            "value": "30880"
+          },
+          {
+            "id": 56,
+            "key": "ChebiID",
+            "value": "30878"
+          },
+          {
+            "id": 56,
+            "key": "ChebiID",
+            "value": "23978"
+          },
+          {
+            "id": 56,
+            "key": "ChebiID",
+            "value": "14222"
+          },
+          {
+            "id": 56,
+            "key": "KeggCompoundID",
+            "value": "C00469"
+          },
+          {
+            "id": 56,
+            "key": "MetaCycCompoundID",
+            "value": "ETOH"
+          },
+          {
+            "id": 56,
+            "key": "MetaNetXCompoundID",
+            "value": "MNXM733715"
+          },
+          {
+            "id": 56,
+            "key": "PubChemSID",
+            "value": "3752"
+          },
+          {
+            "id": 56,
+            "key": "PubChemCID",
+            "value": "702"
+          },
+          {
+            "id": 56,
+            "key": "ReactomeCompoundID",
+            "value": "113748"
+          },
+          {
+            "id": 56,
+            "key": "ReactomeCompoundID",
+            "value": "30203"
+          },
+          {
+            "id": 1292,
+            "key": "ChebiID",
+            "value": "15343"
+          },
+          {
+            "id": 1292,
+            "key": "ChebiID",
+            "value": "40533"
+          },
+          {
+            "id": 1292,
+            "key": "ChebiID",
+            "value": "2383"
+          },
+          {
+            "id": 1292,
+            "key": "ChebiID",
+            "value": "22158"
+          },
+          {
+            "id": 1292,
+            "key": "ChebiID",
+            "value": "13703"
+          },
+          {
+            "id": 1292,
+            "key": "KeggCompoundID",
+            "value": "C00084"
+          },
+          {
+            "id": 1292,
+            "key": "MetaCycCompoundID",
+            "value": "ACETALD"
+          },
+          {
+            "id": 1292,
+            "key": "MetaNetXCompoundID",
+            "value": "MNXM75"
+          },
+          {
+            "id": 1292,
+            "key": "PubChemSID",
+            "value": "3384"
+          },
+          {
+            "id": 1292,
+            "key": "PubChemCID",
+            "value": "177"
+          },
+          {
+            "id": 1292,
+            "key": "ReactomeCompoundID",
+            "value": "113532"
+          },
+          {
+            "id": 1292,
+            "key": "ReactomeCompoundID",
+            "value": "113681"
+          },
+          {
+            "id": 1292,
+            "key": "ReactomeCompoundID",
+            "value": "113745"
+          },
+          {
+            "id": 1292,
+            "key": "ReactomeCompoundID",
+            "value": "29510"
+          },
+          {
+            "id": 37,
+            "key": "InChI",
+            "value": "InChI=1S/C21H27N7O14P2/c22-17-12-19(25-7-24-17)28(8-26-12)21-16(32)14(30)11(41-21)6-39-44(36,37)42-43(34,35)38-5-10-13(29)15(31)20(40-10)27-3-1-2-9(4-27)18(23)33/h1-4,7-8,10-11,13-16,20-21,29-32H,5-6H2,(H5-,22,23,24,25,33,34,35,36,37)/p+1/t10-,11-,13-,14-,15-,16-,20-,21-/m1/s1"
+          },
+          {
+            "id": 37,
+            "key": "SMILES",
+            "value": "c1cc(c[n+](c1)[C@H]2[C@@H]([C@@H]([C@H](O2)COP(=O)(O)OP(=O)(O)OC[C@@H]3[C@H]([C@H]([C@@H](O3)n4cnc5c4ncnc5N)O)O)O)O)C(=O)N"
+          },
+          {
+            "id": 38,
+            "key": "InChI",
+            "value": "InChI=1S/C21H29N7O14P2/c22-17-12-19(25-7-24-17)28(8-26-12)21-16(32)14(30)11(41-21)6-39-44(36,37)42-43(34,35)38-5-10-13(29)15(31)20(40-10)27-3-1-2-9(4-27)18(23)33/h1,3-4,7-8,10-11,13-16,20-21,29-32H,2,5-6H2,(H2,23,33)(H,34,35)(H,36,37)(H2,22,24,25)/t10-,11-,13-,14-,15-,16-,20-,21-/m1/s1"
+          },
+          {
+            "id": 38,
+            "key": "SMILES",
+            "value": "NC(=O)C=1CC=CN(C=1)C5OC(COP(O)(=O)OP(O)(=O)OCC2OC(C(O)C2(O))n4cnc3c(N)ncnc34)C(O)C5(O)"
+          },
+          {
+            "id": 39,
+            "key": "InChI",
+            "value": "InChI=1S/p+1"
+          },
+          {
+            "id": 39,
+            "key": "SMILES",
+            "value": "[H]"
+          },
+          {
+            "id": 56,
+            "key": "InChI",
+            "value": "InChI=1S/C2H6O/c1-2-3/h3H,2H2,1H3"
+          },
+          {
+            "id": 56,
+            "key": "SMILES",
+            "value": "CCO"
+          },
+          {
+            "id": 1292,
+            "key": "InChI",
+            "value": "InChI=1S/C2H4O/c1-2-3/h2H,1H3"
+          },
+          {
+            "id": 1292,
+            "key": "SMILES",
+            "value": "CC=O"
+          }
+        ],
+        "reaction": [
+          {
+            "id": 597,
+            "key": "KeggPathwayID",
+            "value": "01120"
+          },
+          {
+            "id": 597,
+            "key": "KeggPathwayID",
+            "value": "00010"
+          },
+          {
+            "id": 597,
+            "key": "KeggPathwayID",
+            "value": "01100"
+          },
+          {
+            "id": 597,
+            "key": "KeggPathwayID",
+            "value": "00620"
+          },
+          {
+            "id": 597,
+            "key": "KeggPathwayID",
+            "value": "01110"
+          },
+          {
+            "id": 597,
+            "key": "KeggReactionID",
+            "value": "R00754"
+          },
+          {
+            "id": 597,
+            "key": "MetaCycReactionID",
+            "value": "ALCOHOL-DEHYDROG-RXN"
+          },
+          {
+            "id": 597,
+            "key": "MetaNetXReactionID",
+            "value": "MNXR95725"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-GGA-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-DDI-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-HSA-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-CFA-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-DRE-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-CEL-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-SSC-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-BTA-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-SPO-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-MMU-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-DME-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-ATH-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-XTR-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-SCE-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-OSA-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-RNO-71707"
+          },
+          {
+            "id": 597,
+            "key": "ReactomeReactionID",
+            "value": "R-TGU-71707"
+          },
+          {
+            "id": 597,
+            "key": "RheaReactionID",
+            "value": "25291"
+          },
+          {
+            "id": 597,
+            "key": "RheaReactionID",
+            "value": "25290"
+          },
+          {
+            "id": 597,
+            "key": "RheaReactionID",
+            "value": "25292"
+          },
+          {
+            "id": 597,
+            "key": "RheaReactionID",
+            "value": "25293"
+          }
+        ],
+        "uniprot": [],
+        "kinlaw_entry": [
+          {
+            "id": 56564,
+            "key": "UniProtKB_AC",
+            "value": "P00330"
+          }
+        ]
+      }
+    }
+  ]
+}

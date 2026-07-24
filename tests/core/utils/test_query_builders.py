@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from bioseq_dl.core.utils.query_builders import (
+from silkroute.core.utils.query_builders import (
     QUERY_BUILDERS,
     get_query_builder,
     to_str_list,

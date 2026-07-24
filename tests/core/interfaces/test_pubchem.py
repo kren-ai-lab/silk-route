@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 from niquests_mock import startswith
 
-from bioseq_dl.core.exceptions import RequestError
-from bioseq_dl.core.interfaces.pubchem import (
+from silkroute.core.exceptions import RequestError
+from silkroute.core.interfaces.pubchem import (
     WORKFLOW_COMPOUND_PROPERTIES_METHOD,
     PubChemInterface,
 )

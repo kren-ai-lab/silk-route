@@ -5,9 +5,9 @@ from __future__ import annotations
 import pytest
 from niquests_mock import startswith
 
-from bioseq_dl.core.interfaces.base import BaseAPIInterface
-from bioseq_dl.core.interfaces.proteindatabank import PDBInterface
-from bioseq_dl.core.metadata import FetchMetadata
+from silkroute.core.interfaces.base import BaseAPIInterface
+from silkroute.core.interfaces.proteindatabank import PDBInterface
+from silkroute.core.metadata import FetchMetadata
 from tests._helpers import load_fixture
 from tests.core.interfaces._contract import CachingContract, HttpErrorContract
 

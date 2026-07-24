@@ -1,0 +1,106 @@
+"""ChEBI CLI commands."""
+
+from typing import Any
+
+import typer
+
+from silkroute import ChEBIInterface
+from silkroute.cli._shared import format_option, output_option, save_or_print
+
+app = typer.Typer(help="Collect data from the ChEBI database.")
+
+
+@app.command("compound")
+def run_compound(
+    chebi_id: str = typer.Argument(..., help="ChEBI ID of the compound (e.g., CHEBI:15377)"),
+    only_ontology_parents: bool = typer.Option(
+        False, "--only-parents", help="If true, only fetch ontology parents"
+    ),
+    only_ontology_children: bool = typer.Option(
+        False, "--only-children", help="If true, only fetch ontology children"
+    ),
+    output: str = output_option(),
+    output_format: str = format_option(),
+) -> None:
+    """Fetch compound information by ChEBI ID."""
+    interface = ChEBIInterface()
+
+    query: dict[str, Any] = {
+        "chebi_id": chebi_id,
+        "only_ontology_parents": only_ontology_parents,
+        "only_ontology_children": only_ontology_children,
+    }
+    result = interface.fetch_single(method="compound", query=query, parse=True, format="dataframe")
+
+    save_or_print(result, output, output_format=output_format)
+
+
+@app.command("compounds")
+def run_compounds(
+    chebi_ids: str = typer.Argument(
+        ..., help="Comma-separated list of ChEBI IDs (e.g., CHEBI:15377,CHEBI:15378)"
+    ),
+    output: str = output_option(),
+    output_format: str = format_option(),
+) -> None:
+    """Fetch multiple compounds by ChEBI IDs."""
+    interface = ChEBIInterface()
+
+    ids_list = chebi_ids.split(",")
+
+    # The ``compounds`` method takes the whole id list in a single call (one
+    # query dict), not one query per id — mirror chemical-search's usage.
+    query: dict[str, Any] = {"chebi_ids": ids_list}
+    result = interface.fetch_single(query=query, method="compounds", parse=True, format="dataframe")
+
+    save_or_print(result, output, output_format=output_format)
+
+
+@app.command("es-search")
+def run_es_search(
+    term: str = typer.Argument(..., help="Search term for the ChEBI database"),
+    page: int = typer.Option(1, "--page", help="Page number for pagination (default: 1)"),
+    size: int = typer.Option(15, "--size", help="Number of results per page (default: 15)"),
+    output: str = output_option(),
+    output_format: str = format_option(),
+) -> None:
+    """Perform an Elasticsearch search in the ChEBI database."""
+    interface = ChEBIInterface()
+
+    query: dict[str, Any] = {"term": term, "page": page, "size": size}
+
+    result = interface.fetch_single(method="es_search", query=query, parse=True, format="dataframe")
+
+    save_or_print(result, output, output_format=output_format)
+
+
+@app.command("ontology-children")
+def run_ontology_children(
+    chebi_id: str = typer.Argument(..., help="ChEBI ID to fetch ontology children for (e.g., CHEBI:15377)"),
+    output: str = output_option(),
+    output_format: str = format_option(),
+) -> None:
+    """Fetch ontology children of a given ChEBI ID."""
+    interface = ChEBIInterface()
+
+    query: dict[str, Any] = {"chebi_id": chebi_id}
+
+    result = interface.fetch_single(method="ontology-children", query=query, parse=True, format="dataframe")
+
+    save_or_print(result, output, output_format=output_format)
+
+
+@app.command("ontology-parents")
+def run_ontology_parents(
+    chebi_id: str = typer.Argument(..., help="ChEBI ID to fetch ontology parents for (e.g., CHEBI:15377)"),
+    output: str = output_option(),
+    output_format: str = format_option(),
+) -> None:
+    """Fetch ontology parents of a given ChEBI ID."""
+    interface = ChEBIInterface()
+
+    query: dict[str, Any] = {"chebi_id": chebi_id}
+
+    result = interface.fetch_single(method="ontology-parents", query=query, parse=True, format="dataframe")
+
+    save_or_print(result, output, output_format=output_format)

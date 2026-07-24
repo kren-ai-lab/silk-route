@@ -1,11 +1,11 @@
 # Development
 
 This guide covers local setup, day-to-day commands, and the code structure behind
-BioSeqDownloader.
+SilkRoute.
 
 ## Local Setup
 
-BioSeqDownloader uses `uv` for environment management and `taskipy` for common developer
+SilkRoute uses `uv` for environment management and `taskipy` for common developer
 commands.
 
 Install development dependencies:
@@ -51,13 +51,13 @@ uv build
 Smoke-test the CLI:
 
 ```bash
-uv run bioseq-dl --help
+uv run silkroute --help
 ```
 
 ## Project Layout
 
 ```text
-bioseq_dl/
+silkroute/
 ├── cli/                  # Typer commands (root in cli/main.py)
 │   └── interfaces/       # Per-database CLI sub-apps
 ├── constants/            # Per-database constants and DBConfig values
@@ -113,11 +113,11 @@ Fixtures are loaded with the helpers in `tests/_helpers.py`
 
 `tests/_capture/capture.py` regenerates the fixtures from the real APIs. It is
 **never** run by the test suite or CI and refuses to do anything unless
-`BIOSEQ_DL_CAPTURE=1` is set:
+`SILKROUTE_CAPTURE=1` is set:
 
 ```bash
-BIOSEQ_DL_CAPTURE=1 uv run python -m tests._capture.capture          # all APIs
-BIOSEQ_DL_CAPTURE=1 uv run python -m tests._capture.capture rhea chebi
+SILKROUTE_CAPTURE=1 uv run python -m tests._capture.capture          # all APIs
+SILKROUTE_CAPTURE=1 uv run python -m tests._capture.capture rhea chebi
 ```
 
 Each capture drives the real interface, so the request (URL, params, method,
@@ -125,8 +125,8 @@ body) matches production exactly, and records the raw HTTP body the interface
 receives — the same payload the offline tests register with `responses`.
 
 Credentialed / non-HTTP APIs are captured only when their env vars are present
-(`BIOSEQ_DL_BIOGRID_API_KEY`, `BIOSEQ_DL_REFSEQ_EMAIL`,
-`BIOSEQ_DL_BRENDA_EMAIL`/`BIOSEQ_DL_BRENDA_PASSWORD`); otherwise they are skipped
+(`SILKROUTE_BIOGRID_API_KEY`, `SILKROUTE_REFSEQ_EMAIL`,
+`SILKROUTE_BRENDA_EMAIL`/`SILKROUTE_BRENDA_PASSWORD`); otherwise they are skipped
 with a log line. These read from a gitignored `.env` at the repo root, loaded
 automatically by the capture script.
 

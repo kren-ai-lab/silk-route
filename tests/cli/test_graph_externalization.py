@@ -13,7 +13,7 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-from bioseq_dl.cli.workflows import (
+from silkroute.cli.workflows import (
     GRAPH_JSON_COLUMN,
     externalize_graph_payloads,
     graph_payload_digest,

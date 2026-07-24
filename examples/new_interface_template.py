@@ -1,11 +1,11 @@
-"""Template for adding a new database interface to BioSeqDownloader.
+"""Template for adding a new database interface to SilkRoute.
 
-Copy this file into ``bioseq_dl/core/interfaces/<your_db>.py`` and:
+Copy this file into ``silkroute/core/interfaces/<your_db>.py`` and:
 
-1. Add a ``DBConfig`` for your database in ``bioseq_dl/constants/databases.py``.
+1. Add a ``DBConfig`` for your database in ``silkroute/constants/databases.py``.
 2. Replace ``YOUR_DATABASE`` below with that config.
 3. Fill in ``METHODS``, ``fetch`` and ``parse``.
-4. Register the public class in ``bioseq_dl/__init__.py`` (``_LAZY_EXPORTS`` + ``__all__``).
+4. Register the public class in ``silkroute/__init__.py`` (``_LAZY_EXPORTS`` + ``__all__``).
 5. Add tests under ``tests/core/interfaces/``.
 
 This file lives in ``examples/`` on purpose; it is a reference, not part of the package.
@@ -18,14 +18,14 @@ from typing import Any, ClassVar
 
 import niquests
 
-from bioseq_dl.core.interfaces.base import BaseAPIInterface
-from bioseq_dl.logging import get_logger
+from silkroute.core.interfaces.base import BaseAPIInterface
+from silkroute.logging import get_logger
 
 # Replace with the real DBConfig once added to constants/databases.py, e.g.:
-# from bioseq_dl.constants.databases import YOUR_DATABASE  # noqa: ERA001
+# from silkroute.constants.databases import YOUR_DATABASE  # noqa: ERA001
 YOUR_DATABASE = None  # placeholder
 
-log = get_logger("bioseq_dl.interfaces.your_database")
+log = get_logger("silkroute.interfaces.your_database")
 
 
 class YourDatabaseInterface(BaseAPIInterface):

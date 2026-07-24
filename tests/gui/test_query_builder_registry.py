@@ -7,7 +7,7 @@ import sys
 
 import pytest
 
-from bioseq_dl.gui.query_builders.registry import (
+from silkroute.gui.query_builders.registry import (
     get_compatible_query_builder_choices,
     get_compatible_query_builder_specs,
     get_query_builder_spec,
@@ -69,12 +69,12 @@ def test_unknown_modality_returns_no_builders():
 def test_query_builder_registry_import_is_lightweight():
     import_script = """
 import sys
-import bioseq_dl.gui.query_builders.registry
+import silkroute.gui.query_builders.registry
 
 blocked_prefixes = (
     "nicegui",
-    "bioseq_dl.core.interfaces",
-    "bioseq_dl.cli",
+    "silkroute.core.interfaces",
+    "silkroute.cli",
 )
 for blocked_prefix in blocked_prefixes:
     loaded = [
