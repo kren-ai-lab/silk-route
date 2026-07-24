@@ -83,9 +83,9 @@ def _effective_pagination_target(pages_to_fetch: int, api_total_pages: int | Non
     """Return the page count callers should report for this pagination run."""
     if pages_to_fetch == -1:
         return api_total_pages
-    if pages_to_fetch > 0:
-        return min(pages_to_fetch, api_total_pages) if api_total_pages is not None else pages_to_fetch
-    return None
+    if api_total_pages is None:
+        return pages_to_fetch
+    return min(pages_to_fetch, api_total_pages)
 
 
 def _format_pagination_page(page_count: int, target_pages: int | None) -> str:
@@ -1309,9 +1309,8 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         next_link: Callable[[Any], str | None],
         extract_records: Callable[[Any], list],
         pages_to_fetch: int = 1,
-        progress_label: str | None = None,
         total_pages_from_data: Callable[[Any], int | None] | None = None,
-        first_page_callback: Callable[[Any, list], None] | None = None,
+        log_progress: bool = False,
         progress_interval: int = 10,
     ) -> list:
         """Follow JSON-body pagination from ``first_url``, accumulating records.
@@ -1328,12 +1327,9 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                 URL, or None when exhausted.
             extract_records (Callable[[Any], list]): Maps a parsed page to its records.
             pages_to_fetch (int): ``-1`` fetches all pages; a positive N caps at N.
-            progress_label (str | None): Optional API label enabling pagination
-                progress logs.
             total_pages_from_data (Callable[[Any], int | None] | None): Optional
                 callback deriving the API's total page count from a parsed page.
-            first_page_callback (Callable[[Any, list], None] | None): Optional
-                callback invoked once with the first parsed page and extracted records.
+            log_progress (bool): Emit per-page progress logs labelled with ``API_NAME``.
             progress_interval (int): INFO progress interval for opted-in callers.
 
         Returns:
@@ -1345,15 +1341,15 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
             log.error("pages_to_fetch must be -1 or a positive integer. Received: %s", pages_to_fetch)
             return []
 
+        progress_label = self.API_NAME
         records: list = []
         current_url: str | None = first_url
-        remaining = pages_to_fetch
         fetched_pages = 0
         api_total_pages: int | None = None
         stopped_after_failure = False
         configured_limit_reached = False
         while current_url:
-            if progress_label:
+            if log_progress:
                 log.debug("%s pagination: requesting page %s", progress_label, fetched_pages + 1)
             page_started_at = time.monotonic()
             try:
@@ -1386,19 +1382,14 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
             records.extend(page_records)
             fetched_pages += 1
 
-            if fetched_pages == 1 and first_page_callback is not None:
-                first_page_callback(data, page_records)
-
             if api_total_pages is None and total_pages_from_data is not None:
                 api_total_pages = total_pages_from_data(data)
 
             next_url = next_link(data)
-            if remaining > 0:
-                remaining -= 1
-                if remaining == 0:
-                    configured_limit_reached = next_url is not None
+            at_page_limit = pages_to_fetch > 0 and fetched_pages >= pages_to_fetch
+            configured_limit_reached = at_page_limit and next_url is not None
 
-            if progress_label:
+            if log_progress:
                 target_pages = _effective_pagination_target(pages_to_fetch, api_total_pages)
                 page_display = _format_pagination_page(fetched_pages, target_pages)
                 log.debug(
@@ -1426,27 +1417,19 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                             api_total_pages,
                             len(records),
                         )
-                    elif target_pages is not None:
-                        log.info(
-                            "%s pagination progress: %s/%s pages fetched, %s records accumulated",
-                            progress_label,
-                            fetched_pages,
-                            target_pages,
-                            len(records),
-                        )
                     else:
                         log.info(
                             "%s pagination progress: %s pages fetched, %s records accumulated",
                             progress_label,
-                            fetched_pages,
+                            page_display,
                             len(records),
                         )
 
-            if remaining == 0:
+            if at_page_limit:
                 break
             current_url = next_url
 
-        if progress_label:
+        if log_progress:
             if stopped_after_failure:
                 log.warning(
                     "%s pagination stopped after a request failure: %s pages fetched, %s records preserved",

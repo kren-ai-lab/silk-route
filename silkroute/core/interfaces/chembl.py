@@ -2,7 +2,6 @@
 
 import math
 import re
-from functools import partial
 from typing import Any, ClassVar
 from urllib.parse import urlencode
 
@@ -23,16 +22,9 @@ log = get_logger("silkroute.interfaces.chembl")
 
 CHEMBL_DEFAULT_PAGE_SIZE = 1000
 
-_CHEMBL_PAGE_SIZE_METHODS = {
-    "activity",
-    "binding_site",
-    "target",
-    "assay",
-    "cell_line",
-    "molecule",
-    "activity-search",
-    "target-search",
-}
+# Methods whose URL is built without a page-size parameter; every other method in
+# METHODS pages, so the effective default page size belongs in its cache key.
+_CHEMBL_UNPAGED_METHODS = {"substructure", "similarity"}
 
 # Reverse of OPERATOR_SUFFIXES ("__gte" -> "gte"), longest suffix first so
 # "__gte" wins over a would-be "__gt" prefix when splitting a param key.
@@ -62,58 +54,70 @@ def _next_chembl_page(data: Any) -> str | None:
     return f"https://www.ebi.ac.uk{next_path}" if next_path else None
 
 
-def _chembl_total_pages_from_data(data: Any) -> int | None:
-    """Return the ChEMBL API total page count from page metadata, when valid."""
+def _chembl_page_meta(data: Any) -> Any:
+    """Return the ChEMBL page metadata of one parsed page, or an empty dict."""
     page_meta = data.get("page_meta") if isinstance(data, dict) else None
-    if not isinstance(page_meta, dict):
-        return None
-    try:
-        total_count = int(page_meta.get("total_count"))
-        limit = int(page_meta.get("limit"))
-    except (TypeError, ValueError):
-        return None
-    if total_count < 0 or limit <= 0:
-        return None
-    return math.ceil(total_count / limit)
+    return page_meta if isinstance(page_meta, dict) else {}
 
 
 def _chembl_response_page_size_from_data(data: Any) -> int | None:
     """Return the ChEMBL response page size from page metadata, when valid."""
-    page_meta = data.get("page_meta") if isinstance(data, dict) else None
-    if not isinstance(page_meta, dict):
-        return None
     try:
-        limit = int(page_meta.get("limit"))
+        limit = int(_chembl_page_meta(data).get("limit"))
     except (TypeError, ValueError):
         return None
     return limit if limit > 0 else None
 
 
-def _log_chembl_first_page(
-    data: Any,
-    page_records: list,
-    *,
-    requested_page_size: int,
-) -> None:
-    """Log first-page ChEMBL page-size details and warn if the API lowers it."""
-    response_page_size = _chembl_response_page_size_from_data(data)
-    log.debug(
-        "ChEMBL first page: requested_page_size=%s, response_page_size=%s, records=%s",
-        requested_page_size,
-        response_page_size,
-        len(page_records),
-    )
-    if response_page_size is not None and response_page_size != requested_page_size:
-        log.warning(
-            "ChEMBL API returned page size %s after requesting %s",
+def _chembl_total_pages_from_data(data: Any) -> int | None:
+    """Return the ChEMBL API total page count from page metadata, when valid."""
+    limit = _chembl_response_page_size_from_data(data)
+    if limit is None:
+        return None
+    try:
+        total_count = int(_chembl_page_meta(data).get("total_count"))
+    except (TypeError, ValueError):
+        return None
+    if total_count < 0:
+        return None
+    return math.ceil(total_count / limit)
+
+
+class _ChEMBLPageExtractor:
+    """Extract page records, reporting first-page page-size details once."""
+
+    def __init__(self, requested_page_size: int) -> None:
+        self.requested_page_size = requested_page_size
+        self.first_page_seen = False
+
+    def __call__(self, data: Any) -> list:
+        """Return the records of one page, logging page-size details for the first."""
+        records = _extract_chembl_records(data)
+        if not self.first_page_seen:
+            self.first_page_seen = True
+            self._log_first_page(data, records)
+        return records
+
+    def _log_first_page(self, data: Any, page_records: list) -> None:
+        """Log first-page ChEMBL page-size details and warn if the API lowers it."""
+        response_page_size = _chembl_response_page_size_from_data(data)
+        log.debug(
+            "ChEMBL first page: requested_page_size=%s, response_page_size=%s, records=%s",
+            self.requested_page_size,
             response_page_size,
-            requested_page_size,
+            len(page_records),
         )
+        if response_page_size is not None and response_page_size != self.requested_page_size:
+            log.warning(
+                "ChEMBL API returned page size %s after requesting %s",
+                response_page_size,
+                self.requested_page_size,
+            )
 
 
 def _chembl_cache_kwargs_with_page_size(kwargs: dict[str, Any]) -> dict[str, Any]:
     """Ensure ChEMBL cache keys include the effective default page size."""
-    if kwargs.get("method") not in _CHEMBL_PAGE_SIZE_METHODS or "limit" in kwargs:
+    if kwargs.get("method") in _CHEMBL_UNPAGED_METHODS or "limit" in kwargs:
         return kwargs
     updated = dict(kwargs)
     updated["limit"] = CHEMBL_DEFAULT_PAGE_SIZE
@@ -520,8 +524,7 @@ class ChEMBLInterface(BaseAPIInterface):
         if method in ["activity", "binding_site"]:
             # Convert dictionary to a query string
             query = "&".join(f"{key}={value}" for key, value in validated_params.items())
-            if limit is not None:
-                query += f"&limit={limit}"
+            query += f"&limit={limit}"
 
             # Generate url
             url = f"{CHEMBL.API_URL}{method}?{query}"
@@ -567,11 +570,10 @@ class ChEMBLInterface(BaseAPIInterface):
         return self._fetch_paginated(
             url,
             next_link=_next_chembl_page,
-            extract_records=_extract_chembl_records,
+            extract_records=_ChEMBLPageExtractor(limit),
             pages_to_fetch=pages_to_fetch,
-            progress_label="ChEMBL",
             total_pages_from_data=_chembl_total_pages_from_data,
-            first_page_callback=partial(_log_chembl_first_page, requested_page_size=limit),
+            log_progress=True,
         )
 
     def validate_filter_rules(self, filters: dict) -> bool:

@@ -438,19 +438,17 @@ def attach_source_context(
     source_database: str,
     source_endpoint: str,
 ) -> Any:
-    """Attach source-row and request provenance to non-empty enrichment results."""
+    """Attach source-row and request provenance to non-empty enrichment results.
+
+    ``result`` must already have passed through
+    :func:`normalize_tabular_enrichment_result`.
+    """
     context = build_source_context(
         row,
         source_query,
         source_database=source_database,
         source_endpoint=source_endpoint,
     )
-
-    try:
-        result = normalize_tabular_enrichment_result(result)
-    except TypeError as exc:
-        log_malformed_tabular_result(f"{source_database}:{source_endpoint}", result, exc)
-        return empty_provenance_frame() if isinstance(result, pl.DataFrame) else []
 
     if isinstance(result, pl.DataFrame):
         if result.is_empty():
@@ -776,6 +774,14 @@ class CrossRefEnricher:
             pl.DataFrame | None: Cleaned DataFrame, or None for empty or uncoercible results.
 
         """
+
+        def to_frame(records: Any) -> pl.DataFrame | None:
+            try:
+                return records_to_frame(records)
+            except (TypeError, ValueError, pl.exceptions.PolarsError) as exc:
+                log_malformed_tabular_result("tabular-clean-frame", records, exc)
+                return None
+
         if isinstance(result, pl.DataFrame):
             df_result = result
         elif isinstance(result, list):
@@ -786,16 +792,12 @@ class CrossRefEnricher:
                 return None
             if not result:
                 return None
-            try:
-                df_result = records_to_frame(result)
-            except (TypeError, ValueError, pl.exceptions.PolarsError) as exc:
-                log_malformed_tabular_result("tabular-clean-frame", result, exc)
+            df_result = to_frame(result)
+            if df_result is None:
                 return None
         elif isinstance(result, dict):
-            try:
-                df_result = records_to_frame(result)
-            except (TypeError, ValueError, pl.exceptions.PolarsError) as exc:
-                log_malformed_tabular_result("tabular-clean-frame", result, exc)
+            df_result = to_frame(result)
+            if df_result is None:
                 return None
         else:
             log.debug("Skipping unsupported cross-ref result type: %s", type(result).__name__)

@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from http import HTTPStatus
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import niquests
@@ -27,6 +28,7 @@ KINETICLAWS_ENDPOINT = "kinlaw-entry/json"
 MAX_PAGE_SIZE = 1000
 DEFAULT_PAGE_SIZE = 1000
 SPECIES_KEY_PARTS = 3
+_EMPTY_MAPPING: Mapping[str, Any] = MappingProxyType({})
 KINETICLAW_COLUMNS = (
     "EntryID",
     "Organism",
@@ -66,9 +68,9 @@ def _order_validated_parameters(inputs: Mapping[str, Any], validated: Mapping[st
     return ordered
 
 
-def _mapping(value: Any) -> dict[str, Any]:
-    """Return value as a plain mapping, or an empty dict."""
-    return dict(value) if isinstance(value, Mapping) else {}
+def _mapping(value: Any) -> Mapping[str, Any]:
+    """Return value as a mapping for read-only access, or an empty mapping."""
+    return value if isinstance(value, Mapping) else _EMPTY_MAPPING
 
 
 def _list(value: Any) -> list[Any]:
@@ -76,19 +78,13 @@ def _list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
-def _nested_mapping(data: Mapping[str, Any], *keys: str) -> dict[str, Any]:
-    """Safely descend through nested mappings."""
-    current: Any = data
-    for key in keys:
-        current = _mapping(current).get(key)
-    return _mapping(current)
-
-
 def _nested_value(data: Mapping[str, Any], *keys: str) -> Any:
     """Safely read a nested value from mappings."""
     current: Any = data
     for key in keys:
-        current = _mapping(current).get(key)
+        if not isinstance(current, Mapping):
+            return None
+        current = current.get(key)
     return current
 
 
@@ -153,53 +149,42 @@ def _flatten_kineticlaw_entry(entry: Any) -> list[dict[str, Any]]:
         log.debug("Skipping malformed SABIO-RK entry: expected mapping, got %s", type(entry).__name__)
         return []
 
-    entry_map = _mapping(entry)
-    parameters = _list(_nested_value(entry_map, "kineticlaw", "parameter"))
+    parameters = _list(_nested_value(entry, "kineticlaw", "parameter"))
     if not parameters:
-        log.debug("Skipping SABIO-RK entry without kinetic parameters: %s", entry_map.get("id"))
+        log.debug("Skipping SABIO-RK entry without kinetic parameters: %s", entry.get("id"))
         return []
 
     rows = []
     base_values = {
-        "EntryID": entry_map.get("id"),
-        "Organism": _nested_value(entry_map, "general", "organism", "name"),
-        "UniprotID": _extract_uniprot_accessions(entry_map),
-        "ECNumber": _nested_value(entry_map, "enzyme_description", "ec_number"),
-        "Reaction": _nested_value(entry_map, "reaction", "equation"),
-        "Temperature": _nested_value(
-            entry_map, "experimental_conditions", "envvar_temperature", "start_value"
-        ),
-        "pH": _nested_value(entry_map, "experimental_conditions", "envvar_ph", "start_value"),
-        "Tissue": _nested_value(entry_map, "general", "tissue", "name"),
+        "EntryID": entry.get("id"),
+        "Organism": _nested_value(entry, "general", "organism", "name"),
+        "UniprotID": _extract_uniprot_accessions(entry),
+        "ECNumber": _nested_value(entry, "enzyme_description", "ec_number"),
+        "Reaction": _nested_value(entry, "reaction", "equation"),
+        "Temperature": _nested_value(entry, "experimental_conditions", "envvar_temperature", "start_value"),
+        "pH": _nested_value(entry, "experimental_conditions", "envvar_ph", "start_value"),
+        "Tissue": _nested_value(entry, "general", "tissue", "name"),
     }
 
     for parameter in parameters:
         if not isinstance(parameter, Mapping):
             log.debug(
                 "Skipping malformed SABIO-RK parameter for entry %s: expected mapping, got %s",
-                entry_map.get("id"),
+                entry.get("id"),
                 type(parameter).__name__,
             )
             continue
-        parameter_map = _mapping(parameter)
         row = {
-            "EntryID": base_values["EntryID"],
-            "Organism": base_values["Organism"],
-            "UniprotID": base_values["UniprotID"],
-            "ECNumber": base_values["ECNumber"],
-            "parameter.name": parameter_map.get("name"),
-            "parameter.type": _nested_value(parameter_map, "parameter_type", "name"),
-            "parameter.associatedSpecies": _associated_species(parameter_map),
-            "parameter.startValue": _normalized_value(parameter_map, "n_start_value", "start_value"),
-            "parameter.endValue": _normalized_value(parameter_map, "n_end_value", "end_value"),
+            **base_values,
+            "parameter.name": parameter.get("name"),
+            "parameter.type": _nested_value(parameter, "parameter_type", "name"),
+            "parameter.associatedSpecies": _associated_species(parameter),
+            "parameter.startValue": _normalized_value(parameter, "n_start_value", "start_value"),
+            "parameter.endValue": _normalized_value(parameter, "n_end_value", "end_value"),
             "parameter.standardDeviation": _normalized_value(
-                parameter_map, "n_standard_deviation", "standard_deviation"
+                parameter, "n_standard_deviation", "standard_deviation"
             ),
-            "parameter.unit": _normalized_unit(parameter_map),
-            "Reaction": base_values["Reaction"],
-            "Temperature": base_values["Temperature"],
-            "pH": base_values["pH"],
-            "Tissue": base_values["Tissue"],
+            "parameter.unit": _normalized_unit(parameter),
         }
         rows.append({column: row.get(column) for column in KINETICLAW_COLUMNS})
 
@@ -232,38 +217,33 @@ def _retry_after_seconds(response: Response) -> float | None:
     return max(0.0, (retry_at - datetime.now(UTC)).total_seconds())
 
 
-def _validate_page_size(value: Any) -> int:
-    """Validate the internal SABIO-RK page size option."""
+def _validate_bounded_int(value: Any, msg: str, *, maximum: int | None = None) -> int:
+    """Coerce a positive integer option, rejecting bools and out-of-range values."""
     if isinstance(value, bool):
-        msg = "page_size must be an integer between 1 and 1000."
         raise TypeError(msg)
     try:
-        page_size = int(value)
+        parsed = int(value)
     except (TypeError, ValueError) as exc:
-        msg = "page_size must be an integer between 1 and 1000."
         raise ValueError(msg) from exc
-    if not 1 <= page_size <= MAX_PAGE_SIZE:
-        msg = "page_size must be an integer between 1 and 1000."
+    if parsed < 1 or (maximum is not None and parsed > maximum):
         raise ValueError(msg)
-    return page_size
+    return parsed
+
+
+def _validate_page_size(value: Any) -> int:
+    """Validate the internal SABIO-RK page size option."""
+    return _validate_bounded_int(
+        value,
+        f"page_size must be an integer between 1 and {MAX_PAGE_SIZE}.",
+        maximum=MAX_PAGE_SIZE,
+    )
 
 
 def _validate_max_pages(value: Any) -> int | None:
     """Validate the optional local smoke-test page cap."""
     if value is None:
         return None
-    if isinstance(value, bool):
-        msg = "max_pages must be a positive integer."
-        raise TypeError(msg)
-    try:
-        max_pages = int(value)
-    except (TypeError, ValueError) as exc:
-        msg = "max_pages must be a positive integer."
-        raise ValueError(msg) from exc
-    if max_pages < 1:
-        msg = "max_pages must be a positive integer."
-        raise ValueError(msg)
-    return max_pages
+    return _validate_bounded_int(value, "max_pages must be a positive integer.")
 
 
 def _parse_page_envelope(payload: Any, page: int) -> tuple[list[Any], int] | None:
@@ -281,8 +261,7 @@ def _parse_page_envelope(payload: Any, page: int) -> tuple[list[Any], int] | Non
     try:
         total_pages = int(meta.get("total_pages"))
     except (TypeError, ValueError):
-        log.warning("Malformed SABIO-RK response for page %s: invalid total_pages.", page)
-        return None
+        total_pages = -1
     if total_pages < 0:
         log.warning("Malformed SABIO-RK response for page %s: invalid total_pages.", page)
         return None
@@ -335,17 +314,6 @@ class SabiorkInterface(BaseAPIInterface):
             try:
                 response = self.session.send(prepared)
                 self._delay()
-                if response.status_code == HTTPStatus.TOO_MANY_REQUESTS and attempt < self.total_retries:
-                    wait = _retry_after_seconds(response)
-                    if wait is None:
-                        wait = 0.25 * (2**attempt)
-                    log.warning(
-                        "SABIO-RK rate limit on page %s; retrying after %.2f seconds.",
-                        payload["page"],
-                        wait,
-                    )
-                    time.sleep(wait)
-                    continue
                 response.raise_for_status()
             except niquests.exceptions.RequestException as exc:
                 response = getattr(exc, "response", None)
