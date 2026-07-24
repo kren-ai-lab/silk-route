@@ -117,7 +117,8 @@ class _ChEMBLPageExtractor:
 
 def _chembl_cache_kwargs_with_page_size(kwargs: dict[str, Any]) -> dict[str, Any]:
     """Ensure ChEMBL cache keys include the effective default page size."""
-    if kwargs.get("method") in _CHEMBL_UNPAGED_METHODS or "limit" in kwargs:
+    method = kwargs.get("method")
+    if method not in ChEMBLInterface.METHODS or method in _CHEMBL_UNPAGED_METHODS or "limit" in kwargs:
         return kwargs
     updated = dict(kwargs)
     updated["limit"] = CHEMBL_DEFAULT_PAGE_SIZE

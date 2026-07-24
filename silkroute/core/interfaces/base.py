@@ -1337,7 +1337,7 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
             ``pages_to_fetch``.
 
         """
-        if pages_to_fetch == 0 or pages_to_fetch < -1:
+        if not isinstance(pages_to_fetch, int) or pages_to_fetch == 0 or pages_to_fetch < -1:
             log.error("pages_to_fetch must be -1 or a positive integer. Received: %s", pages_to_fetch)
             return []
 
