@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from xml.etree.ElementTree import Element, ElementTree, SubElement
 
-from bioseq_dl.core.utils.xmlhandler import dict_to_elementtree, elementtree_to_dataframe
+from silkroute.core.utils.xmlhandler import dict_to_elementtree, elementtree_to_dataframe
 from tests._helpers import frame_row_count, frame_to_records
 
 

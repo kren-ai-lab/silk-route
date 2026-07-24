@@ -7,13 +7,13 @@ threshold (structure similarity), the ChEBI path does not.
 
 from __future__ import annotations
 
-from bioseq_dl.gui.query_builders.chebi import ChEBIQueryBuilderRow, build_chebi_interpreted_query
-from bioseq_dl.gui.query_builders.metadata import (
+from silkroute.gui.query_builders.chebi import ChEBIQueryBuilderRow, build_chebi_interpreted_query
+from silkroute.gui.query_builders.metadata import (
     build_chebi_query_builder_metadata,
     build_pubchem_query_builder_metadata,
     restore_query_builder_metadata,
 )
-from bioseq_dl.gui.query_builders.pubchem import PubChemQueryBuilderRow, build_pubchem_interpreted_query
+from silkroute.gui.query_builders.pubchem import PubChemQueryBuilderRow, build_pubchem_interpreted_query
 
 
 def test_pubchem_structure_metadata_round_trip_preserves_threshold() -> None:

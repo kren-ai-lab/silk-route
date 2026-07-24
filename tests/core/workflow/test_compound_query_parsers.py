@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from bioseq_dl.core.workflow.chebi_query_parser import (
+from silkroute.core.workflow.chebi_query_parser import (
     get_chebi_prefixed_query_resource,
     parse_chebi_query_builder_string,
 )
-from bioseq_dl.core.workflow.pubchem_query_parser import (
+from silkroute.core.workflow.pubchem_query_parser import (
     get_pubchem_prefixed_query_resource,
     parse_pubchem_query_builder_string,
 )

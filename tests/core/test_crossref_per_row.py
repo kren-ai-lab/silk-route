@@ -10,8 +10,8 @@ from typing import cast
 
 import polars as pl
 
-from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
-from bioseq_dl.core.metadata import FetchMetadata
+from silkroute.core.crossref_enricher import CrossRefEnricher, EndpointSpec
+from silkroute.core.metadata import FetchMetadata
 
 
 def test_process_dataframe_records_per_row_outcomes(monkeypatch):

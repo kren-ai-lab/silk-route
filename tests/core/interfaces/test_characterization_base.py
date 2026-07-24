@@ -14,7 +14,7 @@ from typing import Any, ClassVar
 
 import pytest
 
-from bioseq_dl.core.interfaces.base import BaseAPIInterface
+from silkroute.core.interfaces.base import BaseAPIInterface
 from tests._helpers import frame_columns, frame_row_count, frame_to_records, is_frame
 
 

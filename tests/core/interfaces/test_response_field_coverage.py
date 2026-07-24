@@ -39,7 +39,7 @@ from typing import Any
 
 import pytest
 
-from bioseq_dl.core.interfacesconfig import load_packaged_config
+from silkroute.core.interfacesconfig import load_packaged_config
 from tests._helpers import load_fixture
 
 BASELINE_PATH = Path(__file__).resolve().parents[2] / "fixtures" / "_field_coverage_baseline.json"
@@ -79,7 +79,7 @@ def _values(d: dict) -> list:
 # Each spec ties a fixture to the field map the integration applies to it.
 #   key      : stable id (also the baseline key)
 #   api/case : locate tests/fixtures/<api>/<case>.json
-#   config   : bioseq_dl/config/<config>/fields.yml subdir (may differ from api:
+#   config   : silkroute/config/<config>/fields.yml subdir (may differ from api:
 #              genontology->go, stringdb->string)
 #   option   : top-level key in fields.yml, or a tuple for nested option dicts
 #              (pride/pubchem). None => UniProt's in-code field_map_base.
@@ -241,7 +241,7 @@ def _field_map(spec: _Spec) -> dict[str, str]:
     """Return {output_name: source_path} for a spec."""
     option = spec["option"]
     if option is None:  # UniProt field_map_base: {out: (path, extractor)}
-        from bioseq_dl.core.interfaces.uniprot import UniprotInterface
+        from silkroute.core.interfaces.uniprot import UniprotInterface
 
         iface = UniprotInterface(use_config=False)
         return {out: spec_path for out, (spec_path, _fn) in iface.field_map_base.items()}

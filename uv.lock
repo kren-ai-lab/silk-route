@@ -242,7 +242,7 @@ wheels = [
 ]
 
 [[package]]
-name = "bioseqdownloader"
+name = "silkroute"
 source = { editable = "." }
 dependencies = [
     { name = "biopython" },

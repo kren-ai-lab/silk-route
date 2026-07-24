@@ -6,7 +6,7 @@ drive them with the real UniProt fixture so they track the live response shape.
 
 from __future__ import annotations
 
-from bioseq_dl.core.utils.uniprot_auxiliary_methods import (
+from silkroute.core.utils.uniprot_auxiliary_methods import (
     extract_active_sites,
     extract_database_terms,
     extract_diseases,

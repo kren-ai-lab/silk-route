@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from bioseq_dl.core.workflow.query_field_catalog import (
+from silkroute.core.workflow.query_field_catalog import (
     SUPPORTED_MATCH_MODES,
     get_uniprot_query_builder_field_catalog,
     get_uniprot_query_field_catalog,
 )
-from bioseq_dl.core.workflow.query_interpreter import build_default_uniprot_interpreter
+from silkroute.core.workflow.query_interpreter import build_default_uniprot_interpreter
 
 
 def test_uniprot_query_builder_visible_fields_expose_gui_metadata():

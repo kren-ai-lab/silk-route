@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from bioseq_dl.core.cache import (
+from silkroute.core.cache import (
     _is_empty_file,
     clear_cache,
     list_caches,

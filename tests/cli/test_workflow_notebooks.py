@@ -26,4 +26,4 @@ def test_workflow_notebooks_are_parseable_and_documented(notebook_path: Path) ->
 
     assert markdown_cells
     assert code_cells
-    assert "BioSeqDownloader" in markdown_text or "workflow YAML" in markdown_text
+    assert "SilkRoute" in markdown_text or "workflow YAML" in markdown_text

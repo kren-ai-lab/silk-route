@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "bioseqdownloader"
+name = "silkroute"
 dynamic = ["version"]
 description = "Tool to download and integrate biological data from multiple APIs (UniProt, AlphaFold, BioGRID, KEGG, etc.)"
 readme = "README.md"
@@ -54,18 +54,18 @@ tests = [
 ]
 
 [project.scripts]
-bioseq-dl = "bioseq_dl.cli.main:app"
-bioseq-dl-gui = "bioseq_dl.gui.nicegui_app:main"
+silkroute = "silkroute.cli.main:app"
+silkroute-gui = "silkroute.gui.nicegui_app:main"
 
 [project.urls]
-Homepage = "https://github.com/kren-ai-lab/BioSeqDownloader"
-Issues = "https://github.com/kren-ai-lab/BioSeqDownloader/issues"
+Homepage = "https://github.com/kren-ai-lab/SilkRoute"
+Issues = "https://github.com/kren-ai-lab/SilkRoute/issues"
 
 [tool.hatch.version]
-path = "bioseq_dl/__init__.py"
+path = "silkroute/__init__.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["bioseq_dl"]
+packages = ["silkroute"]
 
 [tool.ruff]
 line-length = 110
@@ -102,7 +102,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"bioseq_dl/cli/*" = [
+"silkroute/cli/*" = [
     "B008", # typer.Option() in function defaults is the intended pattern
     "FBT001", # bool flags are standard in CLI functions
     "FBT002",
@@ -110,7 +110,7 @@ ignore = [
     "TC003", # Path used at runtime by typer for type coercion
     "T201", # CLI commands print user-facing output
 ]
-"bioseq_dl/init_config.py" = ["T201"]  # init script prints setup progress
+"silkroute/init_config.py" = ["T201"]  # init script prints setup progress
 "tests/*" = [
     "ANN",
     "ARG001", # unused fixture/mock arguments are common in tests
@@ -144,13 +144,13 @@ project-includes = [
 ]
 
 [tool.taskipy.tasks]
-sort-imports = "ruff check --fix --select I,F401 bioseq_dl/ tests/ examples/"
-format = "task sort-imports && ruff format bioseq_dl/ tests/ examples/"
-lint = "ruff check bioseq_dl/ tests/ examples/"
-lint-fix = "ruff check --fix bioseq_dl/ tests/ examples/"
-ty = "ty check bioseq_dl/ tests/"
-pyrefly = "pyrefly check bioseq_dl/ tests/"
+sort-imports = "ruff check --fix --select I,F401 silkroute/ tests/ examples/"
+format = "task sort-imports && ruff format silkroute/ tests/ examples/"
+lint = "ruff check silkroute/ tests/ examples/"
+lint-fix = "ruff check --fix silkroute/ tests/ examples/"
+ty = "ty check silkroute/ tests/"
+pyrefly = "pyrefly check silkroute/ tests/"
 test = "pytest -q"
 test-v = "pytest -v"
-test-cov = "pytest --cov=bioseq_dl --cov-report=html"
-update-fixtures = "BIOSEQ_DL_CAPTURE=1 python -m tests._capture.capture"
+test-cov = "pytest --cov=silkroute --cov-report=html"
+update-fixtures = "SILKROUTE_CAPTURE=1 python -m tests._capture.capture"

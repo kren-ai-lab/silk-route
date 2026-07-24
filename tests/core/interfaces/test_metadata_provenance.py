@@ -11,8 +11,8 @@ from datetime import datetime
 
 import pytest
 
-import bioseq_dl
-from bioseq_dl.core.metadata import FetchMetadata
+import silkroute
+from silkroute.core.metadata import FetchMetadata
 from tests._helpers import FakeRecordsInterface
 
 
@@ -22,7 +22,7 @@ def interface(tmp_path):
 
 
 def _assert_provenance(metadata: dict) -> None:
-    assert metadata["tool"] == {"name": "bioseq_dl", "version": bioseq_dl.__version__}
+    assert metadata["tool"] == {"name": "silkroute", "version": silkroute.__version__}
     # started_at / finished_at are parseable ISO-8601 timestamps (not the empty
     # skeleton value), and the run cannot finish before it started.
     assert metadata["started_at"]

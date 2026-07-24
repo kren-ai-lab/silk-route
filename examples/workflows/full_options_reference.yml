@@ -1,6 +1,6 @@
 schema_version: "workflow-v1"
 
-# BioSeqDownloader workflow-v1 reference descriptor.
+# SilkRoute workflow-v1 reference descriptor.
 # This file is documentation-oriented and is not intended to be executed as a
 # complete workflow. Copy one of the smaller runnable examples when you want a
 # live workflow run.

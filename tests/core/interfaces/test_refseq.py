@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-import bioseq_dl.core.interfaces.refseq as refseq_mod
-from bioseq_dl.core.interfaces.refseq import RefSeqInterface
+import silkroute.core.interfaces.refseq as refseq_mod
+from silkroute.core.interfaces.refseq import RefSeqInterface
 from tests._helpers import load_fixture
 
 

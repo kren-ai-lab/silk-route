@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import polars as pl
 
-from bioseq_dl.core.workflow.main_workflow import (
+from silkroute.core.workflow.main_workflow import (
     attach_label_to_part,
     merge_enrichment_data,
     merge_pair,

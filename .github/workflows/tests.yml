@@ -3,14 +3,14 @@ name: tests
 on:
   push:
     paths:
-      - "bioseq_dl/**"
+      - "silkroute/**"
       - "tests/**"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/tests.yml"
   pull_request:
     paths:
-      - "bioseq_dl/**"
+      - "silkroute/**"
       - "tests/**"
       - "pyproject.toml"
       - "uv.lock"

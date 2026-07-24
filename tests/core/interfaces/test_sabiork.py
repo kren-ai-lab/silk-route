@@ -1,15 +1,15 @@
-"""Offline tests for the SABIO-RK interface (TSV export responses)."""
+"""Offline tests for the SABIO-RK interface (JSON export responses)."""
 
 from __future__ import annotations
 
 import pytest
 from niquests_mock import startswith
 
-from bioseq_dl.core.interfaces.sabiork import SabiorkInterface
+from silkroute.core.interfaces.sabiork import SabiorkInterface
 from tests._helpers import load_fixture
 from tests.core.interfaces._contract import CachingContract, HttpErrorContract
 
-EXPORT_URL = "https://sabiork.h-its.org/sabioRestWebServices/kineticlawsExportTsv"
+EXPORT_URL = "https://sabiork.h-its.org/export-api/sabio/kinlaw-entry/json"
 
 
 @pytest.fixture
@@ -19,9 +19,9 @@ def interface(tmp_path):
     )
 
 
-def test_fetch_parses_tsv_into_records(interface, niquests_mock):
-    text = load_fixture("sabiork", "kineticlaws")
-    niquests_mock.post(url=startswith(EXPORT_URL)).respond(status_code=200, text=text)
+def test_fetch_flattens_json_into_records(interface, niquests_mock):
+    payload = load_fixture("sabiork", "kineticlaws")
+    niquests_mock.post(url=startswith(EXPORT_URL)).respond(status_code=200, json=payload)
 
     result = interface.fetch({"UniProtKB_AC": "P00330"}, method="kineticlaws")
 
@@ -45,6 +45,5 @@ class TestSabiorkContract(CachingContract, HttpErrorContract):
     METHOD = "kineticlaws"
     FIXTURE = ("sabiork", "kineticlaws")
     HTTP_METHOD = "post"
-    BODY_IS_TEXT = True
     ERROR_RETURNS_EMPTY = True
     ERROR_EMPTY_VALUE: list = []  # fetch returns a list of records

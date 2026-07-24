@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from bioseq_dl.core.workflow.chembl_query_catalog import (
+from silkroute.core.workflow.chembl_query_catalog import (
     get_chembl_query_resource_catalog,
 )
 

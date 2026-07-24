@@ -14,8 +14,8 @@ from typing import cast
 
 import polars as pl
 
-from bioseq_dl.core.crossref_enricher import CrossRefEnricher, EndpointSpec
-from bioseq_dl.core.metadata import FetchMetadata
+from silkroute.core.crossref_enricher import CrossRefEnricher, EndpointSpec
+from silkroute.core.metadata import FetchMetadata
 from tests._helpers import frame_to_records
 
 # --- _clean_frame: coercing raw per-row results -----------------------------

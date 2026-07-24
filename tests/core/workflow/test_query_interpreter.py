@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from bioseq_dl.core.workflow.query_interpreter import (
+from silkroute.core.workflow.query_interpreter import (
     build_default_chembl_interpreter,
     build_default_uniprot_interpreter,
 )

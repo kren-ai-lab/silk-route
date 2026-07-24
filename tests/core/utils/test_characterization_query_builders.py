@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from bioseq_dl.core.utils.query_builders import (
+from silkroute.core.utils.query_builders import (
     build_query_brenda,
     build_query_chebi_compounds,
     build_query_pubchem_compound_summary,

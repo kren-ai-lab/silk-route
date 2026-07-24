@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from bioseq_dl.core.interfaces.chembl import ChEMBLInterface
+from silkroute.core.interfaces.chembl import ChEMBLInterface
 
 
 @pytest.fixture

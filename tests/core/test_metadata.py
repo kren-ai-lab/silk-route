@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from bioseq_dl.core.metadata import FailedBlock, FetchMetadata, IdBlock, RequestInfo, ToolInfo
+from silkroute.core.metadata import FailedBlock, FetchMetadata, IdBlock, RequestInfo, ToolInfo
 
 
 def test_to_dict_shape():
     meta = FetchMetadata(
-        tool=ToolInfo(name="bioseq_dl", version="0.1.0"),
+        tool=ToolInfo(name="silkroute", version="0.1.0"),
         started_at="2026-06-23T10:00:00+00:00",
         finished_at="2026-06-23T10:00:01+00:00",
         request=RequestInfo(api_name="ChEMBL", method="molecule", option=None),
@@ -15,7 +15,7 @@ def test_to_dict_shape():
     meta.fetched.add("P1", {"id": "P1"})
 
     d = meta.to_dict()
-    assert d["tool"] == {"name": "bioseq_dl", "version": "0.1.0"}
+    assert d["tool"] == {"name": "silkroute", "version": "0.1.0"}
     assert d["request"] == {"api_name": "ChEMBL", "method": "molecule", "option": None}
     assert d["fetched"] == {"ids": ["P1"], "subqueries": [{"id": "P1"}], "length": 1}
     # Symmetric empty buckets all carry a length; failed also carries reasons.
@@ -67,7 +67,7 @@ def test_merge_accumulates_buckets_and_widens_window():
 def test_merge_seeds_request_and_tool_from_populated_side():
     empty = FetchMetadata()
     populated = FetchMetadata(
-        tool=ToolInfo(name="bioseq_dl", version="0.1.0"),
+        tool=ToolInfo(name="silkroute", version="0.1.0"),
         request=RequestInfo(api_name="ChEMBL", method="molecule"),
     )
     merged = empty.merge(populated)

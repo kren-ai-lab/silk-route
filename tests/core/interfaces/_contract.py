@@ -18,7 +18,7 @@ from typing import Any, ClassVar
 import pytest
 from niquests_mock import startswith
 
-from bioseq_dl.core.exceptions import RequestError
+from silkroute.core.exceptions import RequestError
 from tests._helpers import load_fixture
 
 

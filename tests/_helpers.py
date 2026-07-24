@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 from xml.etree.ElementTree import fromstring
 
-from bioseq_dl.core.interfaces.base import BaseAPIInterface
+from silkroute.core.interfaces.base import BaseAPIInterface
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 

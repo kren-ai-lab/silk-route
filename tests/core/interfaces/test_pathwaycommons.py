@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from niquests_mock import startswith
 
-from bioseq_dl.core.interfaces.pathwaycommons import PathwayCommonsInterface
+from silkroute.core.interfaces.pathwaycommons import PathwayCommonsInterface
 from tests._helpers import load_fixture
 from tests.core.interfaces._contract import CachingContract, HttpErrorContract
 

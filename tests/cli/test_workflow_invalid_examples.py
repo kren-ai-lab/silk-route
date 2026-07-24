@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from bioseq_dl.cli.workflows import load_workflow_recipe, validate_workflow_recipe
+from silkroute.cli.workflows import load_workflow_recipe, validate_workflow_recipe
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 INVALID_WORKFLOW_DIR = REPO_ROOT / "examples" / "workflows" / "invalid"

@@ -11,8 +11,8 @@ import polars as pl
 import pytest
 from niquests_mock import startswith
 
-from bioseq_dl.core.interfaces.uniprot import API_URL, UniprotInterface
-from bioseq_dl.core.metadata import FetchMetadata
+from silkroute.core.interfaces.uniprot import API_URL, UniprotInterface
+from silkroute.core.metadata import FetchMetadata
 from tests._helpers import load_fixture
 
 
@@ -65,7 +65,7 @@ def test_submit_stream_returns_fetchmetadata_shape(interface, niquests_mock):
 
     _, metadata = interface.submit_stream(query="kinase", fields="accession", sort="")
 
-    assert metadata["tool"]["name"] == "bioseq_dl"
+    assert metadata["tool"]["name"] == "silkroute"
     assert metadata["request"] == {"api_name": "UniProt", "method": "uniprotkb", "option": None}
     assert metadata["started_at"]
     assert metadata["finished_at"]

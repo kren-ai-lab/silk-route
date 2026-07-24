@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from bioseq_dl.core.utils import blast_search
+from silkroute.core.utils import blast_search
 
 # A BLAST outfmt-10 (CSV) row: qseqid,sseqid,pident,length,evalue,bitscore,qcovs
 ROW_95 = "q1,s1,95.0,100,1e-50,200,98"

@@ -1,8 +1,8 @@
 # Workflow YAML Descriptors
 
-BioSeqDownloader workflow YAML files are structured dataset descriptors for reproducible data acquisition runs. They configure the current workflow CLI, describe the dataset objective, preserve query and execution context, and generate metadata plus a compact run summary.
+SilkRoute workflow YAML files are structured dataset descriptors for reproducible data acquisition runs. They configure the current workflow CLI, describe the dataset objective, preserve query and execution context, and generate metadata plus a compact run summary.
 
-They are not a generic workflow engine, a multi-step pipeline language, or a plugin system. The current implementation maps a specific set of descriptor fields to `bioseq-dl workflow run` and preserves the rest as descriptive metadata.
+They are not a generic workflow engine, a multi-step pipeline language, or a plugin system. The current implementation maps a specific set of descriptor fields to `silkroute workflow run` and preserves the rest as descriptive metadata.
 
 Workflow descriptors must declare the frozen schema version:
 
@@ -42,16 +42,16 @@ When a YAML descriptor and CLI options are both provided, values are resolved in
 Examples:
 
 ```bash
-bioseq-dl workflow run --config examples/workflows/protein_query_first_minimal.yml
-bioseq-dl workflow run --config examples/workflows/protein_query_first_minimal.yml -o result_override
-bioseq-dl workflow run --config examples/workflows/protein_query_first_minimal.yml -e csv
+silkroute workflow run --config examples/workflows/protein_query_first_minimal.yml
+silkroute workflow run --config examples/workflows/protein_query_first_minimal.yml -o result_override
+silkroute workflow run --config examples/workflows/protein_query_first_minimal.yml -e csv
 ```
 
 To check a descriptor without running it, use `workflow validate`. It reports all
 section-level errors at once and exits non-zero on any problem:
 
 ```bash
-bioseq-dl workflow validate examples/workflows/protein_query_first_minimal.yml
+silkroute workflow validate examples/workflows/protein_query_first_minimal.yml
 ```
 
 The organized workflow-v1 examples live under `examples/workflows/`.
@@ -139,7 +139,7 @@ Field roles:
 
 - **Executable**: changes the workflow run.
 - **Descriptive**: accepted and preserved for metadata or reporting context.
-- **Generated**: filled or overwritten by BioSeqDownloader during reporting.
+- **Generated**: filled or overwritten by SilkRoute during reporting.
 
 Current executable fields are the fields that should be used to control
 workflow behavior today:
@@ -203,7 +203,7 @@ The lightweight schema definition and workflow-v1 validator used by GUI or YAML
 generator tools are available through:
 
 ```python
-from bioseq_dl.core.workflow.schema import (
+from silkroute.core.workflow.schema import (
     get_workflow_v1_schema_definition,
     validate_workflow_v1_descriptor,
 )
@@ -214,7 +214,7 @@ workflow CLI, API interfaces, pandas, network clients, export helpers, or
 NiceGUI.
 
 Developer note: the shared UniProt friendly-query field catalog lives in
-`bioseq_dl.core.workflow.query_field_catalog` and is the source of truth for
+`silkroute.core.workflow.query_field_catalog` and is the source of truth for
 both the current UniProt query interpreter and GUI query-builder code.
 Friendly query syntax supports quoted values with spaces, such as
 `organism_any:"Homo sapiens"` and `go_any:"DNA repair","protein folding"`.
@@ -238,13 +238,13 @@ Install it with the optional GUI extra and run:
 
 ```bash
 pip install -e ".[gui]"
-bioseq-dl-gui
+silkroute-gui
 ```
 
 It can also be run as a module:
 
 ```bash
-python -m bioseq_dl.gui.nicegui_app
+python -m silkroute.gui.nicegui_app
 ```
 
 The GUI writes `schema_version: "workflow-v1"` automatically. The only
@@ -325,7 +325,7 @@ for the ChEMBL protein-ligand paths described above.
 
 Developer query-builder architecture note: query builders are database- and
 resource-specific. The extension point is
-`bioseq_dl.gui.query_builders.registry`, which registers lightweight builder
+`silkroute.gui.query_builders.registry`, which registers lightweight builder
 specifications without importing NiceGUI or API interfaces. UniProt uses a
 field/boolean/match-mode builder that compiles to a final UniProt-compatible
 `query.value`. ChEMBL does not share that model: target, assay, cell line, and
@@ -349,7 +349,7 @@ deduplication are handled by the workflow logic that supports those operations.
 ### Manual GUI smoke test
 
 1. Install GUI dependencies with `pip install -e ".[gui]"`.
-2. Start the GUI with `bioseq-dl-gui`.
+2. Start the GUI with `silkroute-gui`.
 3. Fill `Dataset name`.
 4. Fill `Executable query value` in Manual query mode, or define one Advanced UniProt builder condition.
 5. Click `Generate YAML`.
@@ -363,7 +363,7 @@ deduplication are handled by the workflow logic that supports those operations.
 ### Manual GUI load smoke test
 
 1. Install GUI dependencies with `pip install -e ".[gui]"`.
-2. Start the GUI with `bioseq-dl-gui`.
+2. Start the GUI with `silkroute-gui`.
 3. Open `Load existing workflow YAML`.
 4. Upload a valid `.yml` or `.yaml` workflow-v1 descriptor.
 5. Confirm supported form fields are populated.
@@ -482,7 +482,7 @@ For IC50 activity queries, the ChEMBL workflow constrains `standard_type` to
 ranges, `<`, `<=`, `>`, or `>=` comparisons. `standard_units` can be requested
 with `standard_units:<unit>`. The GUI IC50 builder accepts `nM`, `uM`, `mM`,
 and `pM`; micro-symbol spellings such as `µM` and `μM` are normalized to
-`uM`. BioSeqDownloader constrains the requested unit but does not perform
+`uM`. SilkRoute constrains the requested unit but does not perform
 implicit numeric unit conversion.
 
 Example IC50 query values:
@@ -504,7 +504,7 @@ enrichment sources. Normal enrichment is metadata retrieval by default, not
 structure downloading.
 
 `query.fields` controls the requested UniProt return fields. If it is omitted,
-BioSeqDownloader uses the default UniProt fields:
+SilkRoute uses the default UniProt fields:
 
 ```text
 accession, protein_name, organism_name, organism_id, sequence, length
@@ -631,10 +631,10 @@ Forbidden credential examples:
 - `email`
 - `token`
 - `secret`
-- `BIOSEQ_DL_BIOGRID_API_KEY`
-- `BIOSEQ_DL_BRENDA_EMAIL`
-- `BIOSEQ_DL_BRENDA_PASSWORD`
-- `BIOSEQ_DL_REFSEQ_EMAIL`
+- `SILKROUTE_BIOGRID_API_KEY`
+- `SILKROUTE_BRENDA_EMAIL`
+- `SILKROUTE_BRENDA_PASSWORD`
+- `SILKROUTE_REFSEQ_EMAIL`
 
 Credentials must be provided through environment variables or `.env` files, not workflow YAML.
 
@@ -789,9 +789,9 @@ update the implementation, tests, examples, and this documentation together.
 
 The schema above is based on the current implementation in:
 
-- `bioseq_dl/cli/workflows.py`
-- `bioseq_dl/core/workflow/main_workflow.py`
-- `bioseq_dl/core/export.py`
+- `silkroute/cli/workflows.py`
+- `silkroute/core/workflow/main_workflow.py`
+- `silkroute/core/export.py`
 
 Important current limitations:
 

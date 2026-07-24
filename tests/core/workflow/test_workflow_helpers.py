@@ -9,7 +9,7 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
-from bioseq_dl.core.workflow.main_workflow import (
+from silkroute.core.workflow.main_workflow import (
     _apply_label,
     _elapsed_seconds,
     activity_filter_metadata,
