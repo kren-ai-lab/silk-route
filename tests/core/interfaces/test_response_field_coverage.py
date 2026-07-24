@@ -86,7 +86,53 @@ def _values(d: dict) -> list:
 #   records  : fixture -> the record (or list of records) the field map targets;
 #              encodes each interface's envelope unwrapping (paginated lists,
 #              dict-of-records, JSON-LD @graph, nested search results, ...).
+#   field_map: optional callable returning the map directly, for integrations
+#              whose contract lives in code instead of a fields.yml. Takes
+#              precedence over config/option.
 _Spec = dict[str, Any]
+
+
+def _sabiork_entry_field_map() -> dict[str, str]:
+    """Entry-level Export API paths the SABIO-RK flattener reads."""
+    from silkroute.core.interfaces.sabiork import (
+        ENTRY_FIELD_PATHS,
+        UNIPROT_LINK_PATH,
+        UNIPROT_PROTEIN_ID_KEY,
+        UNIPROT_PROTEIN_PATH,
+    )
+
+    return {
+        **ENTRY_FIELD_PATHS,
+        "UniprotID": UNIPROT_LINK_PATH,
+        "UniprotID.fallback": f"{UNIPROT_PROTEIN_PATH}.{UNIPROT_PROTEIN_ID_KEY}",
+    }
+
+
+def _sabiork_parameter_field_map() -> dict[str, str]:
+    """Parameter-level Export API paths the SABIO-RK flattener reads.
+
+    Normalized paths and their raw fallbacks are tracked separately so losing
+    either one shows up as drift.
+    """
+    from silkroute.core.interfaces.sabiork import (
+        PARAMETER_FIELD_PATHS,
+        PARAMETER_VALUE_PATHS,
+        SPECIES_KEY_PATH,
+        UNIT_NAME_PATHS,
+    )
+
+    normalized_unit, raw_unit = UNIT_NAME_PATHS
+    field_map = {
+        **PARAMETER_FIELD_PATHS,
+        "parameter.associatedSpecies": SPECIES_KEY_PATH,
+        "parameter.unit": normalized_unit,
+        "parameter.unit.fallback": raw_unit,
+    }
+    for column, (normalized, raw) in PARAMETER_VALUE_PATHS.items():
+        field_map[column] = normalized
+        field_map[f"{column}.fallback"] = raw
+    return field_map
+
 
 SPECS: list[_Spec] = [
     {
@@ -227,18 +273,39 @@ SPECS: list[_Spec] = [
         "option": None,
         "records": lambda f: [r["to"] for r in f["results"]],
     },
+    # SABIO-RK: fields.yml is empty on purpose -- fetch flattens entries into rows
+    # before parse runs, so a config map of raw Export API paths would be applied
+    # to the wrong shape and resolve to nothing. The contract is the set of paths
+    # the flattener reads, declared in the interface and checked at both levels of
+    # the envelope: one entry, and one kinetic-law parameter.
+    {
+        "key": "sabiork/kineticlaws.entry",
+        "api": "sabiork",
+        "case": "kineticlaws",
+        "field_map": _sabiork_entry_field_map,
+        "records": lambda f: f["data"],
+    },
+    {
+        "key": "sabiork/kineticlaws.parameter",
+        "api": "sabiork",
+        "case": "kineticlaws",
+        "field_map": _sabiork_parameter_field_map,
+        "records": lambda f: [p for e in f["data"] for p in e["kineticlaw"]["parameter"]],
+    },
 ]
 
 # Text-format / empty-config fixtures intentionally excluded from path resolution:
-#   kegg, sabiork  -> responses are flat text parsed by the interface, not JSON
-#                     whose keys match fields.yml source paths.
-#   rhea, sabiork  -> fields.yml is empty (no field contract to check).
+#   kegg  -> responses are flat text parsed by the interface, not JSON whose keys
+#            match fields.yml source paths.
+#   rhea  -> fields.yml is empty (no field contract to check).
 # Their structure is covered by the interfaces' own parse tests.
-EXCLUDED = {"kegg", "sabiork", "rhea"}
+EXCLUDED = {"kegg", "rhea"}
 
 
 def _field_map(spec: _Spec) -> dict[str, str]:
     """Return {output_name: source_path} for a spec."""
+    if "field_map" in spec:  # paths declared in code rather than in a fields.yml
+        return spec["field_map"]()
     option = spec["option"]
     if option is None:  # UniProt field_map_base: {out: (path, extractor)}
         from silkroute.core.interfaces.uniprot import UniprotInterface

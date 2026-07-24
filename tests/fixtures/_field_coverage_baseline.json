@@ -105,6 +105,30 @@
   "refseq/protein": [
     "locus"
   ],
+  "sabiork/kineticlaws.entry": [
+    "ECNumber",
+    "EntryID",
+    "Organism",
+    "Reaction",
+    "Temperature",
+    "Tissue",
+    "UniprotID",
+    "UniprotID.fallback",
+    "pH"
+  ],
+  "sabiork/kineticlaws.parameter": [
+    "parameter.associatedSpecies",
+    "parameter.endValue",
+    "parameter.endValue.fallback",
+    "parameter.name",
+    "parameter.standardDeviation",
+    "parameter.standardDeviation.fallback",
+    "parameter.startValue",
+    "parameter.startValue.fallback",
+    "parameter.type",
+    "parameter.unit",
+    "parameter.unit.fallback"
+  ],
   "stringdb/get_string_ids": [
     "query_index",
     "query_item",

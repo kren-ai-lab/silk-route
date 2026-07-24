@@ -47,6 +47,50 @@ KINETICLAW_COLUMNS = (
     "Tissue",
 )
 
+# --- Export API source paths -------------------------------------------------
+# The dot-paths below are the contract with the Export API: every column of
+# KINETICLAW_COLUMNS is read from one of them. They are declared once so the
+# flattening code and the structural drift test share a single source of truth.
+
+#: Output column -> path within one kinetic-law entry.
+ENTRY_FIELD_PATHS: Mapping[str, str] = MappingProxyType(
+    {
+        "EntryID": "id",
+        "Organism": "general.organism.name",
+        "ECNumber": "enzyme_description.ec_number",
+        "Reaction": "reaction.equation",
+        "Temperature": "experimental_conditions.envvar_temperature.start_value",
+        "pH": "experimental_conditions.envvar_ph.start_value",
+        "Tissue": "general.tissue.name",
+    }
+)
+
+#: Output column -> path within one kinetic-law parameter.
+PARAMETER_FIELD_PATHS: Mapping[str, str] = MappingProxyType(
+    {
+        "parameter.name": "name",
+        "parameter.type": "parameter_type.name",
+    }
+)
+
+#: Output column -> (normalized path, raw fallback path) within one parameter.
+PARAMETER_VALUE_PATHS: Mapping[str, tuple[str, str]] = MappingProxyType(
+    {
+        "parameter.startValue": ("n_start_value", "start_value"),
+        "parameter.endValue": ("n_end_value", "end_value"),
+        "parameter.standardDeviation": ("n_standard_deviation", "standard_deviation"),
+    }
+)
+
+#: Normalized and raw unit-name paths within one parameter, in preference order.
+UNIT_NAME_PATHS = ("unit.n_name", "unit.name")
+#: Path to the species key a parameter's associated-species label is parsed from.
+SPECIES_KEY_PATH = "species.species_key"
+#: Cross-reference paths an entry's UniProt accessions are read from, in order.
+UNIPROT_LINK_PATH = "external_links.kinlaw_entry"
+UNIPROT_PROTEIN_PATH = "enzyme_description.proteins"
+UNIPROT_PROTEIN_ID_KEY = "uniprot_id"
+
 
 def _escape_solr_value(value: str) -> str:
     """Escape one Solr query value, quoting values that need it."""
@@ -88,22 +132,25 @@ def _nested_value(data: Mapping[str, Any], *keys: str) -> Any:
     return current
 
 
-def _normalized_value(parameter: Mapping[str, Any], normalized_key: str, fallback_key: str) -> Any:
+def _path_value(data: Mapping[str, Any], path: str) -> Any:
+    """Safely read a dot-separated path from nested mappings."""
+    return _nested_value(data, *path.split("."))
+
+
+def _normalized_value(parameter: Mapping[str, Any], normalized_path: str, fallback_path: str) -> Any:
     """Prefer normalized SABIO-RK parameter values, preserving zero."""
-    value = parameter.get(normalized_key)
-    return parameter.get(fallback_key) if value is None else value
+    value = _path_value(parameter, normalized_path)
+    return _path_value(parameter, fallback_path) if value is None else value
 
 
 def _normalized_unit(parameter: Mapping[str, Any]) -> Any:
     """Prefer the normalized unit name, preserving empty strings if supplied."""
-    unit = _mapping(parameter.get("unit"))
-    value = unit.get("n_name")
-    return unit.get("name") if value is None else value
+    return _normalized_value(parameter, *UNIT_NAME_PATHS)
 
 
 def _associated_species(parameter: Mapping[str, Any]) -> Any:
     """Extract the species label from SABIO-RK species keys when possible."""
-    species_key = _nested_value(parameter, "species", "species_key")
+    species_key = _path_value(parameter, SPECIES_KEY_PATH)
     if not isinstance(species_key, str):
         return species_key
 
@@ -125,7 +172,7 @@ def _append_unique(values: list[str], value: Any) -> None:
 def _extract_uniprot_accessions(entry: Mapping[str, Any]) -> str:
     """Extract UniProt accessions from export links, with proteins as fallback."""
     accessions: list[str] = []
-    for link in _list(_nested_value(entry, "external_links", "kinlaw_entry")):
+    for link in _list(_path_value(entry, UNIPROT_LINK_PATH)):
         link_map = _mapping(link)
         if link_map.get("key") != "UniProtKB_AC":
             continue
@@ -135,8 +182,8 @@ def _extract_uniprot_accessions(entry: Mapping[str, Any]) -> str:
                 break
 
     if not accessions:
-        for protein in _list(_nested_value(entry, "enzyme_description", "proteins")):
-            _append_unique(accessions, _mapping(protein).get("uniprot_id"))
+        for protein in _list(_path_value(entry, UNIPROT_PROTEIN_PATH)):
+            _append_unique(accessions, _mapping(protein).get(UNIPROT_PROTEIN_ID_KEY))
 
     if len(accessions) == 1:
         return accessions[0]
@@ -155,16 +202,8 @@ def _flatten_kineticlaw_entry(entry: Any) -> list[dict[str, Any]]:
         return []
 
     rows = []
-    base_values = {
-        "EntryID": entry.get("id"),
-        "Organism": _nested_value(entry, "general", "organism", "name"),
-        "UniprotID": _extract_uniprot_accessions(entry),
-        "ECNumber": _nested_value(entry, "enzyme_description", "ec_number"),
-        "Reaction": _nested_value(entry, "reaction", "equation"),
-        "Temperature": _nested_value(entry, "experimental_conditions", "envvar_temperature", "start_value"),
-        "pH": _nested_value(entry, "experimental_conditions", "envvar_ph", "start_value"),
-        "Tissue": _nested_value(entry, "general", "tissue", "name"),
-    }
+    base_values = {column: _path_value(entry, path) for column, path in ENTRY_FIELD_PATHS.items()}
+    base_values["UniprotID"] = _extract_uniprot_accessions(entry)
 
     for parameter in parameters:
         if not isinstance(parameter, Mapping):
@@ -176,14 +215,12 @@ def _flatten_kineticlaw_entry(entry: Any) -> list[dict[str, Any]]:
             continue
         row = {
             **base_values,
-            "parameter.name": parameter.get("name"),
-            "parameter.type": _nested_value(parameter, "parameter_type", "name"),
+            **{column: _path_value(parameter, path) for column, path in PARAMETER_FIELD_PATHS.items()},
+            **{
+                column: _normalized_value(parameter, *paths)
+                for column, paths in PARAMETER_VALUE_PATHS.items()
+            },
             "parameter.associatedSpecies": _associated_species(parameter),
-            "parameter.startValue": _normalized_value(parameter, "n_start_value", "start_value"),
-            "parameter.endValue": _normalized_value(parameter, "n_end_value", "end_value"),
-            "parameter.standardDeviation": _normalized_value(
-                parameter, "n_standard_deviation", "standard_deviation"
-            ),
             "parameter.unit": _normalized_unit(parameter),
         }
         rows.append({column: row.get(column) for column in KINETICLAW_COLUMNS})
