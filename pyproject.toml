@@ -40,7 +40,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pyrefly>=1.0,<2.0",
-    "ruff>=0.15,<0.16",
+    "ruff>=0.16,<0.17",
     "taskipy>=1.14,<2.0",
     "ty>=0.0.30,<0.1",
 ]
@@ -81,7 +81,11 @@ ignore = [
     "N802",
     "N803",
     "N806",
+    # Argument count (PLR0913 total / PLR0917 positional): interface `fetch`/`parse` and
+    # workflow `run_*` signatures are wide by design (query + per-DB options + format
+    # flags). Same rationale as FBT001/FBT002 — narrowing them is a breaking API change.
     "PLR0913",
+    "PLR0917",
     # ANN401 (Any): load-bearing for the generic-interface design — ~82 `**kwargs: Any`
     # passthroughs plus dynamic JSON `data`, yaml-loader returns, and generic helpers.
     # Cleanly-typeable sites have been narrowed (to concrete types / `object`); the rest

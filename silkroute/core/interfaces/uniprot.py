@@ -381,7 +381,7 @@ class UniprotInterface(BaseAPIInterface):
                     log.info("Job is still running. Retrying in %ss", POLLING_INTERVAL)
                     time.sleep(POLLING_INTERVAL)
                 else:
-                    log.exception("Job failed with status: %s", j["jobStatus"])
+                    log.error("Job failed with status: %s", j["jobStatus"])
                     status = j["jobStatus"]
                     raise RequestError(status)
             else:
