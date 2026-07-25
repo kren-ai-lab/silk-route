@@ -313,8 +313,7 @@ from silkroute.core.workflow.schema import get_workflow_v1_schema_definition
 
 ## GUI (optional)
 
-A NiceGUI form that only prepares `workflow-v1` descriptors. It never executes a workflow or calls
-an external API.
+A web-based form (created with NiceGUI) that makes preparing workflow descriptors easier.
 
 ```bash
 pip install 'silkroute[gui]'
