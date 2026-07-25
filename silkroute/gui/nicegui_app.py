@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 from functools import partial
 from typing import Any, cast
 
@@ -2007,11 +2008,43 @@ def create_app() -> WorkflowYamlBuilderApp:
     return app
 
 
-def main() -> None:
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse ``silkroute-gui`` options."""
+    parser = argparse.ArgumentParser(
+        prog="silkroute-gui",
+        description="Prepare workflow-v1 YAML descriptors in a local web form.",
+    )
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help=(
+            "Interface to bind. Defaults to 127.0.0.1 (this machine only); the editor has no "
+            "authentication, so bind a wider interface such as 0.0.0.0 only on a trusted network."
+        ),
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8080,
+        help="Port to listen on (default: 8080).",
+    )
+    parser.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="Do not open a browser tab on start.",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> None:
     """Run the SilkRoute workflow YAML builder GUI."""
+    args = _parse_args(argv)
     ui.run(
         root=create_app,
         title="SilkRoute Workflow YAML Builder",
+        host=args.host,
+        port=args.port,
+        show=not args.no_browser,
         reload=False,
     )
 
