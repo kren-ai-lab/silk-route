@@ -325,8 +325,11 @@ external API; execution stays in the CLI.
 
 ```bash
 pip install 'silkroute[gui]'
-silkroute-gui                       # or: python -m silkroute.gui.nicegui_app
+silkroute-gui
 ```
+
+It serves [http://localhost:8080](http://localhost:8080) and opens a browser tab. Use `--host`, `--port`,
+and `--no-browser` change that.
 
 The form offers two query modes. Manual writes `query.value` directly, and the Advanced builder
 offers UniProt, ChEMBL, PubChem, and ChEBI builders filtered by the selected modality and
