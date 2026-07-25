@@ -11,16 +11,14 @@ It covers three main workflows:
 
 - Direct API access through 20 database interfaces (UniProt, AlphaFold, ChEMBL, KEGG, and others),
   with config-driven parsing, on-disk caching, and export to CSV, JSON, XML, or Parquet
-- Cross-database enrichment, which takes a result set and attaches records other databases hold for
-  the same entities
-- Reproducible workflows described in YAML, where every run writes its own metadata and a
-  machine-readable summary
+- Cross-database enrichment that attaches records from other databases to a result set
+- Workflows described in YAML, where every run writes its own metadata and a machine-readable
+  summary
 
 > [!NOTE]
-> The validated workflow surface covers UniProt protein retrieval, compound retrieval through the
-> supported ChEMBL, PubChem, and ChEBI query prefixes, and interaction-oriented retrieval. The
-> BLAST-backed UniProt sequence search is exposed in the CLI but is experimental: it needs BLAST+
-> and a local database.
+> Workflows cover UniProt protein retrieval, compound retrieval through the ChEMBL, PubChem, and
+> ChEBI query prefixes, and interaction retrieval. BLAST-backed UniProt sequence search is
+> experimental and needs BLAST+ with a local database.
 
 ## Installation
 
@@ -41,8 +39,7 @@ pip install 'silkroute[gui]'
 pip install 'silkroute[dev,tests]'
 ```
 
-You do not need a setup step after installing: the configuration ships inside the package. Only the
-credentialed APIs and the experimental sequence search need extra work.
+Only the credentialed APIs and the experimental sequence search need setup beyond the install.
 
 | Feature                      | Requirement                                                                                                                            |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
@@ -121,11 +118,10 @@ Four namespaces. Run `silkroute --help` or `silkroute <namespace> --help` for th
 | `workflow {run,validate}`   | Reproducible multi-step runs                             | `silkroute workflow run --config run.yml`                |
 | `cache {list,clear}`        | Inspect or purge the on-disk cache                       | `silkroute cache list`                                   |
 
-Every command exports `csv`, `json`, `xml`, or `parquet`. `dataframe` is internal only and is not a
-public export format. `fetch` takes `-f/--format` and infers the format from the output extension
-when you omit it, while `search` (`-ef`) and `workflow` (`-e`) take `--export-format` and default to
-`csv`. `fetch` also writes a `<output>.metadata.json` provenance sidecar unless you pass
-`--no-metadata`.
+Every command exports `csv`, `json`, `xml`, or `parquet`. `fetch` takes `-f/--format` and infers the
+format from the output extension when you omit it, while `search` (`-ef`) and `workflow` (`-e`) take
+`--export-format` and default to `csv`. `fetch` also writes a `<output>.metadata.json` provenance
+sidecar unless you pass `--no-metadata`.
 
 <details>
 <summary>More <code>search uniprot</code> examples</summary>
@@ -181,7 +177,7 @@ flags, a [YAML descriptor](#yaml-descriptors), or both.
 | `query_composition` | Several labeled queries, compared or grouped | `query1=label1,query2=label2` |
 
 Compound workflows accept ChEMBL, PubChem, and ChEBI source-prefixed queries. PubChem and ChEBI are
-reachable only through the supported workflow-v1 query forms.
+reachable only through those prefixes.
 
 ```bash
 silkroute workflow run \
@@ -195,7 +191,7 @@ silkroute workflow run \
 Both labeled queries run, and each exported record carries its label (`temp_99`, `temp_98`) in the
 combined result file. The labeling syntax:
 
-- `query=label` or `query|label`, where the **final** `=` or `|` is the delimiter
+- `query=label` or `query|label`, where the last `=` or `|` is the delimiter
 - Commas separate multiple pairs: `query1=label1,query2=label2`
 - An internal `=` stays part of the query: `chembl.molecule:name__iexact=Imatinib=imatinib`
 
@@ -224,10 +220,10 @@ supplies them.
 | `metadata.json`                    | Workflow metadata, original descriptor sections, normalized executable values, generated files, reporting metrics |
 | `run_summary.yml`                  | Compact report: dataset and query, status, timings, export settings, row and column counts                        |
 
-The summary status reflects real execution: `success`, `completed_with_errors` (outputs exist but
-the metadata records errors), or `failed` (execution failed, or a primary fetch error left no real
-output). When `harmonization.id_column` is set, exported tabular files gain a deterministic ID
-column if they lack one. In-memory objects and raw API responses stay untouched.
+The summary status is `success`, `completed_with_errors` (outputs exist but the metadata records
+errors), or `failed` (execution failed, or a primary fetch error left no real output). When
+`harmonization.id_column` is set, exported tabular files gain a deterministic ID column if they lack
+one; in-memory objects and raw API responses stay untouched.
 
 ### Scenario cheat sheet
 
@@ -249,7 +245,7 @@ examples live in [`examples/workflows/`](examples/workflows/), and
 forbidden key, and limitation.
 
 ```bash
-# CLI flags override YAML, so one descriptor serves many runs
+# CLI flags override YAML
 silkroute workflow run --config examples/workflows/protein_query_first_minimal.yml -o result_override
 ```
 
@@ -261,17 +257,14 @@ Error: my-workflow.yml has 2 validation error(s):
   - Unsupported export format 'xlsx'. Supported formats are: csv, json, xml, parquet.
 ```
 
-Four things are worth knowing before you write one.
-
 Not every field executes. `dataset.modality`, `dataset.mode`, `query.value`, selected `query` and
 `execution` options, and the `export` options drive the run. `query.builder`, `query.composition`,
 `query.description`, and `query.filtering_strategy` are descriptive metadata: they are preserved in
 `metadata.json` and `run_summary.yml` but never executed. If `query.composition` is present it must
 match `query.value`.
 
-ChEMBL paging works per page. `execution.chembl_pages_to_fetch: -1` (the default) fetches all pages
-and a positive value caps them, while `limit` is records *per page* rather than a total or a page
-count.
+`execution.chembl_pages_to_fetch: -1` (the default) fetches all pages and a positive value caps them.
+`limit` is records *per page*, not a total or a page count.
 
 IC50 units accept `nM`, `uM`, `mM`, and `pM`, and `µM`/`μM` normalize to `uM`. SilkRoute never
 converts values between units.
@@ -320,16 +313,16 @@ from silkroute.core.workflow.schema import get_workflow_v1_schema_definition
 
 ## GUI (optional)
 
-A NiceGUI form that **prepares** `workflow-v1` descriptors. It never executes a workflow or calls an
-external API; execution stays in the CLI.
+A NiceGUI form that only prepares `workflow-v1` descriptors. It never executes a workflow or calls
+an external API.
 
 ```bash
 pip install 'silkroute[gui]'
 silkroute-gui
 ```
 
-It serves [http://localhost:8080](http://localhost:8080) and opens a browser tab. Use `--host`, `--port`,
-and `--no-browser` change that.
+It serves [http://localhost:8080](http://localhost:8080) and opens a browser tab. Use `--host`,
+`--port`, and `--no-browser` to change that.
 
 The form offers two query modes. Manual writes `query.value` directly, and the Advanced builder
 offers UniProt, ChEMBL, PubChem, and ChEBI builders filtered by the selected modality and
@@ -390,7 +383,7 @@ concat_df, _ = enricher.enrich(results_df, concat_results=True)
 
 ### Credentials
 
-Credentials are the only user-facing configuration. They resolve in this order:
+Credentials resolve in this order:
 
 1. Explicit CLI arguments or constructor parameters
 2. Environment variables, including values loaded from a `.env` file
@@ -417,19 +410,19 @@ By default SilkRoute keeps its cache and its per-API config in the platform dire
 - macOS: `~/Library/Caches/silkroute` and `~/Library/Application Support/silkroute`
 - Windows: `%LOCALAPPDATA%\silkroute\Cache` and `%LOCALAPPDATA%\silkroute`
 
-Two environment variables override them, which is useful for tests, CI, and shared scratch disks:
+Two environment variables override them:
 
 - `SILKROUTE_CACHE_DIR` for the cache root, which also relocates the BLAST database directory
   (`<cache root>/blast_db`)
 - `SILKROUTE_CONFIG_DIR` for the config root
 
-Use `silkroute cache list` and `silkroute cache clear` to inspect or purge what has accumulated.
+Use `silkroute cache list` and `silkroute cache clear` to inspect or purge the cache.
 
 ### Packaged configuration
 
-Everything else ships inside the package under `silkroute/config/<api>/` and loads automatically, so
-there is nothing to copy into `~/.config`. The per-API `fields.yml` files map API responses to
-output columns, keyed by endpoint name as `output_column: api.response.path`:
+Per-API parsing config ships inside the package under `silkroute/config/<api>/` and loads
+automatically. The `fields.yml` files map API responses to output columns, keyed by endpoint name as
+`output_column: api.response.path`:
 
 ```yaml
 # silkroute/config/alphafold/fields.yml
@@ -440,8 +433,8 @@ prediction:
   organism: organismScientificName
 ```
 
-These files are library internals rather than user settings, since editing them breaks parsing.
-Download locations are chosen per call through the interface `output_dir` argument.
+These files are library internals: editing them breaks parsing. Each call picks its own download
+location through the interface `output_dir` argument.
 
 ## Learn more
 
@@ -458,8 +451,8 @@ Download locations are chosen per call through the interface `output_dir` argume
 
 ## Contributing
 
-Issues and pull requests should keep the documented workflow surface aligned with implemented and
-tested behavior. [DEVELOPMENT.md](DEVELOPMENT.md) covers development setup and testing conventions.
+Issues and pull requests should keep the docs aligned with what is implemented and tested.
+[DEVELOPMENT.md](DEVELOPMENT.md) covers development setup and testing conventions.
 
 ## License
 
