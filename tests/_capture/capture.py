@@ -14,7 +14,7 @@ Optional positional args restrict capture to the named APIs.
 
 Captures drive the **real interface** so the request (URL, params, method, body)
 is exactly what production builds, and record the **raw HTTP body** the interface
-receives -- i.e. exactly what the offline tests register with ``responses``.
+receives -- i.e. exactly what the offline tests register with ``niquests_mock``.
 Text APIs (kegg) are stored as a JSON string.
 
 Credentialed / non-HTTP APIs (biogrid, brenda, refseq) are only captured when

@@ -85,7 +85,7 @@ examples/                 # Scripts for manual exploration
 
 The test suite is designed to run offline.
 
-- HTTP interactions are mocked (`responses`), isolated behind `conftest` fixtures.
+- HTTP interactions are mocked (`niquests_mock`), isolated behind `conftest` fixtures.
 - Test layout mirrors the source layout.
 - New features should ship with focused unit tests and CLI coverage when applicable.
 
@@ -101,7 +101,7 @@ from `tests/fixtures/<api>/<case>.json` and asserts three things:
   0 on the second).
 
 Non-HTTP / credentialed clients are mocked at the client boundary instead of via
-`responses`: BRENDA (zeep SOAP `Client`), RefSeq (`Bio.Entrez`), BioGRID (API key
+`niquests_mock`: BRENDA (zeep SOAP `Client`), RefSeq (`Bio.Entrez`), BioGRID (API key
 supplied explicitly), and the standalone UniProt id-mapping flow
 (submit → status → details → results).
 
@@ -122,7 +122,7 @@ SILKROUTE_CAPTURE=1 uv run python -m tests._capture.capture rhea chebi
 
 Each capture drives the real interface, so the request (URL, params, method,
 body) matches production exactly, and records the raw HTTP body the interface
-receives — the same payload the offline tests register with `responses`.
+receives — the same payload the offline tests register with `niquests_mock`.
 
 Credentialed / non-HTTP APIs are captured only when their env vars are present
 (`SILKROUTE_BIOGRID_API_KEY`, `SILKROUTE_REFSEQ_EMAIL`,

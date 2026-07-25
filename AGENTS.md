@@ -65,10 +65,5 @@ uv run silkroute --help
   returns `[]`, an object endpoint `{}`); never `None`. The error-vs-empty reason
   is recorded in `metadata.failed` (`request_error` / `empty_result`), not the
   return value. (`chebi`/`pubchem` are genuinely method-polymorphic and return `{}`.)
-- Tests run offline: HTTP is mocked (`responses`) behind `conftest` fixtures.
+- Tests run offline: HTTP is mocked (`niquests_mock`) behind `conftest` fixtures.
 - Tests mirror the source layout.
-
-## Active Work
-
-A multi-phase refactor is in progress — see `REFACTOR_PLAN.md` (phase by phase,
-review + commit between phases).

@@ -44,12 +44,12 @@ pip install 'silkroute[dev,tests]'
 You do not need a setup step after installing: the configuration ships inside the package. Only the
 credentialed APIs and the experimental sequence search need extra work.
 
-| Feature | Requirement |
-| --- | --- |
-| BioGRID | Access key ([request](https://webservice.thebiogrid.org/)) via `SILKROUTE_BIOGRID_API_KEY` |
-| BRENDA | Email and password ([register](https://www.brenda-enzymes.org/login.php)) via `SILKROUTE_BRENDA_EMAIL` and `SILKROUTE_BRENDA_PASSWORD` |
-| RefSeq | Contact email via `SILKROUTE_REFSEQ_EMAIL` |
-| Experimental sequence search | The BLAST+ binaries on `PATH` |
+| Feature                      | Requirement                                                                                                                            |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| BioGRID                      | Access key ([request](https://webservice.thebiogrid.org/)) via `SILKROUTE_BIOGRID_API_KEY`                                             |
+| BRENDA                       | Email and password ([register](https://www.brenda-enzymes.org/login.php)) via `SILKROUTE_BRENDA_EMAIL` and `SILKROUTE_BRENDA_PASSWORD` |
+| RefSeq                       | Contact email via `SILKROUTE_REFSEQ_EMAIL`                                                                                             |
+| Experimental sequence search | The BLAST+ binaries on `PATH`                                                                                                          |
 
 > [!TIP]
 > BLAST+ installs from bioconda: `conda install -c bioconda blast`, or with
@@ -85,28 +85,28 @@ silkroute workflow run --config examples/workflows/protein_query_first_minimal.y
 <details>
 <summary><strong>20 database interfaces</strong></summary>
 
-| Database | Description |
-| --- | --- |
-| UniProt | Universal protein sequence database |
-| AlphaFold | Protein structure predictions |
-| BioDBNet | Biological database network |
-| BioGRID | Protein-protein interaction data |
-| BRENDA | Enzyme information system |
-| ChEBI | Chemical Entities of Biological Interest |
-| ChEMBL | Bioactive molecule database |
-| Gene Ontology | Functional annotation of genes |
-| InterPro | Protein families and domains |
-| KEGG | Kyoto Encyclopedia of Genes and Genomes |
-| Panther | Protein family classification |
-| Pathway Commons | Biological pathways |
-| PDB | Protein Data Bank |
-| Pride | Proteomics data repository |
-| PubChem | Chemical molecule database |
-| Reactome | Pathway database |
-| RefSeq | NCBI Reference Sequence Database |
-| Rhea | Biochemical reactions database |
-| SABIO-RK | Reaction kinetics data (Python API only, no CLI sub-app) |
-| STRING | Protein-protein interaction networks |
+| Database        | Description                                              |
+| --------------- | -------------------------------------------------------- |
+| UniProt         | Universal protein sequence database                      |
+| AlphaFold       | Protein structure predictions                            |
+| BioDBNet        | Biological database network                              |
+| BioGRID         | Protein-protein interaction data                         |
+| BRENDA          | Enzyme information system                                |
+| ChEBI           | Chemical Entities of Biological Interest                 |
+| ChEMBL          | Bioactive molecule database                              |
+| Gene Ontology   | Functional annotation of genes                           |
+| InterPro        | Protein families and domains                             |
+| KEGG            | Kyoto Encyclopedia of Genes and Genomes                  |
+| Panther         | Protein family classification                            |
+| Pathway Commons | Biological pathways                                      |
+| PDB             | Protein Data Bank                                        |
+| Pride           | Proteomics data repository                               |
+| PubChem         | Chemical molecule database                               |
+| Reactome        | Pathway database                                         |
+| RefSeq          | NCBI Reference Sequence Database                         |
+| Rhea            | Biochemical reactions database                           |
+| SABIO-RK        | Reaction kinetics data (Python API only, no CLI sub-app) |
+| STRING          | Protein-protein interaction networks                     |
 
 </details>
 
@@ -114,12 +114,12 @@ silkroute workflow run --config examples/workflows/protein_query_first_minimal.y
 
 Four namespaces. Run `silkroute --help` or `silkroute <namespace> --help` for the full list.
 
-| Namespace | Purpose | Example |
-| --- | --- | --- |
-| `fetch <db> <endpoint>` | Direct endpoint access using each API's own nomenclature | `silkroute fetch alphafold prediction P12345 -o out.csv` |
-| `search {uniprot,chemical}` | Higher-level search interfaces | `silkroute search uniprot by-ids --input ids.csv` |
-| `workflow {run,validate}` | Reproducible multi-step runs | `silkroute workflow run --config run.yml` |
-| `cache {list,clear}` | Inspect or purge the on-disk cache | `silkroute cache list` |
+| Namespace                   | Purpose                                                  | Example                                                  |
+| --------------------------- | -------------------------------------------------------- | -------------------------------------------------------- |
+| `fetch <db> <endpoint>`     | Direct endpoint access using each API's own nomenclature | `silkroute fetch alphafold prediction P12345 -o out.csv` |
+| `search {uniprot,chemical}` | Higher-level search interfaces                           | `silkroute search uniprot by-ids --input ids.csv`        |
+| `workflow {run,validate}`   | Reproducible multi-step runs                             | `silkroute workflow run --config run.yml`                |
+| `cache {list,clear}`        | Inspect or purge the on-disk cache                       | `silkroute cache list`                                   |
 
 Every command exports `csv`, `json`, `xml`, or `parquet`. `dataframe` is internal only and is not a
 public export format. `fetch` takes `-f/--format` and infers the format from the output extension
@@ -169,15 +169,15 @@ Workflows run data acquisition with retries, multi-threaded API calls, optional 
 machine-readable run records (`metadata.json` plus `run_summary.yml`). You drive them with CLI
 flags, a [YAML descriptor](#yaml-descriptors), or both.
 
-| Modality | Covers | Typical output |
-| --- | --- | --- |
-| `protein` | Protein sequences and properties | Temperature, activity data, sequences |
-| `compound` | Chemical compounds and bioactivity | IC50, binding affinity, activity |
-| `interaction` | Protein interactions | Network data, interaction strength |
+| Modality      | Covers                             | Typical output                        |
+| ------------- | ---------------------------------- | ------------------------------------- |
+| `protein`     | Protein sequences and properties   | Temperature, activity data, sequences |
+| `compound`    | Chemical compounds and bioactivity | IC50, binding affinity, activity      |
+| `interaction` | Protein interactions               | Network data, interaction strength    |
 
-| Mode | Use case | Query format |
-| --- | --- | --- |
-| `query_first` | One query for the selected modality | `temperature:*` |
+| Mode                | Use case                                     | Query format                  |
+| ------------------- | -------------------------------------------- | ----------------------------- |
+| `query_first`       | One query for the selected modality          | `temperature:*`               |
 | `query_composition` | Several labeled queries, compared or grouped | `query1=label1,query2=label2` |
 
 Compound workflows accept ChEMBL, PubChem, and ChEBI source-prefixed queries. PubChem and ChEBI are
@@ -204,25 +204,25 @@ combined result file. The labeling syntax:
 A run needs `-o/--output`, `-m/--modality`, `-d/--mode`, and `-q/--query` unless a descriptor
 supplies them.
 
-| Option | Effect |
-| --- | --- |
-| `-e, --export-format` | `csv` (default), `json`, `xml`, `parquet` |
-| `--enrich / --no-enrich` | Toggle cross-reference enrichment |
-| `-w, --max-workers` | Worker threads for API calls. More threads finish sooner and load the API harder |
-| `-r, --total-retries` | Retry attempts for failed calls |
-| `--chembl-pages-to-fetch` | `-1` for all pages, a positive value to cap them |
-| `--uniprot-timeout` | UniProt request timeout, in seconds |
-| `--include-isoform / --no-include-isoform` | Include UniProt isoforms |
-| `--debug` | Debug logging |
+| Option                                     | Effect                                                                           |
+| ------------------------------------------ | -------------------------------------------------------------------------------- |
+| `-e, --export-format`                      | `csv` (default), `json`, `xml`, `parquet`                                        |
+| `--enrich / --no-enrich`                   | Toggle cross-reference enrichment                                                |
+| `-w, --max-workers`                        | Worker threads for API calls. More threads finish sooner and load the API harder |
+| `-r, --total-retries`                      | Retry attempts for failed calls                                                  |
+| `--chembl-pages-to-fetch`                  | `-1` for all pages, a positive value to cap them                                 |
+| `--uniprot-timeout`                        | UniProt request timeout, in seconds                                              |
+| `--include-isoform / --no-include-isoform` | Include UniProt isoforms                                                         |
+| `--debug`                                  | Debug logging                                                                    |
 
 ### Outputs
 
-| File | Contents |
-| --- | --- |
-| `*_results.{csv,json,xml,parquet}` | Retrieved workflow results |
-| `{database}_{endpoint}.{ext}` | Cross-referenced data, when enrichment produces output |
-| `metadata.json` | Workflow metadata, original descriptor sections, normalized executable values, generated files, reporting metrics |
-| `run_summary.yml` | Compact report: dataset and query, status, timings, export settings, row and column counts |
+| File                               | Contents                                                                                                          |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `*_results.{csv,json,xml,parquet}` | Retrieved workflow results                                                                                        |
+| `{database}_{endpoint}.{ext}`      | Cross-referenced data, when enrichment produces output                                                            |
+| `metadata.json`                    | Workflow metadata, original descriptor sections, normalized executable values, generated files, reporting metrics |
+| `run_summary.yml`                  | Compact report: dataset and query, status, timings, export settings, row and column counts                        |
 
 The summary status reflects real execution: `success`, `completed_with_errors` (outputs exist but
 the metadata records errors), or `failed` (execution failed, or a primary fetch error left no real
@@ -231,14 +231,14 @@ column if they lack one. In-memory objects and raw API responses stay untouched.
 
 ### Scenario cheat sheet
 
-| Goal | Modality | Mode | Query |
-| --- | --- | --- | --- |
-| All thermophilic proteins | protein | `query_first` | `temperature:*` |
-| Compare two temperature optima | protein | `query_composition` | `temperature:20=temp_low,temperature:80=temp_high` |
-| Classify compounds by activity | compound | `query_composition` | `ic50:10-50=active,ic50:50-100=inactive` |
-| IC50 activity records | compound | `query_first` | `ic50:<1000 AND standard_units:nM` |
-| PubChem compounds | compound | `query_first` | `pubchem.compound:name="glucose"` |
-| ChEBI entities | compound | `query_first` | `chebi.entity:chebi_id=CHEBI:15377` |
+| Goal                           | Modality | Mode                | Query                                              |
+| ------------------------------ | -------- | ------------------- | -------------------------------------------------- |
+| All thermophilic proteins      | protein  | `query_first`       | `temperature:*`                                    |
+| Compare two temperature optima | protein  | `query_composition` | `temperature:20=temp_low,temperature:80=temp_high` |
+| Classify compounds by activity | compound | `query_composition` | `ic50:10-50=active,ic50:50-100=inactive`           |
+| IC50 activity records          | compound | `query_first`       | `ic50:<1000 AND standard_units:nM`                 |
+| PubChem compounds              | compound | `query_first`       | `pubchem.compound:name="glucose"`                  |
+| ChEBI entities                 | compound | `query_first`       | `chebi.entity:chebi_id=CHEBI:15377`                |
 
 ## YAML descriptors
 
@@ -349,10 +349,12 @@ Fetch a batch through a database interface:
 import polars as pl
 from silkroute import UniprotInterface
 
-df = pl.DataFrame({
-    "id": [1, 2, 3],
-    "accession": ["A1L3X0", "A0JNC4", "A2RUC4"],
-})
+df = pl.DataFrame(
+    {
+        "id": [1, 2, 3],
+        "accession": ["A1L3X0", "A0JNC4", "A2RUC4"],
+    }
+)
 
 uniprot = UniprotInterface()
 results, _ = uniprot.download_batch(
@@ -394,11 +396,11 @@ SilkRoute looks for `.env` at `SILKROUTE_ENV_FILE`, then in the working director
 `~/.config/silkroute/.env` or a per-interface directory such as
 `~/.config/silkroute/biogrid/.env`. `silkroute/config/.env.example` is the template.
 
-| Variable | Used by |
-| --- | --- |
-| `SILKROUTE_BIOGRID_API_KEY` | BioGRID |
-| `SILKROUTE_BRENDA_EMAIL`, `SILKROUTE_BRENDA_PASSWORD` | BRENDA |
-| `SILKROUTE_REFSEQ_EMAIL` | RefSeq |
+| Variable                                              | Used by |
+| ----------------------------------------------------- | ------- |
+| `SILKROUTE_BIOGRID_API_KEY`                           | BioGRID |
+| `SILKROUTE_BRENDA_EMAIL`, `SILKROUTE_BRENDA_PASSWORD` | BRENDA  |
+| `SILKROUTE_REFSEQ_EMAIL`                              | RefSeq  |
 
 > [!WARNING]
 > Credentials come only from environment variables or `.env`, never from packaged config and never
