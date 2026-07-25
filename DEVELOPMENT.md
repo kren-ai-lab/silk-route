@@ -112,8 +112,8 @@ Fixtures are loaded with the helpers in `tests/_helpers.py`
 ### Regenerating fixtures (network-gated)
 
 `tests/_capture/capture.py` regenerates the fixtures from the real APIs. It is
-**never** run by the test suite or CI and refuses to do anything unless
-`SILKROUTE_CAPTURE=1` is set:
+**never** run by the test suite (and never on push / pull request) and refuses to
+do anything unless `SILKROUTE_CAPTURE=1` is set:
 
 ```bash
 SILKROUTE_CAPTURE=1 uv run python -m tests._capture.capture          # all APIs
@@ -133,6 +133,40 @@ automatically by the capture script.
 Because fixtures are real bodies, re-capturing can change response shape and
 require updating the affected test assertions — that is expected and the point:
 the tests then reflect what the APIs actually return.
+
+### Scheduled re-capture (`refresh-fixtures` workflow)
+
+`.github/workflows/refresh-fixtures.yml` runs the capture script on the 1st and
+15th of every month at 06:00 UTC (also on `workflow_dispatch`, with an optional
+space-separated `apis` input). It always checks out and targets `dev`, never `main`
+— the file only lives on the default branch because that is where GitHub fires
+`schedule` from.
+
+What happens next depends on the offline suite, run in-job against the fresh
+fixtures:
+
+| fixtures changed | `pytest -q` | outcome |
+| --- | --- | --- |
+| no | not run | nothing; job green |
+| yes | passes | committed straight to `dev` |
+| yes | fails | pushed to `chore/refresh-fixtures`, PR opened against `dev` |
+
+So a PR appearing means an API changed shape and the assertions need reconciling:
+fix them on the branch, and re-run `REGEN_FIELD_BASELINE=1 uv run pytest` if the
+field-coverage baseline moved. The PR body carries the capture log and the tail of
+the failing run. A re-run reuses the same branch and PR rather than stacking new
+ones.
+
+The job itself goes red only when the capture script exits non-zero, so a dead or
+renamed endpoint is visible in the Actions tab. That is independent of the commit
+decision: a partial capture whose fixtures still pass is committed to `dev` (the
+APIs that answered gave valid bodies) *and* leaves the run red for the one that
+did not.
+
+Credentialed captures need repository secrets with the same names as the env vars
+above (`SILKROUTE_BIOGRID_API_KEY`, `SILKROUTE_REFSEQ_EMAIL`,
+`SILKROUTE_BRENDA_EMAIL`, `SILKROUTE_BRENDA_PASSWORD`); without them those three
+APIs skip themselves and their fixtures stay frozen.
 
 ## Additional Context
 

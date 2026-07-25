@@ -1,7 +1,9 @@
 """Env-gated capture script: (re)generate ``tests/fixtures/<api>/<case>.json``.
 
-This script is **never** run by the test suite or CI. It exists so the frozen
-fixtures replayed by the offline tests can be regenerated from the real APIs.
+This script is **never** run by the test suite. It exists so the frozen fixtures
+replayed by the offline tests can be regenerated from the real APIs, either by
+hand or by the scheduled ``.github/workflows/refresh-fixtures.yml`` job (twice a
+month), which opens a PR with whatever drifted.
 
 Usage::
 

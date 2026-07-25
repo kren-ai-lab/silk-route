@@ -1,0 +1,167 @@
+name: refresh-fixtures
+
+# Re-captures the frozen API fixtures in tests/fixtures/ from the live APIs twice
+# a month. Clean drift (offline suite still green) is committed straight to `dev`;
+# breaking drift goes to a PR against `dev` for a human to reconcile. Never runs
+# on push/PR: the offline test suite must stay offline.
+#
+# This file must live on the default branch for `schedule` to fire at all, but the
+# capture itself always runs against `dev` (see the checkout `ref` below).
+on:
+  schedule:
+    # 06:00 UTC on the 1st and the 15th.
+    - cron: "0 6 1,15 * *"
+  workflow_dispatch:
+    inputs:
+      apis:
+        description: "Space-separated API names to capture (empty = all)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: refresh-fixtures
+  cancel-in-progress: false
+
+env:
+  TARGET: dev
+  PR_BRANCH: chore/refresh-fixtures
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --extra dev --extra tests
+
+      - name: Validate api selection
+        env:
+          APIS: ${{ inputs.apis }}
+        run: |
+          if [ -n "$APIS" ] && ! printf '%s' "$APIS" | grep -qE '^[a-z0-9 ]+$'; then
+            echo "::error::invalid apis input: $APIS"
+            exit 1
+          fi
+
+      # Credentialed captures (biogrid, refseq, brenda) skip themselves with a log
+      # line when their secret is absent, so unset secrets are not an error.
+      - name: Capture fixtures
+        id: capture
+        continue-on-error: true
+        env:
+          SILKROUTE_CAPTURE: "1"
+          APIS: ${{ inputs.apis }}
+          SILKROUTE_BIOGRID_API_KEY: ${{ secrets.SILKROUTE_BIOGRID_API_KEY }}
+          SILKROUTE_REFSEQ_EMAIL: ${{ secrets.SILKROUTE_REFSEQ_EMAIL }}
+          SILKROUTE_BRENDA_EMAIL: ${{ secrets.SILKROUTE_BRENDA_EMAIL }}
+          SILKROUTE_BRENDA_PASSWORD: ${{ secrets.SILKROUTE_BRENDA_PASSWORD }}
+        run: |
+          # shellcheck disable=SC2086  # intentional word splitting: APIS is a list
+          uv run python -m tests._capture.capture $APIS 2>&1 | tee capture.log
+
+      - name: Detect drift
+        id: drift
+        run: |
+          if [ -n "$(git status --porcelain tests/fixtures)" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git --no-pager diff --stat tests/fixtures
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run offline test suite against the new fixtures
+        id: tests
+        if: steps.drift.outputs.changed == 'true'
+        continue-on-error: true
+        run: uv run pytest -q 2>&1 | tail -n 60 | tee pytest.log
+
+      - name: Configure git
+        if: steps.drift.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      # Suite still green on the fresh fixtures -> nothing for a human to decide.
+      - name: Commit to dev
+        if: steps.drift.outputs.changed == 'true' && steps.tests.outcome == 'success'
+        run: |
+          set -euo pipefail
+          git add tests/fixtures
+          git commit -m "test: refresh API fixtures from live APIs"
+          # Rebase onto whatever landed on dev while the capture was running; the
+          # commit only touches tests/fixtures so a conflict here is a real one.
+          git pull --rebase origin "$TARGET"
+          git push origin "HEAD:$TARGET"
+
+      # Suite broke -> an API changed shape. Park it on a branch and let a human
+      # reconcile the assertions.
+      - name: Open pull request
+        if: steps.drift.outputs.changed == 'true' && steps.tests.outcome != 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CAPTURE_OUTCOME: ${{ steps.capture.outcome }}
+          TESTS_OUTCOME: ${{ steps.tests.outcome }}
+        run: |
+          set -euo pipefail
+          git switch -c "$PR_BRANCH"
+          git add tests/fixtures
+          git commit -m "test: refresh API fixtures from live APIs"
+          git push --force origin "$PR_BRANCH"
+
+          {
+            echo "Automated re-capture of \`tests/fixtures/\` from the live APIs."
+            echo
+            echo "- capture step: **$CAPTURE_OUTCOME**"
+            echo "- offline suite on the new fixtures: **$TESTS_OUTCOME**"
+            echo
+            echo "The suite no longer passes on the fresh fixtures, so this drift was"
+            echo "**not** committed to \`$TARGET\` directly. An API changed shape: update"
+            echo "the affected assertions on this branch (and re-run"
+            echo "\`REGEN_FIELD_BASELINE=1 uv run pytest\` if the field-coverage baseline"
+            echo "moved) before merging."
+            echo
+            echo "<details><summary>capture log</summary>"
+            echo
+            echo '```'
+            tail -n 60 capture.log
+            echo '```'
+            echo
+            echo "</details>"
+            if [ -f pytest.log ]; then
+              echo
+              echo "<details><summary>pytest tail</summary>"
+              echo
+              echo '```'
+              cat pytest.log
+              echo '```'
+              echo
+              echo "</details>"
+            fi
+          } > pr-body.md
+
+          if [ -n "$(gh pr list --head "$PR_BRANCH" --state open --json number --jq '.[].number')" ]; then
+            gh pr edit "$PR_BRANCH" --body-file pr-body.md
+          else
+            gh pr create \
+              --head "$PR_BRANCH" \
+              --base "$TARGET" \
+              --title "test: refresh API fixtures (suite needs reconciling)" \
+              --body-file pr-body.md
+          fi
+
+      - name: Report capture failures
+        if: steps.capture.outcome == 'failure'
+        run: |
+          echo "::error::capture exited non-zero; see the capture log for the failing APIs"
+          exit 1
