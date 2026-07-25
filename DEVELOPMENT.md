@@ -168,6 +168,29 @@ above (`SILKROUTE_BIOGRID_API_KEY`, `SILKROUTE_REFSEQ_EMAIL`,
 `SILKROUTE_BRENDA_EMAIL`, `SILKROUTE_BRENDA_PASSWORD`); without them those three
 APIs skip themselves and their fixtures stay frozen.
 
+## Releasing
+
+`.github/workflows/publish-pypi.yml` builds with `uv build` and publishes to PyPI
+via [trusted publishing](https://docs.pypi.org/trusted-publishers/) (OIDC, no API
+token stored in the repo). It triggers on any `v*` tag, and on `workflow_dispatch`
+for a build-only dry run — the `publish` job is gated on `startsWith(github.ref,
+'refs/tags/v')`, so a manual run only produces artifacts.
+
+The version is dynamic: hatch reads `__version__` from `silkroute/__init__.py`. To
+cut a release, bump it, commit, then tag the same number:
+
+```bash
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+The build job refuses to continue when the tag and `__version__` disagree, because
+a filename on PyPI cannot be reused after upload.
+
+One-time setup on PyPI: add a trusted publisher for project `silkroute` with owner
+`kren-ai-lab`, repository `silk-route`, workflow `publish-pypi.yml`, environment
+`pypi`. The `pypi` GitHub environment is where any release approvals or reviewers
+would go.
+
 ## Additional Context
 
 For more architecture detail, see [AGENTS.md](AGENTS.md).

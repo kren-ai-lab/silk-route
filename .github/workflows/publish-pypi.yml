@@ -1,0 +1,68 @@
+name: publish-pypi
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-pypi-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v9.0.0
+        with:
+          python-version: "3.12"
+
+      # The version is dynamic (hatch reads silkroute/__init__.py), so a tag can
+      # disagree with the package. Catch that before anything reaches PyPI, where
+      # a filename is permanent.
+      - name: Check the tag matches __version__
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' silkroute/__init__.py)"
+          if [ -z "$version" ]; then
+            echo "::error::could not read __version__ from silkroute/__init__.py"
+            exit 1
+          fi
+          if [ "$TAG" != "v$version" ]; then
+            echo "::error::tag $TAG does not match silkroute.__version__ ($version)"
+            exit 1
+          fi
+
+      - name: Build distributions
+        run: uv build
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-package-distributions
+          path: dist/
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/silkroute
+    permissions:
+      id-token: write
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v8
+        with:
+          name: python-package-distributions
+          path: dist/
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
