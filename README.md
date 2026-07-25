@@ -1,35 +1,65 @@
 # SilkRoute
 
-**SilkRoute** is a Python library and command-line tool for reproducible biological data
-retrieval. It provides database-specific interfaces, config-driven parsing, cross-database
-enrichment and mapping, YAML workflow descriptors, run metadata capture, and export to CSV,
-JSON, XML, and Parquet.
+[![PyPI](https://img.shields.io/pypi/v/silkroute?style=flat-square)](https://pypi.org/project/silkroute/)
+[![PyVersions](https://img.shields.io/pypi/pyversions/silkroute?style=flat-square)](https://github.com/kren-ai-lab/silk-route)
+[![Tests](https://img.shields.io/github/actions/workflow/status/kren-ai-lab/silk-route/tests.yml?style=flat-square)](https://github.com/kren-ai-lab/silk-route/actions/workflows/tests.yml)
+![License](https://img.shields.io/github/license/kren-ai-lab/silk-route?style=flat-square)
 
-> **Scope.** The validated workflow surface covers UniProt protein retrieval, compound
-> retrieval through the supported ChEMBL / PubChem / ChEBI query prefixes, and
-> interaction-oriented retrieval through the existing interfaces. BLAST-backed UniProt
-> sequence search is exposed in the CLI but should be treated as experimental — it requires
-> BLAST+ and a local database.
+SilkRoute is a Python library and command-line tool for reproducible biological data retrieval.
 
-- [Quick start](#quick-start)
-- [Installation](#installation)
-- [Supported databases](#supported-databases)
-- [Command-line interface](#command-line-interface)
-- [Workflows](#workflows)
-- [YAML descriptors](#yaml-descriptors)
-- [GUI (optional)](#gui-optional)
-- [Python API](#python-api)
-- [Configuration](#configuration)
-- [Roadmap](#roadmap)
+It covers three main workflows:
+
+- Direct API access through 20 database interfaces (UniProt, AlphaFold, ChEMBL, KEGG, and others),
+  with config-driven parsing, on-disk caching, and export to CSV, JSON, XML, or Parquet
+- Cross-database enrichment, which takes a result set and attaches records other databases hold for
+  the same entities
+- Reproducible workflows described in YAML, where every run writes its own metadata and a
+  machine-readable summary
+
+> [!NOTE]
+> The validated workflow surface covers UniProt protein retrieval, compound retrieval through the
+> supported ChEMBL, PubChem, and ChEBI query prefixes, and interaction-oriented retrieval. The
+> BLAST-backed UniProt sequence search is exposed in the CLI but is experimental: it needs BLAST+
+> and a local database.
+
+## Installation
+
+SilkRoute supports Python 3.11 through 3.14.
+
+```bash
+pip install silkroute
+```
+
+Install optional extras as needed:
+
+- `gui` for the NiceGUI descriptor editor
+- `dev` for linting and type checking
+- `tests` for the test suite
+
+```bash
+pip install 'silkroute[gui]'
+pip install 'silkroute[dev,tests]'
+```
+
+You do not need a setup step after installing: the configuration ships inside the package. Only the
+credentialed APIs and the experimental sequence search need extra work.
+
+| Feature | Requirement |
+| --- | --- |
+| BioGRID | Access key ([request](https://webservice.thebiogrid.org/)) via `SILKROUTE_BIOGRID_API_KEY` |
+| BRENDA | Email and password ([register](https://www.brenda-enzymes.org/login.php)) via `SILKROUTE_BRENDA_EMAIL` and `SILKROUTE_BRENDA_PASSWORD` |
+| RefSeq | Contact email via `SILKROUTE_REFSEQ_EMAIL` |
+| Experimental sequence search | The BLAST+ binaries on `PATH` |
+
+> [!TIP]
+> BLAST+ installs from bioconda: `conda install -c bioconda blast`, or with
+> [pixi](https://pixi.prefix.dev/latest/): `pixi global install -c bioconda blast`.
 
 ## Quick start
 
-```bash
-git clone https://github.com/kren-ai-lab/silk-route
-cd silk-route
-pip install -e .
+Search UniProt and attach an AlphaFold cross-reference:
 
-# One reviewed UniProt query, exported to CSV with an AlphaFold cross-reference
+```bash
 silkroute search uniprot by-query \
   --query "antimicrobial AND reviewed:true" \
   --fields accession,protein_name,gene_primary,sequence \
@@ -37,36 +67,23 @@ silkroute search uniprot by-query \
   --output-dir results/antimicrobial
 ```
 
-No setup step is needed: configuration ships inside the package. Only APIs that require
-credentials (BioGRID, BRENDA, RefSeq) need extra work — see
-[Configuration](#configuration).
-
-## Installation
-
-Requires Python 3.11-3.14.
+Call a single endpoint directly:
 
 ```bash
-# recommended: isolated environment
-conda create -n silkroute python=3.13 && conda activate silkroute
-
-pip install -e .              # core
-pip install -e ".[gui]"       # + optional NiceGUI descriptor editor
-pip install -e ".[dev,tests]" # + linting, type checking, test suite
+silkroute fetch alphafold prediction P12345 -o out.csv
 ```
 
-Optional extras for specific features:
+Run a workflow from a descriptor:
 
-| Feature | Requirement |
-| --- | --- |
-| Experimental sequence search | BLAST+ — `conda install -c bioconda blast` |
-| BioGRID | Access key ([request](https://webservice.thebiogrid.org/)) via `SILKROUTE_BIOGRID_API_KEY` |
-| BRENDA | Email + password ([register](https://www.brenda-enzymes.org/login.php)) via `SILKROUTE_BRENDA_EMAIL` / `SILKROUTE_BRENDA_PASSWORD` |
-| RefSeq | Contact email via `SILKROUTE_REFSEQ_EMAIL` |
+```bash
+silkroute workflow validate examples/workflows/protein_query_first_minimal.yml
+silkroute workflow run --config examples/workflows/protein_query_first_minimal.yml
+```
 
 ## Supported databases
 
 <details>
-<summary><strong>19 database interfaces</strong> (CLI + Python API)</summary>
+<summary><strong>20 database interfaces</strong></summary>
 
 | Database | Description |
 | --- | --- |
@@ -88,13 +105,14 @@ Optional extras for specific features:
 | Reactome | Pathway database |
 | RefSeq | NCBI Reference Sequence Database |
 | Rhea | Biochemical reactions database |
+| SABIO-RK | Reaction kinetics data (Python API only, no CLI sub-app) |
 | STRING | Protein-protein interaction networks |
 
 </details>
 
 ## Command-line interface
 
-Four namespaces — run `silkroute --help` or `silkroute <namespace> --help` for the full list.
+Four namespaces. Run `silkroute --help` or `silkroute <namespace> --help` for the full list.
 
 | Namespace | Purpose | Example |
 | --- | --- | --- |
@@ -103,14 +121,16 @@ Four namespaces — run `silkroute --help` or `silkroute <namespace> --help` for
 | `workflow {run,validate}` | Reproducible multi-step runs | `silkroute workflow run --config run.yml` |
 | `cache {list,clear}` | Inspect or purge the on-disk cache | `silkroute cache list` |
 
-Every command exports `csv`, `json`, `xml`, or `parquet` (`dataframe` is internal only, not a
-public export format): `fetch` takes `-f/--format` and infers it from the output extension
-when omitted, while `search` (`-ef`) and `workflow` (`-e`) take `--export-format` and default
-to `csv`.
-`fetch` also writes a `<output>.metadata.json` provenance sidecar by default — disable it
-with `silkroute fetch --no-metadata`.
+Every command exports `csv`, `json`, `xml`, or `parquet`. `dataframe` is internal only and is not a
+public export format. `fetch` takes `-f/--format` and infers the format from the output extension
+when you omit it, while `search` (`-ef`) and `workflow` (`-e`) take `--export-format` and default to
+`csv`. `fetch` also writes a `<output>.metadata.json` provenance sidecar unless you pass
+`--no-metadata`.
 
-**Search UniProt by query** — length-bounded antimicrobial proteins, with cross-references:
+<details>
+<summary>More <code>search uniprot</code> examples</summary>
+
+By query, for length-bounded antimicrobial proteins with cross-references:
 
 ```bash
 silkroute search uniprot by-query \
@@ -120,7 +140,7 @@ silkroute search uniprot by-query \
   --output-dir search_query_test
 ```
 
-**Search UniProt by accession IDs** — read identifiers from a column of a CSV:
+By accession ID, reading identifiers from a column of a CSV:
 
 ```bash
 silkroute search uniprot by-ids \
@@ -130,7 +150,7 @@ silkroute search uniprot by-ids \
   --crossref-fields alphafold
 ```
 
-**Search UniProt by sequence** (experimental, needs BLAST+):
+By sequence, which is experimental and needs BLAST+:
 
 ```bash
 silkroute search uniprot by-sequences \
@@ -141,12 +161,13 @@ silkroute search uniprot by-sequences \
   --output-dir search_sequences_test
 ```
 
+</details>
+
 ## Workflows
 
-Workflows run reproducible data acquisition across the current modalities, with retries,
-multi-threaded API calls, optional enrichment, and machine-readable run records
-(`metadata.json` + `run_summary.yml`). They are driven by CLI flags, a
-[YAML descriptor](#yaml-descriptors), or both.
+Workflows run data acquisition with retries, multi-threaded API calls, optional enrichment, and
+machine-readable run records (`metadata.json` plus `run_summary.yml`). You drive them with CLI
+flags, a [YAML descriptor](#yaml-descriptors), or both.
 
 | Modality | Covers | Typical output |
 | --- | --- | --- |
@@ -159,52 +180,8 @@ multi-threaded API calls, optional enrichment, and machine-readable run records
 | `query_first` | One query for the selected modality | `temperature:*` |
 | `query_composition` | Several labeled queries, compared or grouped | `query1=label1,query2=label2` |
 
-Compound workflows accept ChEMBL, PubChem, and ChEBI source-prefixed queries; PubChem and
-ChEBI are reachable only through the supported workflow-v1 query forms.
-
-### Options
-
-```bash
-silkroute workflow run [OPTIONS]
-silkroute workflow validate CONFIG.yml
-```
-
-Required (unless supplied by a descriptor): `-o/--output`, `-m/--modality`, `-d/--mode`,
-`-q/--query`.
-
-| Option | Effect |
-| --- | --- |
-| `-e, --export-format` | `csv` (default), `json`, `xml`, `parquet` |
-| `--enrich / --no-enrich` | Toggle cross-reference enrichment |
-| `-w, --max-workers` | Worker threads for API calls (higher = faster, more API load) |
-| `-r, --total-retries` | Retry attempts for failed calls |
-| `--chembl-pages-to-fetch` | `-1` for all pages, positive value to cap |
-| `--uniprot-timeout` | UniProt request timeout, seconds |
-| `--include-isoform / --no-include-isoform` | Include UniProt isoforms |
-| `--debug` | Debug logging |
-
-### Example 1 — `query_first`: proteins with temperature data
-
-```bash
-silkroute workflow run \
-  -o result \
-  -q "temperature:*" \
-  --modality protein \
-  --mode query_first \
-  -w 5 -r 1 --debug
-```
-
-Runs the UniProt-compatible query, enriches it when enrichment is on and supported fields
-are requested, exports the table, then writes `metadata.json` and `run_summary.yml`:
-
-```
-result/
-|-- uniprot_results.csv
-|-- metadata.json
-`-- run_summary.yml
-```
-
-### Example 2 — `query_composition`: comparing temperature optima
+Compound workflows accept ChEMBL, PubChem, and ChEBI source-prefixed queries. PubChem and ChEBI are
+reachable only through the supported workflow-v1 query forms.
 
 ```bash
 silkroute workflow run \
@@ -215,27 +192,28 @@ silkroute workflow run \
   --debug
 ```
 
-Both labeled queries run, and each exported record carries its label (`temp_99`, `temp_98`)
-in the combined result file. Labeling syntax:
+Both labeled queries run, and each exported record carries its label (`temp_99`, `temp_98`) in the
+combined result file. The labeling syntax:
 
-- `query=label` or `query|label` — the **final** `=` or `|` is the delimiter.
-- Comma-separates multiple pairs: `query1=label1,query2=label2`.
-- Internal `=` stays part of the query: `chembl.molecule:name__iexact=Imatinib=imatinib`.
+- `query=label` or `query|label`, where the **final** `=` or `|` is the delimiter
+- Commas separate multiple pairs: `query1=label1,query2=label2`
+- An internal `=` stays part of the query: `chembl.molecule:name__iexact=Imatinib=imatinib`
 
-### Example 3 — `query_composition`: compound bioactivity bands
+### Options
 
-```bash
-silkroute workflow run \
-  -o workflow_compound \
-  -q "ic50:10-50=active,ic50:50-100=inactive" \
-  --modality compound \
-  --mode query_composition \
-  --debug
-```
+A run needs `-o/--output`, `-m/--modality`, `-d/--mode`, and `-q/--query` unless a descriptor
+supplies them.
 
-Retrieves ChEMBL activity records into two labeled datasets (`standard_value` 10-50 and
-50-100), enforcing `standard_type = IC50` and applying numeric filtering after retrieval.
-`standard_units` is constrained when requested — values are never converted between units.
+| Option | Effect |
+| --- | --- |
+| `-e, --export-format` | `csv` (default), `json`, `xml`, `parquet` |
+| `--enrich / --no-enrich` | Toggle cross-reference enrichment |
+| `-w, --max-workers` | Worker threads for API calls. More threads finish sooner and load the API harder |
+| `-r, --total-retries` | Retry attempts for failed calls |
+| `--chembl-pages-to-fetch` | `-1` for all pages, a positive value to cap them |
+| `--uniprot-timeout` | UniProt request timeout, in seconds |
+| `--include-isoform / --no-include-isoform` | Include UniProt isoforms |
+| `--debug` | Debug logging |
 
 ### Outputs
 
@@ -244,12 +222,12 @@ Retrieves ChEMBL activity records into two labeled datasets (`standard_value` 10
 | `*_results.{csv,json,xml,parquet}` | Retrieved workflow results |
 | `{database}_{endpoint}.{ext}` | Cross-referenced data, when enrichment produces output |
 | `metadata.json` | Workflow metadata, original descriptor sections, normalized executable values, generated files, reporting metrics |
-| `run_summary.yml` | Compact report: dataset/query, status, timings, export settings, row and column counts |
+| `run_summary.yml` | Compact report: dataset and query, status, timings, export settings, row and column counts |
 
-Summary status reflects real execution: `success`, `completed_with_errors` (outputs exist but
-metadata records errors), or `failed` (execution failed, or a primary fetch error left no
-real output). When `harmonization.id_column` is set, exported tabular files gain a
-deterministic ID column if absent — in-memory objects and raw API responses stay untouched.
+The summary status reflects real execution: `success`, `completed_with_errors` (outputs exist but
+the metadata records errors), or `failed` (execution failed, or a primary fetch error left no real
+output). When `harmonization.id_column` is set, exported tabular files gain a deterministic ID
+column if they lack one. In-memory objects and raw API responses stay untouched.
 
 ### Scenario cheat sheet
 
@@ -264,23 +242,18 @@ deterministic ID column if absent — in-memory objects and raw API responses st
 
 ## YAML descriptors
 
-Descriptors make a run reproducible. They declare `schema_version: "workflow-v1"` plus
-`dataset`, `query`, `resources`, `execution`, `harmonization`, `export`, and `reporting`
-sections. Canonical examples live in [`examples/workflows/`](examples/workflows/); the full
-schema — every field, forbidden key, and limitation — is in
-[`docs/workflow_yaml.md`](docs/workflow_yaml.md).
+Descriptors make a run reproducible. They declare `schema_version: "workflow-v1"` plus `dataset`,
+`query`, `resources`, `execution`, `harmonization`, `export`, and `reporting` sections. Canonical
+examples live in [`examples/workflows/`](examples/workflows/), and
+[`docs/workflow_yaml.md`](docs/workflow_yaml.md) documents the full schema, including every field,
+forbidden key, and limitation.
 
 ```bash
-silkroute workflow validate examples/workflows/protein_query_first_minimal.yml
-silkroute workflow run --config examples/workflows/protein_query_first_minimal.yml
-
 # CLI flags override YAML, so one descriptor serves many runs
 silkroute workflow run --config examples/workflows/protein_query_first_minimal.yml -o result_override
-silkroute workflow run --config examples/workflows/protein_query_first_minimal.yml -e csv
 ```
 
-Validation reports every section-level error at once and exits non-zero; a valid descriptor
-exits zero and echoes the resolved modality, mode, and output directory:
+Validation reports every section-level error at once and exits non-zero:
 
 ```text
 Error: my-workflow.yml has 2 validation error(s):
@@ -288,18 +261,22 @@ Error: my-workflow.yml has 2 validation error(s):
   - Unsupported export format 'xlsx'. Supported formats are: csv, json, xml, parquet.
 ```
 
-Four things worth knowing before writing one:
+Four things are worth knowing before you write one.
 
-- **Not every field executes.** `dataset.modality`, `dataset.mode`, `query.value`, selected
-  `query`/`execution` options, and `export` options drive the run. `query.builder`,
-  `query.composition`, `query.description`, and `query.filtering_strategy` are descriptive
-  metadata — preserved in `metadata.json` and `run_summary.yml`, not executed. If
-  `query.composition` is present it must match `query.value`.
-- **ChEMBL paging.** `execution.chembl_pages_to_fetch: -1` (default) fetches all pages;
-  a positive value caps them. `limit` is records *per page*, not a total or a page count.
-- **IC50 units** accept `nM`, `uM`, `mM`, `pM`; `µM`/`μM` normalize to `uM`. No implicit
-  numeric conversion happens.
-- **Credentials never go in YAML** — only environment variables or `.env`.
+Not every field executes. `dataset.modality`, `dataset.mode`, `query.value`, selected `query` and
+`execution` options, and the `export` options drive the run. `query.builder`, `query.composition`,
+`query.description`, and `query.filtering_strategy` are descriptive metadata: they are preserved in
+`metadata.json` and `run_summary.yml` but never executed. If `query.composition` is present it must
+match `query.value`.
+
+ChEMBL paging works per page. `execution.chembl_pages_to_fetch: -1` (the default) fetches all pages
+and a positive value caps them, while `limit` is records *per page* rather than a total or a page
+count.
+
+IC50 units accept `nM`, `uM`, `mM`, and `pM`, and `µM`/`μM` normalize to `uM`. SilkRoute never
+converts values between units.
+
+Credentials never go in YAML. They come from environment variables or `.env` only.
 
 <details>
 <summary>Minimal protein descriptor</summary>
@@ -343,26 +320,26 @@ from silkroute.core.workflow.schema import get_workflow_v1_schema_definition
 
 ## GUI (optional)
 
-A NiceGUI form that **prepares** `workflow-v1` descriptors — it never executes a workflow or
-calls an external API. Execution stays in the CLI.
+A NiceGUI form that **prepares** `workflow-v1` descriptors. It never executes a workflow or calls an
+external API; execution stays in the CLI.
 
 ```bash
-pip install -e ".[gui]"
+pip install 'silkroute[gui]'
 silkroute-gui                       # or: python -m silkroute.gui.nicegui_app
 ```
 
-- **Two query modes.** Manual writes `query.value` directly; Advanced builder offers
-  UniProt, ChEMBL, PubChem, and ChEBI builders, filtered by the selected modality and
-  interaction type. Either way, `query.value` is the executable output.
-- **Round-trips existing files.** Loading a `workflow-v1` YAML populates the supported
-  fields; `query-builder-v1` metadata restores editable builder rows. Unsupported or
-  malformed metadata falls back to manual/read-only handling and leaves `query.value` intact.
-- **Stable IDs, friendly labels.** GUI labels map to exact schema values, and `query.fields`
-  stores UniProt field IDs, never visible labels.
+The form offers two query modes. Manual writes `query.value` directly, and the Advanced builder
+offers UniProt, ChEMBL, PubChem, and ChEBI builders filtered by the selected modality and
+interaction type. Either way `query.value` is the executable output.
 
-Full GUI reference — per-source builder semantics, connector vs. match mode, return-field
-selection, harmonization controls, smoke tests — is in
-[`docs/workflow_yaml.md`](docs/workflow_yaml.md).
+Existing files round-trip. Loading a `workflow-v1` YAML populates the supported fields, and
+`query-builder-v1` metadata restores editable builder rows. Metadata the GUI cannot read falls back
+to manual or read-only handling and leaves `query.value` intact. GUI labels map to exact schema
+values, and `query.fields` stores UniProt field IDs rather than the visible labels.
+
+[`docs/workflow_yaml.md`](docs/workflow_yaml.md) carries the full GUI reference: per-source builder
+semantics, connector versus match mode, return-field selection, harmonization controls, and smoke
+tests.
 
 ## Python API
 
@@ -408,14 +385,14 @@ concat_df, _ = enricher.enrich(results_df, concat_results=True)
 
 ### Credentials
 
-The only user-facing configuration. Precedence:
+Credentials are the only user-facing configuration. They resolve in this order:
 
 1. Explicit CLI arguments or constructor parameters
-2. Environment variables — including values loaded from a `.env` file
+2. Environment variables, including values loaded from a `.env` file
 
-`.env` is looked up at `SILKROUTE_ENV_FILE`, then the working directory, then
-`~/.config/silkroute/.env` (or a per-interface directory such as
-`~/.config/silkroute/biogrid/.env`). Template: `silkroute/config/.env.example`.
+SilkRoute looks for `.env` at `SILKROUTE_ENV_FILE`, then in the working directory, then at
+`~/.config/silkroute/.env` or a per-interface directory such as
+`~/.config/silkroute/biogrid/.env`. `silkroute/config/.env.example` is the template.
 
 | Variable | Used by |
 | --- | --- |
@@ -423,14 +400,31 @@ The only user-facing configuration. Precedence:
 | `SILKROUTE_BRENDA_EMAIL`, `SILKROUTE_BRENDA_PASSWORD` | BRENDA |
 | `SILKROUTE_REFSEQ_EMAIL` | RefSeq |
 
-Credentials come only from environment variables or `.env` — never from packaged config, and
-never from workflow YAML. Do not commit `.env` files.
+> [!WARNING]
+> Credentials come only from environment variables or `.env`, never from packaged config and never
+> from workflow YAML. Do not commit `.env` files.
+
+### Cache and config locations
+
+By default SilkRoute keeps its cache and its per-API config in the platform directories:
+
+- Linux: `~/.cache/silkroute` and `~/.config/silkroute`
+- macOS: `~/Library/Caches/silkroute` and `~/Library/Application Support/silkroute`
+- Windows: `%LOCALAPPDATA%\silkroute\Cache` and `%LOCALAPPDATA%\silkroute`
+
+Two environment variables override them, which is useful for tests, CI, and shared scratch disks:
+
+- `SILKROUTE_CACHE_DIR` for the cache root, which also relocates the BLAST database directory
+  (`<cache root>/blast_db`)
+- `SILKROUTE_CONFIG_DIR` for the config root
+
+Use `silkroute cache list` and `silkroute cache clear` to inspect or purge what has accumulated.
 
 ### Packaged configuration
 
-Everything else ships inside the package (`silkroute/config/<api>/`) and loads automatically
-— nothing to copy to `~/.config`. Per-API `fields.yml` files map API responses to output
-columns (endpoint name → `output_column: api.response.path`):
+Everything else ships inside the package under `silkroute/config/<api>/` and loads automatically, so
+there is nothing to copy into `~/.config`. The per-API `fields.yml` files map API responses to
+output columns, keyed by endpoint name as `output_column: api.response.path`:
 
 ```yaml
 # silkroute/config/alphafold/fields.yml
@@ -441,41 +435,36 @@ prediction:
   organism: organismScientificName
 ```
 
-These are library internals — not user-overridable, since editing them breaks parsing.
-Download locations are chosen per call via the interface `output_dir` argument.
+These files are library internals rather than user settings, since editing them breaks parsing.
+Download locations are chosen per call through the interface `output_dir` argument.
+
+## Learn more
+
+- [`docs/workflow_yaml.md`](docs/workflow_yaml.md) for the full `workflow-v1` schema and GUI
+  reference
+- [`examples/`](examples/) for runnable scripts, notebooks, and descriptor examples
+- [DEVELOPMENT.md](DEVELOPMENT.md) for local setup, tests, and how the API fixtures are regenerated
 
 ## Roadmap
 
-In progress:
-
-- [ ] Improve API example notebooks
-- [ ] Expand README examples as additional workflows are validated
-
-Planned:
-
 - [ ] Automatic caching and offline mode
 - [ ] Integration with external ML workflows
-
-Done:
-
-- [x] Document `.env` credential loading
-- [x] Document YAML workflow descriptors
-- [x] Add logging system
+- [ ] Improve the API example notebooks
 
 ## Contributing
 
-Issues and pull requests should keep the documented workflow surface aligned with implemented
-and tested behavior. Development setup and testing conventions are in
-[DEVELOPMENT.md](DEVELOPMENT.md).
+Issues and pull requests should keep the documented workflow surface aligned with implemented and
+tested behavior. [DEVELOPMENT.md](DEVELOPMENT.md) covers development setup and testing conventions.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+**MIT**. See [LICENSE](LICENSE).
 
 ## Acknowledgements
 
-Some modules are based on:
+Built with polars, Biopython, Typer, niquests, and zeep. Some modules are based on the
+[UniProt API](https://www.uniprot.org/help/api),
+[UniProt ID Mapping](https://www.uniprot.org/help/id_mapping), and the
+[AlphaFold Database](https://alphafold.ebi.ac.uk).
 
-- [UniProt API](https://www.uniprot.org/help/api)
-- [UniProt ID Mapping](https://www.uniprot.org/help/id_mapping)
-- [AlphaFold Database](https://alphafold.ebi.ac.uk)
+Developed by **KREN AI Lab** at Universidad de Magallanes, Chile.
