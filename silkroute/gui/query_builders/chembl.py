@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from silkroute.core.workflow.chembl_query_catalog import (
     OPERATOR_SUFFIXES,
@@ -176,9 +176,9 @@ def normalize_chembl_ic50_builder_row(row: object) -> ChEMBLIC50QueryBuilderRow:
         value = normalize_chembl_ic50_number(value, "value")
     return ChEMBLIC50QueryBuilderRow(
         condition=condition,
-        minimum=minimum,
-        maximum=maximum,
-        value=value,
+        minimum=cast("int | float | None", minimum),
+        maximum=cast("int | float | None", maximum),
+        value=cast("int | float | None", value),
         unit=unit,
     )
 

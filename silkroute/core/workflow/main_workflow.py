@@ -1397,12 +1397,13 @@ class MainWorkflow:
                     "interaction workflows. Use chembl.target, chembl.activity, or chembl.assay."
                 )
                 raise ValueError(msg)
-            context["searches"]["chembl"] = {
+            chembl_search: dict[str, object] = {
                 "query": query,
                 "export_format": export_format,
                 "search_type": resolved_search_type,
                 "pages_to_fetch": chembl_pages_to_fetch,
             }
+            context["searches"]["chembl"] = chembl_search
             if query_structure is None:
                 context["searches"]["chembl"]["interpreted_query"] = chembl_interpreter.interpret(
                     query=args.get("query", "")

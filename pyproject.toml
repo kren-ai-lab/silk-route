@@ -107,6 +107,11 @@ ignore = [
     "PLR0912",
     "PLR0915",
     "CPY001",
+    # PEP 695 type-parameter syntax (`def f[T]()` / `class C[T]`): ruff targets py312 but
+    # requires-python is >=3.11, where that syntax is a SyntaxError. Generics must keep
+    # using `TypeVar`, so these upgrade rules are unsatisfiable here.
+    "UP046",
+    "UP047",
 ]
 
 [tool.ruff.lint.per-file-ignores]

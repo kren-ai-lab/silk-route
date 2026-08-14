@@ -13,7 +13,7 @@ import re
 import tempfile
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import polars as pl
 import typer
@@ -326,17 +326,17 @@ def validate_workflow_recipe(recipe: dict) -> dict:
     validated_descriptor = workflow_schema.validate_workflow_v1_descriptor(recipe)
     workflow_descriptor = {str(key): value for key, value in recipe.items()}
     schema_version = str(validated_descriptor["schema_version"])
-    dataset = dict(validated_descriptor["dataset"])
-    query_descriptor = dict(validated_descriptor["query"])
+    dataset = dict(cast("dict[str, object]", validated_descriptor["dataset"]))
+    query_descriptor = dict(cast("dict[str, object]", validated_descriptor["query"]))
     fields = workflow_schema.normalize_optional_field_list("query", "fields", query_descriptor.get("fields"))
     crossref_fields = workflow_schema.normalize_optional_field_list(
         "query", "crossref_fields", query_descriptor.get("crossref_fields")
     )
-    execution = dict(validated_descriptor["execution"])
-    resources = dict(validated_descriptor.get("resources", {}))
-    harmonization = dict(validated_descriptor.get("harmonization", {}))
-    export_section = dict(validated_descriptor["export"])
-    reporting = dict(validated_descriptor.get("reporting", {}))
+    execution = dict(cast("dict[str, object]", validated_descriptor["execution"]))
+    resources = dict(cast("dict[str, object]", validated_descriptor.get("resources", {})))
+    harmonization = dict(cast("dict[str, object]", validated_descriptor.get("harmonization", {})))
+    export_section = dict(cast("dict[str, object]", validated_descriptor["export"]))
+    reporting = dict(cast("dict[str, object]", validated_descriptor.get("reporting", {})))
     extra_descriptor_sections = {
         key: value
         for key, value in validated_descriptor.items()

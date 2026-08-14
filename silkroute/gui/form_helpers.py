@@ -8,7 +8,7 @@ imported and tested without the GUI dependency installed.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, cast
 
 from silkroute.core.workflow.chebi_query_catalog import (
     ChEBIQueryFieldCatalogEntry,
@@ -421,7 +421,7 @@ def build_chembl_ic50_builder_form_row(ui_row: Mapping[str, object]) -> dict[str
     """Convert a visible ChEMBL IC50 builder row to pure form data."""
     condition = get_chembl_ic50_condition_value(ui_row.get("condition", "Range"))
     unit = normalize_chembl_ic50_unit(ui_row.get("unit", "nM"))
-    form_row = {
+    form_row: dict[str, object] = {
         "condition": condition,
         "minimum": None,
         "maximum": None,
@@ -532,7 +532,9 @@ def build_pubchem_builder_form_row(
     return {
         "field": field,
         "value": ui_row.get("value", ""),
-        "threshold": normalize_pubchem_builder_threshold_state(field, ui_row.get("threshold")),
+        "threshold": normalize_pubchem_builder_threshold_state(
+            field, cast("int | str | None", ui_row.get("threshold"))
+        ),
     }
 
 

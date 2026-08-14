@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import contextlib
 import time
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from http import HTTPStatus
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 import niquests
 from niquests import Request
@@ -241,9 +240,11 @@ def _retry_after_seconds(response: Response) -> float | None:
     retry_after = response.headers.get("Retry-After")
     if retry_after is None:
         return None
-    with contextlib.suppress(ValueError):
+    try:
         seconds = float(retry_after)
         return max(0.0, seconds)
+    except ValueError:
+        pass
 
     try:
         retry_at = parsedate_to_datetime(retry_after)
@@ -296,7 +297,7 @@ def _parse_page_envelope(payload: Any, page: int) -> tuple[list[Any], int] | Non
         return None
 
     try:
-        total_pages = int(meta.get("total_pages"))
+        total_pages = int(cast("int | str", meta.get("total_pages")))
     except (TypeError, ValueError):
         total_pages = -1
     if total_pages < 0:
@@ -356,7 +357,7 @@ class SabiorkInterface(BaseAPIInterface):
                 response = getattr(exc, "response", None)
                 status_code = getattr(response, "status_code", None)
                 if status_code == HTTPStatus.TOO_MANY_REQUESTS and attempt < self.total_retries:
-                    wait = _retry_after_seconds(response)
+                    wait = _retry_after_seconds(cast("Response", response))
                     if wait is None:
                         wait = 0.25 * (2**attempt)
                     log.warning(

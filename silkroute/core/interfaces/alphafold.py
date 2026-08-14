@@ -3,7 +3,7 @@
 import json
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar, Literal, cast
 from urllib.parse import unquote, urlparse
 
 import niquests
@@ -248,7 +248,7 @@ class AlphafoldInterface(BaseAPIInterface):
                 file_path.parent.mkdir(parents=True, exist_ok=True)
                 with file_path.open("wb") as f:
                     log.info("Downloading structure %s...", file_name)
-                    f.write(response.content)
+                    f.write(cast("bytes", response.content))
 
             except (OSError, niquests.exceptions.RequestException):
                 log.exception("Error downloading structure %s", file_name)

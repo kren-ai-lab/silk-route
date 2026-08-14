@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol, TypeVar, cast
 
 from silkroute.core.workflow.query_interpreter import (
     split_quoted_csv_values,
@@ -19,6 +19,7 @@ from silkroute.gui.query_builders.chebi import (
 from silkroute.gui.query_builders.chembl import (
     CHEMBL_IC50_BUILDER_KEY,
     ChEMBLFilterQueryBuilderRow,
+    ChEMBLIC50QueryBuilderRow,
     build_chembl_ic50_interpreted_query,
     normalize_chembl_field,
     normalize_chembl_filter_type,
@@ -209,7 +210,9 @@ def restore_chembl_query_builder_rows(
     return tuple(restored_rows)
 
 
-def restore_chembl_ic50_query_builder_row(rows: object) -> tuple[object, dict[str, object]]:
+def restore_chembl_ic50_query_builder_row(
+    rows: object,
+) -> tuple[ChEMBLIC50QueryBuilderRow, dict[str, object]]:
     """Restore one validated ChEMBL IC50 row and its form state."""
     row = require_single_metadata_row(rows)
     condition = normalize_chembl_ic50_condition(row.get("condition"))
@@ -303,7 +306,9 @@ def restore_pubchem_query_builder_row(
         resource=resource,
         field=row["field"],
         value=row["value"],
-        threshold=normalize_pubchem_builder_threshold_state(row["field"], row.get("threshold")),
+        threshold=normalize_pubchem_builder_threshold_state(
+            row["field"], cast("int | str | None", row.get("threshold"))
+        ),
     )
     validate_pubchem_builder_row(restored_row)
     return restored_row
@@ -373,6 +378,7 @@ def restore_query_builder_metadata(
         msg = "query.builder is not compatible with the loaded dataset settings."
         raise ValueError(msg)
 
+    form_rows: tuple[dict[str, object], ...]
     if builder_key == "uniprot":
         rows = restore_uniprot_query_builder_rows(metadata["rows"])
         regenerated_query = spec.build_interpreted_query(rows)
@@ -440,7 +446,7 @@ def build_uniprot_query_builder_metadata(
 ) -> dict[str, object]:
     """Build neutral metadata for validated UniProt visual builder rows."""
     validate_uniprot_query_builder_rows(rows)
-    serialized_rows = [
+    serialized_rows: list[dict[str, object]] = [
         {
             "connector": normalize_query_builder_connector(row.connector),
             "field": normalize_query_builder_field(row.field),
@@ -467,7 +473,7 @@ def build_chembl_query_builder_metadata(
         msg = f"Query builder '{builder_key}' does not match its ChEMBL row resource."
         raise ValueError(msg)
 
-    serialized_rows = [
+    serialized_rows: list[dict[str, object]] = [
         {
             "field": normalize_chembl_field(row.field),
             "operator": normalize_chembl_filter_type(row.filter_type),
@@ -478,7 +484,7 @@ def build_chembl_query_builder_metadata(
     return build_common_query_builder_metadata(builder_key, serialized_rows)
 
 
-def build_chembl_ic50_query_builder_metadata(row: object) -> dict[str, object]:
+def build_chembl_ic50_query_builder_metadata(row: ChEMBLIC50QueryBuilderRow) -> dict[str, object]:
     """Build neutral metadata for a validated ChEMBL IC50 visual builder row."""
     restored_row = restore_chembl_ic50_metadata_row(serialize_chembl_ic50_metadata_row(row))
     validate_chembl_ic50_builder_row(restored_row)
@@ -488,13 +494,27 @@ def build_chembl_ic50_query_builder_metadata(row: object) -> dict[str, object]:
     )
 
 
+class _SourceBuilderRow(Protocol):
+    """Structural view of a source builder row with resource/field/value fields."""
+
+    @property
+    def resource(self) -> str: ...
+    @property
+    def field(self) -> str: ...
+    @property
+    def value(self) -> str: ...
+
+
+_SourceRowT = TypeVar("_SourceRowT", bound=_SourceBuilderRow)
+
+
 def _validated_source_builder_row(
     builder_key: str,
-    row: object,
+    row: _SourceRowT,
     *,
     database: str,
     database_label: str,
-    validate: Callable[[object], None],
+    validate: Callable[[_SourceRowT], None],
     normalize_resource: Callable[[str], str],
     normalize_field: Callable[[str], str],
 ) -> dict[str, object]:

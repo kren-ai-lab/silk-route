@@ -4,8 +4,19 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from typing import TYPE_CHECKING, cast
 
 import pytest
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+
+def _section(mapping: Mapping[str, object], key: str) -> dict[str, object]:
+    value = mapping[key]
+    assert isinstance(value, dict)
+    return cast("dict[str, object]", value)
+
 
 REQUIRED_GUI_FIELDS = {
     "dataset.name",
@@ -82,8 +93,8 @@ def test_workflow_v1_schema_definition_returns_dictionary() -> None:
     schema_definition = get_workflow_v1_schema_definition()
 
     assert isinstance(schema_definition, dict)
-    assert schema_definition["schema_version"]["default"] == "workflow-v1"
-    assert schema_definition["execution.enrich"]["default"] is False
+    assert _section(schema_definition, "schema_version")["default"] == "workflow-v1"
+    assert _section(schema_definition, "execution.enrich")["default"] is False
 
 
 def test_workflow_v1_schema_definition_includes_required_gui_fields() -> None:
@@ -92,11 +103,11 @@ def test_workflow_v1_schema_definition_includes_required_gui_fields() -> None:
     schema_definition = get_workflow_v1_schema_definition()
 
     assert set(schema_definition) >= REQUIRED_GUI_FIELDS
-    assert schema_definition["query.value"]["gui_visible"] is True
-    assert schema_definition["query.builder"]["role"] == "preserved_metadata"
-    assert schema_definition["query.composition"]["role"] == "preserved_metadata"
-    assert schema_definition["harmonization.metadata_fields"]["type"] == "string_list"
-    assert schema_definition["harmonization.unique_sequence_strategy"]["allowed_values"] is None
+    assert _section(schema_definition, "query.value")["gui_visible"] is True
+    assert _section(schema_definition, "query.builder")["role"] == "preserved_metadata"
+    assert _section(schema_definition, "query.composition")["role"] == "preserved_metadata"
+    assert _section(schema_definition, "harmonization.metadata_fields")["type"] == "string_list"
+    assert _section(schema_definition, "harmonization.unique_sequence_strategy")["allowed_values"] is None
 
 
 def test_workflow_validator_accepts_complete_harmonization_section() -> None:
@@ -147,8 +158,8 @@ def test_workflow_v1_schema_definition_hides_future_only_fields() -> None:
 
     for field_name in FUTURE_ONLY_FIELDS:
         assert field_name in schema_definition
-        assert schema_definition[field_name]["role"] == "future_feature"
-        assert schema_definition[field_name]["gui_visible"] is False
+        assert _section(schema_definition, field_name)["role"] == "future_feature"
+        assert _section(schema_definition, field_name)["gui_visible"] is False
 
 
 def test_workflow_schema_definition_import_is_lightweight() -> None:
@@ -171,6 +182,6 @@ def test_lightweight_workflow_validator_normalizes_descriptor_without_heavy_impo
     imported_modules = set(sys.modules) - imported_before
 
     assert validated["schema_version"] == "workflow-v1"
-    assert validated["export"]["format"] == "csv"
+    assert _section(validated, "export")["format"] == "csv"
     for module_prefix in HEAVY_MODULE_PREFIXES:
         assert not any(module_name.startswith(module_prefix) for module_name in imported_modules)

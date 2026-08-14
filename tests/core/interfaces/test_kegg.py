@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 import pytest
 from niquests_mock import startswith
 
@@ -50,4 +52,4 @@ class TestKeggContract(CachingContract, HttpErrorContract):
     FIXTURE = ("kegg", "get")
     BODY_IS_TEXT = True
     ERROR_RETURNS_EMPTY = True
-    ERROR_EMPTY_VALUE: list = []  # fetch returns a list of records
+    ERROR_EMPTY_VALUE: ClassVar[list] = []  # fetch returns a list of records

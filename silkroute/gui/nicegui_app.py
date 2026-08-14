@@ -220,7 +220,7 @@ class WorkflowYamlBuilderApp:
             )
             self.build_upload_status_card()
 
-    @ui.refreshable
+    @ui.refreshable_method
     def build_upload_status_card(self) -> None:
         """Build the persistent workflow upload status card."""
         if self.loaded_workflow_upload_status is None:
@@ -289,7 +289,7 @@ class WorkflowYamlBuilderApp:
                 .tooltip("Optional human-readable description stored in the YAML descriptor.")
             )
 
-    @ui.refreshable
+    @ui.refreshable_method
     def build_query_controls(self) -> None:
         """Build query form controls."""
         with ui.expansion("Query", value=True).classes("w-full"):
@@ -463,7 +463,7 @@ class WorkflowYamlBuilderApp:
             self.ensure_query_composition_entry_id(entry)
         return self.query_composition_entries
 
-    @ui.refreshable
+    @ui.refreshable_method
     def build_query_composition_rows(self) -> None:
         """Build editable controls for each labeled composition query."""
         self.query_composition_entry_previews = {}
@@ -921,7 +921,7 @@ class WorkflowYamlBuilderApp:
         except (TypeError, ValueError) as exc:
             self.query_composition_preview.value = f"Composition error: {exc}"
             return
-        self.query_composition_preview.value = str(descriptor["query"]["value"])
+        self.query_composition_preview.value = str(cast("dict[str, object]", descriptor["query"])["value"])
 
     def build_uniprot_builder_controls(self) -> None:
         """Build UniProt-specific advanced builder controls."""
@@ -949,7 +949,7 @@ class WorkflowYamlBuilderApp:
                 ui.button("Add condition", on_click=self.add_uniprot_builder_row)
                 ui.button("Update query preview", on_click=self.update_builder_previews)
 
-    @ui.refreshable
+    @ui.refreshable_method
     def build_uniprot_builder_rows(self) -> None:
         """Build advanced UniProt query builder row controls."""
         for index, row in enumerate(self.uniprot_builder_rows):
@@ -1030,7 +1030,7 @@ class WorkflowYamlBuilderApp:
                 ui.button("Add condition", on_click=self.add_chembl_builder_row)
                 ui.button("Update query preview", on_click=self.update_builder_previews)
 
-    @ui.refreshable
+    @ui.refreshable_method
     def build_chembl_builder_rows(self) -> None:
         """Build ChEMBL query builder row controls."""
         builder_label = get_active_chembl_builder_label(self.form_values["query.builder.key"])
@@ -1096,7 +1096,7 @@ class WorkflowYamlBuilderApp:
             with ui.row().classes("items-center gap-3"):
                 ui.button("Update query preview", on_click=self.update_builder_previews)
 
-    @ui.refreshable
+    @ui.refreshable_method
     def build_chembl_ic50_builder_row(self) -> None:
         """Build the dedicated ChEMBL IC50 query builder row."""
         row = self.chembl_ic50_builder_row
@@ -1174,7 +1174,7 @@ class WorkflowYamlBuilderApp:
             with ui.row().classes("items-center gap-3"):
                 ui.button("Update query preview", on_click=self.update_builder_previews)
 
-    @ui.refreshable
+    @ui.refreshable_method
     def build_pubchem_builder_row(self) -> None:
         """Build the single PubChem query builder row."""
         builder_label = get_active_pubchem_builder_label(self.form_values["query.builder.key"])
@@ -1234,7 +1234,7 @@ class WorkflowYamlBuilderApp:
             with ui.row().classes("items-center gap-3"):
                 ui.button("Update query preview", on_click=self.update_builder_previews)
 
-    @ui.refreshable
+    @ui.refreshable_method
     def build_chebi_builder_row(self) -> None:
         """Build the single ChEBI entity query builder row."""
         builder_label = get_active_chebi_builder_label(self.form_values["query.builder.key"])
@@ -1521,7 +1521,7 @@ class WorkflowYamlBuilderApp:
                 )
             self.build_enrichment_controls()
 
-    @ui.refreshable
+    @ui.refreshable_method
     def build_enrichment_controls(self) -> None:
         """Build optional enrichment controls when enrichment is enabled."""
         self.enrichment_sources_select = None

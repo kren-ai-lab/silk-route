@@ -65,7 +65,7 @@ def test_uniprot_builder_field_label_value_round_trip() -> None:
 
 
 def test_build_uniprot_builder_form_rows_first_row_has_no_connector() -> None:
-    ui_rows = [
+    ui_rows: list[dict[str, object]] = [
         {"connector": "AND", "field": fh.get_uniprot_builder_field_label("organism"), "values": "human"},
         {"connector": "AND", "field": fh.get_uniprot_builder_field_label("gene"), "values": "TP53"},
     ]
@@ -97,7 +97,7 @@ def test_make_chembl_builder_ui_row_uses_first_allowed_operator() -> None:
 def test_build_chembl_builder_form_rows_converts_labels_to_field_keys() -> None:
     builder = fh.get_active_chembl_builder_label("chembl_target")
     label = fh.get_chembl_builder_field_label(builder, "gene_symbol")
-    ui_rows = [{"field": label, "filter_type": "icontains", "value": "EGFR"}]
+    ui_rows: list[dict[str, object]] = [{"field": label, "filter_type": "icontains", "value": "EGFR"}]
 
     form_rows = fh.build_chembl_builder_form_rows(builder, ui_rows)
 

@@ -752,7 +752,7 @@ class CrossRefEnricher:
         if fmt == "dataframe":
             return records_to_frame([graph_row])
         if fmt == "xml":
-            return tostring(dict_to_elementtree([graph_row]).getroot(), encoding="unicode")
+            return tostring(cast("Element", dict_to_elementtree([graph_row]).getroot()), encoding="unicode")
         return [graph_row]
 
     @staticmethod

@@ -1,7 +1,7 @@
 """Cross-reference enrichment workflow utilities."""
 
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import polars as pl
 
@@ -369,7 +369,7 @@ def run_crossref_enrichment(
                         endpoint_specs.append(
                             EndpointSpec(
                                 database=db_name,
-                                endpoint=method_name,
+                                endpoint=cast("str", method_name),
                                 option=option,
                                 params=ep_info.get("params", {}),
                             )
@@ -399,6 +399,7 @@ def run_crossref_enrichment(
         enriched_metadata = {}
     elif not isinstance(enriched_metadata, dict):
         enriched_metadata = {"details": enriched_metadata}
+    enriched_metadata = cast("dict[str, object]", enriched_metadata)
     enriched_metadata["structure_downloads"] = structure_metadata
 
     if isinstance(enriched_data, dict):

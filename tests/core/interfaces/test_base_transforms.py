@@ -8,7 +8,7 @@ interface relies on — independent of any single API.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 
 import polars as pl
 import pytest
@@ -193,7 +193,7 @@ class PaginatedResponse:
     def raise_for_status(self):
         if self.status_code >= 400:
             exc = RequestException(f"{self.status_code} error")
-            exc.response = self
+            exc.response = cast("Any", self)
             raise exc
 
     def json(self):

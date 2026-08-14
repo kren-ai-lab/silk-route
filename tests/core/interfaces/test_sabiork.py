@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+from typing import ClassVar
 
 import pytest
 from niquests_mock import build_response, startswith
@@ -141,4 +142,4 @@ class TestSabiorkContract(CachingContract, HttpErrorContract):
     FIXTURE = ("sabiork", "kineticlaws")
     HTTP_METHOD = "post"
     ERROR_RETURNS_EMPTY = True
-    ERROR_EMPTY_VALUE: list = []  # fetch returns a list of records
+    ERROR_EMPTY_VALUE: ClassVar[list] = []  # fetch returns a list of records

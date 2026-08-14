@@ -7,7 +7,7 @@ import importlib
 import inspect
 import subprocess
 import sys
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import pytest
 
@@ -37,6 +37,17 @@ from silkroute.gui.yaml_builder import (
     validate_generated_descriptor,
     workflow_yaml_form_defaults,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from silkroute.gui.nicegui_app import WorkflowYamlBuilderApp
+
+
+def _section(mapping: Mapping[str, object], key: str) -> dict[str, object]:
+    value = mapping[key]
+    assert isinstance(value, dict)
+    return cast("dict[str, object]", value)
 
 
 def test_gui_branding_uses_silkroute() -> None:
@@ -303,11 +314,11 @@ def test_build_workflow_descriptor_removes_empty_optional_fields() -> None:
         }
     )
 
-    assert "description" not in descriptor["dataset"]
-    assert "interaction_type" not in descriptor["dataset"]
-    assert "fields" not in descriptor["query"]
-    assert "crossref_fields" not in descriptor["query"]
-    assert "uniprot_timeout" not in descriptor["execution"]
+    assert "description" not in _section(descriptor, "dataset")
+    assert "interaction_type" not in _section(descriptor, "dataset")
+    assert "fields" not in _section(descriptor, "query")
+    assert "crossref_fields" not in _section(descriptor, "query")
+    assert "uniprot_timeout" not in _section(descriptor, "execution")
     assert "harmonization" not in descriptor
 
 
@@ -324,8 +335,8 @@ def test_build_workflow_descriptor_parses_comma_separated_fields() -> None:
         }
     )
 
-    assert descriptor["query"]["fields"] == ["accession", "id"]
-    assert descriptor["query"]["crossref_fields"] == ["go", "interpro"]
+    assert _section(descriptor, "query")["fields"] == ["accession", "id"]
+    assert _section(descriptor, "query")["crossref_fields"] == ["go", "interpro"]
 
 
 def test_return_field_selector_writes_stable_field_ids_not_labels() -> None:
@@ -338,8 +349,8 @@ def test_return_field_selector_writes_stable_field_ids_not_labels() -> None:
         }
     )
 
-    assert descriptor["query"]["fields"] == ["accession", "protein_name"]
-    assert "Accession" not in descriptor["query"]["fields"]
+    assert _section(descriptor, "query")["fields"] == ["accession", "protein_name"]
+    assert "Accession" not in cast("list[object]", _section(descriptor, "query")["fields"])
 
 
 def test_return_field_selector_and_custom_fields_combine_deterministically() -> None:
@@ -352,7 +363,7 @@ def test_return_field_selector_and_custom_fields_combine_deterministically() -> 
         }
     )
 
-    assert descriptor["query"]["fields"] == ["accession", "length", "custom_field", "xref_pdb"]
+    assert _section(descriptor, "query")["fields"] == ["accession", "length", "custom_field", "xref_pdb"]
 
 
 def test_empty_return_field_controls_omit_query_fields_for_runtime_defaults() -> None:
@@ -365,7 +376,7 @@ def test_empty_return_field_controls_omit_query_fields_for_runtime_defaults() ->
         }
     )
 
-    assert "fields" not in descriptor["query"]
+    assert "fields" not in _section(descriptor, "query")
 
 
 @pytest.mark.parametrize(
@@ -383,7 +394,7 @@ def test_human_readable_modality_labels_map_to_schema_values(label: str, expecte
 
     descriptor = build_workflow_descriptor(form_values)
 
-    assert descriptor["dataset"]["modality"] == expected
+    assert _section(descriptor, "dataset")["modality"] == expected
 
 
 @pytest.mark.parametrize(
@@ -407,13 +418,15 @@ def test_human_readable_workflow_mode_labels_map_to_schema_values(label: str, ex
 
     descriptor = build_workflow_descriptor(form_values)
 
-    assert descriptor["dataset"]["mode"] == expected
+    assert _section(descriptor, "dataset")["mode"] == expected
     assert validate_generated_descriptor(descriptor) == []
     validate_workflow_v1_descriptor(descriptor)
     if expected == "query_composition":
-        assert descriptor["query"]["value"] == "field=value=class_a"
-        assert descriptor["query"]["composition"] == [{"label": "class_a", "value": "field=value"}]
-        assert parse_query_composition_value(descriptor["query"]["value"]) == [("field=value", "class_a")]
+        assert _section(descriptor, "query")["value"] == "field=value=class_a"
+        assert _section(descriptor, "query")["composition"] == [{"label": "class_a", "value": "field=value"}]
+        assert parse_query_composition_value(cast("str", _section(descriptor, "query")["value"])) == [
+            ("field=value", "class_a")
+        ]
 
 
 @pytest.mark.parametrize(
@@ -423,7 +436,7 @@ def test_human_readable_workflow_mode_labels_map_to_schema_values(label: str, ex
 def test_human_readable_export_format_labels_map_to_schema_values(label: str, expected: str) -> None:
     descriptor = build_workflow_descriptor(minimal_form_values() | {"export.format": label})
 
-    assert descriptor["export"]["format"] == expected
+    assert _section(descriptor, "export")["format"] == expected
 
 
 def test_manual_query_mode_generates_manual_query_value() -> None:
@@ -435,7 +448,7 @@ def test_manual_query_mode_generates_manual_query_value() -> None:
         }
     )
 
-    assert descriptor["query"]["value"] == "reviewed:true AND organism_id:9606"
+    assert _section(descriptor, "query")["value"] == "reviewed:true AND organism_id:9606"
 
 
 def test_resolve_query_value_from_manual_mode_does_not_call_builder() -> None:
@@ -478,7 +491,7 @@ def test_advanced_uniprot_builder_mode_generates_interpreted_query_value() -> No
         }
     )
 
-    assert descriptor["query"]["value"] == (
+    assert _section(descriptor, "query")["value"] == (
         "organism_id:9606 AND (cc_bpcp_temp_dependence:20-30 OR cc_bpcp_temp_dependence:50-60)"
     )
 
@@ -500,9 +513,9 @@ def test_advanced_uniprot_builder_mode_emits_query_builder_metadata() -> None:
         }
     )
 
-    assert descriptor["query"]["value"] == "organism_id:9606"
-    assert descriptor["query"]["include_isoform"] is False
-    builder = cast("dict[str, object]", descriptor["query"]["builder"])
+    assert _section(descriptor, "query")["value"] == "organism_id:9606"
+    assert _section(descriptor, "query")["include_isoform"] is False
+    builder = cast("dict[str, object]", _section(descriptor, "query")["builder"])
     assert_query_builder_common_metadata(
         builder,
         builder_key="uniprot",
@@ -519,8 +532,8 @@ def test_advanced_uniprot_builder_mode_emits_query_builder_metadata() -> None:
     assert validate_generated_descriptor(descriptor) == []
     validate_workflow_v1_descriptor(descriptor)
     assert "query.uniprot_builder.rows" not in descriptor
-    assert "composition" not in descriptor["query"]
-    assert "friendly_query" not in descriptor["query"]
+    assert "composition" not in _section(descriptor, "query")
+    assert "friendly_query" not in _section(descriptor, "query")
 
 
 def test_advanced_uniprot_builder_mode_keeps_query_fields_separate() -> None:
@@ -541,9 +554,9 @@ def test_advanced_uniprot_builder_mode_keeps_query_fields_separate() -> None:
         }
     )
 
-    assert descriptor["query"]["value"] == "organism_id:9606"
-    assert descriptor["query"]["fields"] == ["accession", "protein_name"]
-    assert descriptor["query"]["crossref_fields"] == ["xref_alphafolddb"]
+    assert _section(descriptor, "query")["value"] == "organism_id:9606"
+    assert _section(descriptor, "query")["fields"] == ["accession", "protein_name"]
+    assert _section(descriptor, "query")["crossref_fields"] == ["xref_alphafolddb"]
 
 
 def test_advanced_uniprot_builder_mode_rejects_invalid_rows() -> None:
@@ -580,12 +593,12 @@ def test_advanced_uniprot_builder_descriptor_validates_as_workflow_v1() -> None:
         }
     )
 
-    assert descriptor["query"]["value"] == "(database:alphafolddb OR database:pdb)"
+    assert _section(descriptor, "query")["value"] == "(database:alphafolddb OR database:pdb)"
     assert validate_generated_descriptor(descriptor) == []
     validate_workflow_v1_descriptor(descriptor)
     assert "resources" not in descriptor
     assert "reporting" not in descriptor
-    builder = cast("dict[str, object]", descriptor["query"]["builder"])
+    builder = cast("dict[str, object]", _section(descriptor, "query")["builder"])
     assert_query_builder_common_metadata(
         builder,
         builder_key="uniprot",
@@ -599,7 +612,7 @@ def test_advanced_uniprot_builder_descriptor_validates_as_workflow_v1() -> None:
             "values": ["alphafold", "pdb"],
         }
     ]
-    assert "composition" not in descriptor["query"]
+    assert "composition" not in _section(descriptor, "query")
 
 
 @pytest.mark.parametrize(
@@ -658,10 +671,10 @@ def test_advanced_chembl_builder_modes_generate_interpreted_query_value(
         }
     )
 
-    assert descriptor["query"]["value"] == expected_query_value
+    assert _section(descriptor, "query")["value"] == expected_query_value
     assert validate_generated_descriptor(descriptor) == []
     validate_workflow_v1_descriptor(descriptor)
-    builder = cast("dict[str, object]", descriptor["query"]["builder"])
+    builder = cast("dict[str, object]", _section(descriptor, "query")["builder"])
     assert_query_builder_common_metadata(
         builder,
         builder_key=builder_key,
@@ -675,8 +688,8 @@ def test_advanced_chembl_builder_modes_generate_interpreted_query_value(
         }
         for row in rows
     ]
-    assert "composition" not in descriptor["query"]
-    assert "friendly_query" not in descriptor["query"]
+    assert "composition" not in _section(descriptor, "query")
+    assert "friendly_query" not in _section(descriptor, "query")
     assert "query.chembl_builder.rows" not in descriptor
     assert "resources" not in descriptor
     assert "reporting" not in descriptor
@@ -708,7 +721,7 @@ def test_selected_chembl_builder_determines_resource() -> None:
         }
     )
 
-    assert descriptor["query"]["value"] == "chembl.activity:standard_type=IC50"
+    assert _section(descriptor, "query")["value"] == "chembl.activity:standard_type=IC50"
 
 
 def test_historical_chembl_ic50_range_metadata_restores_without_warning() -> None:
@@ -771,11 +784,11 @@ def test_historical_chembl_ic50_comparison_modes_restore(
 
     form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
     descriptor = build_workflow_descriptor(form_values)
-    builder = cast("dict[str, object]", descriptor["query"]["builder"])
+    builder = cast("dict[str, object]", _section(descriptor, "query")["builder"])
 
     assert warnings == []
-    assert form_values["query.chembl_ic50_builder.row"]["condition"] == condition
-    assert descriptor["query"]["value"] == query_value
+    assert _section(form_values, "query.chembl_ic50_builder.row")["condition"] == condition
+    assert _section(descriptor, "query")["value"] == query_value
     assert_query_builder_common_metadata(builder, builder_key="chembl_ic50", source="chembl")
     row = cast("list[dict[str, object]]", builder["rows"])[0]
     assert row["condition"] == condition
@@ -799,10 +812,10 @@ def test_historical_chembl_ic50_metadata_saves_as_canonical_format() -> None:
     form_values, warnings = load_workflow_yaml_to_form_values(yaml_text)
 
     descriptor = build_workflow_descriptor(form_values)
-    builder = cast("dict[str, object]", descriptor["query"]["builder"])
+    builder = cast("dict[str, object]", _section(descriptor, "query")["builder"])
 
     assert warnings == []
-    assert descriptor["query"]["value"] == "ic50:0-10 AND standard_units:nM"
+    assert _section(descriptor, "query")["value"] == "ic50:0-10 AND standard_units:nM"
     assert_query_builder_common_metadata(builder, builder_key="chembl_ic50", source="chembl")
     assert builder["rows"] == [{"condition": "range", "unit": "nM", "minimum": 0, "maximum": 10}]
     assert "chembl_ic50_activity" not in str(builder)
@@ -829,7 +842,7 @@ def test_current_canonical_chembl_ic50_metadata_still_restores() -> None:
     assert warnings == []
     assert form_values["query.input_mode"] == "Advanced builder"
     assert form_values["query.builder.key"] == "chembl_ic50"
-    assert form_values["query.chembl_ic50_builder.row"]["condition"] == "range"
+    assert _section(form_values, "query.chembl_ic50_builder.row")["condition"] == "range"
 
 
 def test_historical_chembl_ic50_three_entry_composition_restores_all_entries() -> None:
@@ -886,20 +899,24 @@ def test_historical_chembl_ic50_three_entry_composition_restores_all_entries() -
     descriptor = build_workflow_descriptor(form_values)
 
     assert warnings == []
-    assert [entry["query_builder_key"] for entry in form_values["query.composition.entries"]] == [
+    assert [
+        entry["query_builder_key"]
+        for entry in cast("list[dict[str, object]]", form_values["query.composition.entries"])
+    ] == [
         "chembl_ic50",
         "chembl_ic50",
         "chembl_ic50",
     ]
-    assert descriptor["query"]["value"] == (
+    assert _section(descriptor, "query")["value"] == (
         "ic50:0-10 AND standard_units:nM=very_high,"
         "ic50:<1000 AND standard_units:nM=high,"
         "ic50:>=100 AND standard_units:uM=weak"
     )
     assert all(
-        entry["builder"]["builder_key"] == "chembl_ic50" for entry in descriptor["query"]["composition"]
+        _section(entry, "builder")["builder_key"] == "chembl_ic50"
+        for entry in cast("list[dict[str, object]]", _section(descriptor, "query")["composition"])
     )
-    assert "chembl_ic50_activity" not in str(descriptor["query"]["composition"])
+    assert "chembl_ic50_activity" not in str(_section(descriptor, "query")["composition"])
 
 
 def test_malformed_historical_chembl_ic50_row_shape_falls_back_to_manual_mode() -> None:
@@ -1017,7 +1034,7 @@ def test_interaction_descriptor_includes_interaction_type_when_provided() -> Non
         }
     )
 
-    assert descriptor["dataset"]["interaction_type"] == "protein-protein"
+    assert _section(descriptor, "dataset")["interaction_type"] == "protein-protein"
 
 
 def test_non_interaction_descriptor_omits_interaction_type() -> None:
@@ -1029,7 +1046,7 @@ def test_non_interaction_descriptor_omits_interaction_type() -> None:
         }
     )
 
-    assert "interaction_type" not in descriptor["dataset"]
+    assert "interaction_type" not in _section(descriptor, "dataset")
 
 
 def test_non_empty_harmonization_id_column_includes_harmonization_section() -> None:
@@ -1044,7 +1061,7 @@ def test_harmonization_metadata_fields_are_parsed_as_csv() -> None:
         | {"harmonization.metadata_fields": ("accession, protein_name, , organism_name, sequence")}
     )
 
-    assert descriptor["harmonization"]["metadata_fields"] == [
+    assert _section(descriptor, "harmonization")["metadata_fields"] == [
         "accession",
         "protein_name",
         "organism_name",
@@ -1085,8 +1102,8 @@ def test_complete_harmonization_block_validates_as_workflow_v1() -> None:
     assert validate_generated_descriptor(descriptor) == []
     assert "resources" not in descriptor
     assert "reporting" not in descriptor
-    assert "builder" not in descriptor["query"]
-    assert "composition" not in descriptor["query"]
+    assert "builder" not in _section(descriptor, "query")
+    assert "composition" not in _section(descriptor, "query")
 
 
 def test_validation_returns_error_for_missing_query_value() -> None:
@@ -1134,7 +1151,7 @@ def test_default_output_directory_mode_uses_dataset_name() -> None:
         }
     )
 
-    assert descriptor["export"]["output_dir"] == "results/example_dataset"
+    assert _section(descriptor, "export")["output_dir"] == "results/example_dataset"
 
 
 def test_numeric_execution_strings_are_converted_to_numbers() -> None:
@@ -1147,9 +1164,9 @@ def test_numeric_execution_strings_are_converted_to_numbers() -> None:
         }
     )
 
-    assert descriptor["execution"]["max_workers"] == 5
-    assert descriptor["execution"]["total_retries"] == 3
-    assert descriptor["execution"]["chembl_pages_to_fetch"] == -1
+    assert _section(descriptor, "execution")["max_workers"] == 5
+    assert _section(descriptor, "execution")["total_retries"] == 3
+    assert _section(descriptor, "execution")["chembl_pages_to_fetch"] == -1
     assert validate_generated_descriptor(descriptor) == []
 
 
@@ -1163,22 +1180,22 @@ def test_numeric_execution_integer_floats_are_converted_to_numbers() -> None:
         }
     )
 
-    assert descriptor["execution"]["max_workers"] == 5
-    assert descriptor["execution"]["total_retries"] == 3
-    assert descriptor["execution"]["chembl_pages_to_fetch"] == -1
+    assert _section(descriptor, "execution")["max_workers"] == 5
+    assert _section(descriptor, "execution")["total_retries"] == 3
+    assert _section(descriptor, "execution")["chembl_pages_to_fetch"] == -1
     assert validate_generated_descriptor(descriptor) == []
 
 
 def test_optional_uniprot_timeout_empty_string_is_omitted() -> None:
     descriptor = build_workflow_descriptor(minimal_form_values() | {"execution.uniprot_timeout": "  "})
 
-    assert "uniprot_timeout" not in descriptor["execution"]
+    assert "uniprot_timeout" not in _section(descriptor, "execution")
 
 
 def test_optional_uniprot_timeout_string_is_converted_to_number() -> None:
     descriptor = build_workflow_descriptor(minimal_form_values() | {"execution.uniprot_timeout": " 12.5 "})
 
-    assert descriptor["execution"]["uniprot_timeout"] == 12.5
+    assert _section(descriptor, "execution")["uniprot_timeout"] == 12.5
 
 
 def test_invalid_required_integer_string_raises_clear_error() -> None:
@@ -1218,7 +1235,7 @@ def test_custom_output_directory_mode_normalizes_relative_path() -> None:
         }
     )
 
-    assert descriptor["export"]["output_dir"] == "custom/nested/results"
+    assert _section(descriptor, "export")["output_dir"] == "custom/nested/results"
 
 
 @pytest.mark.parametrize("output_dir", ["C:\\results\\dataset", "/results/dataset"])
@@ -1293,11 +1310,11 @@ def test_default_generated_descriptor_validates_as_workflow_v1() -> None:
     descriptor = build_workflow_descriptor(form_values)
 
     assert descriptor["schema_version"] == "workflow-v1"
-    assert descriptor["execution"]["enrich"] is False
-    assert descriptor["execution"]["max_workers"] == 5
-    assert descriptor["execution"]["total_retries"] == 3
-    assert descriptor["execution"]["chembl_pages_to_fetch"] == -1
-    assert "uniprot_timeout" not in descriptor["execution"]
+    assert _section(descriptor, "execution")["enrich"] is False
+    assert _section(descriptor, "execution")["max_workers"] == 5
+    assert _section(descriptor, "execution")["total_retries"] == 3
+    assert _section(descriptor, "execution")["chembl_pages_to_fetch"] == -1
+    assert "uniprot_timeout" not in _section(descriptor, "execution")
     assert validate_generated_descriptor(descriptor) == []
 
 
@@ -1319,7 +1336,7 @@ def test_load_workflow_yaml_text_parses_mapping() -> None:
     descriptor = load_workflow_yaml_text(minimal_workflow_yaml())
 
     assert descriptor["schema_version"] == "workflow-v1"
-    assert descriptor["query"]["value"] == "reviewed:true"
+    assert _section(descriptor, "query")["value"] == "reviewed:true"
 
 
 def test_descriptor_to_form_values_loads_supported_fields() -> None:
@@ -1381,9 +1398,9 @@ def test_loaded_return_fields_round_trip_unchanged_until_controls_change() -> No
 
     descriptor = build_workflow_descriptor(form_values)
 
-    assert descriptor["query"]["fields"] == ["sequence", "custom_field", "xref_pdb", "accession"]
-    assert "query.return_field_selections" not in descriptor["query"]
-    assert "query.return_field_custom" not in descriptor["query"]
+    assert _section(descriptor, "query")["fields"] == ["sequence", "custom_field", "xref_pdb", "accession"]
+    assert "query.return_field_selections" not in _section(descriptor, "query")
+    assert "query.return_field_custom" not in _section(descriptor, "query")
 
 
 def test_missing_optional_list_fields_become_empty_strings() -> None:
@@ -1503,7 +1520,7 @@ def test_preserved_sections_survive_load_then_regeneration() -> None:
 
     assert descriptor["resources"] == {"primary": ["uniprot"]}
     assert descriptor["reporting"] == {"total_records": 10}
-    assert descriptor["query"]["builder"] == {"name": "uniprot"}
+    assert _section(descriptor, "query")["builder"] == {"name": "uniprot"}
     assert validate_generated_descriptor(descriptor) == []
 
 
@@ -1572,7 +1589,7 @@ def test_load_yaml_upload_uses_event_file_name_and_async_text() -> None:
     app = FakeUploadHandlerApp()
     event = FakeNiceGUIUploadEvent("workflow.yaml", minimal_workflow_yaml())
 
-    asyncio.run(module.WorkflowYamlBuilderApp.load_yaml_upload(app, event))
+    asyncio.run(module.WorkflowYamlBuilderApp.load_yaml_upload(cast("WorkflowYamlBuilderApp", app), event))
 
     assert app.errors is None
     assert app.loaded_form_values is not None
@@ -1595,7 +1612,7 @@ def test_load_yaml_upload_rejects_unsupported_event_file_name() -> None:
     app = FakeUploadHandlerApp()
     event = FakeNiceGUIUploadEvent("workflow.txt", minimal_workflow_yaml())
 
-    asyncio.run(module.WorkflowYamlBuilderApp.load_yaml_upload(app, event))
+    asyncio.run(module.WorkflowYamlBuilderApp.load_yaml_upload(cast("WorkflowYamlBuilderApp", app), event))
 
     assert app.errors == ["Unsupported file type. Upload a .yml or .yaml workflow file."]
     assert app.loaded_form_values is None
@@ -1614,7 +1631,7 @@ def test_load_yaml_upload_resets_upload_control_after_invalid_yaml() -> None:
     app = FakeUploadHandlerApp()
     event = FakeNiceGUIUploadEvent("workflow.yml", "dataset: [")
 
-    asyncio.run(module.WorkflowYamlBuilderApp.load_yaml_upload(app, event))
+    asyncio.run(module.WorkflowYamlBuilderApp.load_yaml_upload(cast("WorkflowYamlBuilderApp", app), event))
 
     assert app.errors is not None
     assert app.errors[0].startswith("Could not load workflow YAML: Invalid YAML")
@@ -1634,13 +1651,13 @@ def test_load_yaml_upload_replaces_previous_success_with_error_status() -> None:
 
     asyncio.run(
         module.WorkflowYamlBuilderApp.load_yaml_upload(
-            app,
+            cast("WorkflowYamlBuilderApp", app),
             FakeNiceGUIUploadEvent("first.workflow-v1.yml", minimal_workflow_yaml()),
         )
     )
     asyncio.run(
         module.WorkflowYamlBuilderApp.load_yaml_upload(
-            app,
+            cast("WorkflowYamlBuilderApp", app),
             FakeNiceGUIUploadEvent("second.workflow-v1.yml", "dataset: ["),
         )
     )
@@ -1711,7 +1728,7 @@ def test_merge_preserved_does_not_clobber_form_built_builder() -> None:
 
     merge_preserved_workflow_sections(descriptor, preserved)
 
-    assert descriptor["query"]["builder"] == form_builder
+    assert _section(descriptor, "query")["builder"] == form_builder
 
 
 def test_merge_preserved_does_not_inject_builder_into_composition_query() -> None:
@@ -1721,7 +1738,7 @@ def test_merge_preserved_does_not_inject_builder_into_composition_query() -> Non
 
     merge_preserved_workflow_sections(descriptor, preserved)
 
-    assert "builder" not in descriptor["query"]
+    assert "builder" not in _section(descriptor, "query")
 
 
 def test_merge_preserved_reattaches_builder_when_form_built_none() -> None:
@@ -1731,7 +1748,7 @@ def test_merge_preserved_reattaches_builder_when_form_built_none() -> None:
 
     merge_preserved_workflow_sections(descriptor, preserved)
 
-    assert descriptor["query"]["builder"] == PRESERVED_CHEMBL_BUILDER
+    assert _section(descriptor, "query")["builder"] == PRESERVED_CHEMBL_BUILDER
 
 
 def test_build_descriptor_form_builder_wins_over_preserved() -> None:
@@ -1753,6 +1770,6 @@ def test_build_descriptor_form_builder_wins_over_preserved() -> None:
         }
     )
 
-    builder = cast("dict[str, object]", descriptor["query"]["builder"])
+    builder = cast("dict[str, object]", _section(descriptor, "query")["builder"])
     assert builder["source"] == "uniprot"
-    assert descriptor["query"]["value"] == "organism_id:9606"
+    assert _section(descriptor, "query")["value"] == "organism_id:9606"

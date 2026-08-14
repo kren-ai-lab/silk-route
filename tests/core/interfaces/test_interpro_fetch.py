@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 import pytest
 from niquests_mock import startswith
 
@@ -46,4 +48,4 @@ class TestInterproContract(CachingContract, HttpErrorContract):
     METHOD = "entry"
     FIXTURE = ("interpro", "entry")
     ERROR_RETURNS_EMPTY = True
-    ERROR_EMPTY_VALUE: list = []  # paginated fetch accumulates into a list
+    ERROR_EMPTY_VALUE: ClassVar[list] = []  # paginated fetch accumulates into a list

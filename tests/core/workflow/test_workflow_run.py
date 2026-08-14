@@ -7,6 +7,8 @@ real pipeline against a mocked UniProt stream endpoint.
 
 from __future__ import annotations
 
+from typing import cast
+
 import polars as pl
 import pytest
 from niquests_mock import startswith
@@ -167,7 +169,7 @@ def test_ppi_default_fields_include_required_interaction_inputs(monkeypatch, niq
     RecordingPpiCrossRefEnricher.instances = []
     monkeypatch.setattr(workflow_module, "CrossRefEnricher", RecordingPpiCrossRefEnricher)
     uniprot = RecordingUniprot()
-    workflow = MainWorkflow(uniprot_interface=uniprot)
+    workflow = MainWorkflow(uniprot_interface=cast("UniprotInterface", uniprot))
 
     workflow.query_first(
         modality="interaction",
@@ -197,7 +199,7 @@ def test_ppi_user_fields_are_preserved_and_deduplicated(monkeypatch, niquests_mo
     RecordingPpiCrossRefEnricher.instances = []
     monkeypatch.setattr(workflow_module, "CrossRefEnricher", RecordingPpiCrossRefEnricher)
     uniprot = RecordingUniprot()
-    workflow = MainWorkflow(uniprot_interface=uniprot)
+    workflow = MainWorkflow(uniprot_interface=cast("UniprotInterface", uniprot))
 
     workflow.query_first(
         modality="interaction",
@@ -216,7 +218,7 @@ def test_ppi_user_fields_are_preserved_and_deduplicated(monkeypatch, niquests_mo
 def test_ppi_endpoint_specs_use_gene_organism_and_id_fallbacks(monkeypatch):
     RecordingPpiCrossRefEnricher.instances = []
     monkeypatch.setattr(workflow_module, "CrossRefEnricher", RecordingPpiCrossRefEnricher)
-    workflow = MainWorkflow(uniprot_interface=RecordingUniprot())
+    workflow = MainWorkflow(uniprot_interface=cast("UniprotInterface", RecordingUniprot()))
     context = {
         "searches": {"uniprot": {"export_format": "csv"}},
         "data": {
@@ -264,7 +266,7 @@ def test_ppi_source_eligibility_matches_registered_query_builders(
 ):
     RecordingPpiCrossRefEnricher.instances = []
     monkeypatch.setattr(workflow_module, "CrossRefEnricher", RecordingPpiCrossRefEnricher)
-    workflow = MainWorkflow(uniprot_interface=RecordingUniprot())
+    workflow = MainWorkflow(uniprot_interface=cast("UniprotInterface", RecordingUniprot()))
     context = {
         "searches": {"uniprot": {"export_format": "csv"}},
         "data": {"uniprot": frame},
@@ -281,7 +283,7 @@ def test_ppi_source_eligibility_matches_registered_query_builders(
 def test_ppi_without_usable_columns_records_skip_reason(monkeypatch, caplog):
     RecordingPpiCrossRefEnricher.instances = []
     monkeypatch.setattr(workflow_module, "CrossRefEnricher", RecordingPpiCrossRefEnricher)
-    workflow = MainWorkflow(uniprot_interface=RecordingUniprot())
+    workflow = MainWorkflow(uniprot_interface=cast("UniprotInterface", RecordingUniprot()))
     initial_instance_count = len(RecordingPpiCrossRefEnricher.instances)
     context = {
         "searches": {"uniprot": {"export_format": "csv"}},
@@ -301,7 +303,7 @@ def test_ppi_query_composition_forwards_fields(monkeypatch, niquests_mock):
     RecordingPpiCrossRefEnricher.instances = []
     monkeypatch.setattr(workflow_module, "CrossRefEnricher", RecordingPpiCrossRefEnricher)
     uniprot = RecordingUniprot()
-    workflow = MainWorkflow(uniprot_interface=uniprot)
+    workflow = MainWorkflow(uniprot_interface=cast("UniprotInterface", uniprot))
 
     workflow.query_composition(
         modality="interaction",

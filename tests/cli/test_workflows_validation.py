@@ -8,6 +8,7 @@ label parsing that decides what users see when a workflow runs.
 from __future__ import annotations
 
 import datetime as dt
+from typing import cast
 
 import polars as pl
 import pytest
@@ -329,7 +330,7 @@ def test_to_json_compatible_handles_frames_dates_paths():
         "path": path,
         "series": pl.Series([1, 2]),
     }
-    out = to_json_compatible(value)
+    out = cast("dict[str, object]", to_json_compatible(value))
     assert out["df"] == [{"a": 1}]
     assert out["when"] == "2026-06-26"
     assert out["path"] == str(path)

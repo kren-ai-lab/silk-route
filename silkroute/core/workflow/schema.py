@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 from copy import deepcopy
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -605,7 +605,7 @@ def validate_schema_version(workflow_descriptor: dict[str, object]) -> str:
             f'Only schema_version: "{WORKFLOW_SCHEMA_VERSION}" is supported.'
         )
         raise ValueError(msg)
-    return schema_version
+    return cast("str", schema_version)
 
 
 def validate_required_section_keys(
@@ -734,7 +734,9 @@ def validate_query_composition_matches_query_value(
 
     executable_pairs = parse_query_composition_value(str(query_descriptor["value"]))
     executable_pair_set = set(executable_pairs)
-    composition_pair_set = {(item["value"].strip(), item["label"].strip()) for item in composition}
+    composition_pair_set = {
+        (item["value"].strip(), item["label"].strip()) for item in cast("list[dict[str, str]]", composition)
+    }
     if composition_pair_set != executable_pair_set:
         msg = "query.composition does not match executable query.value."
         raise ValueError(msg)

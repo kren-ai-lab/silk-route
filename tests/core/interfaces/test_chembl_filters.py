@@ -31,6 +31,7 @@ def test_extract_returns_none_when_no_ic50_signal():
 
 def test_extract_greater_than_sets_exclusive_min():
     f = ChEMBLInterface.extract_ic50_activity_filter("ic50 > 5")
+    assert f is not None
     assert f["standard_value_min"] == 5.0
     assert f["standard_value_min_inclusive"] is False
     assert f["standard_value_max"] is None
@@ -38,29 +39,34 @@ def test_extract_greater_than_sets_exclusive_min():
 
 def test_extract_gte_sets_inclusive_min():
     f = ChEMBLInterface.extract_ic50_activity_filter("ic50 >= 5")
+    assert f is not None
     assert f["standard_value_min"] == 5.0
     assert f["standard_value_min_inclusive"] is True
 
 
 def test_extract_lte_sets_inclusive_max():
     f = ChEMBLInterface.extract_ic50_activity_filter("ic50 <= 20")
+    assert f is not None
     assert f["standard_value_max"] == 20.0
     assert f["standard_value_max_inclusive"] is True
 
 
 def test_extract_equals_sets_exact_value():
     f = ChEMBLInterface.extract_ic50_activity_filter("ic50 = 10")
+    assert f is not None
     assert f["standard_value"] == 10.0
 
 
 def test_extract_range_sets_min_and_max():
     f = ChEMBLInterface.extract_ic50_activity_filter("ic50: 1-10")
+    assert f is not None
     assert f["standard_value_min"] == 1.0
     assert f["standard_value_max"] == 10.0
 
 
 def test_extract_recognizes_standard_type_form():
     f = ChEMBLInterface.extract_ic50_activity_filter("standard_type = 'IC50' and standard_value < 50")
+    assert f is not None
     assert f["standard_type"] == "IC50"
     assert f["standard_value_max"] == 50.0
 

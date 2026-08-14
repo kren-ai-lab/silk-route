@@ -27,6 +27,7 @@ def test_graph_row_result_xml_is_parseable():
 
 def test_empty_graph_result_xml_is_parseable():
     xml_text = CrossRefEnricher._empty_graph_result("xml")
+    assert isinstance(xml_text, str)
     assert fromstring(xml_text).findall("item") == []  # noqa: S314  # test-controlled XML
 
 
@@ -47,5 +48,6 @@ def test_process_dataframe_xml_aggregates_graph_rows(monkeypatch):
 
     assert isinstance(result, ElementTree)
     root = result.getroot()
+    assert root is not None
     items = root.findall("item")
     assert len(items) == 2

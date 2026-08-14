@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 import pytest
 
 from silkroute.core.workflow.chebi_query_parser import (
@@ -34,7 +36,7 @@ def test_chebi_prefix_is_case_insensitive(query):
 def test_pubchem_body_case_is_preserved():
     # The identifier body must keep its original case (SMILES/InChI are case-sensitive).
     plan = parse_pubchem_query_builder_string("PubChem.structure:smiles_identity=CCO")
-    assert plan["parameters"]["smiles_identity"] == "CCO"
+    assert cast("dict[str, object]", plan["parameters"])["smiles_identity"] == "CCO"
 
 
 def test_duplicate_structure_condition_is_rejected():
@@ -44,4 +46,4 @@ def test_duplicate_structure_condition_is_rejected():
 
 def test_similarity_threshold_zero_is_preserved():
     plan = parse_pubchem_query_builder_string("pubchem.structure:similarity_2d_cid=2244 AND threshold=0")
-    assert plan["parameters"]["threshold"] == 0
+    assert cast("dict[str, object]", plan["parameters"])["threshold"] == 0

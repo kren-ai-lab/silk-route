@@ -31,8 +31,12 @@ if TYPE_CHECKING:
     # Type-only imports; the builders are imported lazily inside functions at runtime
     # to keep the module free of the query_builders package on import.
     from silkroute.gui.query_builders.chebi import ChEBIQueryBuilderRow
-    from silkroute.gui.query_builders.chembl import ChEMBLIC50QueryBuilderRow
+    from silkroute.gui.query_builders.chembl import (
+        ChEMBLFilterQueryBuilderRow,
+        ChEMBLIC50QueryBuilderRow,
+    )
     from silkroute.gui.query_builders.pubchem import PubChemQueryBuilderRow
+    from silkroute.gui.query_builders.uniprot import UniProtQueryBuilderRow
 
 DEFAULT_MAX_WORKERS = 5
 DEFAULT_TOTAL_RETRIES = 3
@@ -310,7 +314,7 @@ def workflow_yaml_form_defaults() -> dict[str, object]:
     for field_name in defaults:
         if field_name in gui_controlled_defaults:
             continue
-        schema_default = schema.get(field_name, {}).get("default")
+        schema_default = cast("dict[str, object]", schema.get(field_name, {})).get("default")
         if schema_default is not None:
             defaults[field_name] = schema_default
     return defaults
@@ -922,12 +926,12 @@ def restore_loaded_query_builder_form_values(
     modality = str(dataset.get("modality") or "")
     interaction_type_value = dataset.get("interaction_type")
     interaction_type = str(interaction_type_value) if interaction_type_value else None
-    try:
-        from silkroute.gui.query_builders.metadata import (  # noqa: PLC0415
-            QueryBuilderMetadataMismatchError,
-            restore_query_builder_metadata,
-        )
+    from silkroute.gui.query_builders.metadata import (  # noqa: PLC0415
+        QueryBuilderMetadataMismatchError,
+        restore_query_builder_metadata,
+    )
 
+    try:
         restoration = restore_query_builder_metadata(
             metadata,
             query.get("value"),
@@ -1048,7 +1052,7 @@ def normalize_uniprot_builder_match_mode(value: object) -> str:
     return str(normalized).strip().lower()
 
 
-def build_uniprot_builder_rows_from_form(form_values: Mapping[str, object]) -> list[object]:
+def build_uniprot_builder_rows_from_form(form_values: Mapping[str, object]) -> list[UniProtQueryBuilderRow]:
     """Build pure UniProt query builder rows from GUI form values."""
     from silkroute.gui.query_builders.uniprot import UniProtQueryBuilderRow  # noqa: PLC0415
 
@@ -1076,7 +1080,9 @@ def build_uniprot_builder_rows_from_form(form_values: Mapping[str, object]) -> l
     return rows
 
 
-def build_chembl_builder_rows_from_form(form_values: Mapping[str, object]) -> list[object]:
+def build_chembl_builder_rows_from_form(
+    form_values: Mapping[str, object],
+) -> list[ChEMBLFilterQueryBuilderRow]:
     """Build pure ChEMBL query builder rows from GUI form values."""
     from silkroute.gui.query_builders.chembl import ChEMBLFilterQueryBuilderRow  # noqa: PLC0415
 
@@ -1118,9 +1124,9 @@ def build_chembl_ic50_builder_row_from_form(form_values: Mapping[str, object]) -
 
     return ChEMBLIC50QueryBuilderRow(
         condition=str(get_builder_row_value(raw_row, "condition", "range")),
-        minimum=get_builder_row_value(raw_row, "minimum", None),
-        maximum=get_builder_row_value(raw_row, "maximum", None),
-        value=get_builder_row_value(raw_row, "value", None),
+        minimum=cast("int | float | None", get_builder_row_value(raw_row, "minimum", None)),
+        maximum=cast("int | float | None", get_builder_row_value(raw_row, "maximum", None)),
+        value=cast("int | float | None", get_builder_row_value(raw_row, "value", None)),
         unit=str(get_builder_row_value(raw_row, "unit", "nM")),
     )
 
@@ -1149,7 +1155,7 @@ def build_pubchem_builder_row_from_form(form_values: Mapping[str, object]) -> Pu
         value=str(get_builder_row_value(raw_row, "value", "")),
         threshold=normalize_pubchem_builder_threshold_state(
             field,
-            get_builder_row_value(raw_row, "threshold", None),
+            cast("int | str | None", get_builder_row_value(raw_row, "threshold", None)),
         ),
     )
 
@@ -1616,6 +1622,7 @@ def build_query_section(form_values: Mapping[str, object]) -> dict[str, object]:
         get_form_value(form_values, "dataset.mode"),
         WORKFLOW_MODE_LABEL_TO_VALUE,
     )
+    composition: list[dict[str, object]] = []
     if workflow_mode == "query_composition":
         modality = str(
             normalize_labeled_value(
@@ -1638,7 +1645,7 @@ def build_query_section(form_values: Mapping[str, object]) -> dict[str, object]:
             "include_isoform": parse_bool(get_form_value(form_values, "query.include_isoform")),
         }
     else:
-        query = {
+        query: dict[str, object] = {
             "value": resolve_query_value_from_form(form_values),
             "include_isoform": parse_bool(get_form_value(form_values, "query.include_isoform")),
         }

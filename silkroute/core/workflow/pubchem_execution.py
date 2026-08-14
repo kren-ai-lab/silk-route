@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from silkroute.core.interfaces.pubchem import WORKFLOW_COMPOUND_PROPERTIES_METHOD, PubChemInterface
 from silkroute.core.utils.frames import records_to_frame
@@ -35,7 +35,7 @@ def parse_pubchem_fetch_threshold(value: object) -> int:
         msg = "PubChem similarity_2d_cid requires an explicit integer threshold from 0 to 100."
         raise ValueError(msg)
     try:
-        threshold = int(value)
+        threshold = int(cast("int | str", value))
     except (TypeError, ValueError) as exc:
         msg = "PubChem similarity threshold must be an integer from 0 to 100."
         raise ValueError(msg) from exc
