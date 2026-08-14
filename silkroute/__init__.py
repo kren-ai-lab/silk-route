@@ -5,7 +5,7 @@ from __future__ import annotations
 from importlib import import_module
 from typing import TYPE_CHECKING
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 # Map public name -> module path (relative to this package). Loaded lazily via
 # __getattr__ (PEP 562) so `import silkroute` does not pull every interface and
