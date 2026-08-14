@@ -1,0 +1,39 @@
+cff-version: 1.2.0
+message: "If you use SilkRoute in your research, please cite it as below."
+title: "SilkRoute: Reproducible Biological Data Retrieval"
+abstract: "Python library and command-line tool for reproducible biological data retrieval from web APIs."
+type: software
+version: 0.1.1
+date-released: "2026-08-14"
+license: MIT
+doi: 10.5281/zenodo.21930739
+authors:
+  - name: "Diego Fernández Villegas"
+    affiliation: "Universidad de Magallanes"
+  - family-names: "García - Vinuesa"
+    given-names: "Julián Alfonso"
+    affiliation: "University of Chile"
+    orcid: "https://orcid.org/0009-0009-1121-2993"
+  - family-names: "Alvarez Saravia"
+    given-names: Diego
+    affiliation: "Universidad de Magallanes"
+    orcid: "https://orcid.org/0000-0003-0753-274X"
+  - family-names: Medina-Ortiz
+    given-names: David
+    affiliation: "Universidad de Magallanes"
+    orcid: "https://orcid.org/0000-0002-8369-5746"
+repository-code: "https://github.com/kren-ai-lab/silk-route"
+url: "https://github.com/kren-ai-lab/silk-route"
+keywords:
+  - bioinformatics
+  - web-api
+  - data-retrieval
+  - reproducibility
+  - proteins
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.21930739
+    description: "Concept DOI (all versions)"
+  - type: doi
+    value: 10.5281/zenodo.21930740
+    description: "Version DOI (v0.1.1)"

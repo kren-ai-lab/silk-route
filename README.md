@@ -4,6 +4,7 @@
 [![PyVersions](https://img.shields.io/pypi/pyversions/silkroute?style=flat-square)](https://github.com/kren-ai-lab/silk-route)
 [![Tests](https://img.shields.io/github/actions/workflow/status/kren-ai-lab/silk-route/tests.yml?style=flat-square)](https://github.com/kren-ai-lab/silk-route/actions/workflows/tests.yml)
 ![License](https://img.shields.io/github/license/kren-ai-lab/silk-route?style=flat-square)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.21930739-blue?style=flat-square)](https://doi.org/10.5281/zenodo.21930739)
 
 SilkRoute is a Python library and command-line tool for reproducible biological data retrieval.
 
@@ -452,6 +453,30 @@ location through the interface `output_dir` argument.
 
 Issues and pull requests should keep the docs aligned with what is implemented and tested.
 [DEVELOPMENT.md](DEVELOPMENT.md) covers development setup and testing conventions.
+
+## Citation
+
+If you use SilkRoute in your research, please cite:
+
+> Fernández Villegas, D.; García - Vinuesa, J. A.; Alvarez Saravia, D.; Medina-Ortiz, D.
+> *SilkRoute: Reproducible Biological Data Retrieval*.
+> Version 0.1.1, 2026. Zenodo.
+> https://doi.org/10.5281/zenodo.21930739
+
+```bibtex
+@software{silkroute2026,
+  author    = {Fernández Villegas, Diego and García - Vinuesa, Julián Alfonso and Alvarez Saravia, Diego and Medina-Ortiz, David},
+  title     = {{SilkRoute}: Reproducible Biological Data Retrieval},
+  year      = {2026},
+  version   = {0.1.1},
+  publisher = {Zenodo},
+  doi       = {10.5281/zenodo.21930739},
+  url       = {https://doi.org/10.5281/zenodo.21930739}
+}
+```
+
+To cite this exact release, use the version DOI [10.5281/zenodo.21930740](https://doi.org/10.5281/zenodo.21930740).
+Machine-readable metadata lives in [CITATION.cff](CITATION.cff).
 
 ## License
 
