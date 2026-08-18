@@ -1240,6 +1240,10 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         """Shape a parsed JSON response by unwrapping ``_RESPONSE_ENVELOPE_KEYS``."""
         return self._unwrap_envelope(data, *self._RESPONSE_ENVELOPE_KEYS)
 
+    def _handle_expected_http_error(self, _response: Response, **_kwargs: Any) -> bool:
+        """Return whether an interface handled an expected HTTP error response."""
+        return False
+
     def _do_request(self, query: str | dict | list, *, method: str, **kwargs: Any) -> Response:
         """Run a validated HTTP request and return the raw response.
 
@@ -1281,7 +1285,8 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
         try:
             response = self.session.send(prepared)
             self._delay()
-            response.raise_for_status()
+            if not self._handle_expected_http_error(response, query=query, method=method):
+                response.raise_for_status()
         except RequestException as e:
             log.exception("Error fetching %s for method '%s'", query, method)
             msg = f"Request failed for method '{method}': {e}"

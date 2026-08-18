@@ -406,10 +406,12 @@ def build_query_sabiork_kineticlaws(row: Mapping[str, Any], params: dict) -> lis
 def build_query_stringdb(row: Mapping[str, Any], params: dict) -> list:
     """Build STRING interaction queries from 'string_ids' or 'gene_primary'+'organism_id' columns."""
     string_ids = to_str_list(row.get("string_ids"))
-    organism = to_str_list(row.get("organism_id"))[0]
-    gene_primary = to_str_list(row.get("gene_primary"))
     if string_ids:
         return [{"identifiers": string_id, **params} for string_id in string_ids]
-    if gene_primary and organism:
-        return [{"identifiers": gene, "species": organism, **params} for gene in gene_primary]
+
+    organisms = to_str_list(row.get("organism_id"))
+    gene_primary = to_str_list(row.get("gene_primary"))
+    if gene_primary and organisms:
+        species = int(organisms[0])
+        return [{"identifiers": gene, "species": species, **params} for gene in gene_primary]
     return []

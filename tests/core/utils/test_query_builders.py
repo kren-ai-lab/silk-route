@@ -48,6 +48,17 @@ def test_build_query_biodbnet_db2db_merges_params():
     assert out == [{"inputValues": ["TP53"], "taxonId": "9606", "outputs": "genesymbol"}]
 
 
+def test_build_query_stringdb_converts_species_to_int():
+    builder = get_query_builder("string", "get_string_ids")
+    out = builder({"gene_primary": ["TP53"], "organism_id": "9606"}, {})
+    assert out == [{"identifiers": "TP53", "species": 9606}]
+
+
+def test_build_query_stringdb_empty_when_organism_missing():
+    builder = get_query_builder("string", "get_string_ids")
+    assert builder({"gene_primary": ["TP53"]}, {}) == []
+
+
 def test_build_query_brenda_filters_invalid_ec():
     builder = get_query_builder("brenda", "getKmValue")
     out = builder({"ec": ["1.1.1.1", "not-an-ec", "2.7.1"]}, {})
