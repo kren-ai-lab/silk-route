@@ -44,6 +44,7 @@ def run(
     no_download: bool = typer.Option(
         False, "--no-download", "-u", help="If set, will not download information from UniProt after BLAST."
     ),
+    fields: str | None = typer.Option(None, "-f", "--fields", help="Fields to include in the UniProt output"),
     crossref_fields: str = typer.Option(
         "",
         "-xr",
@@ -148,6 +149,7 @@ def run(
             instance,
             response,
             metadata,
+            fields=fields,
             crossref_fields=crossref_fields,
             output=output,
             export_format=export_format,

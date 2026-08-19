@@ -16,6 +16,11 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 import polars as pl
 import typer
 
+from silkroute.constants.uniprot import (
+    get_effective_uniprot_return_fields,
+    get_uniprot_parsed_fields,
+    normalize_uniprot_return_fields,
+)
 from silkroute.core.export import (
     USER_EXPORT_FORMATS,
     export_dataframe,
@@ -348,6 +353,7 @@ def parse_and_save_uniprot(
     response: Any,
     metadata: dict,
     *,
+    fields: str | None,
     crossref_fields: str,
     output: str,
     export_format: str,
@@ -364,6 +370,7 @@ def parse_and_save_uniprot(
         instance (Any): UniProt interface exposing ``parse``.
         response (Any): Raw UniProt response to parse and save.
         metadata (dict): Run metadata, extended in place with parsing/enrichment info.
+        fields (str | None): Explicit UniProt return fields selected for export.
         crossref_fields (str): Comma-separated cross-reference fields to enrich, if any.
         output (str): Output directory path.
         export_format (str): Requested export format.
@@ -382,7 +389,13 @@ def parse_and_save_uniprot(
     logger.info("Parsing results...")
     parse_format = normalize_parse_format(export_format) or "dataframe"
     fmt = cast("Literal['json', 'dataframe', 'xml']", parse_format)
-    export_data, parsed_metadata = instance.parse(results=response, extract_fields=None, format=fmt)
+    selected_fields = get_uniprot_parsed_fields(fields) if normalize_uniprot_return_fields(fields) else None
+    working_fields = (
+        get_uniprot_parsed_fields(get_effective_uniprot_return_fields(fields, crossref_fields))
+        if selected_fields is not None
+        else None
+    )
+    export_data, parsed_metadata = instance.parse(results=response, extract_fields=working_fields, format=fmt)
     metadata["parsing"] = parsed_metadata
 
     enriched_data = None
@@ -392,5 +405,10 @@ def parse_and_save_uniprot(
             export_data, crossref_fields.split(","), format=fmt
         )
         metadata["enrichment"] = enriched_metadata
+
+    if selected_fields is not None:
+        from silkroute.core.interfaces.uniprot import project_uniprot_fields  # noqa: PLC0415
+
+        export_data = project_uniprot_fields(export_data, selected_fields)
 
     save_uniprot_results(export_data, enriched_data, metadata, output, export_format, logger)

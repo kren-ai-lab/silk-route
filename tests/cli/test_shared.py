@@ -7,11 +7,13 @@ on the ``(data, metadata)`` tuple returned by ``fetch_single`` / ``fetch_batch``
 from __future__ import annotations
 
 import json
+import logging
 
 import polars as pl
 import pytest
 
-from silkroute.cli._shared import fetch_auto, save_or_print, unwrap
+from silkroute.cli._shared import fetch_auto, parse_and_save_uniprot, save_or_print, unwrap
+from silkroute.core.interfaces.uniprot import UniprotInterface
 
 
 class _FakeInterface:
@@ -178,3 +180,34 @@ def test_print_preview_does_not_raise(capsys):
     # No output path -> should print a preview without raising.
     save_or_print((df, {}), None)
     assert capsys.readouterr().out  # something was printed
+
+
+def test_parse_and_save_uniprot_exports_only_explicit_fields(tmp_path):
+    response = {
+        "results": [
+            {
+                "primaryAccession": "P12345",
+                "proteinDescription": {
+                    "recommendedName": {
+                        "fullName": {"value": "Example enzyme"},
+                        "ecNumbers": [{"value": "1.2.3.4"}],
+                    }
+                },
+                "sequence": {"value": "MPEPTIDE", "length": 8},
+            }
+        ]
+    }
+
+    parse_and_save_uniprot(
+        UniprotInterface(),
+        response,
+        {},
+        fields="accession,protein_name,sequence",
+        crossref_fields="",
+        output=str(tmp_path),
+        export_format="csv",
+        logger=logging.getLogger(__name__),
+    )
+
+    exported = pl.read_csv(tmp_path / "uniprot_results.csv")
+    assert exported.columns == ["accession", "protein_name", "sequence"]

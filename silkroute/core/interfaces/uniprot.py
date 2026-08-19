@@ -47,6 +47,40 @@ API_URL = "https://rest.uniprot.org"
 POLLING_INTERVAL = 3
 
 
+def project_uniprot_fields(data: Any, fields: list[str] | None) -> Any:
+    """Project parsed UniProt data onto an ordered field list."""
+    if fields is None:
+        return data
+
+    if isinstance(data, pl.DataFrame):
+        missing = [field for field in fields if field not in data.columns]
+        if missing:
+            data = data.with_columns(pl.lit(None).alias(field) for field in missing)
+        return data.select(fields)
+
+    if isinstance(data, list):
+        return [
+            {field: record.get(field) for field in fields} if isinstance(record, dict) else record
+            for record in data
+        ]
+
+    if isinstance(data, dict):
+        return {field: data.get(field) for field in fields}
+
+    if isinstance(data, ET.ElementTree):
+        selected = set(fields)
+        root = data.getroot()
+        records = list(root)
+        if records and all(record.tag == "item" for record in records):
+            for record in records:
+                for child in list(record):
+                    if child.tag not in selected:
+                        record.remove(child)
+        return data
+
+    return data
+
+
 class UniprotInterface(BaseAPIInterface):
     """UniProt universal protein knowledge base API interface."""
 
@@ -805,7 +839,7 @@ class UniprotInterface(BaseAPIInterface):
 
         # Apply filtering
         if extract_fields is not None:
-            parsed = {k: v for k, v in parsed.items() if k in extract_fields}
+            parsed = {field: parsed.get(field) for field in extract_fields}
 
         return parsed
 
@@ -882,8 +916,12 @@ class UniprotInterface(BaseAPIInterface):
                     log.warning("Tried to parse non-dict result: %s, skipping.", type(res))
 
         meta_out = self._aggregate_parse_metadata(parsed, failed_records, extract_fields)
+        parsed = project_uniprot_fields(parsed, extract_fields)
         if format == "dataframe":
-            return drop_all_null_columns(records_to_frame(parsed)), meta_out
+            frame = records_to_frame(parsed)
+            if extract_fields is None:
+                frame = drop_all_null_columns(frame)
+            return frame, meta_out
         if format == "xml":
             return dict_to_elementtree(parsed, root_tag="results"), meta_out
         return parsed, meta_out

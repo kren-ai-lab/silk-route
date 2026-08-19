@@ -32,6 +32,34 @@ def test_parse_extracts_requested_fields(interface):
     assert parsed[0]["length"] == entry["sequence"]["length"]
 
 
+def test_parse_explicit_fields_excludes_nested_unrequested_fields(interface):
+    results = {
+        "results": [
+            {
+                "primaryAccession": "P12345",
+                "proteinDescription": {
+                    "recommendedName": {
+                        "fullName": {"value": "Example enzyme"},
+                        "ecNumbers": [{"value": "1.2.3.4"}],
+                    }
+                },
+                "sequence": {"value": "MPEPTIDE", "length": 8},
+            }
+        ]
+    }
+
+    parsed, _ = interface.parse(
+        results,
+        extract_fields=["accession", "protein_name", "sequence"],
+        format="dataframe",
+    )
+
+    assert parsed.columns == ["accession", "protein_name", "sequence"]
+    assert parsed.to_dicts() == [
+        {"accession": "P12345", "protein_name": "Example enzyme", "sequence": "MPEPTIDE"}
+    ]
+
+
 def test_parse_aggregates_field_coverage_across_records(interface):
     results = load_fixture("uniprot", "idmapping_results")
     fields = ["accession", "organism", "length"]

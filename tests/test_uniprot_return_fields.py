@@ -7,6 +7,7 @@ import pytest
 from silkroute.constants.uniprot import (
     get_effective_uniprot_return_fields,
     get_required_uniprot_fields_for_enrichment,
+    get_uniprot_parsed_fields,
 )
 
 
@@ -32,3 +33,13 @@ def test_effective_fields_add_accession_when_user_omits_it():
     # Custom return fields without accession + an enrichment source -> accession is added.
     effective = get_effective_uniprot_return_fields("gene_primary,length", "chembl")
     assert "accession" in effective
+
+
+def test_return_fields_map_to_ordered_parser_fields():
+    assert get_uniprot_parsed_fields("sequence,organism_name,temp_dependence,xref_string,accession") == [
+        "sequence",
+        "organism",
+        "temperature",
+        "string_ids",
+        "accession",
+    ]

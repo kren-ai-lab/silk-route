@@ -441,6 +441,34 @@ def test_run_protein_fetches_parses_and_stamps_time(niquests_mock):
     assert "fetch" in metadata["uniprot"]
 
 
+def test_run_protein_projects_explicit_fields_after_parsing():
+    uniprot = RecordingUniprot(
+        parsed_frame=pl.DataFrame(
+            {
+                "accession": ["P12345"],
+                "protein_name": ["Example enzyme"],
+                "sequence": ["MPEPTIDE"],
+                "length": [8],
+                "ec": [["1.2.3.4"]],
+            }
+        )
+    )
+    workflow = MainWorkflow(uniprot_interface=cast("UniprotInterface", uniprot))
+
+    data, _ = workflow.run_protein(
+        query="kinase",
+        fields="accession,protein_name,sequence",
+        enrich=False,
+    )
+
+    assert uniprot.parse_calls[0]["extract_fields"] == [
+        "accession",
+        "protein_name",
+        "sequence",
+    ]
+    assert data["uniprot"].columns == ["accession", "protein_name", "sequence"]
+
+
 def test_run_protein_empty_query_skips_fetch(niquests_mock):
     workflow = MainWorkflow(uniprot_interface=UniprotInterface())
     data, _ = workflow.run_protein(query="", enrich=False)

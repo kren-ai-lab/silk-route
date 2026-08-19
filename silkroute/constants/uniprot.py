@@ -56,6 +56,46 @@ VALID_CROSS_REF_FIELDS = {
     "rhea": "rhea_ids",
 }
 
+# UniProt REST return-field IDs do not always match SilkRoute's parsed output
+# names. Keep that translation centralized so callers can request API fields
+# while the parser continues to expose its established column names.
+UNIPROT_RETURN_FIELD_TO_PARSED_FIELD = {
+    "accession": "accession",
+    "protein_name": "protein_name",
+    "ec": "ec",
+    "organism_name": "organism",
+    "gene_primary": "gene_primary",
+    "organism_id": "organism_id",
+    "sequence": "sequence",
+    "length": "length",
+    "keyword": "keyword",
+    "temp_dependence": "temperature",
+    "ph_dependence": "ph",
+    "cc_interaction": "interactions",
+    "ft_variant": "variants",
+    "ft_site": "active_sites",
+    "ft_domain": "domains",
+    "ft_motif": "domains",
+    "ft_region": "domains",
+    "xref_alphafolddb": "alphafold_ids",
+    "xref_brenda": "brenda_ids",
+    "cc_catalytic_activity": "chebi_ids",
+    "xref_chembl": "chembl_ids",
+    "go_id": "go_terms",
+    "xref_interpro": "interpro_ids",
+    "xref_kegg": "kegg_ids",
+    "xref_panther": "panther_ids",
+    "xref_pathwaycommons": "pathwaycommons_ids",
+    "xref_pdb": "pdb_ids",
+    "xref_pfam": "pfam_ids",
+    "xref_pride": "pride_ids",
+    "xref_reactome": "reactome_ids",
+    "xref_refseq": "refseq_ids",
+    "rhea": "rhea_ids",
+    "xref_sabio-rk": "sabiork_ids",
+    "xref_string": "string_ids",
+}
+
 # Mapping of cross-reference fields to (field_name, endpoint_name)
 # If there is not a uniprot field associated, just use the endpoint name
 XREF_MAPPING = {
@@ -124,6 +164,19 @@ def normalize_uniprot_return_fields(value: object) -> list[str]:
         fields.append(field)
         seen.add(lookup_value)
     return fields
+
+
+def get_uniprot_parsed_fields(value: object) -> list[str]:
+    """Translate UniProt REST return fields to ordered parsed output fields."""
+    parsed_fields: list[str] = []
+    seen: set[str] = set()
+    for field in normalize_uniprot_return_fields(value):
+        parsed_field = UNIPROT_RETURN_FIELD_TO_PARSED_FIELD.get(field, field)
+        lookup_value = parsed_field.casefold()
+        if lookup_value not in seen:
+            parsed_fields.append(parsed_field)
+            seen.add(lookup_value)
+    return parsed_fields
 
 
 def get_default_uniprot_return_fields() -> list[str]:
