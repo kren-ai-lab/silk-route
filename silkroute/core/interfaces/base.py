@@ -35,6 +35,35 @@ from silkroute.logging import get_logger
 
 log = get_logger("silkroute.interfaces.base")
 
+_HTTP_STATUS_UPPER_BOUND = 600
+
+
+class _ReportedRequestError(RequestError):
+    """Request failure already reported by the base transport layer."""
+
+
+def _request_source(query: str | dict | list) -> str | None:
+    """Return a concise source identifier from a prepared request query."""
+    if not isinstance(query, dict):
+        return str(query) if query else None
+    for key in ("source", "identifier", "identifiers", "accession", "uri", "q"):
+        value = query.get(key)
+        if isinstance(value, list) and len(value) == 1:
+            value = value[0]
+        if value not in (None, "", []):
+            return str(value)
+    return None
+
+
+def _http_reason(response: Response | None, status_code: int) -> str:
+    """Return the response reason phrase, falling back to ``HTTPStatus``."""
+    reason = getattr(response, "reason", None)
+    if reason:
+        return str(reason)
+    with contextlib.suppress(ValueError):
+        return HTTPStatus(status_code).phrase
+    return "Server Error"
+
 
 def _normalize_matching_tokens(value: object) -> list[str]:
     """Split and lowercase input values for loose token matching."""
@@ -911,8 +940,11 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                 try:
                     full = self.fetch(params, *args, **kwargs)
                     fetch_failed = False
-                except RequestError:
-                    log.exception("Request failed for method '%s'", method)
+                except RequestError as exc:
+                    if isinstance(exc, _ReportedRequestError):
+                        log.debug("Request failure already reported for method '%s'", method)
+                    else:
+                        log.exception("Request failed for method '%s'", method)
                     full = {}
                     fetch_failed = True
                 mapping = self.split_results_by_subquery(full, remaining) if full else {}
@@ -978,8 +1010,11 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
             fetch_failed = False
             try:
                 raw = self.fetch(params, *args, **kwargs)
-            except RequestError:
-                log.exception("Request failed for identifier %s", identifier)
+            except RequestError as exc:
+                if isinstance(exc, _ReportedRequestError):
+                    log.debug("Request failure already reported for identifier %s", identifier)
+                else:
+                    log.exception("Request failed for identifier %s", identifier)
                 raw = {}
                 fetch_failed = True
             # Save to cache even if empty, to avoid refetching known empty results
@@ -1288,9 +1323,26 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
             if not self._handle_expected_http_error(response, query=query, method=method):
                 response.raise_for_status()
         except RequestException as e:
-            log.exception("Error fetching %s for method '%s'", query, method)
+            status_code = _request_exception_status_code(e)
+            if (
+                status_code is not None
+                and HTTPStatus.INTERNAL_SERVER_ERROR <= status_code < _HTTP_STATUS_UPPER_BOUND
+            ):
+                source = _request_source(query)
+                source_context = f", source={source}" if source is not None else ""
+                log.error(  # noqa: TRY400 - expected concise log without traceback
+                    "%s request failed: %s %s (method=%s%s)",
+                    self.API_NAME,
+                    status_code,
+                    _http_reason(getattr(e, "response", None), status_code),
+                    method,
+                    source_context,
+                )
+                log.debug("HTTP request failure details", exc_info=True)
+            else:
+                log.exception("Error fetching %s for method '%s'", query, method)
             msg = f"Request failed for method '{method}': {e}"
-            raise RequestError(msg) from e
+            raise _ReportedRequestError(msg) from e
         else:
             return response
 
