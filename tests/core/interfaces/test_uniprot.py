@@ -7,13 +7,20 @@ sequence with ``responses``, plus a direct parse-shape test.
 
 from __future__ import annotations
 
+from urllib.parse import parse_qs, urlparse
+
 import polars as pl
 import pytest
-from niquests_mock import startswith
+from niquests.exceptions import ConnectionError as NiquestsConnectionError
+from niquests_mock import build_response, startswith
 
-from silkroute.core.interfaces.uniprot import API_URL, UniprotInterface
+from silkroute.core.exceptions import RequestError
+from silkroute.core.interfaces import uniprot as uniprot_module
+from silkroute.core.interfaces.uniprot import API_URL, SEARCH_PAGE_SIZE, UniprotInterface
 from silkroute.core.metadata import FetchMetadata
 from tests._helpers import load_fixture
+
+SEARCH_URL = f"{API_URL}/uniprotkb/search"
 
 
 @pytest.fixture
@@ -100,6 +107,135 @@ def test_submit_stream_returns_fetchmetadata_shape(interface, niquests_mock):
     assert set(metadata) >= {"tool", "request", "cached", "fetched", "failed", "data_info", "extra"}
     assert metadata["extra"]["status_code"] == 200
     assert metadata["extra"]["query"] == "kinase"
+
+
+def test_submit_search_fetches_single_page_with_expected_parameters(interface, niquests_mock):
+    requested_urls = []
+
+    def serve_page(request):
+        requested_urls.append(request.url)
+        return build_response(
+            request,
+            status_code=200,
+            json={"results": [{"primaryAccession": "P12345"}]},
+            headers={"x-total-results": "1"},
+        )
+
+    niquests_mock.get(url=startswith(SEARCH_URL)).mock(side_effect=serve_page)
+
+    payload, metadata = interface.submit_search(
+        query="taxonomy_id:2731619",
+        fields="accession,protein_name,sequence",
+        sort="accession desc",
+        include_isoform=True,
+    )
+
+    assert payload == {"results": [{"primaryAccession": "P12345"}]}
+    assert len(requested_urls) == 1
+    parsed_url = urlparse(requested_urls[0])
+    assert parsed_url.path == "/uniprotkb/search"
+    assert parse_qs(parsed_url.query) == {
+        "query": ["taxonomy_id:2731619"],
+        "fields": ["accession, protein_name, sequence"],
+        "sort": ["accession desc"],
+        "includeIsoform": ["True"],
+        "format": ["json"],
+        "size": [str(SEARCH_PAGE_SIZE)],
+    }
+    assert metadata["extra"]["pages_fetched"] == 1
+    assert metadata["extra"]["records_fetched"] == 1
+    assert metadata["extra"]["total_results"] == 1
+
+
+def test_submit_search_follows_complete_next_urls_and_preserves_page_order(interface, niquests_mock):
+    next_url_1 = f"{SEARCH_URL}?cursor=cursor-one&format=json&size=500"
+    next_url_2 = f"{SEARCH_URL}?cursor=cursor-two&format=json&size=500"
+    requested_urls = []
+
+    def serve_page(request):
+        requested_urls.append(request.url)
+        cursor = parse_qs(urlparse(request.url).query).get("cursor", [None])[0]
+        if cursor is None:
+            return build_response(
+                request,
+                json={"results": [{"primaryAccession": "P1"}]},
+                headers={"Link": f'<{next_url_1}>; rel="next"'},
+            )
+        if cursor == "cursor-one":
+            return build_response(
+                request,
+                json={"results": [{"primaryAccession": "P2"}], "failedIds": ["BAD1"]},
+                headers={"Link": f'<{next_url_2}>; rel="next"'},
+            )
+        return build_response(request, json={"results": [{"primaryAccession": "P3"}]})
+
+    niquests_mock.get(url=startswith(SEARCH_URL)).mock(side_effect=serve_page)
+
+    payload, metadata = interface.submit_search(query="kinase", fields="accession", sort="accession asc")
+
+    assert [record["primaryAccession"] for record in payload["results"]] == ["P1", "P2", "P3"]
+    assert payload["failedIds"] == ["BAD1"]
+    assert requested_urls[1:] == [next_url_1, next_url_2]
+    assert metadata["extra"]["pages_fetched"] == 3
+    assert metadata["extra"]["records_fetched"] == 3
+    assert "total_results" not in metadata["extra"]
+
+
+def test_submit_search_retries_only_the_failed_current_page(monkeypatch, niquests_mock):
+    interface = UniprotInterface(total_retries=2)
+    next_url = f"{SEARCH_URL}?cursor=retry-page&format=json&size=500"
+    requested_urls = []
+    page_two_attempts = 0
+
+    def serve_page(request):
+        nonlocal page_two_attempts
+        requested_urls.append(request.url)
+        if request.url == next_url:
+            page_two_attempts += 1
+            if page_two_attempts == 1:
+                raise NiquestsConnectionError("connection reset")
+            return build_response(request, json={"results": [{"primaryAccession": "P2"}]})
+        return build_response(
+            request,
+            json={"results": [{"primaryAccession": "P1"}]},
+            headers={"Link": f'<{next_url}>; rel="next"'},
+        )
+
+    monkeypatch.setattr(uniprot_module.time, "sleep", lambda _seconds: None)
+    niquests_mock.get(url=startswith(SEARCH_URL)).mock(side_effect=serve_page)
+
+    payload, metadata = interface.submit_search(query="kinase", fields="accession", sort="accession asc")
+
+    assert [record["primaryAccession"] for record in payload["results"]] == ["P1", "P2"]
+    assert sum(url.startswith(f"{SEARCH_URL}?") and "cursor=" not in url for url in requested_urls) == 1
+    assert requested_urls.count(next_url) == 2
+    assert metadata["extra"]["pages_fetched"] == 2
+    assert metadata["extra"]["attempts"] == 3
+
+
+def test_submit_search_raises_when_current_page_exhausts_retries(monkeypatch, niquests_mock):
+    interface = UniprotInterface(total_retries=2)
+    next_url = f"{SEARCH_URL}?cursor=broken-page&format=json&size=500"
+    requested_urls = []
+
+    def serve_page(request):
+        requested_urls.append(request.url)
+        if request.url == next_url:
+            raise NiquestsConnectionError("connection reset")
+        return build_response(
+            request,
+            json={"results": [{"primaryAccession": "P1"}]},
+            headers={"Link": f'<{next_url}>; rel="next"'},
+        )
+
+    monkeypatch.setattr(uniprot_module.time, "sleep", lambda _seconds: None)
+    niquests_mock.get(url=startswith(SEARCH_URL)).mock(side_effect=serve_page)
+
+    with pytest.raises(RequestError, match="search page 2 failed after 2 attempts"):
+        interface.submit_search(query="kinase", fields="accession", sort="accession asc")
+
+    assert sum(url.startswith(f"{SEARCH_URL}?") and "cursor=" not in url for url in requested_urls) == 1
+    assert requested_urls.count(next_url) == 2
 
 
 def test_submit_id_mapping_posts_and_returns_job_id(interface, niquests_mock):

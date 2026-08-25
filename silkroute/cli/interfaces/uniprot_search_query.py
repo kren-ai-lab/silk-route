@@ -58,7 +58,7 @@ def run(
     request_fields = fields if normalize_uniprot_return_fields(fields) else ",".join(VALID_FIELDS)
     effective_fields = ",".join(get_effective_uniprot_return_fields(request_fields, crossref_fields))
 
-    response, fetch_metadata = instance.submit_stream(
+    response, fetch_metadata = instance.submit_search(
         query=query,
         fields=effective_fields,
         sort=sort,

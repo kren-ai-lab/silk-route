@@ -10,9 +10,16 @@ from silkroute.cli.interfaces import uniprot_search_ids, uniprot_search_query
 class RecordingUniprot:
     def __init__(self):
         self.submit_kwargs = None
+        self.submit_method = None
         self.download_args = None
 
+    def submit_search(self, **kwargs):
+        self.submit_method = "search"
+        self.submit_kwargs = kwargs
+        return {"results": []}, {}
+
     def submit_stream(self, **kwargs):
+        self.submit_method = "stream"
         self.submit_kwargs = kwargs
         return {"results": []}, {}
 
@@ -42,7 +49,10 @@ def test_by_query_forwards_explicit_fields_to_fetch_and_export(monkeypatch, tmp_
         export_format="csv",
     )
 
+    assert interface.submit_method == "search"
     assert interface.submit_kwargs["fields"] == "accession,protein_name,sequence"
+    assert interface.submit_kwargs["sort"] == "accession asc"
+    assert interface.submit_kwargs["include_isoform"] is False
     assert saved["fields"] == "accession,protein_name,sequence"
 
 

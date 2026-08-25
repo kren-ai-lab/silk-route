@@ -644,12 +644,12 @@ class MainWorkflow:
         include_isoform: bool,
         timeout: float | None,
     ) -> tuple[Any, Any]:
-        """Submit one UniProt stream query, logging start and completion.
+        """Submit one paginated UniProt search query, logging start and completion.
 
         Args:
             query (Any): The UniProt query to submit.
             fields (str): Comma-separated UniProt return fields.
-            sort (str): Sort expression for the stream query.
+            sort (str): Sort expression for the search query.
             include_isoform (bool): Whether to include isoforms.
             timeout (float | None): Request timeout in seconds.
 
@@ -664,7 +664,7 @@ class MainWorkflow:
             sort,
             include_isoform,
         )
-        resp, fetch_meta = self.uniprot.submit_stream(
+        resp, fetch_meta = self.uniprot.submit_search(
             query=query,
             fields=(fields or ""),
             sort=sort,
