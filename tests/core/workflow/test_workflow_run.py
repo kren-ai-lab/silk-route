@@ -477,6 +477,37 @@ def test_run_protein_projects_explicit_fields_after_parsing():
     assert data["uniprot"].columns == ["accession", "protein_name", "sequence"]
 
 
+def test_run_protein_keeps_enrichment_helpers_internal():
+    uniprot = RecordingUniprot(
+        parsed_frame=pl.DataFrame(
+            {
+                "accession": ["P12345"],
+                "cc_catalytic_activity": [[{"name": "Example reaction"}]],
+                "go_id": [["GO:0016829"]],
+                "chebi_ids": [["CHEBI:1234"]],
+                "go_terms": [["GO:0016829"]],
+            }
+        )
+    )
+    workflow = MainWorkflow(uniprot_interface=cast("UniprotInterface", uniprot))
+
+    data, _ = workflow.run_protein(
+        query="kinase",
+        fields="accession,cc_catalytic_activity,go_id",
+        crossref_fields="chebi,go",
+        enrich=False,
+    )
+
+    assert uniprot.parse_calls[0]["extract_fields"] == [
+        "accession",
+        "cc_catalytic_activity",
+        "go_id",
+        "chebi_ids",
+        "go_terms",
+    ]
+    assert data["uniprot"].columns == ["accession", "cc_catalytic_activity", "go_id"]
+
+
 def test_run_protein_empty_query_skips_fetch(niquests_mock):
     workflow = MainWorkflow(uniprot_interface=UniprotInterface())
     data, _ = workflow.run_protein(query="", enrich=False)

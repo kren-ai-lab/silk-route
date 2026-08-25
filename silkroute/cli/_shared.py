@@ -17,7 +17,7 @@ import polars as pl
 import typer
 
 from silkroute.constants.uniprot import (
-    get_effective_uniprot_return_fields,
+    get_effective_uniprot_parsed_fields,
     get_uniprot_parsed_fields,
     normalize_uniprot_return_fields,
 )
@@ -391,9 +391,7 @@ def parse_and_save_uniprot(
     fmt = cast("Literal['json', 'dataframe', 'xml']", parse_format)
     selected_fields = get_uniprot_parsed_fields(fields) if normalize_uniprot_return_fields(fields) else None
     working_fields = (
-        get_uniprot_parsed_fields(get_effective_uniprot_return_fields(fields, crossref_fields))
-        if selected_fields is not None
-        else None
+        get_effective_uniprot_parsed_fields(fields, crossref_fields) if selected_fields is not None else None
     )
     export_data, parsed_metadata = instance.parse(results=response, extract_fields=working_fields, format=fmt)
     metadata["parsing"] = parsed_metadata

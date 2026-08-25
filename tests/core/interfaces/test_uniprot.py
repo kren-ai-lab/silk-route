@@ -14,9 +14,16 @@ import pytest
 from niquests.exceptions import ConnectionError as NiquestsConnectionError
 from niquests_mock import build_response, startswith
 
+from silkroute.constants.uniprot import get_effective_uniprot_parsed_fields, get_uniprot_parsed_fields
 from silkroute.core.exceptions import RequestError
 from silkroute.core.interfaces import uniprot as uniprot_module
-from silkroute.core.interfaces.uniprot import API_URL, SEARCH_PAGE_SIZE, UniprotInterface
+from silkroute.core.interfaces.uniprot import (
+    API_URL,
+    SEARCH_PAGE_SIZE,
+    UniprotInterface,
+    _normalize_parsed_value,
+    project_uniprot_fields,
+)
 from silkroute.core.metadata import FetchMetadata
 from tests._helpers import load_fixture
 
@@ -65,6 +72,146 @@ def test_parse_explicit_fields_excludes_nested_unrequested_fields(interface):
     assert parsed.to_dicts() == [
         {"accession": "P12345", "protein_name": "Example enzyme", "sequence": "MPEPTIDE"}
     ]
+
+
+def test_parse_realistic_public_field_semantics_into_final_dataframe(interface):
+    results = load_fixture("uniprot", "field_semantics")
+    return_fields = (
+        "accession,id,protein_name,gene_names,organism_name,organism_id,lineage,lineage_ids,"
+        "virus_hosts,reviewed,protein_existence,annotation_score,fragment,length,sequence,"
+        "cc_function,cc_catalytic_activity,ec,go_id,keyword,date_created,date_modified"
+    )
+    fields = get_uniprot_parsed_fields(return_fields)
+
+    parsed, metadata = interface.parse(results, extract_fields=fields, format="dataframe")
+
+    assert parsed.columns == fields
+    rows = {row["accession"]: row for row in parsed.to_dicts()}
+    replicase = rows["P0DTC1"]
+    spike = rows["P0DTC2"]
+    assert replicase["id"] == "R1A_SARS2"
+    assert replicase["protein_name"] == "Replicase polyprotein 1a"
+    assert spike["gene_names"] == ["S", "2"]
+    assert spike["organism"] == "Severe acute respiratory syndrome coronavirus 2"
+    assert spike["organism_id"] == 2697049
+    assert spike["virus_hosts"][0]["taxonId"] == 9606
+    assert spike["reviewed"] is True
+    assert spike["protein_existence"] == "1: Evidence at protein level"
+    assert spike["annotation_score"] == 5.0
+    assert spike["fragment"] is None
+    assert spike["length"] == 1273
+    assert spike["sequence"].startswith("MFVFLVLL")
+    assert spike["date_created"] == "2020-04-22"
+    assert spike["date_modified"] == "2026-06-10"
+    assert spike["cc_function"] == ["Attaches the virion to the host cell receptor."]
+    assert spike["cc_catalytic_activity"] is None
+    assert spike["ec"] is None
+    assert replicase["cc_catalytic_activity"][0]["name"].startswith("Viral polyprotein")
+    assert replicase["go_id"] == ["GO:0004197", "GO:0006508", "GO:0019079"]
+    assert metadata["field_coverage"]["fragment"] == 0
+    assert metadata["field_coverage"]["cc_catalytic_activity"] == 1
+    assert metadata["field_coverage"]["ec"] == 1
+    assert "chebi_ids" not in parsed.columns
+    assert "go_terms" not in parsed.columns
+
+
+def test_multivalue_fields_are_plain_complete_collections(interface):
+    results = load_fixture("uniprot", "field_semantics")
+    fields = [
+        "gene_names",
+        "lineage",
+        "lineage_ids",
+        "virus_hosts",
+        "cc_function",
+        "cc_catalytic_activity",
+        "ec",
+        "go_id",
+        "keyword",
+    ]
+    parsed, _ = interface.parse(results, extract_fields=fields, format="json")
+    rows = dict(zip((result["primaryAccession"] for result in results["results"]), parsed, strict=True))
+    raw = results["results"][0]
+    replicase = rows["P0DTC1"]
+
+    for row in parsed:
+        assert all(not isinstance(value, pl.Series) for value in row.values())
+        assert all(
+            value is None or isinstance(value, (str, int, float, bool, list, dict)) for value in row.values()
+        )
+
+    expected_lineage = raw["organism"]["lineage"]
+    expected_lineage_ids = [lineage["taxonId"] for lineage in raw["lineages"]]
+    assert replicase["lineage"] == expected_lineage
+    assert replicase["lineage_ids"] == expected_lineage_ids
+    assert len(replicase["lineage"]) == len(expected_lineage) == 12
+    assert replicase["lineage"][0] == "Viruses"
+    assert replicase["lineage"][5] == "Nidovirales"
+    assert replicase["lineage"][-1] == "Betacoronavirus pandemicum"
+    assert replicase["lineage_ids"][0] == 10239
+    assert replicase["lineage_ids"][5] == 76804
+    assert replicase["lineage_ids"][-1] == 3418604
+    assert replicase["virus_hosts"] == raw["organismHosts"]
+    assert replicase["ec"] == ["3.2.2.-", "3.4.19.12", "3.4.22.-", "3.4.22.69", "2.7.7.50"]
+    assert replicase["go_id"] == ["GO:0004197", "GO:0006508", "GO:0019079"]
+    assert rows["P0DTC2"]["cc_catalytic_activity"] is None
+    assert rows["P0DTC9"]["ec"] is None
+
+
+def test_parser_normalizes_series_and_empty_collections_to_missing():
+    assert _normalize_parsed_value(pl.Series(["S", "2"])) == ["S", "2"]
+    assert _normalize_parsed_value(pl.Series([], dtype=pl.String)) is None
+    assert _normalize_parsed_value([]) is None
+    assert _normalize_parsed_value({}) is None
+    assert _normalize_parsed_value(False) is False
+    assert _normalize_parsed_value(0) == 0
+    assert _normalize_parsed_value(0.0) == 0.0
+
+
+def test_field_coverage_counts_values_not_container_objects(interface):
+    parsed = [
+        {
+            "none": None,
+            "empty_list": [],
+            "empty_dict": {},
+            "empty_series": pl.Series([], dtype=pl.String),
+            "false": False,
+            "zero": 0,
+            "zero_float": 0.0,
+            "text": "value",
+            "values": ["x"],
+        }
+    ]
+    fields = list(parsed[0])
+
+    metadata = interface._aggregate_parse_metadata(parsed, failed_records=0, extract_fields=fields)
+
+    assert metadata["field_coverage"] == {
+        "none": 0,
+        "empty_list": 0,
+        "empty_dict": 0,
+        "empty_series": 0,
+        "false": 1,
+        "zero": 1,
+        "zero_float": 1,
+        "text": 1,
+        "values": 1,
+    }
+
+
+def test_enrichment_helpers_are_internal_and_projection_removes_them(interface):
+    results = load_fixture("uniprot", "field_semantics")
+    working_fields = get_effective_uniprot_parsed_fields("accession", "chebi,go")
+
+    parsed, _ = interface.parse(results, extract_fields=working_fields, format="dataframe")
+
+    assert parsed["chebi_ids"].to_list() == [["CHEBI:15377"], None, None]
+    assert parsed["go_terms"].to_list() == [
+        ["GO:0004197", "GO:0006508", "GO:0019079"],
+        ["GO:0046813", "GO:0075509", "GO:0019064"],
+        ["GO:0019013", "GO:0003723", "GO:0019074"],
+    ]
+    final = project_uniprot_fields(parsed, ["accession"])
+    assert final.columns == ["accession"]
 
 
 def test_parse_aggregates_field_coverage_across_records(interface):

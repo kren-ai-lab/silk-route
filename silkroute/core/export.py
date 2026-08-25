@@ -97,7 +97,12 @@ def _json_encode_value(value: Any) -> str | None:
     """JSON-encode a single nested cell value for a text column; pass None through."""
     if value is None:
         return None
-    return json.dumps(value, ensure_ascii=False, default=str)
+    # Polars passes a List/Array cell to ``map_elements`` as an inner Series.
+    # Convert it back to ordinary data before JSON encoding; ``default=str``
+    # would otherwise persist Polars' truncated display representation.
+    if isinstance(value, pl.Series):
+        value = value.to_list()
+    return json.dumps(value, ensure_ascii=False, default=str, separators=(",", ":"))
 
 
 def _encode_nested_for_text(df: pl.DataFrame) -> pl.DataFrame:

@@ -11,6 +11,7 @@ import polars as pl
 
 from silkroute import ChEMBLInterface, UniprotInterface
 from silkroute.constants.uniprot import (
+    get_effective_uniprot_parsed_fields,
     get_effective_uniprot_return_fields,
     get_uniprot_parsed_fields,
     normalize_uniprot_return_fields,
@@ -765,11 +766,9 @@ class MainWorkflow:
         response = resp_val if resp_val is not None else {}
         selected_return_fields = normalize_uniprot_return_fields(args.get("fields"))
         extract_fields = (
-            get_uniprot_parsed_fields(
-                get_effective_uniprot_return_fields(
-                    selected_return_fields,
-                    args.get("additional_crossref_fields"),
-                )
+            get_effective_uniprot_parsed_fields(
+                selected_return_fields,
+                args.get("additional_crossref_fields"),
             )
             if selected_return_fields
             else None

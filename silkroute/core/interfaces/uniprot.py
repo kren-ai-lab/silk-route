@@ -25,15 +25,24 @@ from silkroute.core.metadata import FetchMetadata, RequestInfo, current_tool
 from silkroute.core.utils.frames import drop_all_null_columns, records_to_frame
 from silkroute.core.utils.uniprot_auxiliary_methods import (
     extract_active_sites,
+    extract_catalytic_activity,
+    extract_comment_texts,
     extract_database_terms,
     extract_diseases,
     extract_domains,
-    extract_ec_numbers,
+    extract_fragment,
     extract_gene_names,
+    extract_gene_primary,
+    extract_go_ids,
     extract_interactions,
     extract_keywords,
+    extract_lineage_ids,
+    extract_organism_hosts,
     extract_ph,
+    extract_protein_ec_numbers,
+    extract_protein_name,
     extract_references,
+    extract_reviewed,
     extract_simple,
     extract_temperature,
     extract_variants,
@@ -46,6 +55,29 @@ log = get_logger("silkroute.interfaces.uniprot")
 API_URL = "https://rest.uniprot.org"
 POLLING_INTERVAL = 3
 SEARCH_PAGE_SIZE = 500
+
+
+def _normalize_parsed_value(value: Any) -> Any:
+    """Normalize one extracted field to the UniProt parser value contract."""
+    if isinstance(value, pl.Series):
+        value = value.to_list()
+    elif isinstance(value, tuple | set):
+        value = list(value)
+
+    if value == "" or (isinstance(value, (list, dict)) and not value):
+        return None
+    return value
+
+
+def _has_actual_value(value: Any) -> bool:
+    """Return whether a parsed field contains a real scalar or annotation value."""
+    if value is None:
+        return False
+    if isinstance(value, pl.Series):
+        return not value.is_empty()
+    if isinstance(value, (str, bytes, list, tuple, set, dict)):
+        return bool(value)
+    return True
 
 
 def project_uniprot_fields(data: Any, fields: list[str] | None) -> Any:
@@ -134,20 +166,33 @@ class UniprotInterface(BaseAPIInterface):
         # See utils.py for available extractor functions.
         self.field_map_base: dict[str, tuple[str, Callable[..., Any]]] = {
             "accession": ("primaryAccession", extract_simple),
-            "protein_name": ("proteinDescription.recommendedName.fullName.value", extract_simple),
-            "ec": ("proteinDescription.recommendedName.ecNumbers", extract_ec_numbers),
+            "id": ("uniProtkbId", extract_simple),
+            "protein_name": ("proteinDescription", extract_protein_name),
+            "ec": ("proteinDescription", extract_protein_ec_numbers),
             "organism": ("organism.scientificName", extract_simple),
-            "gene_primary": ("genes", extract_gene_names),
+            "gene_primary": ("genes", extract_gene_primary),
+            "gene_names": ("genes", extract_gene_names),
             "organism_id": ("organism.taxonId", extract_simple),
             "lineage": ("organism.lineage", extract_simple),
+            "lineage_ids": ("lineages", extract_lineage_ids),
+            "virus_hosts": ("organismHosts", extract_organism_hosts),
+            "reviewed": ("entryType", extract_reviewed),
+            "protein_existence": ("proteinExistence", extract_simple),
+            "annotation_score": ("annotationScore", extract_simple),
+            "fragment": ("proteinDescription", extract_fragment),
             "sequence": ("sequence.value", extract_simple),
             "length": ("sequence.length", extract_simple),
+            "date_created": ("entryAudit.firstPublicDate", extract_simple),
+            "date_modified": ("entryAudit.lastAnnotationUpdateDate", extract_simple),
             "alphafold_ids": ("uniProtKBCrossReferences", extract_database_terms),
             "biogrid_ids": ("uniProtKBCrossReferences", extract_database_terms),
             "brenda_ids": ("uniProtKBCrossReferences", extract_database_terms),
             "chebi_ids": ("comments", extract_database_terms),
+            "cc_function": ("comments", extract_comment_texts),
+            "cc_catalytic_activity": ("comments", extract_catalytic_activity),
             "chembl_ids": ("uniProtKBCrossReferences", extract_database_terms),
             "go_terms": ("uniProtKBCrossReferences", extract_database_terms),
+            "go_id": ("uniProtKBCrossReferences", extract_go_ids),
             "interpro_ids": ("uniProtKBCrossReferences", extract_database_terms),
             "kegg_ids": ("uniProtKBCrossReferences", extract_database_terms),
             "panther_ids": ("uniProtKBCrossReferences", extract_database_terms),
@@ -1032,6 +1077,7 @@ class UniprotInterface(BaseAPIInterface):
 
         """
         parsed = {}
+        missing = object()
 
         # Change field_map if 'from' and 'to' keys are present
         if "from" in result and "to" in result:
@@ -1043,16 +1089,24 @@ class UniprotInterface(BaseAPIInterface):
         for field, (path, extractor) in field_map.items():
             try:
                 # Navigate through the path (e.g. 'to.proteinDescription...')
-                data = result
+                data: Any = result
                 for raw_key in path.split("."):
                     key = int(raw_key) if raw_key.isdigit() else raw_key
-                    data = data.get(key, {})
+                    if not isinstance(data, dict):
+                        data = missing
+                        break
+                    data = data.get(key, missing)
+                    if data is missing:
+                        break
 
                 # Extract the value using the specific function
-                if field in DATABASES:
-                    parsed[field] = extractor(data, DATABASES[field]) if data else None
+                if data is missing:
+                    value = None
+                elif field in DATABASES:
+                    value = extractor(data, DATABASES[field])
                 else:
-                    parsed[field] = extractor(data) if data else None
+                    value = extractor(data)
+                parsed[field] = _normalize_parsed_value(value)
             except (KeyError, AttributeError, IndexError):
                 parsed[field] = None
 
@@ -1069,8 +1123,9 @@ class UniprotInterface(BaseAPIInterface):
         """Aggregate per-record parse results into dataset-level metadata.
 
         Replaces the old behavior of returning only the first record's metadata.
-        ``field_coverage`` maps each requested field to how many records actually
-        carried a non-null value — surfacing sparse fields across the whole result.
+        ``field_coverage`` maps each requested field to how many records carry an
+        actual value. Empty strings, collections, and Series count as missing,
+        while valid falsy scalars such as ``False`` and ``0`` count as populated.
 
         Args:
             parsed (list[dict]): Per-record parse results, including failed placeholders.
@@ -1092,7 +1147,8 @@ class UniprotInterface(BaseAPIInterface):
             "records": len(records),
             "failed_records": failed_records,
             "field_coverage": {
-                field: sum(1 for record in records if record.get(field) is not None) for field in requested
+                field: sum(1 for record in records if _has_actual_value(record.get(field)))
+                for field in requested
             },
         }
 

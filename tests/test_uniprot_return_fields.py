@@ -5,8 +5,10 @@ from __future__ import annotations
 import pytest
 
 from silkroute.constants.uniprot import (
+    get_effective_uniprot_parsed_fields,
     get_effective_uniprot_return_fields,
     get_required_uniprot_fields_for_enrichment,
+    get_required_uniprot_parsed_fields_for_enrichment,
     get_uniprot_parsed_fields,
 )
 
@@ -42,4 +44,25 @@ def test_return_fields_map_to_ordered_parser_fields():
         "temperature",
         "string_ids",
         "accession",
+    ]
+
+
+def test_requested_go_and_catalytic_fields_keep_public_semantics():
+    assert get_uniprot_parsed_fields("cc_catalytic_activity,go_id") == [
+        "cc_catalytic_activity",
+        "go_id",
+    ]
+
+
+def test_enrichment_helpers_are_separate_from_requested_fields():
+    assert get_required_uniprot_parsed_fields_for_enrichment("chebi,go") == [
+        "chebi_ids",
+        "go_terms",
+    ]
+    assert get_effective_uniprot_parsed_fields("accession", "chebi,go") == [
+        "accession",
+        "cc_catalytic_activity",
+        "go_id",
+        "chebi_ids",
+        "go_terms",
     ]

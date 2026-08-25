@@ -14,6 +14,8 @@ import pytest
 
 from silkroute.cli._shared import fetch_auto, parse_and_save_uniprot, save_or_print, unwrap
 from silkroute.core.interfaces.uniprot import UniprotInterface
+from silkroute.core.utils import crossref_enrichment as crossref_enrichment_module
+from tests._helpers import load_fixture
 
 
 class _FakeInterface:
@@ -211,3 +213,114 @@ def test_parse_and_save_uniprot_exports_only_explicit_fields(tmp_path):
 
     exported = pl.read_csv(tmp_path / "uniprot_results.csv")
     assert exported.columns == ["accession", "protein_name", "sequence"]
+
+
+def test_parse_and_save_uniprot_keeps_enrichment_helpers_out_of_export(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake_enrich(data, crossref_fields, **kwargs):
+        seen["columns"] = data.columns
+        seen["crossref_fields"] = crossref_fields
+        return {}, {"mocked": True}
+
+    monkeypatch.setattr(crossref_enrichment_module, "run_crossref_enrichment", fake_enrich)
+
+    parse_and_save_uniprot(
+        UniprotInterface(),
+        load_fixture("uniprot", "field_semantics"),
+        {},
+        fields="accession",
+        crossref_fields="chebi,go",
+        output=str(tmp_path),
+        export_format="csv",
+        logger=logging.getLogger(__name__),
+    )
+
+    assert seen["columns"] == [
+        "accession",
+        "cc_catalytic_activity",
+        "go_id",
+        "chebi_ids",
+        "go_terms",
+    ]
+    assert seen["crossref_fields"] == ["chebi", "go"]
+    exported = pl.read_csv(tmp_path / "uniprot_results.csv")
+    assert exported.columns == ["accession"]
+
+
+def test_parse_and_save_uniprot_multivalue_csv_is_lossless_json(tmp_path):
+    fields = (
+        "accession,gene_names,lineage,lineage_ids,virus_hosts,cc_function,"
+        "cc_catalytic_activity,ec,go_id,keyword"
+    )
+
+    parse_and_save_uniprot(
+        UniprotInterface(),
+        load_fixture("uniprot", "field_semantics"),
+        {},
+        fields=fields,
+        crossref_fields="",
+        output=str(tmp_path),
+        export_format="csv",
+        logger=logging.getLogger(__name__),
+    )
+
+    path = tmp_path / "uniprot_results.csv"
+    text = path.read_text(encoding="utf-8")
+    rows = {row["accession"]: row for row in pl.read_csv(path).to_dicts()}
+    replicase = rows["P0DTC1"]
+    assert all(artifact not in text for artifact in ("shape:", "Series:", "…", "â€¦"))
+    assert json.loads(replicase["lineage"])[5] == "Nidovirales"
+    assert json.loads(replicase["lineage"])[-1] == "Betacoronavirus pandemicum"
+    assert json.loads(replicase["lineage_ids"]) == [
+        10239,
+        2559587,
+        2732396,
+        2732408,
+        2732506,
+        76804,
+        2499399,
+        11118,
+        2501931,
+        694002,
+        2509511,
+        3418604,
+    ]
+    assert json.loads(replicase["ec"]) == [
+        "3.2.2.-",
+        "3.4.19.12",
+        "3.4.22.-",
+        "3.4.22.69",
+        "2.7.7.50",
+    ]
+    assert json.loads(replicase["go_id"]) == ["GO:0004197", "GO:0006508", "GO:0019079"]
+    assert json.loads(replicase["virus_hosts"])[0]["taxonId"] == 9606
+
+
+def test_parse_and_save_uniprot_multivalue_parquet_roundtrip(tmp_path):
+    fields = "accession,gene_names,lineage,lineage_ids,virus_hosts,cc_catalytic_activity,ec,go_id"
+
+    parse_and_save_uniprot(
+        UniprotInterface(),
+        load_fixture("uniprot", "field_semantics"),
+        {},
+        fields=fields,
+        crossref_fields="",
+        output=str(tmp_path),
+        export_format="parquet",
+        logger=logging.getLogger(__name__),
+    )
+
+    rows = {row["accession"]: row for row in pl.read_parquet(tmp_path / "uniprot_results.parquet").to_dicts()}
+    replicase = rows["P0DTC1"]
+    assert replicase["gene_names"] == ["rep", "1a"]
+    assert len(replicase["lineage"]) == 12
+    assert replicase["lineage"][5] == "Nidovirales"
+    assert replicase["lineage_ids"][-1] == 3418604
+    assert replicase["virus_hosts"][0]["taxonId"] == 9606
+    assert replicase["cc_catalytic_activity"][0]["reactionCrossReferences"][1] == {
+        "database": "ChEBI",
+        "id": "CHEBI:15377",
+    }
+    assert replicase["ec"][-1] == "2.7.7.50"
+    assert replicase["go_id"][-1] == "GO:0019079"

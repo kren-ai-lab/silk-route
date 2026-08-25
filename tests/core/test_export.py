@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import polars as pl
@@ -66,6 +67,27 @@ def test_export_csv_roundtrip(df, tmp_path):
     path = export_dataframe(df, tmp_path / "out.csv")
     assert path.exists()
     assert pl.read_csv(path).equals(df)
+
+
+def test_export_csv_nested_values_as_lossless_json(tmp_path):
+    df = pl.DataFrame(
+        {
+            "id": ["P1", "P2"],
+            "names": [["first", "middle", "last"], None],
+            "hosts": [[{"scientificName": "Homo sapiens", "taxonId": 9606}], None],
+        }
+    )
+
+    path = export_dataframe(df, tmp_path / "nested.csv")
+    text = path.read_text(encoding="utf-8")
+    rows = pl.read_csv(path).to_dicts()
+
+    assert "shape:" not in text
+    assert "Series:" not in text
+    assert "…" not in text
+    assert "â€¦" not in text
+    assert json.loads(rows[0]["names"]) == ["first", "middle", "last"]
+    assert json.loads(rows[0]["hosts"]) == [{"scientificName": "Homo sapiens", "taxonId": 9606}]
 
 
 def test_export_tsv(df, tmp_path):

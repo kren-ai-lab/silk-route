@@ -1,5 +1,6 @@
 """Field extraction helpers for UniProt API responses."""
 
+from collections.abc import Iterator
 from typing import Any
 
 
@@ -22,17 +23,149 @@ def extract_ec_numbers(ec_data: list) -> list[str]:
     return [ec["value"] for ec in ec_data] if isinstance(ec_data, list) else []
 
 
-def extract_gene_names(gene_names: list) -> list[str]:
-    """Extract gene names.
+def extract_protein_name(description: dict) -> str | None:
+    """Extract the recommended protein name, falling back to a submitted name."""
+    if not isinstance(description, dict):
+        return None
+    recommended = description.get("recommendedName") or {}
+    value = (recommended.get("fullName") or {}).get("value")
+    if value:
+        return value
+    for submitted in description.get("submissionNames") or []:
+        value = (submitted.get("fullName") or {}).get("value")
+        if value:
+            return value
+    return None
+
+
+def _iter_protein_names(description: dict) -> Iterator[dict]:
+    """Yield UniProt protein-name objects from a description and its components."""
+    if not isinstance(description, dict):
+        return
+
+    recommended = description.get("recommendedName")
+    if isinstance(recommended, dict):
+        yield recommended
+    for key in ("submissionNames", "alternativeNames"):
+        for name in description.get(key) or []:
+            if isinstance(name, dict):
+                yield name
+
+    for key in ("contains", "includes"):
+        for component in description.get(key) or []:
+            if isinstance(component, dict):
+                yield from _iter_protein_names(component)
+
+
+def extract_protein_ec_numbers(description: dict) -> list[str]:
+    """Extract stable, deduplicated EC numbers from UniProt protein names/components."""
+    values = [
+        ec.get("value")
+        for name in _iter_protein_names(description)
+        for ec in name.get("ecNumbers", [])
+        if isinstance(ec, dict)
+    ]
+    return list(dict.fromkeys(value for value in values if value))
+
+
+def extract_gene_primary(genes: list) -> list[str]:
+    """Extract only primary gene names."""
+    if not isinstance(genes, list):
+        return []
+    return [
+        value
+        for gene in genes
+        if isinstance(gene, dict)
+        if (value := (gene.get("geneName") or {}).get("value"))
+    ]
+
+
+def extract_gene_names(genes: list) -> list[str]:
+    """Extract all names represented by UniProt's public ``gene_names`` field.
 
     Args:
-        gene_names (list): Gene entries, each with a ``geneName.value`` field.
+        genes (list): Gene entries containing primary names, synonyms, ordered
+            locus names, and/or ORF names.
 
     Returns:
         list[str]: The gene name values, or an empty list if input is not a list.
 
     """
-    return [gene["geneName"]["value"] for gene in gene_names] if isinstance(gene_names, list) else []
+    if not isinstance(genes, list):
+        return []
+    names: list[str] = []
+    for gene in genes:
+        if not isinstance(gene, dict):
+            continue
+        groups = [[gene.get("geneName")] if gene.get("geneName") else []]
+        groups.extend(gene.get(key) or [] for key in ("synonyms", "orderedLocusNames", "orfNames"))
+        for item in (item for group in groups for item in group):
+            value = item.get("value") if isinstance(item, dict) else None
+            if value and value not in names:
+                names.append(value)
+    return names
+
+
+def extract_reviewed(entry_type: str) -> bool | None:
+    """Return whether an entry is reviewed from UniProt's ``entryType`` label."""
+    if not isinstance(entry_type, str):
+        return None
+    return entry_type.casefold().startswith("uniprotkb reviewed")
+
+
+def extract_fragment(description: dict) -> str | None:
+    """Return UniProt's fragment marker without conflating other flags."""
+    if not isinstance(description, dict):
+        return None
+    flag = description.get("flag")
+    return flag if flag in {"Fragment", "Fragments"} else None
+
+
+def extract_lineage_ids(lineages: list) -> list[int]:
+    """Extract taxon IDs from top-level UniProt lineage objects."""
+    if not isinstance(lineages, list):
+        return []
+    return [
+        taxon_id
+        for lineage in lineages
+        if isinstance(lineage, dict)
+        if (taxon_id := lineage.get("taxonId")) is not None
+    ]
+
+
+def extract_organism_hosts(hosts: list) -> list[dict]:
+    """Preserve the structured values returned for UniProt virus hosts."""
+    return [dict(host) for host in hosts if isinstance(host, dict)] if isinstance(hosts, list) else []
+
+
+def extract_comment_texts(comments: list, comment_type: str = "FUNCTION") -> list[str]:
+    """Extract text values from comments of a requested type."""
+    values: list[str] = []
+    for comment in comments if isinstance(comments, list) else []:
+        if not isinstance(comment, dict) or comment.get("commentType") != comment_type:
+            continue
+        values.extend(
+            text["value"] for text in comment.get("texts", []) if isinstance(text, dict) and text.get("value")
+        )
+    return values
+
+
+def extract_catalytic_activity(comments: list) -> list[dict]:
+    """Preserve structured reactions from CATALYTIC ACTIVITY comments."""
+    if not isinstance(comments, list):
+        return []
+    return [
+        dict(comment["reaction"])
+        for comment in comments
+        if isinstance(comment, dict)
+        and comment.get("commentType") == "CATALYTIC ACTIVITY"
+        and isinstance(comment.get("reaction"), dict)
+    ]
+
+
+def extract_go_ids(xrefs: list) -> list[str]:
+    """Extract the requested GO identifiers without renaming their semantics."""
+    return extract_database_terms(xrefs, "GO")
 
 
 def extract_database_terms(xrefs: list, database: str) -> list[str]:
@@ -49,16 +182,19 @@ def extract_database_terms(xrefs: list, database: str) -> list[str]:
         list[str]: The matching cross-reference IDs.
 
     """
-    # Comment solution
-    if all("reaction" in xref for xref in xrefs if isinstance(xrefs, list)):
-        return [
-            reaction_xref.get("id")
-            for xref in xrefs
-            for reaction_xref in xref.get("reaction", {}).get("reactionCrossReferences", [])
-            if reaction_xref.get("database") == database
-        ]
-    # Normal solution
-    return [x["id"] for x in xrefs if isinstance(x, dict) and x.get("database") == database]
+    if not isinstance(xrefs, list):
+        return []
+    values = [
+        reaction_xref.get("id")
+        for xref in xrefs
+        if isinstance(xref, dict)
+        for reaction_xref in (xref.get("reaction") or {}).get("reactionCrossReferences", [])
+        if reaction_xref.get("database") == database
+    ]
+    values.extend(
+        xref.get("id") for xref in xrefs if isinstance(xref, dict) and xref.get("database") == database
+    )
+    return list(dict.fromkeys(value for value in values if value))
 
 
 def extract_references(refs: list) -> list[dict]:
