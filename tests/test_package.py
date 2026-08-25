@@ -6,12 +6,14 @@ import subprocess
 import sys
 from importlib import metadata
 
+EXPECTED_VERSION = "0.1.2"
+
 
 def test_version_is_exposed() -> None:
     import silkroute
 
-    assert isinstance(silkroute.__version__, str)
-    assert silkroute.__version__
+    assert silkroute.__version__ == EXPECTED_VERSION
+    assert metadata.version("silkroute") == EXPECTED_VERSION
 
 
 def test_public_exports_are_lazy_and_resolve() -> None:
