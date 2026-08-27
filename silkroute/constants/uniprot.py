@@ -56,6 +56,58 @@ VALID_CROSS_REF_FIELDS = {
     "rhea": "rhea_ids",
 }
 
+# UniProt REST return-field IDs do not always match SilkRoute's parsed output
+# names. Keep that translation centralized so callers can request API fields
+# while the parser continues to expose its established column names.
+UNIPROT_RETURN_FIELD_TO_PARSED_FIELD = {
+    "accession": "accession",
+    "id": "id",
+    "protein_name": "protein_name",
+    "ec": "ec",
+    "organism_name": "organism",
+    "gene_primary": "gene_primary",
+    "gene_names": "gene_names",
+    "organism_id": "organism_id",
+    "lineage": "lineage",
+    "lineage_ids": "lineage_ids",
+    "virus_hosts": "virus_hosts",
+    "reviewed": "reviewed",
+    "protein_existence": "protein_existence",
+    "annotation_score": "annotation_score",
+    "fragment": "fragment",
+    "sequence": "sequence",
+    "length": "length",
+    "keyword": "keyword",
+    "cc_function": "cc_function",
+    "temp_dependence": "temperature",
+    "ph_dependence": "ph",
+    "cc_interaction": "interactions",
+    "ft_variant": "variants",
+    "ft_site": "active_sites",
+    "ft_domain": "domains",
+    "ft_motif": "domains",
+    "ft_region": "domains",
+    "xref_alphafolddb": "alphafold_ids",
+    "xref_brenda": "brenda_ids",
+    "cc_catalytic_activity": "cc_catalytic_activity",
+    "xref_chembl": "chembl_ids",
+    "go_id": "go_id",
+    "xref_interpro": "interpro_ids",
+    "xref_kegg": "kegg_ids",
+    "xref_panther": "panther_ids",
+    "xref_pathwaycommons": "pathwaycommons_ids",
+    "xref_pdb": "pdb_ids",
+    "xref_pfam": "pfam_ids",
+    "xref_pride": "pride_ids",
+    "xref_reactome": "reactome_ids",
+    "xref_refseq": "refseq_ids",
+    "rhea": "rhea_ids",
+    "xref_sabio-rk": "sabiork_ids",
+    "xref_string": "string_ids",
+    "date_created": "date_created",
+    "date_modified": "date_modified",
+}
+
 # Mapping of cross-reference fields to (field_name, endpoint_name)
 # If there is not a uniprot field associated, just use the endpoint name
 XREF_MAPPING = {
@@ -100,6 +152,13 @@ ENRICHMENT_REQUIRED_UNIPROT_FIELDS: dict[str, tuple[str, ...]] = {
     "string": ("xref_string", "gene_primary", "organism_id"),
 }
 
+# Parsed columns used only to build enrichment requests. These remain distinct
+# from the public values represented by ``cc_catalytic_activity`` and ``go_id``.
+ENRICHMENT_REQUIRED_UNIPROT_PARSED_FIELDS: dict[str, tuple[str, ...]] = {
+    "chebi": ("chebi_ids",),
+    "go": ("go_terms",),
+}
+
 
 def normalize_uniprot_return_fields(value: object) -> list[str]:
     """Normalize UniProt return-field input into stable, deduplicated field IDs."""
@@ -124,6 +183,19 @@ def normalize_uniprot_return_fields(value: object) -> list[str]:
         fields.append(field)
         seen.add(lookup_value)
     return fields
+
+
+def get_uniprot_parsed_fields(value: object) -> list[str]:
+    """Translate UniProt REST return fields to ordered parsed output fields."""
+    parsed_fields: list[str] = []
+    seen: set[str] = set()
+    for field in normalize_uniprot_return_fields(value):
+        parsed_field = UNIPROT_RETURN_FIELD_TO_PARSED_FIELD.get(field, field)
+        lookup_value = parsed_field.casefold()
+        if lookup_value not in seen:
+            parsed_fields.append(parsed_field)
+            seen.add(lookup_value)
+    return parsed_fields
 
 
 def get_default_uniprot_return_fields() -> list[str]:
@@ -161,6 +233,34 @@ def get_required_uniprot_fields_for_enrichment(crossref_fields: object) -> list[
     if enrichment_requested and "accession" not in seen:
         required_fields.append("accession")
     return required_fields
+
+
+def get_required_uniprot_parsed_fields_for_enrichment(crossref_fields: object) -> list[str]:
+    """Return internal parsed columns required to run selected enrichments."""
+    required_fields: list[str] = []
+    seen: set[str] = set()
+    for field in normalize_uniprot_return_fields(crossref_fields):
+        source = field.rsplit("_", 1)[0] if field.endswith("_all") else field
+        required = ENRICHMENT_REQUIRED_UNIPROT_PARSED_FIELDS.get(source)
+        if required is None and "_" in source:
+            required = ENRICHMENT_REQUIRED_UNIPROT_PARSED_FIELDS.get(source.split("_", 1)[0])
+        for required_field in required or ():
+            lookup_value = required_field.casefold()
+            if lookup_value not in seen:
+                required_fields.append(required_field)
+                seen.add(lookup_value)
+    return required_fields
+
+
+def get_effective_uniprot_parsed_fields(value: object, crossref_fields: object = None) -> list[str]:
+    """Return public parsed fields plus any enrichment-only helper columns."""
+    parsed_fields = get_uniprot_parsed_fields(get_effective_uniprot_return_fields(value, crossref_fields))
+    seen = {field.casefold() for field in parsed_fields}
+    for required_field in get_required_uniprot_parsed_fields_for_enrichment(crossref_fields):
+        if required_field.casefold() not in seen:
+            parsed_fields.append(required_field)
+            seen.add(required_field.casefold())
+    return parsed_fields
 
 
 def get_effective_uniprot_return_fields(

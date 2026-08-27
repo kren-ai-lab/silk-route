@@ -1,0 +1,232 @@
+{
+  "results": [
+    {
+      "entryType": "UniProtKB reviewed (Swiss-Prot)",
+      "primaryAccession": "P0DTC1",
+      "uniProtkbId": "R1A_SARS2",
+      "entryAudit": {
+        "firstPublicDate": "2020-04-22",
+        "lastAnnotationUpdateDate": "2026-06-10"
+      },
+      "annotationScore": 5.0,
+      "proteinExistence": "1: Evidence at protein level",
+      "organism": {
+        "scientificName": "Severe acute respiratory syndrome coronavirus 2",
+        "taxonId": 2697049,
+        "lineage": [
+          "Viruses",
+          "Riboviria",
+          "Orthornavirae",
+          "Pisuviricota",
+          "Pisoniviricetes",
+          "Nidovirales",
+          "Cornidovirineae",
+          "Coronaviridae",
+          "Orthocoronavirinae",
+          "Betacoronavirus",
+          "Sarbecovirus",
+          "Betacoronavirus pandemicum"
+        ]
+      },
+      "lineages": [
+        {"scientificName": "Viruses", "taxonId": 10239},
+        {"scientificName": "Riboviria", "taxonId": 2559587},
+        {"scientificName": "Orthornavirae", "taxonId": 2732396},
+        {"scientificName": "Pisuviricota", "taxonId": 2732408},
+        {"scientificName": "Pisoniviricetes", "taxonId": 2732506},
+        {"scientificName": "Nidovirales", "taxonId": 76804},
+        {"scientificName": "Cornidovirineae", "taxonId": 2499399},
+        {"scientificName": "Coronaviridae", "taxonId": 11118},
+        {"scientificName": "Orthocoronavirinae", "taxonId": 2501931},
+        {"scientificName": "Betacoronavirus", "taxonId": 694002},
+        {"scientificName": "Sarbecovirus", "taxonId": 2509511},
+        {"scientificName": "Betacoronavirus pandemicum", "taxonId": 3418604}
+      ],
+      "organismHosts": [
+        {"scientificName": "Homo sapiens", "commonName": "Human", "taxonId": 9606}
+      ],
+      "proteinDescription": {
+        "recommendedName": {"fullName": {"value": "Replicase polyprotein 1a"}},
+        "alternativeNames": [{"fullName": {"value": "ORF1a polyprotein"}}],
+        "contains": [
+          {
+            "recommendedName": {
+              "fullName": {"value": "Papain-like protease nsp3"},
+              "ecNumbers": [
+                {"value": "3.2.2.-"},
+                {"value": "3.4.19.12"},
+                {"value": "3.4.22.-"}
+              ]
+            }
+          },
+          {
+            "recommendedName": {
+              "fullName": {"value": "3C-like proteinase nsp5"},
+              "ecNumbers": [{"value": "3.4.22.69"}]
+            }
+          },
+          {
+            "alternativeNames": [
+              {
+                "fullName": {"value": "RNA-directed RNA polymerase"},
+                "ecNumbers": [{"value": "2.7.7.50"}, {"value": "3.4.22.69"}]
+              }
+            ]
+          }
+        ]
+      },
+      "genes": [{"geneName": {"value": "rep"}, "orfNames": [{"value": "1a"}]}],
+      "comments": [
+        {
+          "commentType": "FUNCTION",
+          "texts": [{"value": "Cleaved into non-structural proteins involved in replication."}]
+        },
+        {
+          "commentType": "CATALYTIC ACTIVITY",
+          "reaction": {
+            "name": "Viral polyprotein + H2O = mature viral proteins",
+            "ecNumber": "3.4.19.12",
+            "reactionCrossReferences": [
+              {"database": "Rhea", "id": "RHEA:24296"},
+              {"database": "ChEBI", "id": "CHEBI:15377"}
+            ]
+          }
+        }
+      ],
+      "uniProtKBCrossReferences": [
+        {"database": "GO", "id": "GO:0004197"},
+        {"database": "GO", "id": "GO:0006508"},
+        {"database": "GO", "id": "GO:0019079"}
+      ],
+      "keywords": [{"name": "Protease"}, {"name": "RNA replication"}],
+      "sequence": {"value": "MESLVPGFNEKTHVQLSLPVLQVRDVLVRGFGDSV", "length": 4405}
+    },
+    {
+      "entryType": "UniProtKB reviewed (Swiss-Prot)",
+      "primaryAccession": "P0DTC2",
+      "uniProtkbId": "SPIKE_SARS2",
+      "entryAudit": {
+        "firstPublicDate": "2020-04-22",
+        "lastAnnotationUpdateDate": "2026-06-10"
+      },
+      "annotationScore": 5.0,
+      "proteinExistence": "1: Evidence at protein level",
+      "organism": {
+        "scientificName": "Severe acute respiratory syndrome coronavirus 2",
+        "taxonId": 2697049,
+        "lineage": [
+          "Viruses",
+          "Riboviria",
+          "Orthornavirae",
+          "Pisuviricota",
+          "Pisoniviricetes",
+          "Nidovirales",
+          "Cornidovirineae",
+          "Coronaviridae",
+          "Orthocoronavirinae",
+          "Betacoronavirus",
+          "Sarbecovirus",
+          "Betacoronavirus pandemicum"
+        ]
+      },
+      "lineages": [
+        {"scientificName": "Viruses", "taxonId": 10239},
+        {"scientificName": "Riboviria", "taxonId": 2559587},
+        {"scientificName": "Orthornavirae", "taxonId": 2732396},
+        {"scientificName": "Pisuviricota", "taxonId": 2732408},
+        {"scientificName": "Pisoniviricetes", "taxonId": 2732506},
+        {"scientificName": "Nidovirales", "taxonId": 76804},
+        {"scientificName": "Cornidovirineae", "taxonId": 2499399},
+        {"scientificName": "Coronaviridae", "taxonId": 11118},
+        {"scientificName": "Orthocoronavirinae", "taxonId": 2501931},
+        {"scientificName": "Betacoronavirus", "taxonId": 694002},
+        {"scientificName": "Sarbecovirus", "taxonId": 2509511},
+        {"scientificName": "Betacoronavirus pandemicum", "taxonId": 3418604}
+      ],
+      "organismHosts": [
+        {"scientificName": "Homo sapiens", "commonName": "Human", "taxonId": 9606}
+      ],
+      "proteinDescription": {
+        "recommendedName": {"fullName": {"value": "Spike glycoprotein"}},
+        "flag": "Precursor"
+      },
+      "genes": [{"geneName": {"value": "S"}, "orfNames": [{"value": "2"}]}],
+      "comments": [
+        {
+          "commentType": "FUNCTION",
+          "texts": [{"value": "Attaches the virion to the host cell receptor."}]
+        }
+      ],
+      "uniProtKBCrossReferences": [
+        {"database": "GO", "id": "GO:0046813"},
+        {"database": "GO", "id": "GO:0075509"},
+        {"database": "GO", "id": "GO:0019064"}
+      ],
+      "keywords": [{"name": "Glycoprotein"}, {"name": "Virion"}],
+      "sequence": {"value": "MFVFLVLLPLVSSQCVNLTTRTQLPPAYTNSFTR", "length": 1273}
+    },
+    {
+      "entryType": "UniProtKB reviewed (Swiss-Prot)",
+      "primaryAccession": "P0DTC9",
+      "uniProtkbId": "NCAP_SARS2",
+      "entryAudit": {
+        "firstPublicDate": "2020-04-22",
+        "lastAnnotationUpdateDate": "2026-06-10"
+      },
+      "annotationScore": 5.0,
+      "proteinExistence": "1: Evidence at protein level",
+      "organism": {
+        "scientificName": "Severe acute respiratory syndrome coronavirus 2",
+        "taxonId": 2697049,
+        "lineage": [
+          "Viruses",
+          "Riboviria",
+          "Orthornavirae",
+          "Pisuviricota",
+          "Pisoniviricetes",
+          "Nidovirales",
+          "Cornidovirineae",
+          "Coronaviridae",
+          "Orthocoronavirinae",
+          "Betacoronavirus",
+          "Sarbecovirus",
+          "Betacoronavirus pandemicum"
+        ]
+      },
+      "lineages": [
+        {"scientificName": "Viruses", "taxonId": 10239},
+        {"scientificName": "Riboviria", "taxonId": 2559587},
+        {"scientificName": "Orthornavirae", "taxonId": 2732396},
+        {"scientificName": "Pisuviricota", "taxonId": 2732408},
+        {"scientificName": "Pisoniviricetes", "taxonId": 2732506},
+        {"scientificName": "Nidovirales", "taxonId": 76804},
+        {"scientificName": "Cornidovirineae", "taxonId": 2499399},
+        {"scientificName": "Coronaviridae", "taxonId": 11118},
+        {"scientificName": "Orthocoronavirinae", "taxonId": 2501931},
+        {"scientificName": "Betacoronavirus", "taxonId": 694002},
+        {"scientificName": "Sarbecovirus", "taxonId": 2509511},
+        {"scientificName": "Betacoronavirus pandemicum", "taxonId": 3418604}
+      ],
+      "organismHosts": [
+        {"scientificName": "Homo sapiens", "commonName": "Human", "taxonId": 9606}
+      ],
+      "proteinDescription": {
+        "recommendedName": {"fullName": {"value": "Nucleoprotein"}}
+      },
+      "genes": [{"geneName": {"value": "N"}, "orfNames": [{"value": "9"}]}],
+      "comments": [
+        {
+          "commentType": "FUNCTION",
+          "texts": [{"value": "Packages the positive strand viral genome RNA into a helical ribonucleocapsid."}]
+        }
+      ],
+      "uniProtKBCrossReferences": [
+        {"database": "GO", "id": "GO:0019013"},
+        {"database": "GO", "id": "GO:0003723"},
+        {"database": "GO", "id": "GO:0019074"}
+      ],
+      "keywords": [{"name": "RNA-binding"}, {"name": "Viral nucleoprotein"}],
+      "sequence": {"value": "MSDNGPQNQRNAPRITFGGPSDSTGSNQNGERSG", "length": 419}
+    }
+  ]
+}

@@ -23,6 +23,7 @@ def run(
         help="Database to convert from. Default is UniProtKB_AC-ID (UniProtKB_AC-ID, PDB)",
     ),
     to_db: str = typer.Option("UniProtKB", "--to-db", help="Database to convert to"),
+    fields: str | None = typer.Option(None, "-f", "--fields", help="Fields to include in the output"),
     crossref_fields: str = typer.Option(
         ",".join(VALID_CROSS_REF_FIELDS),
         "-xr",
@@ -63,6 +64,7 @@ def run(
         instance,
         response,
         metadata,
+        fields=fields,
         crossref_fields=crossref_fields,
         output=output,
         export_format=export_format,

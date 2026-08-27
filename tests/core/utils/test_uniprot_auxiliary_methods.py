@@ -13,9 +13,12 @@ from silkroute.core.utils.uniprot_auxiliary_methods import (
     extract_domains,
     extract_ec_numbers,
     extract_gene_names,
+    extract_gene_primary,
     extract_interactions,
     extract_keywords,
     extract_ph,
+    extract_protein_ec_numbers,
+    extract_protein_name,
     extract_references,
     extract_temperature,
     extract_variants,
@@ -42,8 +45,39 @@ def test_extract_gene_names_from_real_entry():
     assert extract_gene_names(entry["genes"]) == ["GOT2"]
 
 
+def test_extract_gene_names_includes_all_public_name_types():
+    genes = [
+        {
+            "geneName": {"value": "depo"},
+            "synonyms": [{"value": "rbp"}],
+            "orderedLocusNames": [{"value": "K1_0034"}],
+            "orfNames": [{"value": "ORF34"}],
+        },
+        {"orfNames": [{"value": "ORF35"}]},
+    ]
+    assert extract_gene_primary(genes) == ["depo"]
+    assert extract_gene_names(genes) == ["depo", "rbp", "K1_0034", "ORF34", "ORF35"]
+
+
 def test_extract_gene_names_non_list_returns_empty():
     assert extract_gene_names("nope") == []  # ty: ignore  # type: ignore[bad-argument-type]
+
+
+def test_extract_protein_name_falls_back_to_submission_name():
+    description = {"submissionNames": [{"fullName": {"value": "Keratin 13"}}]}
+    assert extract_protein_name(description) == "Keratin 13"
+
+
+def test_extract_protein_ec_numbers_includes_polyprotein_components():
+    entry = load_fixture("uniprot", "field_semantics")["results"][0]
+
+    assert extract_protein_ec_numbers(entry["proteinDescription"]) == [
+        "3.2.2.-",
+        "3.4.19.12",
+        "3.4.22.-",
+        "3.4.22.69",
+        "2.7.7.50",
+    ]
 
 
 def test_extract_database_terms_from_reaction_comments():

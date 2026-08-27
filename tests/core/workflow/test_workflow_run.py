@@ -2,7 +2,7 @@
 
 Mode/modality routing and the query_composition aggregation are exercised with
 stubbed modality handlers (no network). One end-to-end protein run drives the
-real pipeline against a mocked UniProt stream endpoint.
+real pipeline against a mocked paginated UniProt search endpoint.
 """
 
 from __future__ import annotations
@@ -44,9 +44,13 @@ class RecordingUniprot:
             )
         )
 
-    def submit_stream(self, **kwargs):
+    def submit_search(self, **kwargs):
         self.submit_calls.append(kwargs)
         return {"results": [{"primaryAccession": "P12345"}]}, {"extra": {"total_results": 1}}
+
+    def submit_stream(self, **kwargs):
+        msg = f"Workflow unexpectedly used legacy UniProt stream transport: {kwargs}"
+        raise AssertionError(msg)
 
     def parse(self, results, extract_fields=None, **kwargs):
         output_format = kwargs.get("format", "json")
@@ -421,13 +425,15 @@ def test_chembl_to_uniprot_no_ids_leaves_query_untouched(workflow):
     assert context["searches"]["uniprot"]["query"] is None
 
 
-# --- end-to-end protein run (mocked UniProt stream) ------------------------
+# --- end-to-end protein run (mocked paginated UniProt search) --------------
 
 
 def test_run_protein_fetches_parses_and_stamps_time(niquests_mock):
     results = load_fixture("uniprot", "idmapping_results")
-    niquests_mock.get(url=startswith(f"{API_URL}/uniprotkb/stream")).respond(
-        status_code=200, json=results, headers={"Content-Length": "123"}
+    niquests_mock.get(url=startswith(f"{API_URL}/uniprotkb/search")).respond(
+        status_code=200,
+        json=results,
+        headers={"Content-Length": "123", "x-total-results": str(len(results["results"]))},
     )
 
     workflow = MainWorkflow(uniprot_interface=UniprotInterface())
@@ -436,9 +442,70 @@ def test_run_protein_fetches_parses_and_stamps_time(niquests_mock):
     # UniProt response parsed to a DataFrame and carried under data["uniprot"].
     assert isinstance(data["uniprot"], pl.DataFrame)
     assert len(data["uniprot"]) == len(results["results"])
+    assert len(niquests_mock.calls) == 1
+    assert niquests_mock.calls[0].request.url.startswith(f"{API_URL}/uniprotkb/search?")
     # Provenance/timing stamped, fetch metadata recorded.
     assert "time_taken_seconds" in metadata
     assert "fetch" in metadata["uniprot"]
+
+
+def test_run_protein_projects_explicit_fields_after_parsing():
+    uniprot = RecordingUniprot(
+        parsed_frame=pl.DataFrame(
+            {
+                "accession": ["P12345"],
+                "protein_name": ["Example enzyme"],
+                "sequence": ["MPEPTIDE"],
+                "length": [8],
+                "ec": [["1.2.3.4"]],
+            }
+        )
+    )
+    workflow = MainWorkflow(uniprot_interface=cast("UniprotInterface", uniprot))
+
+    data, _ = workflow.run_protein(
+        query="kinase",
+        fields="accession,protein_name,sequence",
+        enrich=False,
+    )
+
+    assert uniprot.parse_calls[0]["extract_fields"] == [
+        "accession",
+        "protein_name",
+        "sequence",
+    ]
+    assert data["uniprot"].columns == ["accession", "protein_name", "sequence"]
+
+
+def test_run_protein_keeps_enrichment_helpers_internal():
+    uniprot = RecordingUniprot(
+        parsed_frame=pl.DataFrame(
+            {
+                "accession": ["P12345"],
+                "cc_catalytic_activity": [[{"name": "Example reaction"}]],
+                "go_id": [["GO:0016829"]],
+                "chebi_ids": [["CHEBI:1234"]],
+                "go_terms": [["GO:0016829"]],
+            }
+        )
+    )
+    workflow = MainWorkflow(uniprot_interface=cast("UniprotInterface", uniprot))
+
+    data, _ = workflow.run_protein(
+        query="kinase",
+        fields="accession,cc_catalytic_activity,go_id",
+        crossref_fields="chebi,go",
+        enrich=False,
+    )
+
+    assert uniprot.parse_calls[0]["extract_fields"] == [
+        "accession",
+        "cc_catalytic_activity",
+        "go_id",
+        "chebi_ids",
+        "go_terms",
+    ]
+    assert data["uniprot"].columns == ["accession", "cc_catalytic_activity", "go_id"]
 
 
 def test_run_protein_empty_query_skips_fetch(niquests_mock):

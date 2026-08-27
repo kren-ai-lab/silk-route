@@ -6,7 +6,12 @@ import typer
 
 from silkroute import UniprotInterface
 from silkroute.cli._shared import output_dir_option, parse_and_save_uniprot, validate_export_format
-from silkroute.constants.uniprot import VALID_FIELDS, XREF_MAPPING
+from silkroute.constants.uniprot import (
+    VALID_FIELDS,
+    XREF_MAPPING,
+    get_effective_uniprot_return_fields,
+    normalize_uniprot_return_fields,
+)
 from silkroute.logging import get_logger
 
 log = get_logger("silkroute.cli.uniprot_search_query")
@@ -15,9 +20,7 @@ log = get_logger("silkroute.cli.uniprot_search_query")
 def run(
     output: str = output_dir_option(),
     query: str = typer.Option(..., "-q", "--query", help="Query to search for"),
-    fields: str = typer.Option(
-        ",".join(VALID_FIELDS), "-f", "--fields", help="Fields to include in the output"
-    ),
+    fields: str | None = typer.Option(None, "-f", "--fields", help="Fields to include in the output"),
     crossref_fields: str = typer.Option(
         "",
         "-xr",
@@ -52,12 +55,12 @@ def run(
     )
     metadata: dict[str, Any] = {}
     instance = UniprotInterface()
-    xref_mapping = {v[1]: v[0] for k, v in XREF_MAPPING.items() if v[0] is not None}
-    xref = ",".join([xref_mapping[c] for c in crossref_fields.split(",") if c in xref_mapping])
+    request_fields = fields if normalize_uniprot_return_fields(fields) else ",".join(VALID_FIELDS)
+    effective_fields = ",".join(get_effective_uniprot_return_fields(request_fields, crossref_fields))
 
-    response, fetch_metadata = instance.submit_stream(
+    response, fetch_metadata = instance.submit_search(
         query=query,
-        fields=fields + "," + xref,
+        fields=effective_fields,
         sort=sort,
         include_isoform=include_isoform,
     )
@@ -67,6 +70,7 @@ def run(
         instance,
         response,
         metadata,
+        fields=fields,
         crossref_fields=crossref_fields,
         output=output,
         export_format=export_format,

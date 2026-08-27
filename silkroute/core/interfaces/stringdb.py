@@ -1,8 +1,10 @@
 """STRING protein interaction database API interface."""
 
+from http import HTTPStatus
 from typing import Any, ClassVar
 
 from niquests import Request
+from niquests.models import Response
 
 from silkroute.constants.databases import STRING
 from silkroute.constants.stringdb import METHOD_FORMATS
@@ -64,6 +66,41 @@ class StringInterface(BaseAPIInterface):
 
         url = f"{STRING.API_URL}{outfmt}/{method}"
         return Request(method=http_method, url=url, params=validated_params)
+
+    @staticmethod
+    def _is_unresolved_identifier_response(response: Response) -> bool:
+        """Return whether STRING reports that an identifier could not be resolved."""
+        if response.status_code != HTTPStatus.NOT_FOUND:
+            return False
+        try:
+            data = response.json()
+        except (TypeError, ValueError):
+            return False
+        return (
+            isinstance(data, list)
+            and bool(data)
+            and isinstance(data[0], dict)
+            and data[0].get("Error") == "not found"
+        )
+
+    def _handle_expected_http_error(
+        self, response: Response, *, query: str | dict | list, **_kwargs: Any
+    ) -> bool:
+        if not self._is_unresolved_identifier_response(response):
+            return False
+
+        identifier = query.get("identifiers") if isinstance(query, dict) else query
+        species = query.get("species") if isinstance(query, dict) else None
+        log.warning("STRING identifier not found: %s (species=%s)", identifier, species)
+        return True
+
+    def fetch(self, query: str | dict | list, *, method: str, **kwargs: Any) -> Any:
+        """Fetch STRING data, returning no result for unresolved identifiers."""
+        self._apply_default_option(kwargs)
+        response = self._do_request(query, method=method, **kwargs)
+        if self._is_unresolved_identifier_response(response):
+            return []
+        return self._unwrap_response(response.json(), method=method, **kwargs)
 
     def parse(self, data: Any, fields_to_extract: list | dict | None, **kwargs: Any) -> Any:
         """Parse the response from the STRING API.

@@ -25,15 +25,24 @@ from silkroute.core.metadata import FetchMetadata, RequestInfo, current_tool
 from silkroute.core.utils.frames import drop_all_null_columns, records_to_frame
 from silkroute.core.utils.uniprot_auxiliary_methods import (
     extract_active_sites,
+    extract_catalytic_activity,
+    extract_comment_texts,
     extract_database_terms,
     extract_diseases,
     extract_domains,
-    extract_ec_numbers,
+    extract_fragment,
     extract_gene_names,
+    extract_gene_primary,
+    extract_go_ids,
     extract_interactions,
     extract_keywords,
+    extract_lineage_ids,
+    extract_organism_hosts,
     extract_ph,
+    extract_protein_ec_numbers,
+    extract_protein_name,
     extract_references,
+    extract_reviewed,
     extract_simple,
     extract_temperature,
     extract_variants,
@@ -45,6 +54,64 @@ log = get_logger("silkroute.interfaces.uniprot")
 
 API_URL = "https://rest.uniprot.org"
 POLLING_INTERVAL = 3
+SEARCH_PAGE_SIZE = 500
+
+
+def _normalize_parsed_value(value: Any) -> Any:
+    """Normalize one extracted field to the UniProt parser value contract."""
+    if isinstance(value, pl.Series):
+        value = value.to_list()
+    elif isinstance(value, tuple | set):
+        value = list(value)
+
+    if value == "" or (isinstance(value, (list, dict)) and not value):
+        return None
+    return value
+
+
+def _has_actual_value(value: Any) -> bool:
+    """Return whether a parsed field contains a real scalar or annotation value."""
+    if value is None:
+        return False
+    if isinstance(value, pl.Series):
+        return not value.is_empty()
+    if isinstance(value, (str, bytes, list, tuple, set, dict)):
+        return bool(value)
+    return True
+
+
+def project_uniprot_fields(data: Any, fields: list[str] | None) -> Any:
+    """Project parsed UniProt data onto an ordered field list."""
+    if fields is None:
+        return data
+
+    if isinstance(data, pl.DataFrame):
+        missing = [field for field in fields if field not in data.columns]
+        if missing:
+            data = data.with_columns(pl.lit(None).alias(field) for field in missing)
+        return data.select(fields)
+
+    if isinstance(data, list):
+        return [
+            {field: record.get(field) for field in fields} if isinstance(record, dict) else record
+            for record in data
+        ]
+
+    if isinstance(data, dict):
+        return {field: data.get(field) for field in fields}
+
+    if isinstance(data, ET.ElementTree):
+        selected = set(fields)
+        root = data.getroot()
+        records = list(root)
+        if records and all(record.tag == "item" for record in records):
+            for record in records:
+                for child in list(record):
+                    if child.tag not in selected:
+                        record.remove(child)
+        return data
+
+    return data
 
 
 class UniprotInterface(BaseAPIInterface):
@@ -99,20 +166,33 @@ class UniprotInterface(BaseAPIInterface):
         # See utils.py for available extractor functions.
         self.field_map_base: dict[str, tuple[str, Callable[..., Any]]] = {
             "accession": ("primaryAccession", extract_simple),
-            "protein_name": ("proteinDescription.recommendedName.fullName.value", extract_simple),
-            "ec": ("proteinDescription.recommendedName.ecNumbers", extract_ec_numbers),
+            "id": ("uniProtkbId", extract_simple),
+            "protein_name": ("proteinDescription", extract_protein_name),
+            "ec": ("proteinDescription", extract_protein_ec_numbers),
             "organism": ("organism.scientificName", extract_simple),
-            "gene_primary": ("genes", extract_gene_names),
+            "gene_primary": ("genes", extract_gene_primary),
+            "gene_names": ("genes", extract_gene_names),
             "organism_id": ("organism.taxonId", extract_simple),
             "lineage": ("organism.lineage", extract_simple),
+            "lineage_ids": ("lineages", extract_lineage_ids),
+            "virus_hosts": ("organismHosts", extract_organism_hosts),
+            "reviewed": ("entryType", extract_reviewed),
+            "protein_existence": ("proteinExistence", extract_simple),
+            "annotation_score": ("annotationScore", extract_simple),
+            "fragment": ("proteinDescription", extract_fragment),
             "sequence": ("sequence.value", extract_simple),
             "length": ("sequence.length", extract_simple),
+            "date_created": ("entryAudit.firstPublicDate", extract_simple),
+            "date_modified": ("entryAudit.lastAnnotationUpdateDate", extract_simple),
             "alphafold_ids": ("uniProtKBCrossReferences", extract_database_terms),
             "biogrid_ids": ("uniProtKBCrossReferences", extract_database_terms),
             "brenda_ids": ("uniProtKBCrossReferences", extract_database_terms),
             "chebi_ids": ("comments", extract_database_terms),
+            "cc_function": ("comments", extract_comment_texts),
+            "cc_catalytic_activity": ("comments", extract_catalytic_activity),
             "chembl_ids": ("uniProtKBCrossReferences", extract_database_terms),
             "go_terms": ("uniProtKBCrossReferences", extract_database_terms),
+            "go_id": ("uniProtKBCrossReferences", extract_go_ids),
             "interpro_ids": ("uniProtKBCrossReferences", extract_database_terms),
             "kegg_ids": ("uniProtKBCrossReferences", extract_database_terms),
             "panther_ids": ("uniProtKBCrossReferences", extract_database_terms),
@@ -740,6 +820,224 @@ class UniprotInterface(BaseAPIInterface):
                 return payload, metadata
         return {}, {}
 
+    def _request_search_page(
+        self,
+        url: str,
+        *,
+        params: dict[str, str] | None,
+        headers: dict[str, str],
+        timeout: float,
+        page_number: int,
+    ) -> tuple[niquests.Response, int]:
+        """Request one UniProt search page, retrying only that page.
+
+        Args:
+            url (str): Initial search URL or an exact next-page URL from UniProt.
+            params (dict[str, str] | None): Query parameters for the initial page;
+                next-page URLs already contain their complete cursor state.
+            headers (dict[str, str]): Request headers.
+            timeout (float): Request timeout in seconds.
+            page_number (int): One-based page number used in logs and errors.
+
+        Returns:
+            tuple[niquests.Response, int]: Successful response and attempts used.
+
+        Raises:
+            RequestError: If the current page fails after all configured attempts.
+
+        """
+        for attempt in range(self.total_retries):
+            try:
+                response = niquests.get(
+                    url,
+                    params=params,
+                    headers=headers,
+                    timeout=timeout,
+                )
+                response.raise_for_status()
+            except niquests.exceptions.RequestException as exc:
+                if attempt < self.total_retries - 1:
+                    log.warning(
+                        "UniProt search page %s failed on attempt %s/%s: %s. Retrying page...",
+                        page_number,
+                        attempt + 1,
+                        self.total_retries,
+                        exc,
+                    )
+                    time.sleep(POLLING_INTERVAL)
+                    continue
+
+                message = (
+                    f"UniProt search page {page_number} failed after {self.total_retries} attempts: {exc}"
+                )
+                log.error(message)  # noqa: TRY400 - concise exhausted-request log
+                log.debug("UniProt search page failure details", exc_info=True)
+                raise RequestError(message) from exc
+            else:
+                return response, attempt + 1
+
+        message = f"UniProt search page {page_number} was not requested because total_retries is 0."
+        raise RequestError(message)
+
+    def submit_search(
+        self,
+        query: str,
+        fields: str,
+        sort: str,
+        include_isoform: bool | None = False,
+        method: str = "uniprotkb",
+        timeout: float | None = None,
+    ) -> tuple[dict, dict]:
+        """Submit a paginated UniProt query and aggregate all search pages.
+
+        The first page is requested from ``/{method}/search`` with a fixed size
+        of 500. Later pages follow UniProt's complete ``rel="next"`` URL exactly.
+        A transient failure retries only the current page, preserving records from
+        pages that already completed successfully.
+
+        Args:
+            query (str): The UniProt query string.
+            fields (str): Fields to include in the response.
+            sort (str): Sorting order.
+            include_isoform (bool | None): Whether to include isoforms.
+            method (str): UniProt dataset endpoint to query.
+            timeout (float | None): Request timeout in seconds.
+
+        Returns:
+            tuple[dict, dict]: Aggregate JSON payload and fetch metadata.
+
+        Raises:
+            RequestError: If any page fails after all configured retry attempts.
+
+        """
+        if not normalize_uniprot_return_fields(fields):
+            log.info(
+                "No UniProt return fields were provided. Using default fields: %s",
+                ", ".join(get_default_uniprot_return_fields()),
+            )
+        effective_fields = ", ".join(get_effective_uniprot_return_fields(fields))
+        if not effective_fields:
+            msg = "UniProt return fields could not be resolved."
+            raise ValueError(msg)
+
+        parameters = {
+            "query": query,
+            "fields": effective_fields,
+            "sort": sort,
+            "includeIsoform": str(include_isoform),
+            "format": "json",
+            "size": str(SEARCH_PAGE_SIZE),
+        }
+        headers = {"Accept": "application/json"}
+        effective_timeout = self.timeout if timeout is None else timeout
+        endpoint_path = f"/{method}/search"
+        current_url: str | None = f"{API_URL}{endpoint_path}"
+        current_params: dict[str, str] | None = parameters
+        aggregate: dict[str, Any] = {"results": []}
+        pages_fetched = 0
+        attempts = 0
+        bytes_received = 0
+        total_results: int | None = None
+        time_started = time.time()
+        started_at = datetime.fromtimestamp(time_started, tz=UTC).isoformat()
+        last_status_code: int | None = None
+
+        log.info("UniProt paginated search started (path=%s page_size=%s)", endpoint_path, SEARCH_PAGE_SIZE)
+        log.debug(
+            "UniProt search request details: query=%s fields=%s sort=%s include_isoform=%s "
+            "timeout=%s started_at=%s",
+            query,
+            effective_fields,
+            sort,
+            include_isoform,
+            effective_timeout,
+            started_at,
+        )
+
+        while current_url:
+            page_number = pages_fetched + 1
+            response, page_attempts = self._request_search_page(
+                current_url,
+                params=current_params,
+                headers=headers,
+                timeout=effective_timeout,
+                page_number=page_number,
+            )
+            attempts += page_attempts
+            last_status_code = response.status_code
+            page_payload = response.json()
+            if not isinstance(page_payload, dict):
+                message = f"UniProt search page {page_number} returned a non-object JSON payload."
+                raise RequestError(message)
+
+            page_results = page_payload.get("results", [])
+            if not isinstance(page_results, list):
+                message = f"UniProt search page {page_number} returned invalid results."
+                raise RequestError(message)
+            aggregate["results"].extend(page_results)
+
+            page_failed_ids = page_payload.get("failedIds")
+            if isinstance(page_failed_ids, list):
+                aggregate.setdefault("failedIds", []).extend(page_failed_ids)
+
+            size_header = response.headers.get("Content-Length")
+            bytes_received += (
+                int(size_header) if size_header and size_header.isdigit() else len(response.content or b"")
+            )
+            if total_results is None:
+                total_header = response.headers.get("x-total-results")
+                if total_header and total_header.isdigit():
+                    total_results = int(total_header)
+
+            pages_fetched += 1
+            log.info(
+                "UniProt search page %s received (records=%s accumulated=%s)",
+                page_number,
+                len(page_results),
+                len(aggregate["results"]),
+            )
+            current_url = self.get_next_link(response.headers)
+            current_params = None
+
+        time_finished = time.time()
+        finished_at = datetime.fromtimestamp(time_finished, tz=UTC).isoformat()
+        extra: dict[str, Any] = {
+            "api_url": API_URL,
+            "status_code": last_status_code,
+            "response_size_bytes": bytes_received,
+            "bytes_received": bytes_received,
+            "records_fetched": len(aggregate["results"]),
+            "pages_fetched": pages_fetched,
+            "attempts": attempts,
+            "query": query,
+            "fields": effective_fields,
+            "sort": sort,
+            "include_isoform": include_isoform,
+            "page_size": SEARCH_PAGE_SIZE,
+            "timeout_seconds": effective_timeout,
+        }
+        if total_results is not None:
+            extra["total_results"] = total_results
+
+        meta = FetchMetadata(
+            tool=current_tool(),
+            started_at=started_at,
+            finished_at=finished_at,
+            request=RequestInfo(api_name=self.API_NAME, method=method, option=None),
+            data_info=self._build_data_info(aggregate["results"]),
+            extra=extra,
+        )
+        for failed_id in aggregate.get("failedIds", []):
+            meta.failed.add(failed_id, query, "unmapped")
+
+        log.info(
+            "UniProt paginated search completed (pages=%s records=%s elapsed=%.2fs)",
+            pages_fetched,
+            len(aggregate["results"]),
+            time_finished - time_started,
+        )
+        return aggregate, meta.to_dict()
+
     def adapt_field_map(
         self, field_map: dict[str, tuple[str, Callable[..., Any]]], use_prefix: bool = False
     ) -> dict[str, tuple[str, Callable[..., Any]]]:
@@ -779,6 +1077,7 @@ class UniprotInterface(BaseAPIInterface):
 
         """
         parsed = {}
+        missing = object()
 
         # Change field_map if 'from' and 'to' keys are present
         if "from" in result and "to" in result:
@@ -790,22 +1089,30 @@ class UniprotInterface(BaseAPIInterface):
         for field, (path, extractor) in field_map.items():
             try:
                 # Navigate through the path (e.g. 'to.proteinDescription...')
-                data = result
+                data: Any = result
                 for raw_key in path.split("."):
                     key = int(raw_key) if raw_key.isdigit() else raw_key
-                    data = data.get(key, {})
+                    if not isinstance(data, dict):
+                        data = missing
+                        break
+                    data = data.get(key, missing)
+                    if data is missing:
+                        break
 
                 # Extract the value using the specific function
-                if field in DATABASES:
-                    parsed[field] = extractor(data, DATABASES[field]) if data else None
+                if data is missing:
+                    value = None
+                elif field in DATABASES:
+                    value = extractor(data, DATABASES[field])
                 else:
-                    parsed[field] = extractor(data) if data else None
+                    value = extractor(data)
+                parsed[field] = _normalize_parsed_value(value)
             except (KeyError, AttributeError, IndexError):
                 parsed[field] = None
 
         # Apply filtering
         if extract_fields is not None:
-            parsed = {k: v for k, v in parsed.items() if k in extract_fields}
+            parsed = {field: parsed.get(field) for field in extract_fields}
 
         return parsed
 
@@ -816,8 +1123,9 @@ class UniprotInterface(BaseAPIInterface):
         """Aggregate per-record parse results into dataset-level metadata.
 
         Replaces the old behavior of returning only the first record's metadata.
-        ``field_coverage`` maps each requested field to how many records actually
-        carried a non-null value — surfacing sparse fields across the whole result.
+        ``field_coverage`` maps each requested field to how many records carry an
+        actual value. Empty strings, collections, and Series count as missing,
+        while valid falsy scalars such as ``False`` and ``0`` count as populated.
 
         Args:
             parsed (list[dict]): Per-record parse results, including failed placeholders.
@@ -839,7 +1147,8 @@ class UniprotInterface(BaseAPIInterface):
             "records": len(records),
             "failed_records": failed_records,
             "field_coverage": {
-                field: sum(1 for record in records if record.get(field) is not None) for field in requested
+                field: sum(1 for record in records if _has_actual_value(record.get(field)))
+                for field in requested
             },
         }
 
@@ -882,8 +1191,12 @@ class UniprotInterface(BaseAPIInterface):
                     log.warning("Tried to parse non-dict result: %s, skipping.", type(res))
 
         meta_out = self._aggregate_parse_metadata(parsed, failed_records, extract_fields)
+        parsed = project_uniprot_fields(parsed, extract_fields)
         if format == "dataframe":
-            return drop_all_null_columns(records_to_frame(parsed)), meta_out
+            frame = records_to_frame(parsed)
+            if extract_fields is None:
+                frame = drop_all_null_columns(frame)
+            return frame, meta_out
         if format == "xml":
             return dict_to_elementtree(parsed, root_tag="results"), meta_out
         return parsed, meta_out

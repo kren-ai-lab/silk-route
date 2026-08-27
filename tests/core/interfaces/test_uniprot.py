@@ -7,13 +7,27 @@ sequence with ``responses``, plus a direct parse-shape test.
 
 from __future__ import annotations
 
+from urllib.parse import parse_qs, urlparse
+
 import polars as pl
 import pytest
-from niquests_mock import startswith
+from niquests.exceptions import ConnectionError as NiquestsConnectionError
+from niquests_mock import build_response, startswith
 
-from silkroute.core.interfaces.uniprot import API_URL, UniprotInterface
+from silkroute.constants.uniprot import get_effective_uniprot_parsed_fields, get_uniprot_parsed_fields
+from silkroute.core.exceptions import RequestError
+from silkroute.core.interfaces import uniprot as uniprot_module
+from silkroute.core.interfaces.uniprot import (
+    API_URL,
+    SEARCH_PAGE_SIZE,
+    UniprotInterface,
+    _normalize_parsed_value,
+    project_uniprot_fields,
+)
 from silkroute.core.metadata import FetchMetadata
 from tests._helpers import load_fixture
+
+SEARCH_URL = f"{API_URL}/uniprotkb/search"
 
 
 @pytest.fixture
@@ -30,6 +44,174 @@ def test_parse_extracts_requested_fields(interface):
     assert parsed[0]["accession"] == entry["primaryAccession"]
     assert parsed[0]["organism"] == entry["organism"]["scientificName"]
     assert parsed[0]["length"] == entry["sequence"]["length"]
+
+
+def test_parse_explicit_fields_excludes_nested_unrequested_fields(interface):
+    results = {
+        "results": [
+            {
+                "primaryAccession": "P12345",
+                "proteinDescription": {
+                    "recommendedName": {
+                        "fullName": {"value": "Example enzyme"},
+                        "ecNumbers": [{"value": "1.2.3.4"}],
+                    }
+                },
+                "sequence": {"value": "MPEPTIDE", "length": 8},
+            }
+        ]
+    }
+
+    parsed, _ = interface.parse(
+        results,
+        extract_fields=["accession", "protein_name", "sequence"],
+        format="dataframe",
+    )
+
+    assert parsed.columns == ["accession", "protein_name", "sequence"]
+    assert parsed.to_dicts() == [
+        {"accession": "P12345", "protein_name": "Example enzyme", "sequence": "MPEPTIDE"}
+    ]
+
+
+def test_parse_realistic_public_field_semantics_into_final_dataframe(interface):
+    results = load_fixture("uniprot", "field_semantics")
+    return_fields = (
+        "accession,id,protein_name,gene_names,organism_name,organism_id,lineage,lineage_ids,"
+        "virus_hosts,reviewed,protein_existence,annotation_score,fragment,length,sequence,"
+        "cc_function,cc_catalytic_activity,ec,go_id,keyword,date_created,date_modified"
+    )
+    fields = get_uniprot_parsed_fields(return_fields)
+
+    parsed, metadata = interface.parse(results, extract_fields=fields, format="dataframe")
+
+    assert parsed.columns == fields
+    rows = {row["accession"]: row for row in parsed.to_dicts()}
+    replicase = rows["P0DTC1"]
+    spike = rows["P0DTC2"]
+    assert replicase["id"] == "R1A_SARS2"
+    assert replicase["protein_name"] == "Replicase polyprotein 1a"
+    assert spike["gene_names"] == ["S", "2"]
+    assert spike["organism"] == "Severe acute respiratory syndrome coronavirus 2"
+    assert spike["organism_id"] == 2697049
+    assert spike["virus_hosts"][0]["taxonId"] == 9606
+    assert spike["reviewed"] is True
+    assert spike["protein_existence"] == "1: Evidence at protein level"
+    assert spike["annotation_score"] == 5.0
+    assert spike["fragment"] is None
+    assert spike["length"] == 1273
+    assert spike["sequence"].startswith("MFVFLVLL")
+    assert spike["date_created"] == "2020-04-22"
+    assert spike["date_modified"] == "2026-06-10"
+    assert spike["cc_function"] == ["Attaches the virion to the host cell receptor."]
+    assert spike["cc_catalytic_activity"] is None
+    assert spike["ec"] is None
+    assert replicase["cc_catalytic_activity"][0]["name"].startswith("Viral polyprotein")
+    assert replicase["go_id"] == ["GO:0004197", "GO:0006508", "GO:0019079"]
+    assert metadata["field_coverage"]["fragment"] == 0
+    assert metadata["field_coverage"]["cc_catalytic_activity"] == 1
+    assert metadata["field_coverage"]["ec"] == 1
+    assert "chebi_ids" not in parsed.columns
+    assert "go_terms" not in parsed.columns
+
+
+def test_multivalue_fields_are_plain_complete_collections(interface):
+    results = load_fixture("uniprot", "field_semantics")
+    fields = [
+        "gene_names",
+        "lineage",
+        "lineage_ids",
+        "virus_hosts",
+        "cc_function",
+        "cc_catalytic_activity",
+        "ec",
+        "go_id",
+        "keyword",
+    ]
+    parsed, _ = interface.parse(results, extract_fields=fields, format="json")
+    rows = dict(zip((result["primaryAccession"] for result in results["results"]), parsed, strict=True))
+    raw = results["results"][0]
+    replicase = rows["P0DTC1"]
+
+    for row in parsed:
+        assert all(not isinstance(value, pl.Series) for value in row.values())
+        assert all(
+            value is None or isinstance(value, (str, int, float, bool, list, dict)) for value in row.values()
+        )
+
+    expected_lineage = raw["organism"]["lineage"]
+    expected_lineage_ids = [lineage["taxonId"] for lineage in raw["lineages"]]
+    assert replicase["lineage"] == expected_lineage
+    assert replicase["lineage_ids"] == expected_lineage_ids
+    assert len(replicase["lineage"]) == len(expected_lineage) == 12
+    assert replicase["lineage"][0] == "Viruses"
+    assert replicase["lineage"][5] == "Nidovirales"
+    assert replicase["lineage"][-1] == "Betacoronavirus pandemicum"
+    assert replicase["lineage_ids"][0] == 10239
+    assert replicase["lineage_ids"][5] == 76804
+    assert replicase["lineage_ids"][-1] == 3418604
+    assert replicase["virus_hosts"] == raw["organismHosts"]
+    assert replicase["ec"] == ["3.2.2.-", "3.4.19.12", "3.4.22.-", "3.4.22.69", "2.7.7.50"]
+    assert replicase["go_id"] == ["GO:0004197", "GO:0006508", "GO:0019079"]
+    assert rows["P0DTC2"]["cc_catalytic_activity"] is None
+    assert rows["P0DTC9"]["ec"] is None
+
+
+def test_parser_normalizes_series_and_empty_collections_to_missing():
+    assert _normalize_parsed_value(pl.Series(["S", "2"])) == ["S", "2"]
+    assert _normalize_parsed_value(pl.Series([], dtype=pl.String)) is None
+    assert _normalize_parsed_value([]) is None
+    assert _normalize_parsed_value({}) is None
+    assert _normalize_parsed_value(False) is False
+    assert _normalize_parsed_value(0) == 0
+    assert _normalize_parsed_value(0.0) == 0.0
+
+
+def test_field_coverage_counts_values_not_container_objects(interface):
+    parsed = [
+        {
+            "none": None,
+            "empty_list": [],
+            "empty_dict": {},
+            "empty_series": pl.Series([], dtype=pl.String),
+            "false": False,
+            "zero": 0,
+            "zero_float": 0.0,
+            "text": "value",
+            "values": ["x"],
+        }
+    ]
+    fields = list(parsed[0])
+
+    metadata = interface._aggregate_parse_metadata(parsed, failed_records=0, extract_fields=fields)
+
+    assert metadata["field_coverage"] == {
+        "none": 0,
+        "empty_list": 0,
+        "empty_dict": 0,
+        "empty_series": 0,
+        "false": 1,
+        "zero": 1,
+        "zero_float": 1,
+        "text": 1,
+        "values": 1,
+    }
+
+
+def test_enrichment_helpers_are_internal_and_projection_removes_them(interface):
+    results = load_fixture("uniprot", "field_semantics")
+    working_fields = get_effective_uniprot_parsed_fields("accession", "chebi,go")
+
+    parsed, _ = interface.parse(results, extract_fields=working_fields, format="dataframe")
+
+    assert parsed["chebi_ids"].to_list() == [["CHEBI:15377"], None, None]
+    assert parsed["go_terms"].to_list() == [
+        ["GO:0004197", "GO:0006508", "GO:0019079"],
+        ["GO:0046813", "GO:0075509", "GO:0019064"],
+        ["GO:0019013", "GO:0003723", "GO:0019074"],
+    ]
+    final = project_uniprot_fields(parsed, ["accession"])
+    assert final.columns == ["accession"]
 
 
 def test_parse_aggregates_field_coverage_across_records(interface):
@@ -72,6 +254,135 @@ def test_submit_stream_returns_fetchmetadata_shape(interface, niquests_mock):
     assert set(metadata) >= {"tool", "request", "cached", "fetched", "failed", "data_info", "extra"}
     assert metadata["extra"]["status_code"] == 200
     assert metadata["extra"]["query"] == "kinase"
+
+
+def test_submit_search_fetches_single_page_with_expected_parameters(interface, niquests_mock):
+    requested_urls = []
+
+    def serve_page(request):
+        requested_urls.append(request.url)
+        return build_response(
+            request,
+            status_code=200,
+            json={"results": [{"primaryAccession": "P12345"}]},
+            headers={"x-total-results": "1"},
+        )
+
+    niquests_mock.get(url=startswith(SEARCH_URL)).mock(side_effect=serve_page)
+
+    payload, metadata = interface.submit_search(
+        query="taxonomy_id:2731619",
+        fields="accession,protein_name,sequence",
+        sort="accession desc",
+        include_isoform=True,
+    )
+
+    assert payload == {"results": [{"primaryAccession": "P12345"}]}
+    assert len(requested_urls) == 1
+    parsed_url = urlparse(requested_urls[0])
+    assert parsed_url.path == "/uniprotkb/search"
+    assert parse_qs(parsed_url.query) == {
+        "query": ["taxonomy_id:2731619"],
+        "fields": ["accession, protein_name, sequence"],
+        "sort": ["accession desc"],
+        "includeIsoform": ["True"],
+        "format": ["json"],
+        "size": [str(SEARCH_PAGE_SIZE)],
+    }
+    assert metadata["extra"]["pages_fetched"] == 1
+    assert metadata["extra"]["records_fetched"] == 1
+    assert metadata["extra"]["total_results"] == 1
+
+
+def test_submit_search_follows_complete_next_urls_and_preserves_page_order(interface, niquests_mock):
+    next_url_1 = f"{SEARCH_URL}?cursor=cursor-one&format=json&size=500"
+    next_url_2 = f"{SEARCH_URL}?cursor=cursor-two&format=json&size=500"
+    requested_urls = []
+
+    def serve_page(request):
+        requested_urls.append(request.url)
+        cursor = parse_qs(urlparse(request.url).query).get("cursor", [None])[0]
+        if cursor is None:
+            return build_response(
+                request,
+                json={"results": [{"primaryAccession": "P1"}]},
+                headers={"Link": f'<{next_url_1}>; rel="next"'},
+            )
+        if cursor == "cursor-one":
+            return build_response(
+                request,
+                json={"results": [{"primaryAccession": "P2"}], "failedIds": ["BAD1"]},
+                headers={"Link": f'<{next_url_2}>; rel="next"'},
+            )
+        return build_response(request, json={"results": [{"primaryAccession": "P3"}]})
+
+    niquests_mock.get(url=startswith(SEARCH_URL)).mock(side_effect=serve_page)
+
+    payload, metadata = interface.submit_search(query="kinase", fields="accession", sort="accession asc")
+
+    assert [record["primaryAccession"] for record in payload["results"]] == ["P1", "P2", "P3"]
+    assert payload["failedIds"] == ["BAD1"]
+    assert requested_urls[1:] == [next_url_1, next_url_2]
+    assert metadata["extra"]["pages_fetched"] == 3
+    assert metadata["extra"]["records_fetched"] == 3
+    assert "total_results" not in metadata["extra"]
+
+
+def test_submit_search_retries_only_the_failed_current_page(monkeypatch, niquests_mock):
+    interface = UniprotInterface(total_retries=2)
+    next_url = f"{SEARCH_URL}?cursor=retry-page&format=json&size=500"
+    requested_urls = []
+    page_two_attempts = 0
+
+    def serve_page(request):
+        nonlocal page_two_attempts
+        requested_urls.append(request.url)
+        if request.url == next_url:
+            page_two_attempts += 1
+            if page_two_attempts == 1:
+                raise NiquestsConnectionError("connection reset")
+            return build_response(request, json={"results": [{"primaryAccession": "P2"}]})
+        return build_response(
+            request,
+            json={"results": [{"primaryAccession": "P1"}]},
+            headers={"Link": f'<{next_url}>; rel="next"'},
+        )
+
+    monkeypatch.setattr(uniprot_module.time, "sleep", lambda _seconds: None)
+    niquests_mock.get(url=startswith(SEARCH_URL)).mock(side_effect=serve_page)
+
+    payload, metadata = interface.submit_search(query="kinase", fields="accession", sort="accession asc")
+
+    assert [record["primaryAccession"] for record in payload["results"]] == ["P1", "P2"]
+    assert sum(url.startswith(f"{SEARCH_URL}?") and "cursor=" not in url for url in requested_urls) == 1
+    assert requested_urls.count(next_url) == 2
+    assert metadata["extra"]["pages_fetched"] == 2
+    assert metadata["extra"]["attempts"] == 3
+
+
+def test_submit_search_raises_when_current_page_exhausts_retries(monkeypatch, niquests_mock):
+    interface = UniprotInterface(total_retries=2)
+    next_url = f"{SEARCH_URL}?cursor=broken-page&format=json&size=500"
+    requested_urls = []
+
+    def serve_page(request):
+        requested_urls.append(request.url)
+        if request.url == next_url:
+            raise NiquestsConnectionError("connection reset")
+        return build_response(
+            request,
+            json={"results": [{"primaryAccession": "P1"}]},
+            headers={"Link": f'<{next_url}>; rel="next"'},
+        )
+
+    monkeypatch.setattr(uniprot_module.time, "sleep", lambda _seconds: None)
+    niquests_mock.get(url=startswith(SEARCH_URL)).mock(side_effect=serve_page)
+
+    with pytest.raises(RequestError, match="search page 2 failed after 2 attempts"):
+        interface.submit_search(query="kinase", fields="accession", sort="accession asc")
+
+    assert sum(url.startswith(f"{SEARCH_URL}?") and "cursor=" not in url for url in requested_urls) == 1
+    assert requested_urls.count(next_url) == 2
 
 
 def test_submit_id_mapping_posts_and_returns_job_id(interface, niquests_mock):

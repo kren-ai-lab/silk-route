@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 from niquests_mock import startswith
 
+from silkroute.core.exceptions import RequestError
 from silkroute.core.interfaces.stringdb import StringInterface
 from tests._helpers import load_fixture
 from tests.core.interfaces._contract import CachingContract, HttpErrorContract
@@ -31,6 +34,32 @@ def test_fetch_builds_url_with_format_segment(interface, niquests_mock):
     assert sent.startswith(IDS_URL)
     assert "identifiers=TP53" in sent
     assert "species=9606" in sent
+
+
+def test_fetch_returns_empty_and_warns_when_identifier_is_not_found(interface, niquests_mock, caplog):
+    niquests_mock.get(url=startswith(IDS_URL)).respond(
+        status_code=404,
+        json=[
+            {
+                "Error": "not found",
+                "ErrorMessage": ("STRING did not find a protein called 'PMS2L15' in the taxon '9606'."),
+            }
+        ],
+    )
+
+    with caplog.at_level(logging.WARNING):
+        result = interface.fetch({"identifiers": "PMS2L15", "species": 9606}, method="get_string_ids")
+
+    assert result == []
+    assert "STRING identifier not found: PMS2L15 (species=9606)" in caplog.messages
+    assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
+
+
+def test_fetch_unrelated_404_still_raises_request_error(interface, niquests_mock):
+    niquests_mock.get(url=startswith(IDS_URL)).respond(status_code=404, json={"Error": "unrelated failure"})
+
+    with pytest.raises(RequestError):
+        interface.fetch({"identifiers": "TP53", "species": 9606}, method="get_string_ids")
 
 
 def test_parse_extracts_requested_fields(interface):

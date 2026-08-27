@@ -10,10 +10,16 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 import polars as pl
 
 from silkroute import ChEMBLInterface, UniprotInterface
-from silkroute.constants.uniprot import get_effective_uniprot_return_fields
+from silkroute.constants.uniprot import (
+    get_effective_uniprot_parsed_fields,
+    get_effective_uniprot_return_fields,
+    get_uniprot_parsed_fields,
+    normalize_uniprot_return_fields,
+)
 from silkroute.core.crossref_enricher import CrossRefEnricher, EndpointSpec
 from silkroute.core.export import normalize_parse_format
 from silkroute.core.interfaces.chembl import CHEMBL_DEFAULT_PAGE_SIZE
+from silkroute.core.interfaces.uniprot import project_uniprot_fields
 from silkroute.core.metadata import FetchMetadata
 from silkroute.core.utils.crossref_enrichment import (
     is_structure_download_workflow_compatible,
@@ -639,12 +645,12 @@ class MainWorkflow:
         include_isoform: bool,
         timeout: float | None,
     ) -> tuple[Any, Any]:
-        """Submit one UniProt stream query, logging start and completion.
+        """Submit one paginated UniProt search query, logging start and completion.
 
         Args:
             query (Any): The UniProt query to submit.
             fields (str): Comma-separated UniProt return fields.
-            sort (str): Sort expression for the stream query.
+            sort (str): Sort expression for the search query.
             include_isoform (bool): Whether to include isoforms.
             timeout (float | None): Request timeout in seconds.
 
@@ -659,7 +665,7 @@ class MainWorkflow:
             sort,
             include_isoform,
         )
-        resp, fetch_meta = self.uniprot.submit_stream(
+        resp, fetch_meta = self.uniprot.submit_search(
             query=query,
             fields=(fields or ""),
             sort=sort,
@@ -758,12 +764,21 @@ class MainWorkflow:
         parse_format = normalize_parse_format(export_format) or "dataframe"
         resp_val = context.get("data", {}).get("uniprot")
         response = resp_val if resp_val is not None else {}
+        selected_return_fields = normalize_uniprot_return_fields(args.get("fields"))
+        extract_fields = (
+            get_effective_uniprot_parsed_fields(
+                selected_return_fields,
+                args.get("additional_crossref_fields"),
+            )
+            if selected_return_fields
+            else None
+        )
         # cast fmt to Any to avoid strict Literal typing issues when passing runtime variables
         parse_started = time.time()
         try:
             self.log.info("Pipeline: parsing UniProt results format=%s", parse_format)
             data, parse_meta = self.uniprot.parse(
-                results=response, extract_fields=None, format=cast("Any", parse_format)
+                results=response, extract_fields=extract_fields, format=cast("Any", parse_format)
             )
             parse_elapsed = time.time() - parse_started
             parsed_count = None
@@ -799,6 +814,17 @@ class MainWorkflow:
             context.setdefault("metadata", {}).setdefault("uniprot", {}).setdefault(
                 "parsing", {"error": str(e)}
             )
+
+    def _step_project_uniprot_fields(self, context: dict[str, Any]) -> None:
+        """Remove enrichment-only UniProt fields from the final user dataset."""
+        args = context.get("searches", {}).get("uniprot", {}) or context.get("args", {})
+        selected_return_fields = normalize_uniprot_return_fields(args.get("fields"))
+        if not selected_return_fields:
+            return
+        selected_fields = get_uniprot_parsed_fields(selected_return_fields)
+        context["data"]["uniprot"] = project_uniprot_fields(
+            context.get("data", {}).get("uniprot"), selected_fields
+        )
 
     def _step_crossref_enrich(self, context: dict[str, Any], **kwargs: Any) -> None:
         """Run CrossRef enrichment on the parsed UniProt data when enabled.
@@ -1163,6 +1189,7 @@ class MainWorkflow:
         self._step_fetch_uniprot(context)
         self._step_parse_uniprot(context)
         self._step_crossref_enrich(context, **kwargs)
+        self._step_project_uniprot_fields(context)
 
         cast("dict", context["metadata"]).update(
             {
@@ -1382,6 +1409,7 @@ class MainWorkflow:
             # Instead of doing a enrichment we use another method to fetch specific endpoint from Biogrid and
             # StringDB.
             self._step_fetch_additional_ppi_interaction_sources(context, **kwargs)
+            self._step_project_uniprot_fields(context)
 
             return context.get("data", {}), context.get("metadata", {})
         if interaction_type == "protein-ligand":
@@ -1425,6 +1453,7 @@ class MainWorkflow:
             context["searches"]["uniprot"] = {
                 "query": query,
                 "interpreted_query": chembl_ids_query,
+                "fields": fields or "",
                 "export_format": export_format,
             }
             return self.run_protein(context=context)
