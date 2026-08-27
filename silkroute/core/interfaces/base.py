@@ -35,8 +35,6 @@ from silkroute.logging import get_logger
 
 log = get_logger("silkroute.interfaces.base")
 
-_HTTP_STATUS_UPPER_BOUND = 600
-
 
 class _ReportedRequestError(RequestError):
     """Request failure already reported by the base transport layer."""
@@ -46,7 +44,7 @@ def _request_source(query: str | dict | list) -> str | None:
     """Return a concise source identifier from a prepared request query."""
     if not isinstance(query, dict):
         return str(query) if query else None
-    for key in ("source", "identifier", "identifiers", "accession", "uri", "q"):
+    for key in ("source", "identifier", "identifiers", "accession", "uri", "q", "id"):
         value = query.get(key)
         if isinstance(value, list) and len(value) == 1:
             value = value[0]
@@ -1324,12 +1322,9 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                 response.raise_for_status()
         except RequestException as e:
             status_code = _request_exception_status_code(e)
-            if (
-                status_code is not None
-                and HTTPStatus.INTERNAL_SERVER_ERROR <= status_code < _HTTP_STATUS_UPPER_BOUND
-            ):
-                source = _request_source(query)
-                source_context = f", source={source}" if source is not None else ""
+            source = _request_source(query)
+            source_context = f", source={source}" if source is not None else ""
+            if status_code is not None:
                 log.error(  # noqa: TRY400 - expected concise log without traceback
                     "%s request failed: %s %s (method=%s%s)",
                     self.API_NAME,
@@ -1338,9 +1333,15 @@ class BaseAPIInterface(ABC):  # noqa: B024  # base by intent; fetch/parse have c
                     method,
                     source_context,
                 )
-                log.debug("HTTP request failure details", exc_info=True)
             else:
-                log.exception("Error fetching %s for method '%s'", query, method)
+                log.error(  # noqa: TRY400 - expected concise log without traceback
+                    "%s request failed: %s (method=%s%s)",
+                    self.API_NAME,
+                    e,
+                    method,
+                    source_context,
+                )
+            log.debug("HTTP request failure details", exc_info=True)
             msg = f"Request failed for method '{method}': {e}"
             raise _ReportedRequestError(msg) from e
         else:
