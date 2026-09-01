@@ -38,7 +38,7 @@
         "Fourme, R."
       ],
       "rcsb_is_primary": "Y",
-      "rcsb_journal_abbrev": "J Mol Biology",
+      "rcsb_journal_abbrev": "J Mol Biol",
       "title": "The crystal structure of human deoxyhaemoglobin at 1.74 A resolution",
       "year": 1984
     },
@@ -94,7 +94,7 @@
         "Arnone, A."
       ],
       "rcsb_is_primary": "N",
-      "rcsb_journal_abbrev": "J Mol Biology",
+      "rcsb_journal_abbrev": "J Mol Biol",
       "title": "Three-Dimensional Fourier Synthesis of Human Deoxyhemoglobin at 2.5 Angstroms Resolution, I.X-Ray Analysis",
       "year": 1976
     },
@@ -111,7 +111,7 @@
         "Fermi, G."
       ],
       "rcsb_is_primary": "N",
-      "rcsb_journal_abbrev": "J Mol Biology",
+      "rcsb_journal_abbrev": "J Mol Biol",
       "title": "Three-Dimensional Fourier Synthesis of Human Deoxyhaemoglobin at 2.5 Angstroms Resolution, Refinement of the Atomic Model",
       "year": 1975
     },
@@ -392,6 +392,36 @@
       "data_content_type": "Structure model",
       "ordinal": 31,
       "revision_ordinal": 8
+    },
+    {
+      "category": "pdbx_entry_details",
+      "data_content_type": "Structure model",
+      "ordinal": 32,
+      "revision_ordinal": 9
+    },
+    {
+      "category": "pdbx_modification_feature",
+      "data_content_type": "Structure model",
+      "ordinal": 33,
+      "revision_ordinal": 9
+    },
+    {
+      "category": "pdbx_nonpoly_atom_coordination",
+      "data_content_type": "Structure model",
+      "ordinal": 34,
+      "revision_ordinal": 9
+    },
+    {
+      "category": "pdbx_nonpoly_atom_coordination_sphere",
+      "data_content_type": "Structure model",
+      "ordinal": 35,
+      "revision_ordinal": 9
+    },
+    {
+      "category": "pdbx_nonpoly_atom_coordination_sphere_order",
+      "data_content_type": "Structure model",
+      "ordinal": 36,
+      "revision_ordinal": 9
     }
   ],
   "pdbx_audit_revision_details": [
@@ -408,6 +438,14 @@
       "ordinal": 2,
       "provider": "repository",
       "revision_ordinal": 6,
+      "type": "Remediation"
+    },
+    {
+      "data_content_type": "Structure model",
+      "description": "Metalloprotein remediation",
+      "ordinal": 3,
+      "provider": "repository",
+      "revision_ordinal": 9,
       "type": "Remediation"
     }
   ],
@@ -543,6 +581,18 @@
       "group": "Data collection",
       "ordinal": 22,
       "revision_ordinal": 8
+    },
+    {
+      "data_content_type": "Structure model",
+      "group": "Derived calculations",
+      "ordinal": 23,
+      "revision_ordinal": 9
+    },
+    {
+      "data_content_type": "Structure model",
+      "group": "Structure summary",
+      "ordinal": 24,
+      "revision_ordinal": 9
     }
   ],
   "pdbx_audit_revision_history": [
@@ -601,6 +651,13 @@
       "minor_revision": 2,
       "ordinal": 8,
       "revision_date": "2024-05-22T00:00:00.000+00:00"
+    },
+    {
+      "data_content_type": "Structure model",
+      "major_revision": 4,
+      "minor_revision": 3,
+      "ordinal": 9,
+      "revision_date": "2026-08-12T00:00:00.000+00:00"
     }
   ],
   "pdbx_audit_revision_item": [
@@ -1110,8 +1167,8 @@
     "has_released_experimental_data": "N",
     "initial_release_date": "1984-07-17T00:00:00.000+00:00",
     "major_revision": 4,
-    "minor_revision": 2,
-    "revision_date": "2024-05-22T00:00:00.000+00:00",
+    "minor_revision": 3,
+    "revision_date": "2026-08-12T00:00:00.000+00:00",
     "status_code": "REL"
   },
   "rcsb_entry_container_identifiers": {
@@ -1216,7 +1273,7 @@
       "Shaanan, B.",
       "Fourme, R."
     ],
-    "rcsb_journal_abbrev": "J Mol Biology",
+    "rcsb_journal_abbrev": "J Mol Biol",
     "title": "The crystal structure of human deoxyhaemoglobin at 1.74 A resolution",
     "year": 1984
   },

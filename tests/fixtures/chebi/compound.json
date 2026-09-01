@@ -543,11 +543,38 @@
   "roles_classification": [
     {
       "application": false,
+      "chemical_role": true,
+      "chebi_accession": "CHEBI:76413",
+      "name": "greenhouse gas",
+      "definition": "A gas in an atmosphere that absorbs and emits radiation within the thermal infrared range, so contributing to the 'greenhouse effect'.",
+      "id": 76413,
+      "biological_role": false
+    },
+    {
+      "application": false,
+      "chemical_role": false,
+      "chebi_accession": "CHEBI:77746",
+      "name": "human metabolite",
+      "definition": "Any mammalian metabolite  produced during a metabolic reaction in humans (<em>Homo sapiens</em>).",
+      "id": 77746,
+      "biological_role": true
+    },
+    {
+      "application": false,
       "chemical_role": false,
       "chebi_accession": "CHEBI:75771",
       "name": "mouse metabolite",
       "definition": "Any mammalian metabolite produced during a metabolic reaction in a mouse (<em>Mus musculus</em>).",
       "id": 75771,
+      "biological_role": true
+    },
+    {
+      "application": false,
+      "chemical_role": false,
+      "chebi_accession": "CHEBI:76971",
+      "name": "Escherichia coli metabolite",
+      "definition": "Any bacterial metabolite produced during a metabolic reaction in <em>Escherichia coli</em>.",
+      "id": 76971,
       "biological_role": true
     },
     {
@@ -566,33 +593,6 @@
       "name": "amphiprotic solvent",
       "definition": "Self-ionizing solvent possessing both characteristics of Br\u00f8nsted acids and bases.",
       "id": 48360,
-      "biological_role": false
-    },
-    {
-      "application": false,
-      "chemical_role": false,
-      "chebi_accession": "CHEBI:77746",
-      "name": "human metabolite",
-      "definition": "Any mammalian metabolite  produced during a metabolic reaction in humans (<em>Homo sapiens</em>).",
-      "id": 77746,
-      "biological_role": true
-    },
-    {
-      "application": false,
-      "chemical_role": false,
-      "chebi_accession": "CHEBI:76971",
-      "name": "Escherichia coli metabolite",
-      "definition": "Any bacterial metabolite produced during a metabolic reaction in <em>Escherichia coli</em>.",
-      "id": 76971,
-      "biological_role": true
-    },
-    {
-      "application": false,
-      "chemical_role": true,
-      "chebi_accession": "CHEBI:76413",
-      "name": "greenhouse gas",
-      "definition": "A gas in an atmosphere that absorbs and emits radiation within the thermal infrared range, so contributing to the 'greenhouse effect'.",
-      "id": 76413,
       "biological_role": false
     }
   ],

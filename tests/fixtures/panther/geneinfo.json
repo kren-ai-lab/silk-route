@@ -14,12 +14,12 @@
               "annotation_list": {
                 "annotation": [
                   {
-                    "name": "RNA polymerase II cis-regulatory region sequence-specific DNA binding",
-                    "id": "GO:0000978"
-                  },
-                  {
                     "name": "DNA-binding transcription factor activity, RNA polymerase II-specific",
                     "id": "GO:0000981"
+                  },
+                  {
+                    "name": "RNA polymerase II cis-regulatory region sequence-specific DNA binding",
+                    "id": "GO:0000978"
                   }
                 ]
               },
@@ -88,6 +88,10 @@
                   {
                     "name": "transcription cis-regulatory region binding",
                     "id": "GO:0000976"
+                  },
+                  {
+                    "name": "RNA polymerase II transcription regulatory region sequence-specific DNA binding",
+                    "id": "GO:0000977"
                   },
                   {
                     "name": "RNA polymerase II cis-regulatory region sequence-specific DNA binding",
@@ -170,6 +174,10 @@
                     "id": "GO:0031625"
                   },
                   {
+                    "name": "histone deacetylase regulator activity",
+                    "id": "GO:0035033"
+                  },
+                  {
                     "name": "ATP-dependent DNA/DNA annealing activity",
                     "id": "GO:0036310"
                   },
@@ -180,10 +188,6 @@
                   {
                     "name": "histone deacetylase binding",
                     "id": "GO:0042826"
-                  },
-                  {
-                    "name": "metal ion binding",
-                    "id": "GO:0046872"
                   },
                   {
                     "name": "protein heterodimerization activity",
@@ -231,7 +235,7 @@
                   }
                 ]
               },
-              "release_version": "10.XXXX/zenodo.XXXXXXXX",
+              "release_version": "",
               "content": "GO:0003674"
             },
             {
@@ -322,10 +326,6 @@
                     "id": "GO:0010628"
                   },
                   {
-                    "name": "programmed cell death",
-                    "id": "GO:0012501"
-                  },
-                  {
                     "name": "viral process",
                     "id": "GO:0016032"
                   },
@@ -404,10 +404,6 @@
                   {
                     "name": "negative regulation of fibroblast proliferation",
                     "id": "GO:0048147"
-                  },
-                  {
-                    "name": "rhythmic process",
-                    "id": "GO:0048511"
                   },
                   {
                     "name": "circadian behavior",
@@ -551,7 +547,7 @@
                   }
                 ]
               },
-              "release_version": "10.XXXX/zenodo.XXXXXXXX",
+              "release_version": "",
               "content": "GO:0008150"
             },
             {
@@ -568,6 +564,10 @@
                   {
                     "name": "nucleoplasm",
                     "id": "GO:0005654"
+                  },
+                  {
+                    "name": "replication fork",
+                    "id": "GO:0005657"
                   },
                   {
                     "name": "transcription regulator complex",
@@ -620,10 +620,14 @@
                   {
                     "name": "protein-containing complex",
                     "id": "GO:0032991"
+                  },
+                  {
+                    "name": "site of double-strand break",
+                    "id": "GO:0035861"
                   }
                 ]
               },
-              "release_version": "10.XXXX/zenodo.XXXXXXXX",
+              "release_version": "",
               "content": "GO:0005575"
             },
             {
