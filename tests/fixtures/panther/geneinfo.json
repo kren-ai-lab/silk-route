@@ -14,12 +14,12 @@
               "annotation_list": {
                 "annotation": [
                   {
-                    "name": "DNA-binding transcription factor activity, RNA polymerase II-specific",
-                    "id": "GO:0000981"
-                  },
-                  {
                     "name": "RNA polymerase II cis-regulatory region sequence-specific DNA binding",
                     "id": "GO:0000978"
+                  },
+                  {
+                    "name": "DNA-binding transcription factor activity, RNA polymerase II-specific",
+                    "id": "GO:0000981"
                   }
                 ]
               },
