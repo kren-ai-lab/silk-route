@@ -1202,6 +1202,7 @@
     "branched_entity_count": 0,
     "cis_peptide_count": 0,
     "deposited_atom_count": 4779,
+    "deposited_branched_entity_instance_count": 0,
     "deposited_deuterated_water_count": 0,
     "deposited_hydrogen_atom_count": 0,
     "deposited_model_count": 1,

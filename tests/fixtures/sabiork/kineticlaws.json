@@ -561,6 +561,11 @@
             "value": "73473"
           },
           {
+            "id": 38,
+            "key": "ChemSpiderID",
+            "value": "388299"
+          },
+          {
             "id": 39,
             "key": "ChebiID",
             "value": "15378"
@@ -726,6 +731,11 @@
             "value": "74722"
           },
           {
+            "id": 39,
+            "key": "ChemSpiderID",
+            "value": "1010"
+          },
+          {
             "id": 56,
             "key": "ChebiID",
             "value": "16236"
@@ -877,6 +887,11 @@
           },
           {
             "id": 37,
+            "key": "InChIKey",
+            "value": "BAWFJGJZGIEFAR-NNYOXOHSSA-O"
+          },
+          {
+            "id": 37,
             "key": "SMILES",
             "value": "c1cc(c[n+](c1)[C@H]2[C@@H]([C@@H]([C@H](O2)COP(=O)(O)OP(=O)(O)OC[C@@H]3[C@H]([C@H]([C@@H](O3)n4cnc5c4ncnc5N)O)O)O)O)C(=O)N"
           },
@@ -887,6 +902,11 @@
           },
           {
             "id": 38,
+            "key": "InChIKey",
+            "value": "BOPGDPNILDQYTO-NNYOXOHSSA-N"
+          },
+          {
+            "id": 38,
             "key": "SMILES",
             "value": "NC(=O)C=1CC=CN(C=1)C5OC(COP(O)(=O)OP(O)(=O)OCC2OC(C(O)C2(O))n4cnc3c(N)ncnc34)C(O)C5(O)"
           },
@@ -894,6 +914,11 @@
             "id": 39,
             "key": "InChI",
             "value": "InChI=1S/p+1"
+          },
+          {
+            "id": 39,
+            "key": "InChIKey",
+            "value": "GPRLSGONYQIRFK-UHFFFAOYSA-N"
           },
           {
             "id": 39,
