@@ -47,12 +47,12 @@ silkroute workflow run --config examples/workflows/protein_query_first_minimal.y
 silkroute workflow run --config examples/workflows/protein_query_first_minimal.yml -e csv
 ```
 
-To check a descriptor without running it, use `workflow validate`. It reports all
+To check a descriptor without running it, use `workflow validate-config`. It reports all
 errors at once (see "Validating a descriptor") and exits 2 on any problem:
 
 ```bash
-silkroute workflow validate examples/workflows/protein_query_first_minimal.yml
-silkroute workflow validate examples/workflows/protein_query_first_minimal.yml --json
+silkroute workflow validate-config examples/workflows/protein_query_first_minimal.yml
+silkroute workflow validate-config examples/workflows/protein_query_first_minimal.yml --json
 ```
 
 The organized workflow-v1 examples live under `examples/workflows/`.
@@ -696,7 +696,7 @@ Every primary result table (`<db>_results.csv` and `.parquet`) starts with a str
 
 ### Validating a descriptor
 
-`silkroute workflow validate CONFIG [--json]` checks a descriptor without running it or touching the network. It reports every problem at once, each with a dotted `path` such as `export.format` or `query.fields[2]`. Without `--json`, it prints `path: message` lines on stderr. With `--json`, it prints a JSON array of `{"path", "message"}` objects on stdout (empty when valid). It exits 0 when valid and 2 otherwise. `workflow run` rejects the same problems with exit code 2.
+`silkroute workflow validate-config CONFIG [--json]` checks a descriptor without running it or touching the network. It reports every problem at once, each with a dotted `path` such as `export.format` or `query.fields[2]`. Without `--json`, it prints `path: message` lines on stderr. With `--json`, it prints a JSON array of `{"path", "message"}` objects on stdout (empty when valid). It exits 0 when valid and 2 otherwise. `workflow run` rejects the same problems with exit code 2.
 
 Raw graph payloads are externalized only for PathwayCommons graph enrichment
 outputs:

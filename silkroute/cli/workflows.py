@@ -2258,6 +2258,6 @@ workflow_app = typer.Typer(
     no_args_is_help=True,
 )
 workflow_app.command("run", help="Run a predefined data fetching workflow.")(run_workflow)
-workflow_app.command("validate", help="Validate a workflow YAML descriptor without running it.")(
+workflow_app.command("validate-config", help="Validate a workflow YAML descriptor without running it.")(
     validate_workflow
 )

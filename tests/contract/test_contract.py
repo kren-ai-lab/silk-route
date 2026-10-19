@@ -58,7 +58,7 @@ def test_validate_json_output_conforms_to_schema(tmp_path):
     bad = tmp_path / "bad.yml"
     bad.write_text("schema_version: workflow-v1\nexport: {format: xlsx}\n", encoding="utf-8")
 
-    result = runner.invoke(app, ["workflow", "validate", str(bad), "--json"])
+    result = runner.invoke(app, ["workflow", "validate-config", str(bad), "--json"])
 
     assert result.exit_code == 2
     errors = json.loads(result.stdout)

@@ -74,7 +74,7 @@ silkroute fetch alphafold prediction P12345 -o out.csv
 Run a workflow from a descriptor:
 
 ```bash
-silkroute workflow validate examples/workflows/protein_query_first_minimal.yml
+silkroute workflow validate-config examples/workflows/protein_query_first_minimal.yml
 silkroute workflow run --config examples/workflows/protein_query_first_minimal.yml
 ```
 
@@ -260,7 +260,7 @@ forbidden key, and limitation.
 silkroute workflow run --config examples/workflows/protein_query_first_minimal.yml -o result_override
 ```
 
-`silkroute workflow validate CONFIG [--json]` reports every error at once, each with a dotted path,
+`silkroute workflow validate-config CONFIG [--json]` reports every error at once, each with a dotted path,
 and exits 2 (0 when valid). `workflow run` rejects the same problems with exit code 2.
 
 ```text

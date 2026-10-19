@@ -1,4 +1,4 @@
-"""CLI tests for ``silkroute workflow validate`` (offline, no execution)."""
+"""CLI tests for ``silkroute workflow validate-config`` (offline, no execution)."""
 
 from __future__ import annotations
 
@@ -35,13 +35,13 @@ def _write(tmp_path, text):
 
 
 def _validate(tmp_path, text):
-    """Run ``workflow validate --json`` and return (exit code, parsed errors)."""
-    result = runner.invoke(app, ["workflow", "validate", _write(tmp_path, text), "--json"])
+    """Run ``workflow validate-config --json`` and return (exit code, parsed errors)."""
+    result = runner.invoke(app, ["workflow", "validate-config", _write(tmp_path, text), "--json"])
     return result.exit_code, json.loads(result.stdout)
 
 
 def test_validate_accepts_valid_descriptor(tmp_path):
-    result = runner.invoke(app, ["workflow", "validate", _write(tmp_path, VALID_DESCRIPTOR)])
+    result = runner.invoke(app, ["workflow", "validate-config", _write(tmp_path, VALID_DESCRIPTOR)])
     assert result.exit_code == 0
     assert _validate(tmp_path, VALID_DESCRIPTOR) == (0, [])
 
@@ -76,14 +76,14 @@ def test_validate_reports_missing_section_and_schema_version(tmp_path):
 
 
 def test_validate_reports_missing_file_at_root(tmp_path):
-    result = runner.invoke(app, ["workflow", "validate", str(tmp_path / "nope.yml"), "--json"])
+    result = runner.invoke(app, ["workflow", "validate-config", str(tmp_path / "nope.yml"), "--json"])
     assert result.exit_code == 2
     assert [error["path"] for error in json.loads(result.stdout)] == [""]
 
 
 def test_validate_plain_mode_prints_path_lines_to_stderr(tmp_path):
     bad = VALID_DESCRIPTOR.replace("format: csv", "format: xlsx")
-    result = runner.invoke(app, ["workflow", "validate", _write(tmp_path, bad)])
+    result = runner.invoke(app, ["workflow", "validate-config", _write(tmp_path, bad)])
     assert result.exit_code == 2
     assert result.stdout == ""
     assert result.stderr.startswith("export.format: ")
