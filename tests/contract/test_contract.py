@@ -165,3 +165,55 @@ def test_chemical_search_sidecar_sits_next_to_results(tmp_path, monkeypatch):
     _schema("provenance.schema.json").validate(document)
     assert document["command"] == "search chemical"
     assert not (out / "pubchem_metadata.json").exists()
+
+
+def test_search_uniprot_query_writes_ids_and_sidecar(tmp_path, niquests_mock):
+    _mock_uniprot(niquests_mock, ["P12345", "Q99999"])
+    out = tmp_path / "out"
+
+    result = runner.invoke(app, ["search", "uniprot", "by-query", "-q", "gene:TP53", "-o", str(out)])
+
+    assert result.exit_code == 0, result.output
+    table = pl.read_csv(out / "uniprot_results.csv", infer_schema=False)
+    assert table.columns[0] == "id"
+    assert table["id"].to_list() == ["P12345", "Q99999"]
+    document = json.loads((out / "uniprot_results.csv.provenance.json").read_text(encoding="utf-8"))
+    _schema("provenance.schema.json").validate(document)
+
+
+def test_crossref_writes_sidecar(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "silkroute.cli.interfaces.uniprot_crossref.CrossRefEnricher.enrich",
+        lambda *_args, **_kwargs: (pl.DataFrame({"accession": ["P12345"]}), {"api_name": "uniprot"}),
+    )
+    ids = tmp_path / "ids.csv"
+    ids.write_text("accession\nP12345\n", encoding="utf-8")
+    out = tmp_path / "out"
+
+    result = runner.invoke(
+        app, ["search", "uniprot", "crossrefs", "-i", str(ids), "-o", str(out), "-d", "pdb"]
+    )
+
+    assert result.exit_code == 0, result.output
+    document = json.loads((out / "ids_results.csv.provenance.json").read_text(encoding="utf-8"))
+    _schema("provenance.schema.json").validate(document)
+
+
+def test_crossref_missing_input_exits_3(tmp_path):
+    result = runner.invoke(
+        app, ["search", "uniprot", "crossrefs", "-i", str(tmp_path / "nope.csv"), "-o", str(tmp_path / "out")]
+    )
+
+    assert result.exit_code == 3
+
+
+def test_search_sequences_missing_column_exits_3(tmp_path):
+    ids = tmp_path / "seqs.csv"
+    ids.write_text("other\nMKV\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["search", "uniprot", "by-sequences", "-d", "swissprot", "-i", str(ids), "-o", str(tmp_path / "out")],
+    )
+
+    assert result.exit_code == 3

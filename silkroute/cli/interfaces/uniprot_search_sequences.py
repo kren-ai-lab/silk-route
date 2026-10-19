@@ -8,8 +8,14 @@ import polars as pl
 import typer
 
 from silkroute import UniprotInterface
-from silkroute.cli._shared import output_dir_option, parse_and_save_uniprot, validate_export_format
+from silkroute.cli._shared import (
+    output_dir_option,
+    parse_and_save_uniprot,
+    validate_export_format,
+    write_output_provenance,
+)
 from silkroute.constants.uniprot import DATABASES, XREF_MAPPING
+from silkroute.core.exceptions import SilkRouteError
 from silkroute.core.export import export_dataframe
 from silkroute.core.utils.blast_search import (
     check_blast,
@@ -72,7 +78,7 @@ def run(
 
     if seq_column not in df.columns:
         msg = f"Column '{seq_column}' not found in input file."
-        raise ValueError(msg)
+        raise SilkRouteError(msg)
 
     sequences = df[seq_column].drop_nulls().unique(maintain_order=True).to_list()
 
@@ -98,6 +104,7 @@ def run(
         Path(output).mkdir(parents=True, exist_ok=True)
         blast_path = export_dataframe(df_blast, Path(output) / "blast_results.csv")
         log.info("BLAST results saved to %s", blast_path)
+        write_output_provenance(blast_path, {}, n_rows=0, n_cols=df_blast.width)
         Path("tmp/blast_results.txt").unlink()
         shutil.rmtree("tmp")
         return
@@ -105,8 +112,7 @@ def run(
     df_blast = df_blast.rename({"query": "id", "subject": "subject_id"})
     df_blast = df_blast.with_columns(pl.col("id").cast(pl.Int64))
     df_blast = df_blast.join(sequences_df, on="id", how="left")
-    df_blast = df_blast.drop("id")
-    df_blast = df_blast.rename({seq_column: "sequence"})
+    df_blast = df_blast.rename({seq_column: "sequence"}).with_columns(pl.col("id").cast(pl.String))
 
     # Cast then filter numeric thresholds before exporting or enriching
     for col, threshold in (("identity", min_identity), ("coverage", min_coverage)):
@@ -129,6 +135,7 @@ def run(
     # Save to CSV
     blast_path = export_dataframe(df_blast, Path(output) / "blast_results.csv")
     log.info("BLAST results saved to %s", blast_path)
+    write_output_provenance(blast_path, {}, n_rows=df_blast.height, n_cols=df_blast.width)
 
     # Clean up temporary files
     Path("tmp/blast_results.txt").unlink()

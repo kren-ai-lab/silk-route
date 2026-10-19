@@ -116,7 +116,7 @@ def test_validate_catches_query_composition_mismatch(tmp_path):
 
 
 def test_validate_config_non_mapping_root():
-    assert [issue.path for issue in validate_config(["not", "a", "map"])] == [""]
+    assert [issue.path for issue in validate_config(["not", "a", "map"])] == [""]  # pyrefly: ignore
 
 
 def test_validate_config_mappings_and_paths(tmp_path):

@@ -75,7 +75,7 @@ def validate_config(config: Mapping | str | os.PathLike) -> list[ConfigIssue]:
     """
     if not isinstance(config, Mapping):
         try:
-            config = load_workflow_recipe(config)
+            config = load_workflow_recipe(Path(config))
         except (ValueError, TypeError) as exc:
             return [ConfigIssue("", str(exc))]
     return [ConfigIssue(path, message) for path, message in collect_workflow_v1_descriptor_errors(config)]

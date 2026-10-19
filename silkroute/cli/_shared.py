@@ -185,11 +185,12 @@ def save_or_print(
     output_format: str | None = None,
     preview_rows: int = 5,
     write_metadata: bool | None = None,
+    record_label: str | None = None,
 ) -> None:
     """Unpack a fetch result and either save it to ``output`` or print a preview.
 
-    When ``output`` is given and the result carries metadata, the provenance is
-    also written to a ``<output>.provenance.json`` sidecar.
+    When ``output`` is given, a ``<output>.provenance.json`` sidecar is always written; the
+    result's metadata goes under its ``extensions`` unless ``write_metadata`` is false.
 
     Args:
         result (Any): Raw return value of ``fetch_single`` / ``fetch_batch`` (a
@@ -199,15 +200,23 @@ def save_or_print(
             results. If ``None``, inferred from the ``output`` extension,
             defaulting to csv. Ignored for non-DataFrame data.
         preview_rows (int): Number of rows to show when previewing a DataFrame.
-        write_metadata (bool | None): Whether to write the metadata sidecar. ``None`` (the
-            default) defers to the ``fetch --no-metadata`` CLI flag.
+        write_metadata (bool | None): Whether the sidecar carries the tool-native metadata. ``None``
+            (the default) defers to the ``fetch --no-metadata`` CLI flag.
+        record_label (str | None): Source key of ``RECORD_KEY_COLUMNS``; when set, a DataFrame
+            result gets a leading string ``id`` column (see ``add_record_id``).
 
     """
     data, metadata = split_result(result)
     if write_metadata is None:
         write_metadata = _metadata_enabled()
 
+    extensions = metadata if metadata and write_metadata else {}
+
     if isinstance(data, pl.DataFrame):
+        if record_label:
+            from silkroute.cli.workflows import DEFAULT_ID_COLUMN, add_record_id  # noqa: PLC0415  # circular
+
+            data = add_record_id(data, record_label, DEFAULT_ID_COLUMN)
         if output:
             fmt = output_format or (Path(output).suffix.lstrip(".") or "csv")
             try:
@@ -215,8 +224,7 @@ def save_or_print(
             except ValueError as e:
                 raise typer.BadParameter(str(e)) from None
             typer.echo(f"Results saved to {saved}")
-            if metadata and write_metadata:
-                write_output_provenance(saved, metadata, n_rows=data.height, n_cols=data.width)
+            write_output_provenance(saved, extensions, n_rows=data.height, n_cols=data.width)
         else:
             typer.echo(data.head(preview_rows))
         return
@@ -230,8 +238,7 @@ def save_or_print(
             else:
                 fh.write(str(data))
         typer.echo(f"Results saved to {output}")
-        if metadata and write_metadata:
-            write_output_provenance(output, metadata)
+        write_output_provenance(output, extensions)
     else:
         typer.echo(data)
 
@@ -264,9 +271,15 @@ def _save_tabular(
     if not (isinstance(export_data, pl.DataFrame) and not export_data.is_empty()):
         logger.warning("No results to save in %s format.", export_format.upper())
         return
+    from silkroute.cli.workflows import DEFAULT_ID_COLUMN, add_record_id  # noqa: PLC0415  # circular
+
     tabular_format = normalize_export_format(export_format)
     export_path = out_dir / f"uniprot_results.{tabular_format}"
+    if DEFAULT_ID_COLUMN in export_data.columns:  # UniProt's entry name would clash with the record id
+        export_data = export_data.rename({DEFAULT_ID_COLUMN: "entry_name"})
+    export_data = add_record_id(export_data, "uniprot", DEFAULT_ID_COLUMN)
     export_dataframe(export_data, export_path, output_format=tabular_format)
+    write_output_provenance(export_path, metadata, n_rows=export_data.height, n_cols=export_data.width)
     if isinstance(enriched_data, dict):
         for key, value in enriched_data.items():
             logger.info("Saving %s results into %s directory", key, out_dir)
@@ -293,6 +306,7 @@ def _save_json(
         return
     with (out_dir / "uniprot_results.json").open("w") as f:
         json.dump(export_data, f, indent=2, default=str)
+    write_output_provenance(out_dir / "uniprot_results.json", metadata)
     if isinstance(enriched_data, dict):
         for key, value in enriched_data.items():
             logger.info("Saving %s results into %s directory", key, out_dir)
@@ -319,6 +333,7 @@ def _save_xml(
         logger.warning("No results to save in XML format.")
         return
     export_data.write(f"{out_dir}/uniprot_results.xml", encoding="utf-8", xml_declaration=True)
+    write_output_provenance(out_dir / "uniprot_results.xml", metadata)
     if isinstance(enriched_data, dict):
         for key, value in enriched_data.items():
             logger.info("Saving %s results into %s directory", key, out_dir)

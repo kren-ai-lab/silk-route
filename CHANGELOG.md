@@ -11,6 +11,8 @@ Aligns the CLI with the shared ecosystem CLI contract.
 - Primary result tables (`uniprot_results`, `chembl_results`, `pubchem_results`, `chebi_results`) always start with a string `id` column taken from the table's native key. The positional `<label>_<n>` ids are gone.
 - `harmonization.id_column` only renames the id column (default `id`). Ids must be unique and non-empty, otherwise the run exits 3. In `query_composition` runs a record returned under several labels is kept once per label (each `(id, _label)` pair is unique), with a warning; the run sidecar lists those ids under `extensions.ids_in_several_labels`.
 - Enrichment tables no longer get an id column.
+- `search uniprot by-ids|by-query|by-sequences` results and `blast_results.csv` start with a string `id` column (the UniProt accession, or the BLAST query index); the UniProt `id` field (entry name) is renamed `entry_name`. `fetch chembl activity` tables get an `id` column from `activity_id`.
+- A missing `--input` file in `search uniprot crossrefs`, and a missing sequence column in `search uniprot by-sequences`, exit 3 instead of 2 or 4.
 - A `query.fields` selection now always keeps `accession` in the UniProt table.
 - The unused keys `export.result_files`, `harmonization.label_column`, `harmonization.unique_sequence_strategy` and `harmonization.metadata_fields` are now unknown-key errors, and the GUI no longer offers them.
 - `fetch -o FILE` writes `FILE.provenance.json` instead of `FILE.metadata.json`; the old metadata fields moved under `extensions`. `--no-metadata` still disables it.
@@ -22,4 +24,5 @@ Aligns the CLI with the shared ecosystem CLI contract.
 - `silkroute.validate_config(config)` and `silkroute.ConfigIssue`: the `workflow validate-config` check as a Python API. Takes a mapping or a path to a YAML/JSON file and returns a list of issues instead of raising.
 - `workflow validate-config CONFIG [--json]`: reports every error (several per section), each with a dotted path, and prints the `validate-errors` JSON array with `--json`.
 - `workflow run` writes `<output_dir>.provenance.json` (`provenance/1`) next to the output directory, on `success` and `completed_with_errors`. `metadata.json` and `run_summary.yml` stay inside it.
+- Provenance sidecars for `search uniprot` results and `blast_results.csv`; `fetch` writes its sidecar even without tool metadata or with `--no-metadata` (which now only drops the `extensions`).
 - Contract conformance tests against the shared JSON schemas (`tests/contract/`, `jsonschema` as a dev dependency).
