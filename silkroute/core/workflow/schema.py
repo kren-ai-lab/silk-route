@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Mapping
 from copy import deepcopy
 from typing import TYPE_CHECKING, cast
 
@@ -1020,12 +1021,12 @@ def _collect_sections(
 
 def collect_workflow_v1_descriptor_errors(recipe: object) -> list[tuple[str, str]]:
     """Return every ``(dotted path, message)`` workflow-v1 validation error found."""
-    if not isinstance(recipe, dict):
+    if not isinstance(recipe, Mapping):
         return [("", "Workflow YAML root must be a mapping.")]
 
     errors: list[tuple[str, str]] = []
     descriptor = {str(key): value for key, value in recipe.items()}
-    check_forbidden_workflow_recipe_keys(recipe, errors=errors)
+    check_forbidden_workflow_recipe_keys(descriptor, errors=errors)
     validate_descriptor_section_names(descriptor, errors)
     _check(errors, validate_schema_version, descriptor)
     for name in sorted(REQUIRED_DESCRIPTOR_SECTIONS - set(descriptor)):

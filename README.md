@@ -270,6 +270,16 @@ export.format: Unsupported export format 'xlsx'. Supported formats are: csv, jso
 
 With `--json` the same problems go to stdout as `[{"path": "export.format", "message": "..."}]`.
 
+Validate a config from Python (offline; returns an empty list when valid, never raises for config problems):
+
+```python
+from silkroute import ConfigIssue, validate_config
+
+issues = validate_config("examples/workflows/protein_query_first_minimal.yml")  # or a mapping
+for issue in issues:
+    print(issue.path, issue.message)
+```
+
 Not every field executes. `dataset.modality`, `dataset.mode`, `query.value`, selected `query` and
 `execution` options, and the `export` options drive the run. `query.builder`, `query.composition`,
 `query.description`, and `query.filtering_strategy` are descriptive metadata: they are preserved in

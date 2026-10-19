@@ -19,6 +19,7 @@ Aligns the CLI with the shared ecosystem CLI contract.
 
 ### Added
 
+- `silkroute.validate_config(config)` and `silkroute.ConfigIssue`: the `workflow validate-config` check as a Python API. Takes a mapping or a path to a YAML/JSON file and returns a list of issues instead of raising.
 - `workflow validate-config CONFIG [--json]`: reports every error (several per section), each with a dotted path, and prints the `validate-errors` JSON array with `--json`.
 - `workflow run` writes `<output_dir>.provenance.json` (`provenance/1`) next to the output directory, on `success` and `completed_with_errors`. `metadata.json` and `run_summary.yml` stay inside it.
 - Contract conformance tests against the shared JSON schemas (`tests/contract/`, `jsonschema` as a dev dependency).
