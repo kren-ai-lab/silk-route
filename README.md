@@ -121,8 +121,12 @@ Four namespaces. Run `silkroute --help` or `silkroute <namespace> --help` for th
 
 Every command exports `csv`, `json`, `xml`, or `parquet`. `fetch` takes `-f/--format` and infers the
 format from the output extension when you omit it, while `search` (`-ef`) and `workflow` (`-e`) take
-`--export-format` and default to `csv`. `fetch` also writes a `<output>.metadata.json` provenance
-sidecar unless you pass `--no-metadata`.
+`--export-format` and default to `csv`. `fetch -o FILE` also writes a `FILE.provenance.json` sidecar
+(the shared `provenance/1` format, with the fetch metadata under `extensions`) unless you pass
+`--no-metadata`. `search chemical` writes one `<db>_results.csv.provenance.json` per database.
+
+Exit codes follow the shared ecosystem CLI contract: 0 success, 2 invalid config or usage, 3 runtime
+failure (failed run, API or I/O error), 4 unexpected internal error (with the traceback on stderr).
 
 <details>
 <summary>More <code>search uniprot</code> examples</summary>
@@ -220,11 +224,17 @@ supplies them.
 | `{database}_{endpoint}.{ext}`      | Cross-referenced data, when enrichment produces output                                                            |
 | `metadata.json`                    | Workflow metadata, original descriptor sections, normalized executable values, generated files, reporting metrics |
 | `run_summary.yml`                  | Compact report: dataset and query, status, timings, export settings, row and column counts                        |
+| `<output_dir>.provenance.json`     | Provenance sidecar next to the output directory (shared `provenance/1` format), also on `completed_with_errors`   |
 
 The summary status is `success`, `completed_with_errors` (outputs exist but the metadata records
-errors), or `failed` (execution failed, or a primary fetch error left no real output). When
-`harmonization.id_column` is set, exported tabular files gain a deterministic ID column if they lack
-one; in-memory objects and raw API responses stay untouched.
+errors), or `failed` (execution failed, or a primary fetch error left no real output); `failed` exits
+with code 3.
+
+Primary result tables (`uniprot_results`, `chembl_results`, `pubchem_results`, `chebi_results`) start
+with a string `id` column copied from the table's native key (`accession`, `activity_id` /
+`assay_chembl_id` / `molecule_chembl_id` / `target_chembl_id`, `pubchem_cid`, `chebi_id`).
+`harmonization.id_column` only renames it. Ids must be unique and non-empty, otherwise the run exits
+with code 3. Enrichment and graph tables get no `id` column.
 
 ### Scenario cheat sheet
 
@@ -250,13 +260,15 @@ forbidden key, and limitation.
 silkroute workflow run --config examples/workflows/protein_query_first_minimal.yml -o result_override
 ```
 
-Validation reports every section-level error at once and exits non-zero:
+`silkroute workflow validate CONFIG [--json]` reports every error at once, each with a dotted path,
+and exits 2 (0 when valid). `workflow run` rejects the same problems with exit code 2.
 
 ```text
-Error: my-workflow.yml has 2 validation error(s):
-  - Unsupported dataset.modality 'rna'. Supported modalities are: protein, compound, interaction.
-  - Unsupported export format 'xlsx'. Supported formats are: csv, json, xml, parquet.
+dataset.modality: Unsupported dataset.modality 'rna'. Supported modalities are: protein, compound, interaction.
+export.format: Unsupported export format 'xlsx'. Supported formats are: csv, json, xml, parquet.
 ```
+
+With `--json` the same problems go to stdout as `[{"path": "export.format", "message": "..."}]`.
 
 Not every field executes. `dataset.modality`, `dataset.mode`, `query.value`, selected `query` and
 `execution` options, and the `export` options drive the run. `query.builder`, `query.composition`,

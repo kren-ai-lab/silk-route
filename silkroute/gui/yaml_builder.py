@@ -284,10 +284,7 @@ DEFAULT_FORM_VALUES: dict[str, object] = {
     "execution.uniprot_timeout": None,
     "execution.debug": False,
     "harmonization.id_column": "",
-    "harmonization.label_column": "",
     "harmonization.sequence_column": "",
-    "harmonization.unique_sequence_strategy": "",
-    "harmonization.metadata_fields": "",
     "export.output_dir_mode": "default",
     "export.output_dir": "",
     "export.format": "csv",
@@ -877,9 +874,8 @@ def descriptor_to_form_values(descriptor: Mapping[str, object]) -> dict[str, obj
         if key in execution:
             form_values[field_name] = execution[key]
 
-    for key in ("id_column", "label_column", "sequence_column", "unique_sequence_strategy"):
+    for key in ("id_column", "sequence_column"):
         form_values[f"harmonization.{key}"] = str(harmonization.get(key) or "")
-    form_values["harmonization.metadata_fields"] = csv_text_from_value(harmonization.get("metadata_fields"))
 
     output_dir = str(export.get("output_dir") or "").strip()
     if output_dir:
@@ -1716,13 +1712,7 @@ def build_harmonization_section(form_values: Mapping[str, object]) -> dict[str, 
     """Build the workflow harmonization section."""
     harmonization: dict[str, object] = {
         "id_column": get_form_value(form_values, "harmonization.id_column"),
-        "label_column": get_form_value(form_values, "harmonization.label_column"),
         "sequence_column": get_form_value(form_values, "harmonization.sequence_column"),
-        "unique_sequence_strategy": get_form_value(
-            form_values,
-            "harmonization.unique_sequence_strategy",
-        ),
-        "metadata_fields": parse_csv_list(get_form_value(form_values, "harmonization.metadata_fields")),
     }
     return cast("dict[str, object]", remove_empty_values(harmonization))
 

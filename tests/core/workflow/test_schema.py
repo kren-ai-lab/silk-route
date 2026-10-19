@@ -37,10 +37,7 @@ REQUIRED_GUI_FIELDS = {
     "execution.uniprot_timeout",
     "execution.debug",
     "harmonization.id_column",
-    "harmonization.label_column",
     "harmonization.sequence_column",
-    "harmonization.unique_sequence_strategy",
-    "harmonization.metadata_fields",
     "export.output_dir",
     "export.format",
     "export.include_metadata",
@@ -58,7 +55,6 @@ FUTURE_ONLY_FIELDS = {
     "protein_target_integration",
     "temperature_enrichment",
     "cross_source_integration",
-    "export.result_files",
 }
 
 HEAVY_MODULE_PREFIXES = (
@@ -106,8 +102,7 @@ def test_workflow_v1_schema_definition_includes_required_gui_fields() -> None:
     assert _section(schema_definition, "query.value")["gui_visible"] is True
     assert _section(schema_definition, "query.builder")["role"] == "preserved_metadata"
     assert _section(schema_definition, "query.composition")["role"] == "preserved_metadata"
-    assert _section(schema_definition, "harmonization.metadata_fields")["type"] == "string_list"
-    assert _section(schema_definition, "harmonization.unique_sequence_strategy")["allowed_values"] is None
+    assert "harmonization.metadata_fields" not in schema_definition
 
 
 def test_workflow_validator_accepts_complete_harmonization_section() -> None:
@@ -116,10 +111,7 @@ def test_workflow_validator_accepts_complete_harmonization_section() -> None:
     descriptor = minimal_workflow_descriptor()
     descriptor["harmonization"] = {
         "id_column": "_id",
-        "label_column": "_label",
         "sequence_column": "sequence",
-        "unique_sequence_strategy": "exact",
-        "metadata_fields": ["accession", "protein_name", "organism_name", "sequence"],
     }
 
     validated = validate_workflow_v1_descriptor(descriptor)
@@ -129,7 +121,7 @@ def test_workflow_validator_accepts_complete_harmonization_section() -> None:
 
 @pytest.mark.parametrize(
     "field_name",
-    ["id_column", "label_column", "sequence_column", "unique_sequence_strategy"],
+    ["id_column", "sequence_column"],
 )
 def test_workflow_validator_rejects_non_string_harmonization_fields(field_name: str) -> None:
     from silkroute.core.workflow.schema import validate_workflow_v1_descriptor
@@ -141,14 +133,25 @@ def test_workflow_validator_rejects_non_string_harmonization_fields(field_name: 
         validate_workflow_v1_descriptor(descriptor)
 
 
-def test_workflow_validator_rejects_scalar_harmonization_metadata_fields() -> None:
-    from silkroute.core.workflow.schema import validate_workflow_v1_descriptor
+def test_workflow_validator_rejects_removed_unused_keys() -> None:
+    from silkroute.core.workflow.schema import collect_workflow_v1_descriptor_errors
 
     descriptor = minimal_workflow_descriptor()
-    descriptor["harmonization"] = {"metadata_fields": "accession"}
+    descriptor["harmonization"] = {
+        "label_column": "x",
+        "unique_sequence_strategy": "x",
+        "metadata_fields": [],
+    }
+    descriptor["export"] = {"format": "csv", "result_files": {}}
 
-    with pytest.raises(ValueError, match=r"harmonization\.metadata_fields"):
-        validate_workflow_v1_descriptor(descriptor)
+    paths = {path for path, _ in collect_workflow_v1_descriptor_errors(descriptor)}
+
+    assert paths == {
+        "harmonization.label_column",
+        "harmonization.unique_sequence_strategy",
+        "harmonization.metadata_fields",
+        "export.result_files",
+    }
 
 
 def test_workflow_v1_schema_definition_hides_future_only_fields() -> None:

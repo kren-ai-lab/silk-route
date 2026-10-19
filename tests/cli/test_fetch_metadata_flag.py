@@ -36,7 +36,7 @@ def test_fetch_writes_sidecar_by_default(tmp_path):
 
     assert result.exit_code == 0, result.output
     assert out.exists()
-    assert (tmp_path / "out.metadata.json").exists()
+    assert (tmp_path / "out.csv.provenance.json").exists()
 
 
 @pytest.mark.usefixtures("_patch_kegg")
@@ -46,4 +46,4 @@ def test_fetch_no_metadata_skips_sidecar(tmp_path):
 
     assert result.exit_code == 0, result.output
     assert out.exists()
-    assert not (tmp_path / "out.metadata.json").exists()
+    assert not (tmp_path / "out.csv.provenance.json").exists()

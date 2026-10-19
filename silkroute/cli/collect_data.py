@@ -38,7 +38,7 @@ def _fetch_options(
     ctx: typer.Context,
     metadata: bool = typer.Option(
         default=True,
-        help="Write a `<output>.metadata.json` provenance sidecar next to saved results.",
+        help="Write a `<output>.provenance.json` sidecar next to saved results.",
     ),
 ) -> None:
     """Shared options for every ``fetch`` subcommand."""
