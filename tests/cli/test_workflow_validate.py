@@ -1,7 +1,8 @@
-"""CLI tests for ``silkroute workflow validate`` (offline, no execution)."""
+"""CLI tests for ``silkroute workflow validate-config`` (offline, no execution)."""
 
 from __future__ import annotations
 
+import json
 import textwrap
 
 from typer.testing import CliRunner
@@ -33,81 +34,62 @@ def _write(tmp_path, text):
     return str(path)
 
 
+def _validate(tmp_path, text):
+    """Run ``workflow validate-config --json`` and return (exit code, parsed errors)."""
+    result = runner.invoke(app, ["workflow", "validate-config", _write(tmp_path, text), "--json"])
+    return result.exit_code, json.loads(result.stdout)
+
+
 def test_validate_accepts_valid_descriptor(tmp_path):
-    result = runner.invoke(app, ["workflow", "validate", _write(tmp_path, VALID_DESCRIPTOR)])
+    result = runner.invoke(app, ["workflow", "validate-config", _write(tmp_path, VALID_DESCRIPTOR)])
     assert result.exit_code == 0
-    assert "valid workflow descriptor" in result.stdout
-    assert "modality: protein" in result.stdout
-    assert "mode: query_first" in result.stdout
+    assert _validate(tmp_path, VALID_DESCRIPTOR) == (0, [])
 
 
-def test_validate_rejects_unknown_modality(tmp_path):
-    bad = VALID_DESCRIPTOR.replace("modality: protein", "modality: rna")
-    result = runner.invoke(app, ["workflow", "validate", _write(tmp_path, bad)])
-    assert result.exit_code == 1
-    assert "Unsupported dataset.modality" in result.output
-
-
-def test_validate_rejects_missing_required_section(tmp_path):
-    no_export = VALID_DESCRIPTOR.replace("export:\n  format: csv\n", "")
-    result = runner.invoke(app, ["workflow", "validate", _write(tmp_path, no_export)])
-    assert result.exit_code == 1
-    assert "missing required top-level section" in result.output
-
-
-def test_validate_rejects_credential_key(tmp_path):
-    with_secret = VALID_DESCRIPTOR.replace("execution: {}", "execution:\n  api_key: leaked")
-    result = runner.invoke(app, ["workflow", "validate", _write(tmp_path, with_secret)])
-    assert result.exit_code == 1
-    assert "Credentials must be provided" in result.output
-
-
-def test_validate_reports_missing_schema_version(tmp_path):
-    no_version = VALID_DESCRIPTOR.replace('schema_version: "workflow-v1"\n', "")
-    result = runner.invoke(app, ["workflow", "validate", _write(tmp_path, no_version)])
-    assert result.exit_code == 1
-    assert "missing required top-level key 'schema_version'" in result.output
-
-
-def test_validate_reports_unsupported_schema_version(tmp_path):
-    bad = VALID_DESCRIPTOR.replace('schema_version: "workflow-v1"', 'schema_version: "workflow-v2"')
-    result = runner.invoke(app, ["workflow", "validate", _write(tmp_path, bad)])
-    assert result.exit_code == 1
-    assert "Unsupported workflow schema_version" in result.output
-
-
-def test_validate_reports_missing_file(tmp_path):
-    result = runner.invoke(app, ["workflow", "validate", str(tmp_path / "nope.yml")])
-    assert result.exit_code == 1
-    assert "does not exist" in result.output
-
-
-def test_validate_reports_all_errors_at_once(tmp_path):
-    # Three independent problems across sections + a credential key.
-    bad = textwrap.dedent(
-        """
-        dataset:
-          name: demo
-          modality: rna
-          mode: not_a_mode
-        query:
-          value: P12345
-        execution:
-          api_key: leaked
-        export:
-          format: xlsx
-        """
+def test_validate_reports_each_problem_with_its_path(tmp_path):
+    bad = VALID_DESCRIPTOR.replace("modality: protein", "modality: rna").replace(
+        "execution: {}", "execution:\n  api_key: leaked\n  max_workers: five"
     )
-    result = runner.invoke(app, ["workflow", "validate", _write(tmp_path, bad)])
-    assert result.exit_code == 1
-    assert "validation error(s):" in result.output
-    # dataset modality, export format, and the credential key all reported together.
-    assert "Unsupported dataset.modality" in result.output
-    assert "Unsupported export format" in result.output
-    assert "Credentials must be provided" in result.output
+    code, errors = _validate(tmp_path, bad)
+    assert code == 2
+    assert {error["path"] for error in errors} == {
+        "dataset.modality",
+        "execution.api_key",
+        "execution.max_workers",
+    }
 
 
-def test_validate_reports_query_composition_mismatch(tmp_path):
+def test_validate_collects_several_errors_in_one_section(tmp_path):
+    bad = VALID_DESCRIPTOR.replace("value: P12345", "value: P12345\n  fields: [a, 2, c, 4]\n  bogus: 1")
+    code, errors = _validate(tmp_path, bad)
+    assert code == 2
+    assert {error["path"] for error in errors} == {"query.fields[1]", "query.bogus"}
+
+
+def test_validate_reports_missing_section_and_schema_version(tmp_path):
+    bad = VALID_DESCRIPTOR.replace("export:\n  format: csv\n", "").replace(
+        'schema_version: "workflow-v1"\n', ""
+    )
+    code, errors = _validate(tmp_path, bad)
+    assert code == 2
+    assert {error["path"] for error in errors} == {"export", "schema_version"}
+
+
+def test_validate_reports_missing_file_at_root(tmp_path):
+    result = runner.invoke(app, ["workflow", "validate-config", str(tmp_path / "nope.yml"), "--json"])
+    assert result.exit_code == 2
+    assert [error["path"] for error in json.loads(result.stdout)] == [""]
+
+
+def test_validate_plain_mode_prints_path_lines_to_stderr(tmp_path):
+    bad = VALID_DESCRIPTOR.replace("format: csv", "format: xlsx")
+    result = runner.invoke(app, ["workflow", "validate-config", _write(tmp_path, bad)])
+    assert result.exit_code == 2
+    assert result.stdout == ""
+    assert result.stderr.startswith("export.format: ")
+
+
+def test_validate_catches_query_composition_mismatch(tmp_path):
     # Cross-section check: collected as an error, not raised as a traceback.
     bad = textwrap.dedent(
         """
@@ -126,49 +108,10 @@ def test_validate_reports_query_composition_mismatch(tmp_path):
           format: csv
         """
     )
-    result = runner.invoke(app, ["workflow", "validate", _write(tmp_path, bad)])
-    assert result.exit_code == 1
-    assert "validation error(s):" in result.output
-    assert "query.composition does not match executable query.value" in result.output
-    assert not isinstance(result.exception, ValueError)
-
-
-# --- collect_workflow_recipe_errors (unit) ----------------------------------
-
-
-def test_collect_returns_empty_for_valid():
-    recipe = {
-        "schema_version": "workflow-v1",
-        "dataset": {"name": "d", "modality": "protein", "mode": "query_first"},
-        "query": {"value": "P1"},
-        "execution": {},
-        "export": {"format": "csv"},
-    }
-    assert collect_workflow_recipe_errors(recipe) == []
-
-
-def test_collect_accumulates_across_sections():
-    recipe = {
-        "dataset": {"name": "d", "modality": "rna", "mode": "query_first"},
-        "query": {"value": ""},  # blank value
-        "execution": {"max_workers": "five"},  # not an int
-        "export": {"format": "xlsx"},
-    }
-    errors = collect_workflow_recipe_errors(recipe)
-    assert len(errors) >= 4  # one per broken section
-
-
-def test_collect_catches_query_composition_mismatch():
-    recipe = {
-        "schema_version": "workflow-v1",
-        "dataset": {"name": "d", "modality": "protein", "mode": "query_composition"},
-        "query": {"value": "gene:TP53=tp53", "composition": [{"label": "brca1", "value": "gene:BRCA1"}]},
-        "execution": {},
-        "export": {"format": "csv"},
-    }
-    errors = collect_workflow_recipe_errors(recipe)
-    assert any("does not match executable query.value" in error for error in errors)
+    code, errors = _validate(tmp_path, bad)
+    assert code == 2
+    assert [error["path"] for error in errors] == ["query.composition"]
 
 
 def test_collect_non_mapping_root():
-    assert collect_workflow_recipe_errors(["not", "a", "map"]) == ["Workflow YAML root must be a mapping."]
+    assert [error["path"] for error in collect_workflow_recipe_errors(["not", "a", "map"])] == [""]

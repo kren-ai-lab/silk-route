@@ -1678,21 +1678,11 @@ class WorkflowYamlBuilderApp:
         ):
             (
                 ui.input("ID column")
-                .props('clearable placeholder="_id"')
+                .props('clearable placeholder="id"')
                 .bind_value(self.form_values, "harmonization.id_column")
                 .tooltip(
-                    "Optional column name used as a deterministic row identifier in tabular "
-                    "outputs when needed. Example: _id."
-                )
-            )
-            (
-                ui.input("Label column")
-                .props('clearable placeholder="_label"')
-                .bind_value(self.form_values, "harmonization.label_column")
-                .tooltip(
-                    "Optional column name that identifies labels or groups in tabular outputs. "
-                    "Stored with the descriptor for reference. Exported columns keep their "
-                    "original names."
+                    "Optional name of the record id column in primary result tables "
+                    "(filled from the table's native key). Default: id."
                 )
             )
             (
@@ -1702,25 +1692,6 @@ class WorkflowYamlBuilderApp:
                 .tooltip(
                     "Optional column name used to identify biological sequences for reporting, "
                     "such as unique sequence counts, when that column exists in tabular outputs."
-                )
-            )
-            (
-                ui.input("Unique sequence strategy")
-                .props('clearable placeholder="exact"')
-                .bind_value(self.form_values, "harmonization.unique_sequence_strategy")
-                .tooltip(
-                    "Optional strategy name for sequence uniqueness notes. Deduplication is "
-                    "handled elsewhere for now."
-                )
-            )
-            (
-                ui.input("Metadata fields")
-                .props('clearable placeholder="accession, protein_name, organism_name, sequence"')
-                .bind_value(self.form_values, "harmonization.metadata_fields")
-                .classes("col-span-2")
-                .tooltip(
-                    "Optional comma-separated list of metadata fields expected in the output. "
-                    "Exported columns stay unchanged."
                 )
             )
 

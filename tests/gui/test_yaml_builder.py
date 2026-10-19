@@ -217,12 +217,7 @@ execution:
   debug: true
 harmonization:
   id_column: "_id"
-  label_column: "_label"
   sequence_column: "sequence"
-  unique_sequence_strategy: "exact"
-  metadata_fields:
-    - accession
-    - protein_name
 export:
 {export_output_dir}  format: csv
   include_metadata: true
@@ -307,10 +302,7 @@ def test_build_workflow_descriptor_removes_empty_optional_fields() -> None:
             "query.crossref_fields": "",
             "execution.uniprot_timeout": "",
             "harmonization.id_column": "",
-            "harmonization.label_column": "",
             "harmonization.sequence_column": "",
-            "harmonization.unique_sequence_strategy": "",
-            "harmonization.metadata_fields": "",
         }
     )
 
@@ -1055,50 +1047,16 @@ def test_non_empty_harmonization_id_column_includes_harmonization_section() -> N
     assert descriptor["harmonization"] == {"id_column": "_id"}
 
 
-def test_harmonization_metadata_fields_are_parsed_as_csv() -> None:
-    descriptor = build_workflow_descriptor(
-        minimal_form_values()
-        | {"harmonization.metadata_fields": ("accession, protein_name, , organism_name, sequence")}
-    )
-
-    assert _section(descriptor, "harmonization")["metadata_fields"] == [
-        "accession",
-        "protein_name",
-        "organism_name",
-        "sequence",
-    ]
-
-
-def test_empty_harmonization_metadata_fields_are_omitted() -> None:
-    descriptor = build_workflow_descriptor(minimal_form_values() | {"harmonization.metadata_fields": " , , "})
-
-    assert "harmonization" not in descriptor
-
-
 def test_complete_harmonization_block_validates_as_workflow_v1() -> None:
     descriptor = build_workflow_descriptor(
         minimal_form_values()
         | {
             "harmonization.id_column": "_id",
-            "harmonization.label_column": "_label",
             "harmonization.sequence_column": "sequence",
-            "harmonization.unique_sequence_strategy": "exact",
-            "harmonization.metadata_fields": ("accession, protein_name, organism_name, sequence"),
         }
     )
 
-    assert descriptor["harmonization"] == {
-        "id_column": "_id",
-        "label_column": "_label",
-        "sequence_column": "sequence",
-        "unique_sequence_strategy": "exact",
-        "metadata_fields": [
-            "accession",
-            "protein_name",
-            "organism_name",
-            "sequence",
-        ],
-    }
+    assert descriptor["harmonization"] == {"id_column": "_id", "sequence_column": "sequence"}
     assert validate_generated_descriptor(descriptor) == []
     assert "resources" not in descriptor
     assert "reporting" not in descriptor
@@ -1358,9 +1316,7 @@ def test_descriptor_to_form_values_loads_supported_fields() -> None:
     assert form_values["execution.uniprot_timeout"] == 12.5
     assert form_values["execution.debug"] is True
     assert form_values["harmonization.id_column"] == "_id"
-    assert form_values["harmonization.label_column"] == "_label"
     assert form_values["harmonization.sequence_column"] == "sequence"
-    assert form_values["harmonization.unique_sequence_strategy"] == "exact"
     assert form_values["export.format"] == "CSV"
     assert form_values["export.include_metadata"] is True
     assert form_values["export.include_summary"] is True
@@ -1373,7 +1329,6 @@ def test_loaded_list_fields_become_comma_separated_text() -> None:
     assert form_values["query.return_field_selections"] == ["accession", "sequence"]
     assert form_values["query.return_field_custom"] == ""
     assert form_values["query.crossref_fields"] == "xref_pdb, xref_string"
-    assert form_values["harmonization.metadata_fields"] == "accession, protein_name"
 
 
 def test_loading_custom_return_fields_restores_advanced_input() -> None:
@@ -1424,7 +1379,6 @@ export:
     assert form_values["query.return_field_selections"] == []
     assert form_values["query.return_field_custom"] == ""
     assert form_values["query.crossref_fields"] == ""
-    assert form_values["harmonization.metadata_fields"] == ""
 
 
 def test_loaded_output_dir_selects_custom_output_directory_mode() -> None:

@@ -14,12 +14,13 @@ import polars as pl
 import pytest
 
 from silkroute.cli.workflows import (
-    add_id_column_for_export,
+    add_record_id,
     build_default_workflow_values,
     check_forbidden_workflow_recipe_keys,
     count_query_composition_labels,
     determine_execution_status,
     get_expected_query_composition_labels,
+    ids_in_several_labels,
     is_count_like_reporting_map,
     is_empty_export_content,
     is_reporting_value_allowed,
@@ -41,6 +42,7 @@ from silkroute.cli.workflows import (
     validate_required_section_keys,
     validate_string_list,
 )
+from silkroute.core.exceptions import SilkRouteError
 
 # --- credential guard -------------------------------------------------------
 
@@ -155,7 +157,7 @@ def test_validate_pages_to_fetch_accepts_minus_one_and_positive(value):
 
 
 def test_validate_string_list_rejects_mixed():
-    with pytest.raises(ValueError, match="must be a list of strings"):
+    with pytest.raises(ValueError, match=r"resources\.primary\[1\]"):
         validate_string_list("resources", "primary", ["uniprot", 3])
 
 
@@ -307,17 +309,36 @@ def test_is_empty_export_content(content, expected):
     assert is_empty_export_content(content) is expected
 
 
-def test_add_id_column_inserts_when_requested():
-    df = pl.DataFrame({"a": [10, 20]})
-    out = add_id_column_for_export(df, "uniprot", "id")
-    assert out["id"].to_list() == ["uniprot_1", "uniprot_2"]
+def test_add_record_id_uses_native_key_as_first_string_column():
+    df = pl.DataFrame({"a": [10, 20], "accession": ["P2", "P1"]})
+    out = add_record_id(df, "uniprot", "id")
+    assert out.columns == ["id", "a", "accession"]
+    assert out["id"].to_list() == ["P2", "P1"]
     assert "id" not in df.columns  # original untouched
 
 
-def test_add_id_column_skips_when_no_column_or_already_present():
-    df = pl.DataFrame({"id": [1], "a": [2]})
-    assert add_id_column_for_export(df, "x", None) is df
-    assert add_id_column_for_export(df, "x", "id") is df
+def test_add_record_id_rejects_duplicate_keys():
+    with pytest.raises(SilkRouteError):
+        add_record_id(pl.DataFrame({"accession": ["P1", "P1"]}), "uniprot", "id")
+
+
+def test_add_record_id_keeps_a_record_listed_under_several_query_labels():
+    df = pl.DataFrame({"accession": ["P1", "P1", "P2"], "_label": ["pos", "neg", "pos"]})
+    out = add_record_id(df, "uniprot", "id")
+    assert out["id"].to_list() == ["P1", "P1", "P2"]
+    assert ids_in_several_labels(out, "id") == {"P1": ["neg", "pos"]}
+    with pytest.raises(SilkRouteError):  # the same (id, label) pair twice is still a duplicate
+        add_record_id(pl.DataFrame({"accession": ["P1", "P1"], "_label": ["pos", "pos"]}), "uniprot", "id")
+
+
+def test_add_record_id_rejects_empty_keys():
+    with pytest.raises(SilkRouteError):
+        add_record_id(pl.DataFrame({"accession": ["P1", ""]}), "uniprot", "id")
+
+
+def test_add_record_id_requires_the_native_key_column():
+    with pytest.raises(SilkRouteError):
+        add_record_id(pl.DataFrame({"a": [1]}), "uniprot", "id")
 
 
 def test_to_json_compatible_handles_frames_dates_paths():

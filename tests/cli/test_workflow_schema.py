@@ -66,9 +66,7 @@ def descriptor_with_all_core_sections() -> dict:
     }
     descriptor["harmonization"] = {
         "id_column": "_id",
-        "label_column": None,
         "sequence_column": "sequence",
-        "metadata_fields": ["accession", "sequence"],
     }
     descriptor["reporting"] = {
         "workflow_execution_time_seconds": None,

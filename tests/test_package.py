@@ -6,7 +6,7 @@ import subprocess
 import sys
 from importlib import metadata
 
-EXPECTED_VERSION = "0.1.2"
+EXPECTED_VERSION = "0.2.0"
 
 
 def test_version_is_exposed() -> None:

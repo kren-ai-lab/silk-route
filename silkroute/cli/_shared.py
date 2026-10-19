@@ -16,6 +16,8 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 import polars as pl
 import typer
 
+from silkroute import __version__
+from silkroute._provenance import utc_now, write_provenance
 from silkroute.constants.uniprot import (
     get_effective_uniprot_parsed_fields,
     get_uniprot_parsed_fields,
@@ -32,6 +34,11 @@ from silkroute.core.export import (
 if TYPE_CHECKING:
     import logging
 
+
+# Exit codes of the shared ecosystem CLI contract (0 is success, Click already uses 2 for usage errors).
+EXIT_USAGE = 2  # invalid config or usage
+EXIT_RUNTIME = 3  # runtime failure: own errors, I/O, API
+EXIT_INTERNAL = 4  # unexpected error (a bug)
 
 _OUTPUT_HELP = "Output file to save the results. Prints a preview if omitted."
 _OUTPUT_DIR_HELP = "Output directory for results."
@@ -99,42 +106,76 @@ def unwrap(result: Any) -> Any:
     return split_result(result)[0]
 
 
-def _metadata_enabled() -> bool:
-    """Whether to write metadata sidecars, per the ``fetch --no-metadata`` flag.
-
-    Reads the shared click context meta set by the ``fetch`` callback; defaults
-    to ``True`` outside a CLI invocation (e.g. when called directly in tests).
-
-    Returns:
-        bool: ``True`` if metadata sidecars should be written.
-
-    """
+def _current_context() -> Any:
+    """Return the active click context, or ``None`` outside a CLI invocation (e.g. direct calls in tests)."""
     try:
         # typer vendors click; this is its current location for the active-context lookup.
         from typer._click.globals import get_current_context  # noqa: PLC0415
     except ImportError:  # pragma: no cover - guards against typer internals moving
-        return True
-    ctx = get_current_context(silent=True)
-    if ctx is None:
-        return True
-    return bool(ctx.meta.get("write_metadata", True))
+        return None
+    return get_current_context(silent=True)
 
 
-def _write_metadata_sidecar(output_path: str | Path, metadata: dict) -> None:
-    """Write fetch metadata as a sidecar JSON next to ``output_path``.
+def _metadata_enabled() -> bool:
+    """Whether to write provenance sidecars, per the ``fetch --no-metadata`` flag.
 
-    ``results.csv`` -> ``results.metadata.json``, keeping the provenance tied to
-    the data file it describes (no clobber when several commands share a dir).
+    Reads the shared click context meta set by the ``fetch`` callback; defaults
+    to ``True`` outside a CLI invocation.
 
-    Args:
-        output_path (str | Path): Path of the data file the sidecar describes.
-        metadata (dict): Provenance metadata to serialize.
+    Returns:
+        bool: ``True`` if provenance sidecars should be written.
 
     """
-    sidecar = Path(output_path).with_suffix(".metadata.json")
-    with sidecar.open("w") as fh:
-        json.dump(metadata, fh, indent=2, default=str)
-    typer.echo(f"Metadata saved to {sidecar}")
+    ctx = _current_context()
+    return True if ctx is None else bool(ctx.meta.get("write_metadata", True))
+
+
+def write_output_provenance(
+    output_path: str | Path,
+    metadata: dict,
+    *,
+    command: str | None = None,
+    parameters: dict[str, Any] | None = None,
+    n_rows: int | None = None,
+    n_cols: int | None = None,
+) -> Path:
+    """Write ``<output_path>.provenance.json`` describing one output file.
+
+    ``command`` and ``parameters`` default to the active CLI invocation (the subcommand path
+    and its options, minus the output path); the tool's own run ``metadata`` goes under
+    ``extensions``.
+
+    Args:
+        output_path (str | Path): The output file the sidecar describes.
+        metadata (dict): Tool-native run metadata, kept as provenance extensions.
+        command (str | None): Subcommand that ran, e.g. ``fetch kegg get``.
+        parameters (dict[str, Any] | None): Effective options of the run.
+        n_rows (int | None): Row count, when the output is a table.
+        n_cols (int | None): Column count, when the output is a table.
+
+    Returns:
+        Path: The sidecar path.
+
+    """
+    ctx = _current_context()
+    if command is None:
+        command = " ".join(ctx.command_path.split()[1:]) if ctx is not None else "fetch"
+    if parameters is None:
+        parameters = {k: v for k, v in (ctx.params if ctx is not None else {}).items() if k != "output"}
+    created_at = ctx.meta.get("started_at") if ctx is not None else None
+    sidecar = write_provenance(
+        Path(output_path),
+        tool="silkroute",
+        version=__version__,
+        command=command,
+        created_at=created_at or utc_now(),
+        parameters=parameters,
+        packages=("silkroute", "polars"),
+        output_info=None if n_rows is None or n_cols is None else {"n_rows": n_rows, "n_cols": n_cols},
+        extensions=metadata,
+    )
+    typer.echo(f"Provenance saved to {sidecar}")
+    return sidecar
 
 
 def save_or_print(
@@ -148,7 +189,7 @@ def save_or_print(
     """Unpack a fetch result and either save it to ``output`` or print a preview.
 
     When ``output`` is given and the result carries metadata, the provenance is
-    also written to a ``<output>.metadata.json`` sidecar.
+    also written to a ``<output>.provenance.json`` sidecar.
 
     Args:
         result (Any): Raw return value of ``fetch_single`` / ``fetch_batch`` (a
@@ -172,11 +213,10 @@ def save_or_print(
             try:
                 saved = export_dataframe(data, output, output_format=fmt)
             except ValueError as e:
-                typer.echo(f"Error: {e}", err=True)
-                raise typer.Exit(code=1) from None
+                raise typer.BadParameter(str(e)) from None
             typer.echo(f"Results saved to {saved}")
             if metadata and write_metadata:
-                _write_metadata_sidecar(saved, metadata)
+                write_output_provenance(saved, metadata, n_rows=data.height, n_cols=data.width)
         else:
             typer.echo(data.head(preview_rows))
         return
@@ -191,7 +231,7 @@ def save_or_print(
                 fh.write(str(data))
         typer.echo(f"Results saved to {output}")
         if metadata and write_metadata:
-            _write_metadata_sidecar(output, metadata)
+            write_output_provenance(output, metadata)
     else:
         typer.echo(data)
 
@@ -322,7 +362,7 @@ def save_uniprot_results(
 
 
 def validate_export_format(export_format: str) -> str:
-    """Normalize a user export-format string, or exit(1) with an error message.
+    """Normalize a user export-format string, or raise a usage error (exit 2).
 
     Shared by the uniprot-search CLI commands (ids / query / sequences), which
     previously duplicated this normalize-or-Exit(1) block verbatim.
@@ -334,17 +374,16 @@ def validate_export_format(export_format: str) -> str:
         str: The normalized export format.
 
     Raises:
-        typer.Exit: If the format is not one of the supported export formats.
+        typer.BadParameter: If the format is not one of the supported export formats.
 
     """
     normalized = normalize_user_export_format(export_format)
     if normalized is None:
-        typer.echo(
-            f"Error: Unsupported export format '{export_format}'. "
-            f"Supported formats are: {', '.join(USER_EXPORT_FORMATS)}.",
-            err=True,
+        msg = (
+            f"Unsupported export format '{export_format}'. "
+            f"Supported formats are: {', '.join(USER_EXPORT_FORMATS)}."
         )
-        raise typer.Exit(code=1)
+        raise typer.BadParameter(msg)
     return normalized
 
 

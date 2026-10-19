@@ -44,6 +44,7 @@ gui = [
 
 [dependency-groups]
 dev = [
+    "jsonschema>=4.0,<5.0",
     "niquests-mock>=0.4,<0.5",
     "pyrefly>=1.0,<2.0",
     "pytest>=9.0,<10.0",
