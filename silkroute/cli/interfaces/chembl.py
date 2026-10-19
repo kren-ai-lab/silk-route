@@ -30,7 +30,7 @@ def run_activity(
         method="activity", query=query, pages_to_fetch=1, parse=True, format="dataframe"
     )
 
-    save_or_print(result, output, output_format=output_format)
+    save_or_print(result, output, output_format=output_format, record_label="chembl")
 
 
 @app.command("binding-site")

@@ -9,6 +9,7 @@ import typer
 from silkroute.cli._shared import write_output_provenance
 from silkroute.constants.uniprot import XREF_MAPPING
 from silkroute.core.crossref_enricher import CrossRefEnricher, specs_for_database
+from silkroute.core.exceptions import SilkRouteError
 from silkroute.core.export import export_dataframe
 from silkroute.core.interfacesconfig import load_packaged_config
 from silkroute.logging import get_logger
@@ -70,7 +71,7 @@ def run(
     """Run UniProt cross-reference name mapping."""
     if not Path(input_file).exists():
         msg = f"Input file {input_file} does not exist."
-        raise typer.BadParameter(msg)
+        raise SilkRouteError(msg)
 
     df = pl.read_csv(input_file)
 

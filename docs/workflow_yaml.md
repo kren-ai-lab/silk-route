@@ -698,6 +698,8 @@ Every primary result table (`<db>_results.csv` and `.parquet`) starts with a str
 
 `silkroute workflow validate-config CONFIG [--json]` checks a descriptor without running it or touching the network. It reports every problem at once, each with a dotted `path` such as `export.format` or `query.fields[2]`. Without `--json`, it prints `path: message` lines on stderr. With `--json`, it prints a JSON array of `{"path", "message"}` objects on stdout (empty when valid). It exits 0 when valid and 2 otherwise. `workflow run` rejects the same problems with exit code 2.
 
+From Python, `silkroute.validate_config(config)` runs the same check on a mapping or a YAML/JSON path and returns a list of `ConfigIssue(path, message)` (empty when valid). A missing or unparsable file is one issue with path `""`.
+
 Raw graph payloads are externalized only for PathwayCommons graph enrichment
 outputs:
 

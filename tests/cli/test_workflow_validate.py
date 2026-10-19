@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import textwrap
+from types import MappingProxyType
 
+import yaml
 from typer.testing import CliRunner
 
+from silkroute import ConfigIssue, validate_config
 from silkroute.cli.main import app
-from silkroute.cli.workflows import collect_workflow_recipe_errors
 
 runner = CliRunner()
 
@@ -113,5 +115,21 @@ def test_validate_catches_query_composition_mismatch(tmp_path):
     assert [error["path"] for error in errors] == ["query.composition"]
 
 
-def test_collect_non_mapping_root():
-    assert [error["path"] for error in collect_workflow_recipe_errors(["not", "a", "map"])] == [""]
+def test_validate_config_non_mapping_root():
+    assert [issue.path for issue in validate_config(["not", "a", "map"])] == [""]  # pyrefly: ignore
+
+
+def test_validate_config_mappings_and_paths(tmp_path):
+    good = tmp_path / "good.yml"
+    good.write_text(VALID_DESCRIPTOR)
+    assert validate_config(good) == []
+    assert validate_config(str(good)) == []
+    assert validate_config(MappingProxyType(yaml.safe_load(good.read_text()))) == []
+    bad = {"export": {"format": "xlsx"}}
+    issues = validate_config(MappingProxyType(bad))
+    assert "export.format" in {issue.path for issue in issues}
+    assert all(isinstance(issue, ConfigIssue) for issue in issues)
+    assert [issue.path for issue in validate_config(tmp_path / "missing.yml")] == [""]
+    broken = tmp_path / "broken.yml"
+    broken.write_text("a: [unclosed\n")
+    assert [issue.path for issue in validate_config(broken)] == [""]
