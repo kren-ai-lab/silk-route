@@ -7,7 +7,7 @@ Aligns the CLI with the shared ecosystem CLI contract.
 ### Breaking changes
 
 - Exit codes: config and usage errors exit 2, runtime failures exit 3 (failed runs, API and I/O errors), unexpected errors exit 4 with the traceback. These replace the former exit code 1.
-- `workflow validate-config` exits 2 (not 1) on invalid descriptors and prints `path: message` lines to stderr instead of the former error report on stdout.
+- `workflow validate` is now `workflow validate-config`. It exits 2 (not 1) on invalid descriptors and prints `path: message` lines to stderr instead of the former error report on stdout.
 - Primary result tables (`uniprot_results`, `chembl_results`, `pubchem_results`, `chebi_results`) always start with a string `id` column taken from the table's native key. The positional `<label>_<n>` ids are gone.
 - `harmonization.id_column` only renames the id column (default `id`). Ids must be unique and non-empty, otherwise the run exits 3. In `query_composition` runs a record returned under several labels is kept once per label (each `(id, _label)` pair is unique), with a warning; the run sidecar lists those ids under `extensions.ids_in_several_labels`.
 - Enrichment tables no longer get an id column.
