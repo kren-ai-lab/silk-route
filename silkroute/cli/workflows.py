@@ -22,6 +22,7 @@ import yaml
 from silkroute import __version__
 from silkroute._provenance import utc_now, write_provenance
 from silkroute.cli._shared import EXIT_RUNTIME, EXIT_USAGE
+from silkroute.config import load_workflow_recipe, validate_config
 from silkroute.core.exceptions import SilkRouteError
 from silkroute.core.export import (
     export_dataframe,
@@ -298,43 +299,6 @@ def sync_descriptor_from_workflow_values(values: dict) -> dict:
     return synced
 
 
-def load_workflow_recipe(config_path: str | Path) -> dict:
-    """Load a workflow descriptor from a YAML file.
-
-    Args:
-        config_path (str | Path): Path to the YAML descriptor file.
-
-    Returns:
-        dict: The parsed descriptor, or an empty dict if the file is empty.
-
-    Raises:
-        ValueError: If the file does not exist or cannot be read or parsed.
-        TypeError: If the YAML root is not a mapping.
-
-    """
-    path = Path(config_path)
-    if not path.exists():
-        msg = f"Workflow YAML file does not exist: {path}"
-        raise ValueError(msg)
-
-    try:
-        with path.open("r", encoding="utf-8") as handle:
-            loaded = yaml.safe_load(handle)
-    except yaml.YAMLError as exc:
-        msg = f"Invalid workflow YAML in {path}: {exc}"
-        raise ValueError(msg) from exc
-    except OSError as exc:
-        msg = f"Could not read workflow YAML {path}: {exc}"
-        raise ValueError(msg) from exc
-
-    if loaded is None:
-        return {}
-    if not isinstance(loaded, dict):
-        msg = "Workflow YAML root must be a mapping."
-        raise TypeError(msg)
-    return loaded
-
-
 def validate_workflow_recipe(recipe: dict) -> dict:
     """Validate and normalize a structured workflow descriptor.
 
@@ -420,26 +384,6 @@ def validate_workflow_recipe(recipe: dict) -> dict:
         }
     )
     return sync_descriptor_from_workflow_values(normalized)
-
-
-def collect_workflow_recipe_errors(recipe: object) -> list[dict[str, str]]:
-    """Return every validation error found in a descriptor.
-
-    Delegates to the shared workflow-v1 schema collector so CLI validation reports use
-    the same rules as runtime descriptor validation.
-
-    Args:
-        recipe (object): The raw descriptor mapping to validate.
-
-    Returns:
-        list[dict[str, str]]: ``{"path", "message"}`` entries with a dotted path (``""`` for the
-        root); empty when the descriptor is valid.
-
-    """
-    return [
-        {"path": path, "message": message}
-        for path, message in workflow_schema.collect_workflow_v1_descriptor_errors(recipe)
-    ]
 
 
 def merge_workflow_recipe(cli_values: dict, recipe_values: dict) -> dict:
@@ -2229,11 +2173,8 @@ def validate_workflow(
     Reports every validation problem at once (``path: message`` lines on stderr, or a JSON
     array with ``--json``) and exits 2, or exits 0 when the descriptor is valid.
     """
-    try:
-        recipe = load_workflow_recipe(config)
-        errors = collect_workflow_recipe_errors(recipe)
-    except (ValueError, TypeError) as exc:
-        recipe, errors = {}, [{"path": "", "message": str(exc)}]
+    issues = validate_config(config)
+    errors = [{"path": issue.path, "message": issue.message} for issue in issues]
 
     if as_json:
         typer.echo(json.dumps(errors))
@@ -2245,7 +2186,7 @@ def validate_workflow(
 
     if not as_json:
         # No errors collected, so this re-derives the normalized values without raising.
-        values = validate_workflow_recipe(recipe)
+        values = validate_workflow_recipe(load_workflow_recipe(config))
         typer.echo(f"OK: {config} is a valid workflow descriptor.")
         typer.echo(f"  modality: {values['modality']} | mode: {values['mode']}")
         if values.get("output"):

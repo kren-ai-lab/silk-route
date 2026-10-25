@@ -9,6 +9,7 @@ import typer
 from silkroute.cli._shared import write_output_provenance
 from silkroute.constants.uniprot import XREF_MAPPING
 from silkroute.core.crossref_enricher import CrossRefEnricher, specs_for_database
+from silkroute.core.exceptions import SilkRouteError
 from silkroute.core.export import export_dataframe
 from silkroute.core.interfacesconfig import load_packaged_config
 from silkroute.logging import get_logger
@@ -16,31 +17,6 @@ from silkroute.logging import get_logger
 log = get_logger("silkroute.cli.uniprot_crossref")
 
 CROSS_REF_FIELDS = [xref.lower() for xref in XREF_MAPPING]
-
-
-def save_to_file(
-    df: pl.DataFrame, out_dir: str, filename: str, db: str, endpoint: str, option: str | None
-) -> None:
-    """Save a cross-reference result DataFrame to a CSV file under ``out_dir/filename``.
-
-    Args:
-        df (pl.DataFrame): The results to save.
-        out_dir (str): Base output directory.
-        filename (str): Subfolder name (typically the input file stem).
-        db (str): Database name, used in the output file name.
-        endpoint (str): Endpoint name, used in the output file name.
-        option (str | None): Optional variant, included in the file name when set.
-
-    """
-    # Make folder with filename
-    (Path(out_dir) / filename).mkdir(parents=True, exist_ok=True)
-    # Save the DataFrame to a CSV file
-    if option is None:
-        output_file = Path(out_dir) / filename / f"{db}_{endpoint}_results.csv"
-    else:
-        output_file = Path(out_dir) / filename / f"{db}_{endpoint}_{option}_results.csv"
-    export_dataframe(df, output_file, output_format="csv")
-    log.info("Results for %s with option %s saved to %s", db, option, output_file)
 
 
 def run(
@@ -70,7 +46,7 @@ def run(
     """Run UniProt cross-reference name mapping."""
     if not Path(input_file).exists():
         msg = f"Input file {input_file} does not exist."
-        raise typer.BadParameter(msg)
+        raise SilkRouteError(msg)
 
     df = pl.read_csv(input_file)
 
