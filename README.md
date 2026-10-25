@@ -482,7 +482,7 @@ If you use SilkRoute in your research, please cite:
 
 > Fernández Villegas, D.; García - Vinuesa, J. A.; Alvarez Saravia, D.; Medina-Ortiz, D.
 > *SilkRoute: Reproducible Biological Data Retrieval*.
-> Version 0.1.1, 2026. Zenodo.
+> Version 0.2.0, 2026. Zenodo.
 > https://doi.org/10.5281/zenodo.21930739
 
 ```bibtex
@@ -490,14 +490,14 @@ If you use SilkRoute in your research, please cite:
   author    = {Fernández Villegas, Diego and García - Vinuesa, Julián Alfonso and Alvarez Saravia, Diego and Medina-Ortiz, David},
   title     = {{SilkRoute}: Reproducible Biological Data Retrieval},
   year      = {2026},
-  version   = {0.1.1},
+  version   = {0.2.0},
   publisher = {Zenodo},
   doi       = {10.5281/zenodo.21930739},
   url       = {https://doi.org/10.5281/zenodo.21930739}
 }
 ```
 
-To cite this exact release, use the version DOI [10.5281/zenodo.21930740](https://doi.org/10.5281/zenodo.21930740).
+To cite this exact release, use the version DOI [10.5281/zenodo.23652017](https://doi.org/10.5281/zenodo.23652017).
 Machine-readable metadata lives in [CITATION.cff](CITATION.cff).
 
 ## License
