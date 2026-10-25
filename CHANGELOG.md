@@ -26,3 +26,7 @@ Aligns the CLI with the shared ecosystem CLI contract.
 - `workflow run` writes `<output_dir>.provenance.json` (`provenance/1`) next to the output directory, on `success` and `completed_with_errors`. `metadata.json` and `run_summary.yml` stay inside it.
 - Provenance sidecars for `search uniprot` results and `blast_results.csv`; `fetch` writes its sidecar even without tool metadata or with `--no-metadata` (which now only drops the `extensions`).
 - Contract conformance tests against the shared JSON schemas (`tests/contract/`, `jsonschema` as a dev dependency).
+
+### Fixed
+
+- CSV/TSV export writes `Array` columns as JSON arrays (they were written as `"<builtins.PySeries object ...>"`) and NaN inside nested values as `null`, so every nested cell is valid JSON. List, Array and Struct columns are encoded by Polars instead of a Python call per cell.

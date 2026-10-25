@@ -111,7 +111,7 @@ def run(
 
     df_blast = df_blast.rename({"query": "id", "subject": "subject_id"})
     df_blast = df_blast.with_columns(pl.col("id").cast(pl.Int64))
-    df_blast = df_blast.join(sequences_df, on="id", how="left")
+    df_blast = df_blast.join(sequences_df, on="id", how="left", maintain_order="left")
     df_blast = df_blast.rename({seq_column: "sequence"}).with_columns(pl.col("id").cast(pl.String))
 
     # Cast then filter numeric thresholds before exporting or enriching
