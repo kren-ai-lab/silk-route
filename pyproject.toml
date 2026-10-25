@@ -9,7 +9,16 @@ description = "Tool to download and integrate biological data from multiple APIs
 readme = "README.md"
 license = "MIT"
 authors = [
-    { name = "Kren AI Lab", email = "krenai@umag.cl" }
+    { name = "Diego Fernández-Villegas" },
+    { name = "Julián Alfonso García-Vinuesa" },
+    { name = "Diego Alvarez Saravia" },
+    { name = "David Medina-Ortiz" },
+]
+maintainers = [
+    { name = "Diego Fernández-Villegas" },
+    { name = "Julián Alfonso García-Vinuesa" },
+    { name = "Diego Alvarez Saravia" },
+    { name = "David Medina-Ortiz" },
 ]
 requires-python = ">=3.11,<3.15"
 
