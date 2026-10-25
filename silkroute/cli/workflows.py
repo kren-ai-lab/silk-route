@@ -20,6 +20,10 @@ import typer
 import yaml
 
 from silkroute import __version__
+from silkroute._provenance import utc_now, write_provenance
+from silkroute.cli._shared import EXIT_RUNTIME, EXIT_USAGE
+from silkroute.config import load_workflow_recipe, validate_config
+from silkroute.core.exceptions import SilkRouteError
 from silkroute.core.export import (
     export_dataframe,
     normalize_export_format,
@@ -47,6 +51,34 @@ PRIMARY_RESULT_LABELS = {
     "compound": "chembl",
     "interaction": "data",
 }
+# Native record key of each primary result table (``<label>_results.<fmt>``), in lookup order.
+# ChEMBL tables differ: activity rows are keyed by ``activity_id`` (a molecule or target repeats
+# across activities), assay tables carry ``target_chembl_id`` too, so the most specific key wins.
+RECORD_KEY_COLUMNS = {
+    "uniprot": ("accession",),
+    "chembl": ("activity_id", "assay_chembl_id", "molecule_chembl_id", "target_chembl_id"),
+    "pubchem": ("pubchem_cid",),
+    "chebi": ("chebi_id",),
+}
+# Workflow values that are descriptor-shaped copies of the flat values, or only affect output paths/logging.
+PROVENANCE_EXCLUDED_VALUES = frozenset(
+    {
+        "output",
+        "manifest_file",
+        "summary_file",
+        "debug",
+        "dataset",
+        "query_descriptor",
+        "resources",
+        "execution",
+        "harmonization",
+        "export",
+        "reporting",
+        "extra_descriptor_sections",
+        "original_descriptor",
+    }
+)
+DEFAULT_ID_COLUMN = "id"
 GRAPH_JSON_COLUMN = "graph_json"
 GRAPH_FILE_COLUMNS = ("graph_file", "graph_file_size_bytes", "graph_sha256")
 GRAPH_RAW_OUTPUT_KIND = "raw_graph"
@@ -267,43 +299,6 @@ def sync_descriptor_from_workflow_values(values: dict) -> dict:
     return synced
 
 
-def load_workflow_recipe(config_path: str | Path) -> dict:
-    """Load a workflow descriptor from a YAML file.
-
-    Args:
-        config_path (str | Path): Path to the YAML descriptor file.
-
-    Returns:
-        dict: The parsed descriptor, or an empty dict if the file is empty.
-
-    Raises:
-        ValueError: If the file does not exist or cannot be read or parsed.
-        TypeError: If the YAML root is not a mapping.
-
-    """
-    path = Path(config_path)
-    if not path.exists():
-        msg = f"Workflow YAML file does not exist: {path}"
-        raise ValueError(msg)
-
-    try:
-        with path.open("r", encoding="utf-8") as handle:
-            loaded = yaml.safe_load(handle)
-    except yaml.YAMLError as exc:
-        msg = f"Invalid workflow YAML in {path}: {exc}"
-        raise ValueError(msg) from exc
-    except OSError as exc:
-        msg = f"Could not read workflow YAML {path}: {exc}"
-        raise ValueError(msg) from exc
-
-    if loaded is None:
-        return {}
-    if not isinstance(loaded, dict):
-        msg = "Workflow YAML root must be a mapping."
-        raise TypeError(msg)
-    return loaded
-
-
 def validate_workflow_recipe(recipe: dict) -> dict:
     """Validate and normalize a structured workflow descriptor.
 
@@ -389,22 +384,6 @@ def validate_workflow_recipe(recipe: dict) -> dict:
         }
     )
     return sync_descriptor_from_workflow_values(normalized)
-
-
-def collect_workflow_recipe_errors(recipe: object) -> list[str]:
-    """Return every section-level validation error found in a descriptor.
-
-    Delegates to the shared workflow-v1 schema collector so CLI validation reports use
-    the same rules as runtime descriptor validation.
-
-    Args:
-        recipe (object): The raw descriptor mapping to validate.
-
-    Returns:
-        list[str]: Human-readable error messages; empty when the descriptor is valid.
-
-    """
-    return workflow_schema.collect_workflow_v1_descriptor_errors(recipe)
 
 
 def merge_workflow_recipe(cli_values: dict, recipe_values: dict) -> dict:
@@ -539,6 +518,9 @@ def validate_merged_workflow_values(values: dict) -> None:
         raise ValueError(msg)
     values["export_format"] = export_format
 
+    if values["mode"] == "query_composition":
+        parse_query_pairs(values["query"])
+
 
 def is_valid_export_label(label: object) -> bool:
     """Return whether a result label should be exported as a file.
@@ -581,25 +563,64 @@ def is_empty_export_content(content: object) -> bool:
     return False
 
 
-def add_id_column_for_export(df: pl.DataFrame, result_label: str, id_column: str | None) -> pl.DataFrame:
-    """Return a DataFrame copy with deterministic IDs when requested.
+def add_record_id(df: pl.DataFrame, label: str, id_column: str) -> pl.DataFrame:
+    """Return a copy of a primary result table with a string ``id_column`` as its first column.
 
-    Inserts an ID column of ``<result_label>_<n>`` values; the original frame is
-    returned unchanged when no ID column is requested or one already exists.
+    The values come from the table's native key (see ``RECORD_KEY_COLUMNS``). Tables of unknown
+    labels are returned unchanged.
 
     Args:
-        df (pl.DataFrame): The source DataFrame.
-        result_label (str): Label used to prefix generated IDs.
-        id_column (str | None): Name of the ID column to insert, if any.
+        df (pl.DataFrame): The primary result table.
+        label (str): Result label, e.g. ``uniprot``.
+        id_column (str): Name of the id column to create.
 
     Returns:
-        pl.DataFrame: The original frame or a copy with the ID column inserted.
+        pl.DataFrame: The table with the id column first.
+
+    Raises:
+        SilkRouteError: If the native key is missing, or its values are empty or not unique, or
+            ``id_column`` clashes with another column.
 
     """
-    if not id_column or id_column in df.columns:
+    candidates = RECORD_KEY_COLUMNS.get(label)
+    if candidates is None:
         return df
-    id_values = [f"{result_label}_{index}" for index in range(1, df.height + 1)]
-    return df.clone().insert_column(0, pl.Series(id_column, id_values))
+    key = next((column for column in candidates if column in df.columns), None)
+    if key is None:
+        msg = f"The '{label}' result has none of the record key columns {list(candidates)}; cannot set ids."
+        raise SilkRouteError(msg)
+    if id_column in df.columns and id_column != key:
+        msg = f"The '{label}' result already has a column '{id_column}'; set harmonization.id_column."
+        raise SilkRouteError(msg)
+    ids = df[key].cast(pl.String)
+    if ids.is_null().any() or (ids.str.strip_chars() == "").any():
+        msg = f"The '{label}' result has empty values in its record key '{key}'; ids must be non-empty."
+        raise SilkRouteError(msg)
+    duplicated = ids.filter(ids.is_duplicated()).unique().sort().to_list()
+    if duplicated:
+        # query_composition may list one record under several labels; each (id, label) pair stays unique
+        labelled = QUERY_COMPOSITION_LABEL_COLUMN in df.columns
+        pairs = df.select(ids.alias("_id"), pl.col(QUERY_COMPOSITION_LABEL_COLUMN)) if labelled else None
+        if pairs is None or pairs.is_duplicated().any():
+            sample = duplicated[:3]
+            msg = f"The '{label}' result has duplicate values in its record key '{key}' (e.g. {sample})."
+            raise SilkRouteError(msg)
+        log.warning(
+            "The '%s' result lists %d record(s) under more than one query label (e.g. %s).",
+            label,
+            len(duplicated),
+            duplicated[:3],
+        )
+    return df.drop(id_column, strict=False).clone().insert_column(0, ids.alias(id_column))
+
+
+def ids_in_several_labels(df: pl.DataFrame, id_column: str) -> dict[str, list[str]]:
+    """Map each id that query_composition listed under more than one label to its sorted labels."""
+    if QUERY_COMPOSITION_LABEL_COLUMN not in df.columns or id_column not in df.columns:
+        return {}
+    labels = pl.col(QUERY_COMPOSITION_LABEL_COLUMN).cast(pl.String).unique().sort()
+    shared = df.group_by(id_column).agg(labels).filter(pl.col(QUERY_COMPOSITION_LABEL_COLUMN).list.len() > 1)
+    return {row[0]: list(row[1]) for row in shared.sort(id_column).iter_rows()}
 
 
 def to_json_compatible(value: object) -> object:
@@ -1083,7 +1104,7 @@ def export_single_result(
     content: object,
     output_dir: Path,
     export_format: str,
-    id_column: str | None,
+    id_column: str,
     suffix_results: bool,
     graph_artifact_infos: list[dict] | None = None,
     workflow_metadata: dict | None = None,
@@ -1098,9 +1119,9 @@ def export_single_result(
         content (object): The result content to export.
         output_dir (Path): Directory to write the file into.
         export_format (str): User-facing export format.
-        id_column (str | None): Name of an ID column to insert, if any.
-        suffix_results (bool): Whether to suffix the file stem with ``_results`` and
-            mark the output category as a primary result.
+        id_column (str): Name of the record id column added to primary result tables.
+        suffix_results (bool): Whether this is a primary result: the file stem gets a ``_results``
+            suffix, the output category is ``result`` and the table gets a record id column.
         graph_artifact_infos (list[dict] | None): Collector for graph artifact metadata entries.
         workflow_metadata (dict | None): Workflow metadata to annotate with graph export outcomes.
 
@@ -1121,7 +1142,7 @@ def export_single_result(
     graph_payloads_externalized = False
 
     if isinstance(content, pl.DataFrame):
-        export_df = add_id_column_for_export(content, export_label, id_column)
+        export_df = add_record_id(content, export_label, id_column) if suffix_results else content
         if has_externalizable_graph_payloads(export_df, graph_output_metadata):
             export_df, artifact_infos, graph_metadata = externalize_graph_payloads(
                 export_df,
@@ -1144,6 +1165,8 @@ def export_single_result(
             output_category,
         )
         info.update(graph_metadata)
+        if shared := ids_in_several_labels(export_df, id_column):
+            info["ids_in_several_labels"] = shared
         return info
 
     if export_format == "json":
@@ -1181,7 +1204,7 @@ def export_workflow_outputs(
     data: object,
     output_dir: Path,
     export_format: str,
-    id_column: str | None,
+    id_column: str,
     workflow_metadata: dict | None = None,
 ) -> list[dict]:
     """Export workflow outputs and return output-file metadata.
@@ -1192,11 +1215,14 @@ def export_workflow_outputs(
         data (object): The workflow result mapping; non-mappings yield no outputs.
         output_dir (Path): Directory to write files into.
         export_format (str): User-facing export format.
-        id_column (str | None): Name of an ID column to insert, if any.
+        id_column (str): Name of the record id column added to primary result tables.
         workflow_metadata (dict | None): Workflow metadata to annotate with graph export outcomes.
 
     Returns:
         list[dict]: Metadata for each exported file.
+
+    Raises:
+        SilkRouteError: If a primary table has no usable record ids.
 
     """
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -1857,6 +1883,19 @@ def split_pair(s: str) -> tuple[str, str]:
     return q.strip(), label.strip()
 
 
+def parse_query_pairs(query: str) -> list[tuple[str, str]]:
+    """Split a ``query1=label1,query2=label2`` string into ``(query, label)`` pairs.
+
+    Raises:
+        ValueError: If the string holds a single query or a malformed pair.
+
+    """
+    if "," not in query:
+        msg = "For query_composition, provide multiple queries as 'query1=label1,query2=label2'."
+        raise ValueError(msg)
+    return [split_pair(q.strip()) for q in query.split(",")]
+
+
 def run_workflow(
     config: Path | None = typer.Option(
         None,
@@ -1978,7 +2017,7 @@ def run_workflow(
         validate_merged_workflow_values(workflow_values)
     except (TypeError, ValueError) as e:
         typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(code=1) from None
+        raise typer.Exit(code=EXIT_USAGE) from None
 
     try:
         if workflow_values["debug"]:
@@ -1989,6 +2028,7 @@ def run_workflow(
         logger.warning("Could not configure logging: %s", e)
 
     wf = MainWorkflow(uniprot_interface=UniprotInterface(total_retries=workflow_values["retries"]))
+    created_at = utc_now()
     started_at = dt.datetime.now(tz=dt.UTC).replace(microsecond=0).isoformat()
     start_time = time.perf_counter()
 
@@ -2013,37 +2053,35 @@ def run_workflow(
             "output_dir": workflow_values["output"],
         }
         if workflow_values["mode"] == "query_composition":
-            if "," not in workflow_values["query"]:
-                msg = "For query_composition, provide multiple queries as 'query1=label1,query2=label2'."
-                raise ValueError(msg)  # noqa: TRY301  # validate-then-Exit CLI idiom
-            queries = [q.strip() for q in workflow_values["query"].split(",")]
-            run_kwargs["queries_with_labels"] = [split_pair(q) for q in queries]
+            run_kwargs["queries_with_labels"] = parse_query_pairs(workflow_values["query"])
         else:
             run_kwargs["query"] = workflow_values["query"]
         data, meta = wf.run(**run_kwargs)
-    except (TimeoutError, RuntimeError, ValueError) as e:
-        error_message = str(e)
-        logger.exception(error_message)
-        write_failure_reports(workflow_values, error_message, started_at, start_time)
-        typer.echo(f"Error: {error_message}", err=True)
-        raise typer.Exit(code=1) from None
-    except Exception as e:
-        error_message = str(e)
+    except (RuntimeError, ValueError) as e:
         logger.exception("Workflow execution failed")
-        write_failure_reports(workflow_values, error_message, started_at, start_time)
-        typer.echo(f"Error: {error_message}", err=True)
-        raise typer.Exit(code=1) from None
+        write_failure_reports(workflow_values, str(e), started_at, start_time)
+        raise SilkRouteError(str(e)) from e
+    except Exception as e:
+        # SilkRouteError/OSError are runtime failures (exit 3) and anything else is a bug (exit 4):
+        # the CLI entry point decides, after the failure reports are written.
+        logger.exception("Workflow execution failed")
+        write_failure_reports(workflow_values, str(e), started_at, start_time)
+        raise
 
     output_dir = Path(workflow_values["output"])
     logger.info("Exporting workflow results to %s", output_dir)
     workflow_metadata = meta if isinstance(meta, dict) else {"metadata": meta}
-    output_infos = export_workflow_outputs(
-        data=data,
-        output_dir=output_dir,
-        export_format=workflow_values["export_format"],
-        id_column=workflow_values["id_column"],
-        workflow_metadata=workflow_metadata,
-    )
+    try:
+        output_infos = export_workflow_outputs(
+            data=data,
+            output_dir=output_dir,
+            export_format=workflow_values["export_format"],
+            id_column=workflow_values["id_column"] or DEFAULT_ID_COLUMN,
+            workflow_metadata=workflow_metadata,
+        )
+    except SilkRouteError as e:
+        write_failure_reports(workflow_values, str(e), started_at, start_time)
+        raise
 
     finished_at = dt.datetime.now(tz=dt.UTC).replace(microsecond=0).isoformat()
     duration_seconds = time.perf_counter() - start_time
@@ -2086,7 +2124,31 @@ def run_workflow(
         message = execution_error or "Workflow failed."
         logger.error(message)
         typer.echo(f"Error: {message}", err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=EXIT_RUNTIME)
+
+    provenance_parameters = {
+        key: value for key, value in workflow_values.items() if key not in PROVENANCE_EXCLUDED_VALUES
+    }
+    provenance_parameters["id_column"] = workflow_values["id_column"] or DEFAULT_ID_COLUMN
+    write_provenance(
+        output_dir,
+        tool="silkroute",
+        version=__version__,
+        command="workflow run",
+        created_at=created_at,
+        parameters=provenance_parameters,
+        inputs=[config] if config else [],
+        packages=("silkroute", "polars"),
+        extensions={
+            "status": execution_status,
+            "duration_seconds": round(duration_seconds, 3),
+            "ids_in_several_labels": {
+                info["label"]: info["ids_in_several_labels"]
+                for info in output_infos
+                if "ids_in_several_labels" in info
+            },
+        },
+    )
 
     logger.info("Workflow export completed")
     if execution_status == "completed_with_errors":
@@ -2100,31 +2162,35 @@ def validate_workflow(
         ...,
         help="Path to the YAML workflow descriptor to validate.",
     ),
+    as_json: bool = typer.Option(
+        False,
+        "--json",
+        help="Print the problems as a JSON array of {path, message} on stdout.",
+    ),
 ) -> None:
     """Validate a workflow YAML descriptor without running it.
 
-    Reports every section-level validation problem at once and exits non-zero, or
-    confirms the descriptor is valid and prints the resolved modality/mode/output.
+    Reports every validation problem at once (``path: message`` lines on stderr, or a JSON
+    array with ``--json``) and exits 2, or exits 0 when the descriptor is valid.
     """
-    try:
-        recipe = load_workflow_recipe(config)
-    except (ValueError, TypeError) as exc:
-        typer.echo(f"Error: {exc}", err=True)
-        raise typer.Exit(code=1) from None
+    issues = validate_config(config)
+    errors = [{"path": issue.path, "message": issue.message} for issue in issues]
 
-    errors = collect_workflow_recipe_errors(recipe)
-    if errors:
-        typer.echo(f"Error: {config} has {len(errors)} validation error(s):", err=True)
+    if as_json:
+        typer.echo(json.dumps(errors))
+    else:
         for error in errors:
-            typer.echo(f"  - {error}", err=True)
-        raise typer.Exit(code=1) from None
+            typer.echo(f"{error['path'] or '<root>'}: {error['message']}", err=True)
+    if errors:
+        raise typer.Exit(code=EXIT_USAGE)
 
-    # No errors collected, so this re-derives the normalized values without raising.
-    values = validate_workflow_recipe(recipe)
-    typer.echo(f"OK: {config} is a valid workflow descriptor.")
-    typer.echo(f"  modality: {values['modality']} | mode: {values['mode']}")
-    if values.get("output"):
-        typer.echo(f"  output: {values['output']}")
+    if not as_json:
+        # No errors collected, so this re-derives the normalized values without raising.
+        values = validate_workflow_recipe(load_workflow_recipe(config))
+        typer.echo(f"OK: {config} is a valid workflow descriptor.")
+        typer.echo(f"  modality: {values['modality']} | mode: {values['mode']}")
+        if values.get("output"):
+            typer.echo(f"  output: {values['output']}")
 
 
 workflow_app = typer.Typer(
@@ -2133,6 +2199,6 @@ workflow_app = typer.Typer(
     no_args_is_help=True,
 )
 workflow_app.command("run", help="Run a predefined data fetching workflow.")(run_workflow)
-workflow_app.command("validate", help="Validate a workflow YAML descriptor without running it.")(
+workflow_app.command("validate-config", help="Validate a workflow YAML descriptor without running it.")(
     validate_workflow
 )

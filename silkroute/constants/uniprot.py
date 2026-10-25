@@ -270,6 +270,9 @@ def get_effective_uniprot_return_fields(
     """Return user fields or defaults, merged with fields required for enrichment."""
     fields = normalize_uniprot_return_fields(value) or get_default_uniprot_return_fields()
     seen = {field.casefold() for field in fields}
+    if "accession" not in seen:  # the record key of the primary table, whatever the user selected
+        fields.append("accession")
+        seen.add("accession")
     for required_field in get_required_uniprot_fields_for_enrichment(crossref_fields):
         lookup_value = required_field.casefold()
         if lookup_value not in seen:

@@ -90,9 +90,10 @@ def test_save_writes_metadata_sidecar(tmp_path):
 
     save_or_print((df, {"api_name": "test", "tool": {"name": "silkroute"}}), str(out))
 
-    sidecar = tmp_path / "out.metadata.json"
-    assert sidecar.exists()
-    assert json.loads(sidecar.read_text()) == {"api_name": "test", "tool": {"name": "silkroute"}}
+    sidecar = tmp_path / "out.csv.provenance.json"
+    document = json.loads(sidecar.read_text())
+    assert document["extensions"] == {"api_name": "test", "tool": {"name": "silkroute"}}
+    assert document["outputs"][0]["n_rows"] == 1
 
 
 def test_sidecar_tracks_actual_saved_file(tmp_path):
@@ -103,16 +104,16 @@ def test_sidecar_tracks_actual_saved_file(tmp_path):
 
     save_or_print((df, {"api_name": "test"}), str(out), output_format="json")
 
-    assert (tmp_path / "noext.metadata.json").exists()
+    assert (tmp_path / "noext.json.provenance.json").exists()
 
 
-def test_no_sidecar_when_metadata_empty(tmp_path):
+def test_sidecar_written_when_metadata_empty(tmp_path):
     df = pl.DataFrame({"id": ["X"]})
     out = tmp_path / "out.csv"
 
     save_or_print((df, {}), str(out))
 
-    assert not (tmp_path / "out.metadata.json").exists()
+    assert (tmp_path / "out.csv.provenance.json").exists()
 
 
 def test_no_sidecar_when_printing_preview(tmp_path, capsys):
@@ -124,14 +125,14 @@ def test_no_sidecar_when_printing_preview(tmp_path, capsys):
     assert capsys.readouterr().out
 
 
-def test_no_sidecar_when_write_metadata_false(tmp_path):
+def test_sidecar_without_extensions_when_write_metadata_false(tmp_path):
     df = pl.DataFrame({"id": ["X"]})
     out = tmp_path / "out.csv"
 
     save_or_print((df, {"api_name": "test"}), str(out), write_metadata=False)
 
-    assert out.exists()
-    assert not (tmp_path / "out.metadata.json").exists()
+    document = json.loads((tmp_path / "out.csv.provenance.json").read_text(encoding="utf-8"))
+    assert not document.get("extensions")
 
 
 def test_metadata_enabled_defaults_true_without_context():
@@ -168,13 +169,12 @@ def test_save_dataframe_defaults_to_csv_without_extension(tmp_path):
     assert (tmp_path / "plain.csv").exists()
 
 
-def test_save_dataframe_unsupported_format_exits_cleanly(tmp_path):
+def test_save_dataframe_unsupported_format_is_a_usage_error(tmp_path):
     import typer
 
     df = pl.DataFrame({"id": ["X"]})
-    with pytest.raises(typer.Exit) as exc:
+    with pytest.raises(typer.BadParameter):
         save_or_print((df, {}), str(tmp_path / "out.txt"))
-    assert exc.value.exit_code == 1
 
 
 def test_print_preview_does_not_raise(capsys):
@@ -212,7 +212,7 @@ def test_parse_and_save_uniprot_exports_only_explicit_fields(tmp_path):
     )
 
     exported = pl.read_csv(tmp_path / "uniprot_results.csv")
-    assert exported.columns == ["accession", "protein_name", "sequence"]
+    assert exported.columns == ["id", "accession", "protein_name", "sequence"]
 
 
 def test_parse_and_save_uniprot_keeps_enrichment_helpers_out_of_export(monkeypatch, tmp_path):
@@ -245,7 +245,7 @@ def test_parse_and_save_uniprot_keeps_enrichment_helpers_out_of_export(monkeypat
     ]
     assert seen["crossref_fields"] == ["chebi", "go"]
     exported = pl.read_csv(tmp_path / "uniprot_results.csv")
-    assert exported.columns == ["accession"]
+    assert exported.columns == ["id", "accession"]
 
 
 def test_parse_and_save_uniprot_multivalue_csv_is_lossless_json(tmp_path):

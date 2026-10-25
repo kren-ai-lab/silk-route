@@ -5,7 +5,9 @@ from __future__ import annotations
 from importlib import import_module
 from typing import TYPE_CHECKING
 
-__version__ = "0.1.2"
+from .config import ConfigIssue, validate_config
+
+__version__ = "0.2.0"
 
 # Map public name -> module path (relative to this package). Loaded lazily via
 # __getattr__ (PEP 562) so `import silkroute` does not pull every interface and
@@ -97,6 +99,7 @@ __all__ = [
     "BrendaInterface",
     "ChEBIInterface",
     "ChEMBLInterface",
+    "ConfigIssue",
     "GenOntologyInterface",
     "InterproInterface",
     "KEGGInterface",
@@ -113,4 +116,5 @@ __all__ = [
     "UniprotInterface",
     "Workflow",
     "__version__",
+    "validate_config",
 ]

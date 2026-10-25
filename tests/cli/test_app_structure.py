@@ -29,7 +29,7 @@ def test_help_flag() -> None:
 
 def test_workflow_validate_example_descriptor() -> None:
     result = runner.invoke(
-        app, ["workflow", "validate", "examples/workflows/protein_query_first_minimal.yml"]
+        app, ["workflow", "validate-config", "examples/workflows/protein_query_first_minimal.yml"]
     )
 
     assert result.exit_code == 0

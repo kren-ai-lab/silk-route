@@ -1,6 +1,5 @@
 """Chemical search query CLI commands."""
 
-import json
 from pathlib import Path
 from typing import cast
 
@@ -8,7 +7,7 @@ import polars as pl
 import typer
 
 from silkroute import ChEBIInterface, ChEMBLInterface, PubChemInterface
-from silkroute.cli._shared import output_dir_option
+from silkroute.cli._shared import output_dir_option, write_output_provenance
 from silkroute.core.export import export_dataframe
 
 # Pending: Uniprot ID
@@ -248,7 +247,6 @@ def run_compound(
         log.info("Searching %s for query: %s", display_name, query)
         result, metadata = search()
         if isinstance(result, pl.DataFrame) and not result.is_empty():
-            export_dataframe(result, f"{output}/{db}_results.csv", output_format="csv")
-            with (Path(output) / f"{db}_metadata.json").open("w") as f:
-                json.dump(metadata, f, indent=2, default=str)
+            results_path = export_dataframe(result, f"{output}/{db}_results.csv", output_format="csv")
+            write_output_provenance(results_path, metadata, n_rows=result.height, n_cols=result.width)
             log.info("Results saved to %s/%s_results.csv", output, db)

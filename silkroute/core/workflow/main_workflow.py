@@ -822,6 +822,8 @@ class MainWorkflow:
         if not selected_return_fields:
             return
         selected_fields = get_uniprot_parsed_fields(selected_return_fields)
+        if "accession" not in selected_fields:  # always keep the record key
+            selected_fields.append("accession")
         context["data"]["uniprot"] = project_uniprot_fields(
             context.get("data", {}).get("uniprot"), selected_fields
         )

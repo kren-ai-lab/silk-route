@@ -47,11 +47,12 @@ silkroute workflow run --config examples/workflows/protein_query_first_minimal.y
 silkroute workflow run --config examples/workflows/protein_query_first_minimal.yml -e csv
 ```
 
-To check a descriptor without running it, use `workflow validate`. It reports all
-section-level errors at once and exits non-zero on any problem:
+To check a descriptor without running it, use `workflow validate-config`. It reports all
+errors at once (see "Validating a descriptor") and exits 2 on any problem:
 
 ```bash
-silkroute workflow validate examples/workflows/protein_query_first_minimal.yml
+silkroute workflow validate-config examples/workflows/protein_query_first_minimal.yml
+silkroute workflow validate-config examples/workflows/protein_query_first_minimal.yml --json
 ```
 
 The organized workflow-v1 examples live under `examples/workflows/`.
@@ -162,7 +163,7 @@ workflow behavior today:
 | `execution.download_alphafold_structures` | Enables explicit AlphaFold PDB downloads during compatible protein enrichment. |
 | `execution.download_pdb_structures` | Enables explicit PDB structure downloads during compatible protein enrichment. |
 | `execution.debug` | Enables debug logging. |
-| `harmonization.id_column` | Adds deterministic IDs to exported tabular outputs when absent. |
+| `harmonization.id_column` | Renames the record id column of primary result tables (default `id`). |
 | `export.output_dir` | Selects the output directory. |
 | `export.format` | Selects `csv`, `json`, `xml`, or `parquet`. |
 | `export.include_metadata` | Controls metadata manifest writing. |
@@ -337,14 +338,9 @@ validation and API access happen later in the workflow run. Generated YAML
 stores the final interpreted `query.value` plus optional non-executable
 `query-builder-v1` metadata for GUI round-tripping.
 
-The `Harmonization` section describes expected output columns and related
-reporting behavior. `ID column`, `Label column`, `Sequence column`, and `Unique
-sequence strategy` are optional text inputs. `Metadata fields` accepts a
-comma-separated list and writes it as a YAML list. `sequence_column` is useful
-only when generated tabular output contains that column, and
-`unique_sequence_strategy` is currently descriptive. These controls describe
-expected output structure. Data cleaning, merging, renaming, filtering, and
-deduplication are handled by the workflow logic that supports those operations.
+The `Harmonization` section holds two optional text inputs. `ID column` renames the
+record id column of primary result tables, and `Sequence column` names the column
+used for unique-sequence reporting when generated tabular output contains it.
 
 ### Manual GUI smoke test
 
@@ -566,19 +562,14 @@ enrichment row.
 
 ### `harmonization`
 
-Harmonization fields describe expected tabular columns and reporting-related
-behavior. Except for the documented deterministic ID and sequence reporting
-uses, they are preserved as descriptor metadata while exported data stays unchanged.
-The NiceGUI `Metadata fields` control accepts comma-separated values and emits
-`metadata_fields` as a YAML list.
+Harmonization controls the record id column and a reporting aid. Unknown keys are
+validation errors; the former `label_column`, `unique_sequence_strategy` and
+`metadata_fields` keys were never used by the workflow and are no longer accepted.
 
 | Field | Type | Required | Default | Role | Internal mapping | Limitations |
 | --- | --- | --- | --- | --- | --- | --- |
-| `id_column` | string or null | Optional | `null` | Executable for tabular exports | Normalized to `workflow_values["id_column"]` and used by export helpers | Adds deterministic IDs to exported tabular results when the column is absent. In-memory data stays unchanged. |
-| `label_column` | string or null | Optional | `null` | Descriptive | Preserved in metadata and summary | Query-composition currently writes labels to `_label`; exported column names stay unchanged. |
+| `id_column` | string or null | Optional | `id` | Executable for tabular exports | Normalized to `workflow_values["id_column"]` and used by export helpers | Renames the record id column that primary result tables always get as their first column (see "Record ids"). |
 | `sequence_column` | string or null | Optional | `null` | Generated reporting aid | Used to calculate `reporting.unique_sequences` when tabular outputs contain the named column | Exported columns stay unchanged. |
-| `unique_sequence_strategy` | string or null | Optional | `null` | Descriptive | Preserved in metadata and summary | Deduplication is handled elsewhere for now. |
-| `metadata_fields` | list of strings | Optional | omitted | Descriptive | Preserved in metadata and summary | Exported columns stay unchanged. |
 
 ### `export`
 
@@ -590,7 +581,6 @@ The NiceGUI `Metadata fields` control accepts comma-separated values and emits
 | `include_summary` | boolean | Optional | `true` | Executable | Normalized to `workflow_values["include_summary"]` | Controls whether the run summary YAML is written. |
 | `manifest_file` | string or null | Optional | `metadata.json` | Executable | Normalized to `workflow_values["manifest_file"]` | The file content is JSON regardless of extension. |
 | `summary_file` | string or null | Optional | `run_summary.yml` | Executable | Normalized to `workflow_values["summary_file"]` | The file content is YAML regardless of extension. |
-| `result_files` | any YAML value | Optional | omitted | Descriptive | Preserved in the export descriptor | Output filenames are derived from result labels such as `uniprot_results`. |
 
 `dataframe` is not a public export format. Use `csv`, `json`, `xml`, or `parquet` in YAML and CLI export options.
 
@@ -674,9 +664,41 @@ Execution status values are:
 - `completed_with_errors`: result outputs exist, but metadata contains errors.
 - `failed`: execution failed, or metadata contains an error and no primary result output exists.
 
-Primary UniProt request failures raise an error and the CLI exits non-zero. When an output directory is known, failure metadata and/or a failure summary are written according to `include_metadata` and `include_summary`.
+Primary UniProt request failures raise an error and the CLI exits with code 3. When an output directory is known, failure metadata and/or a failure summary are written according to `include_metadata` and `include_summary`.
 
-If `harmonization.id_column` is set, exported tabular outputs for CSV, Parquet, and JSON receive a deterministic ID column when that column is not already present. Empty outputs and labels such as `none` or `null` are not exported as result files.
+Empty outputs and labels such as `none` or `null` are not exported as result files.
+
+### Record ids
+
+Every primary result table (`<db>_results.csv` and `.parquet`) starts with a string `id` column, as the shared ecosystem CLI contract asks. Its values are copied from the table's native key, which stays in the table too:
+
+| Table | Native key |
+| --- | --- |
+| `uniprot` | `accession` |
+| `chembl` | `activity_id` for activities, `assay_chembl_id` for assays, `molecule_chembl_id` for molecules, `target_chembl_id` for targets |
+| `pubchem` | `pubchem_cid` |
+| `chebi` | `chebi_id` |
+
+`harmonization.id_column` only renames the column (default `id`). Ids must be non-empty and unique: otherwise the run exits with code 3 and names the table and key. A `query.fields` selection always keeps `accession`, so UniProt ids survive any projection. Enrichment and graph tables are not record tables and get no `id` column. JSON and XML exports keep the raw API structure and get no `id` column. In `query_composition` runs, a record returned by more than one query appears twice and fails the uniqueness check.
+
+### Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| 0 | Success, including `completed_with_errors`. |
+| 2 | Invalid config or usage. |
+| 3 | Runtime failure: failed run, API or I/O error, missing or duplicate record ids. |
+| 4 | Unexpected internal error (the traceback goes to stderr). |
+
+### Provenance sidecar
+
+`workflow run` also writes `<output_dir>.provenance.json` next to the output directory (for example `results/demo.provenance.json`), on `success` and on `completed_with_errors`. It follows the shared `provenance/1` format: the normalized workflow parameters (without output paths, file names and `debug`), the config file as input, the output directory hash, and `status` and `duration_seconds` under `extensions`. The tool-native `metadata.json` and `run_summary.yml` stay inside the output directory.
+
+### Validating a descriptor
+
+`silkroute workflow validate-config CONFIG [--json]` checks a descriptor without running it or touching the network. It reports every problem at once, each with a dotted `path` such as `export.format` or `query.fields[2]`. Without `--json`, it prints `path: message` lines on stderr. With `--json`, it prints a JSON array of `{"path", "message"}` objects on stdout (empty when valid). It exits 0 when valid and 2 otherwise. `workflow run` rejects the same problems with exit code 2.
+
+From Python, `silkroute.validate_config(config)` runs the same check on a mapping or a YAML/JSON path and returns a list of `ConfigIssue(path, message)` (empty when valid). A missing or unparsable file is one issue with path `""`.
 
 Raw graph payloads are externalized only for PathwayCommons graph enrichment
 outputs:
@@ -783,7 +805,6 @@ update the implementation, tests, examples, and this documentation together.
 | Temperature enrichment | `temperature_enrichment` | Allow explicit temperature metadata retrieval or enrichment. | Future feature unless the workflow code supports it directly and tests cover it. |
 | Cross-source integration | `cross_source_integration` | Allow explicit integration rules across multiple databases. | Future feature unless the workflow code supports it directly and tests cover it. |
 | Runtime reporting fields in YAML | `reporting.workflow_execution_time_seconds`, `reporting.retrieved_records`, `reporting.unique_sequences` | Represent measured outputs from workflow execution. | Generated outputs, not user-authored input fields. They should appear in metadata or summaries generated after execution, not in executable YAML examples. |
-| Planned export filename control | `export.result_files` | Allow user-defined output filenames. | Future feature unless current code supports it directly. Output filenames currently derive from result labels. |
 
 ## Validation Notes
 
@@ -799,13 +820,10 @@ Important current limitations:
 - `execution.merge_results` is metadata only.
 - Domain-specific extension sections are descriptive only.
 - The validated compound workflow supports ChEMBL, PubChem, and ChEBI source-prefixed queries. Protein-ligand interaction workflows use ChEMBL for chemical-source routing.
-- `harmonization.metadata_fields`, `label_column`, and `unique_sequence_strategy` describe expected structure; output filtering, renaming, merging, and deduplication come from supported workflow logic.
 - `query.fields` is sent to UniProt as the fetch `fields` parameter, but parsing currently uses the workflow parser's field map rather than this value as an output-column filter.
-- Output filenames are derived from result labels, not `export.result_files`.
+- Output filenames are derived from result labels such as `uniprot_results`.
 
 Keep preserved-only and future-facing fields out of runnable examples unless an
 example is specifically demonstrating metadata preservation. This includes
 descriptive `resources` entries, domain-specific extension sections,
-descriptor-provided `reporting` placeholders, `execution.merge_results`,
-and `export.result_files`. Descriptive harmonization fields may be included when
-they accurately document expected output columns or reporting intent.
+descriptor-provided `reporting` placeholders, and `execution.merge_results`.

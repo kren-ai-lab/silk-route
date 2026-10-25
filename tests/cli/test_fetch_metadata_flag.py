@@ -1,10 +1,12 @@
 """End-to-end wiring of the ``fetch --no-metadata`` flag.
 
 Confirms the fetch-app callback flows through the shared click context into
-``save_or_print``, gating the provenance sidecar for every fetch subcommand.
+``save_or_print``, gating the sidecar extensions for every fetch subcommand.
 """
 
 from __future__ import annotations
+
+import json
 
 import polars as pl
 import pytest
@@ -36,14 +38,15 @@ def test_fetch_writes_sidecar_by_default(tmp_path):
 
     assert result.exit_code == 0, result.output
     assert out.exists()
-    assert (tmp_path / "out.metadata.json").exists()
+    assert (tmp_path / "out.csv.provenance.json").exists()
 
 
 @pytest.mark.usefixtures("_patch_kegg")
-def test_fetch_no_metadata_skips_sidecar(tmp_path):
+def test_fetch_no_metadata_drops_extensions(tmp_path):
     out = tmp_path / "out.csv"
     result = runner.invoke(app, ["fetch", "--no-metadata", "kegg", "get", "hsa:1", "-o", str(out)])
 
     assert result.exit_code == 0, result.output
     assert out.exists()
-    assert not (tmp_path / "out.metadata.json").exists()
+    document = json.loads((tmp_path / "out.csv.provenance.json").read_text(encoding="utf-8"))
+    assert not document.get("extensions")

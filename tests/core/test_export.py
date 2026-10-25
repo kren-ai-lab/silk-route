@@ -90,6 +90,21 @@ def test_export_csv_nested_values_as_lossless_json(tmp_path):
     assert json.loads(rows[0]["hosts"]) == [{"scientificName": "Homo sapiens", "taxonId": 9606}]
 
 
+def test_export_csv_arrays_and_nan_as_valid_json(tmp_path):
+    df = pl.DataFrame(
+        {
+            "coords": pl.Series([[1, 2], None], dtype=pl.Array(pl.Int64, 2)),
+            "scores": [[float("nan"), 0.5], [0.1]],
+        }
+    )
+
+    rows = pl.read_csv(export_dataframe(df, tmp_path / "arrays.csv")).to_dicts()
+
+    assert json.loads(rows[0]["coords"]) == [1, 2]
+    assert rows[1]["coords"] is None
+    assert json.loads(rows[0]["scores"]) == [None, 0.5]
+
+
 def test_export_tsv(df, tmp_path):
     path = export_dataframe(df, tmp_path / "out.tsv")
     back = pl.read_csv(path, separator="\t")

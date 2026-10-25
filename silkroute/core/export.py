@@ -97,25 +97,25 @@ def _json_encode_value(value: Any) -> str | None:
     """JSON-encode a single nested cell value for a text column; pass None through."""
     if value is None:
         return None
-    # Polars passes a List/Array cell to ``map_elements`` as an inner Series.
-    # Convert it back to ordinary data before JSON encoding; ``default=str``
-    # would otherwise persist Polars' truncated display representation.
-    if isinstance(value, pl.Series):
-        value = value.to_list()
     return json.dumps(value, ensure_ascii=False, default=str, separators=(",", ":"))
+
+
+def _json_encode_native(name: str) -> pl.Expr:
+    """JSON-encode a List/Array/Struct column in Polars; nulls stay null."""
+    # struct.json_encode is Polars' only JSON encoder: wrap the value in a one-field struct and strip the key.
+    wrapped = pl.struct(pl.col(name).alias("v")).struct.json_encode()
+    encoded = wrapped.str.strip_prefix('{"v":').str.strip_suffix("}")
+    return pl.when(pl.col(name).is_null()).then(None).otherwise(encoded).alias(name)
 
 
 def _encode_nested_for_text(df: pl.DataFrame) -> pl.DataFrame:
     """JSON-encode List/Struct/Array/Object columns to strings; leave scalars as-is."""
-    nested = df.select(_NESTED_SELECTOR).columns
-    if not nested:
-        return df
-    return df.with_columns(
-        pl.col(name).map_elements(_json_encode_value, return_dtype=pl.String) for name in nested
-    )
+    nested = df.select(_NESTED_SELECTOR - cs.by_dtype(pl.Object)).columns
+    df = df.with_columns(_json_encode_native(name) for name in nested)
+    return _encode_object_columns(df)
 
 
-def _encode_object_for_parquet(df: pl.DataFrame) -> pl.DataFrame:
+def _encode_object_columns(df: pl.DataFrame) -> pl.DataFrame:
     """JSON-encode ``Object`` columns to strings; keep List/Struct/Array native."""
     opaque = df.select(cs.by_dtype(pl.Object)).columns
     if not opaque:
@@ -210,6 +210,6 @@ def export_dataframe(
     elif normalized_format == "xml":
         _write_xml(df, path)
     elif normalized_format == "parquet":
-        _encode_object_for_parquet(df).write_parquet(path)
+        _encode_object_columns(df).write_parquet(path)
 
     return path

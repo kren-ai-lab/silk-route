@@ -11,9 +11,9 @@
         "uniProtkbId": "AATM_RABIT",
         "entryAudit": {
           "firstPublicDate": "1989-10-01",
-          "lastAnnotationUpdateDate": "2026-06-10",
+          "lastAnnotationUpdateDate": "2026-09-02",
           "lastSequenceUpdateDate": "2013-09-18",
-          "entryVersion": 149,
+          "entryVersion": 150,
           "sequenceVersion": 2
         },
         "annotationScore": 5.0,
@@ -1576,29 +1576,29 @@
           },
           {
             "database": "GO",
-            "id": "GO:0016212",
+            "id": "GO:0004069",
             "properties": [
               {
                 "key": "GoTerm",
-                "value": "F:kynurenine-oxoglutarate transaminase activity"
+                "value": "F:L-aspartate:2-oxoglutarate transaminase activity"
               },
               {
                 "key": "GoEvidenceType",
-                "value": "IEA:UniProtKB-EC"
+                "value": "ISS:UniProtKB"
               }
             ]
           },
           {
             "database": "GO",
-            "id": "GO:0004069",
+            "id": "GO:0016212",
             "properties": [
               {
                 "key": "GoTerm",
-                "value": "F:L-aspartate:2-oxoglutarate aminotransferase activity"
+                "value": "F:L-kynurenine:2-oxoglutarate transaminase activity"
               },
               {
                 "key": "GoEvidenceType",
-                "value": "ISS:UniProtKB"
+                "value": "IEA:UniProtKB-EC"
               }
             ]
           },
@@ -1669,20 +1669,6 @@
               {
                 "key": "GoEvidenceType",
                 "value": "IEA:TreeGrafter"
-              }
-            ]
-          },
-          {
-            "database": "GO",
-            "id": "GO:0006869",
-            "properties": [
-              {
-                "key": "GoTerm",
-                "value": "P:lipid transport"
-              },
-              {
-                "key": "GoEvidenceType",
-                "value": "IEA:UniProtKB-KW"
               }
             ]
           },

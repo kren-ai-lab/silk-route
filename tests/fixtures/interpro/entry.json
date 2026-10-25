@@ -163,16 +163,16 @@
       "subfamilies": 0,
       "domain_architectures": 1219,
       "interactions": 2,
-      "matches": 37640,
-      "pathways": 135,
-      "proteins": 19901,
-      "proteomes": 1413,
+      "matches": 37639,
+      "pathways": 151,
+      "proteins": 19899,
+      "proteomes": 1414,
       "sets": 0,
       "structural_models": {
-        "alphafold": 16865
+        "alphafold": 16862
       },
-      "structures": 135,
-      "taxa": 4639
+      "structures": 136,
+      "taxa": 4644
     },
     "entry_annotations": {
       "alignment:seed": 23,
