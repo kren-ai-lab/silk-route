@@ -8,7 +8,9 @@ dynamic = ["version"]
 description = "Tool to download and integrate biological data from multiple APIs (UniProt, AlphaFold, BioGRID, KEGG, etc.)"
 readme = "README.md"
 license = "MIT"
-authors = [{ name = "Kren AI Lab", email = "krenai@umag.cl" }]
+authors = [
+    { name = "Kren AI Lab", email = "krenai@umag.cl" }
+]
 requires-python = ">=3.11,<3.15"
 
 classifiers = [
@@ -51,7 +53,6 @@ dev = [
     "pytest-cov>=7.1,<8.0",
     "ruff>=0.17,<0.18",
     "taskipy>=1.14,<2.0",
-    "ty>=0.0.30,<0.1",
 ]
 
 [project.scripts]
@@ -162,7 +163,6 @@ sort-imports = "ruff check --fix --select I,F401 silkroute/ tests/ examples/"
 format = "task sort-imports && ruff format silkroute/ tests/ examples/"
 lint = "ruff check silkroute/ tests/ examples/"
 lint-fix = "ruff check --fix silkroute/ tests/ examples/"
-ty = "ty check silkroute/ tests/"
 pyrefly = "pyrefly check silkroute/ tests/"
 test = "pytest -q"
 test-v = "pytest -v"
