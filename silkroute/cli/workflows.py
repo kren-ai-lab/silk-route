@@ -1991,15 +1991,23 @@ def run_workflow(
         "--interaction-type",
         help="Interaction workflow type, when modality is interaction.",
     ),
-    incremental: bool = typer.Option(
-        False, "--incremental", help="Write UniProt query-first results as bounded Parquet parts."
+    write_mode: str | None = typer.Option(
+        None, "--write-mode", help="single (default) or partitioned Parquet output."
     ),
-    chunk_size: int = typer.Option(
-        2000, "--chunk-size", help="Maximum parsed records held before writing a Parquet part."
+    batch_size: int | None = typer.Option(
+        None, "--batch-size", help="Records per final Parquet partition; default 5000000."
+    ),
+    incremental: bool = typer.Option(
+        False, "--incremental", help="Deprecated alias for --write-mode partitioned."
+    ),
+    chunk_size: int | None = typer.Option(
+        None, "--chunk-size", help="Deprecated partition size; use with --incremental only."
     ),
 ) -> None:
     """Run a structured workflow descriptor or CLI-specified workflow."""
     logger = log
+    effective_write_mode = "single"
+    effective_batch_size = 5_000_000
     try:
         recipe_values = validate_workflow_recipe(load_workflow_recipe(config)) if config else {}
         cli_values = collect_cli_workflow_values(
@@ -2021,30 +2029,56 @@ def run_workflow(
         )
         workflow_values = merge_workflow_recipe(cli_values, recipe_values)
         validate_merged_workflow_values(workflow_values)
-        if incremental:
+        if write_mode not in (None, "single", "partitioned"):
+            msg = "--write-mode must be single or partitioned."
+            raise ValueError(msg)  # noqa: TRY301
+        if incremental and write_mode == "single":
+            msg = "--incremental conflicts with --write-mode single."
+            raise ValueError(msg)  # noqa: TRY301
+        if incremental and batch_size is not None:
+            msg = (
+                "Use --chunk-size with deprecated --incremental, or "
+                "--write-mode partitioned with --batch-size."
+            )
+            raise ValueError(msg)  # noqa: TRY301
+        effective_write_mode = "partitioned" if incremental else write_mode or "single"
+        if effective_write_mode == "single" and (batch_size is not None or chunk_size is not None):
+            msg = "--batch-size and --chunk-size require partitioned output."
+            raise ValueError(msg)  # noqa: TRY301
+        if effective_write_mode == "partitioned":
+            if chunk_size is not None and not incremental:
+                msg = "--chunk-size requires deprecated --incremental; use --batch-size instead."
+                raise ValueError(msg)  # noqa: TRY301
+            effective_batch_size = (
+                (chunk_size if chunk_size is not None else 2000)
+                if incremental
+                else (batch_size if batch_size is not None else 5_000_000)
+            )
+            if (
+                not isinstance(effective_batch_size, int)
+                or isinstance(effective_batch_size, bool)
+                or effective_batch_size < 1
+            ):
+                msg = "--batch-size must be a positive integer."
+                raise ValueError(msg)  # noqa: TRY301
             if (workflow_values["modality"], workflow_values["mode"], workflow_values["export_format"]) != (
                 "protein",
                 "query_first",
                 "parquet",
             ):
-                msg = "--incremental requires protein query_first with Parquet output."
+                msg = "Partitioned output requires protein query_first with Parquet output."
                 raise ValueError(msg)  # noqa: TRY301
             if (
                 workflow_values["enrich"]
                 or workflow_values["download_alphafold_structures"]
                 or workflow_values["download_pdb_structures"]
             ):
-                msg = "--incremental requires --no-enrich and no structure downloads."
-                raise ValueError(msg)  # noqa: TRY301
-            if not isinstance(chunk_size, int) or chunk_size < 1:
-                msg = "--chunk-size must be a positive integer."
+                msg = "Partitioned output requires --no-enrich and no structure downloads."
                 raise ValueError(msg)  # noqa: TRY301
             output_path = Path(workflow_values["output"])
-            if (output_path / "uniprot_incremental_checkpoint.json").exists() or any(
-                output_path.glob("uniprot_results_part-*.parquet")
-            ):
+            if output_path.exists() and (not output_path.is_dir() or any(output_path.iterdir())):
                 msg = (
-                    "Incremental output already exists; choose a new output directory. "
+                    "Partitioned output requires a fresh, empty output directory. "
                     "Automatic resume is unavailable."
                 )
                 raise ValueError(msg)  # noqa: TRY301
@@ -2067,20 +2101,25 @@ def run_workflow(
     started_at = dt.datetime.now(tz=dt.UTC).replace(microsecond=0).isoformat()
     start_time = time.perf_counter()
 
-    if incremental:
+    if effective_write_mode == "partitioned":
         output_dir = Path(workflow_values["output"])
+        if incremental:
+            logger.warning(
+                "--incremental and --chunk-size are deprecated; use --write-mode partitioned --batch-size."
+            )
         try:
             checkpoint = wf.run_incremental_uniprot(
                 query=workflow_values["query"],
                 fields=workflow_values["fields"],
                 output_dir=output_dir,
-                chunk_size=chunk_size,
+                chunk_size=effective_batch_size if incremental else None,
+                batch_size=None if incremental else effective_batch_size,
                 id_column=workflow_values["id_column"],
                 include_isoform=workflow_values["include_isoform"],
                 timeout=workflow_values["uniprot_timeout"],
             )
         except Exception as exc:
-            logger.exception("Incremental UniProt acquisition failed")
+            logger.exception("Partitioned UniProt acquisition failed")
             checkpoint_path = output_dir / "uniprot_incremental_checkpoint.json"
             checkpoint = (
                 json.loads(checkpoint_path.read_text(encoding="utf-8"))
@@ -2114,7 +2153,7 @@ def run_workflow(
             write_json_file(
                 metadata_path,
                 build_metadata_document(
-                    workflow_metadata={"uniprot": {"incremental": checkpoint}},
+                    workflow_metadata={"uniprot": {"partitioned": checkpoint}},
                     workflow_values=workflow_values,
                     output_infos=output_infos,
                     reporting=reporting,
@@ -2142,12 +2181,12 @@ def run_workflow(
                     error=error,
                 ),
             )
-        if error:
-            raise SilkRouteError(error)
         provenance_parameters = {
             key: value for key, value in workflow_values.items() if key not in PROVENANCE_EXCLUDED_VALUES
         }
-        provenance_parameters.update({"incremental": True, "chunk_size": chunk_size})
+        provenance_parameters.update({"write_mode": "partitioned", "batch_size": effective_batch_size})
+        if incremental:
+            provenance_parameters.update({"incremental": True, "chunk_size": effective_batch_size})
         write_provenance(
             output_dir,
             tool="silkroute",
@@ -2156,9 +2195,11 @@ def run_workflow(
             created_at=created_at,
             parameters=provenance_parameters,
             inputs=[config] if config else [],
-            packages=("silkroute", "polars"),
+            packages=("silkroute", "polars", "pyarrow"),
             extensions={"status": status, "duration_seconds": round(duration_seconds, 3)},
         )
+        if error:
+            raise SilkRouteError(error)
         typer.echo(f"Workflow completed. Results saved to '{output_dir}'")
         return
 

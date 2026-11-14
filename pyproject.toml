@@ -38,6 +38,7 @@ classifiers = [
 
 dependencies = [
     "polars>=1.20,<3",
+    "pyarrow>=18,<27",
     "biopython>=1.83,<2.0",
     "zeep>=4.3,<5.0",
     "python-dotenv>=1.0,<2.0",

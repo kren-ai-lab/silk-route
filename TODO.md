@@ -12,7 +12,7 @@
   source snapshot stability, part checksums, and query fingerprints.
 - [ ] Extend incremental Parquet acquisition to enrichment and other workflow modes.
 - [ ] Store per-part checkpoint entries in a streaming manifest for extremely large
-  part counts and measure process RSS as well as Python allocation peaks.
+  part counts; the current JSON checkpoint and CLI output list scale with part count.
 - [ ] Make `from_db`/`to_db` optional and only valid when `auto_db=False`.
 - [ ] Improve the `submit_stream` docstring for `include_isoform` / `download`.
 - [ ] Drop `bytes`/`str` from `parse`'s return type once the ElementTree path is assured.

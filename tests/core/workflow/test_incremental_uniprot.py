@@ -9,6 +9,7 @@ from typing import Any, cast
 from urllib.parse import parse_qs, urlparse
 
 import polars as pl
+import pyarrow.parquet as pq
 import pytest
 from niquests.exceptions import ConnectionError as NiquestsConnectionError
 from niquests_mock import build_response, startswith
@@ -16,6 +17,7 @@ from niquests_mock import build_response, startswith
 from silkroute.core.exceptions import RequestError
 from silkroute.core.interfaces import uniprot as uniprot_module
 from silkroute.core.interfaces.uniprot import API_URL, UniprotInterface
+from silkroute.core.workflow import incremental_uniprot as incremental_module
 from silkroute.core.workflow.incremental_uniprot import acquire_uniprot_parts
 
 
@@ -182,9 +184,194 @@ def test_synthetic_dataset_peak_python_memory_is_bounded(tmp_path, monkeypatch):
             query="kinase",
             fields="accession,sequence",
             output_dir=destination,
-            chunk_size=200,
+            batch_size=5_000_000,
         )
         _, peak = tracemalloc.get_traced_memory()
         tracemalloc.stop()
         peaks.append(peak)
+        assert (
+            len(json.loads((destination / "uniprot_incremental_checkpoint.json").read_text())["files"]) == 1
+        )
     assert peaks[1] < peaks[0] * 4
+
+
+def test_multiple_buffers_share_a_partition_and_rotate_at_batch_size(tmp_path, monkeypatch):
+    interface = UniprotInterface()
+    monkeypatch.setattr(incremental_module, "_PROCESSING_BUFFER_SIZE", 2)
+    monkeypatch.setattr(interface, "iter_search_pages", lambda *args, **kwargs: _pages(7, 3))
+    checkpoint = acquire_uniprot_parts(
+        interface,
+        query="kinase",
+        fields="accession,sequence",
+        output_dir=tmp_path,
+        batch_size=5,
+    )
+    assert checkpoint["page_size"] == 500
+    assert checkpoint["processing_buffer_size"] == 2
+    assert [part["rows"] for part in checkpoint["files"]] == [5, 2]
+    first = tmp_path / checkpoint["files"][0]["path"]
+    assert pq.read_metadata(first).num_row_groups == 3
+    assert pl.read_parquet(first)["accession"].to_list() == [f"P{i:05d}" for i in range(1, 6)]
+
+
+def test_annotation_score_is_float_and_nulls_are_preserved(tmp_path, monkeypatch):
+    interface = UniprotInterface()
+    payload = {
+        "results": [
+            {"primaryAccession": "P00001", "annotationScore": 3.5, "organism": {"lineage": ["A"]}},
+            {"primaryAccession": "P00002", "organism": {"lineage": None}},
+        ]
+    }
+    monkeypatch.setattr(
+        interface,
+        "iter_search_pages",
+        lambda *args, **kwargs: iter([{"payload": payload, "attempts": 1, "total_results": "2"}]),
+    )
+    checkpoint = acquire_uniprot_parts(
+        interface,
+        query="kinase",
+        fields="accession,annotation_score,lineage",
+        output_dir=tmp_path,
+        batch_size=5,
+    )
+    frame = pl.read_parquet(tmp_path / checkpoint["files"][0]["path"])
+    assert frame.schema["annotation_score"] == pl.Float64
+    assert frame["annotation_score"].to_list() == [3.5, None]
+    assert frame["lineage"].to_list() == ['["A"]', None]
+
+
+def test_premature_end_marks_failed_even_when_partial_part_is_valid(tmp_path, monkeypatch):
+    interface = UniprotInterface()
+
+    def pages(*args, **kwargs):
+        yield {"payload": {"results": [_record(1), _record(2)]}, "attempts": 1, "total_results": "3"}
+
+    monkeypatch.setattr(interface, "iter_search_pages", pages)
+    with pytest.raises(RuntimeError, match="pagination ended"):
+        acquire_uniprot_parts(
+            interface,
+            query="kinase",
+            fields="accession,sequence",
+            output_dir=tmp_path,
+            batch_size=5,
+        )
+    checkpoint = json.loads((tmp_path / "uniprot_incremental_checkpoint.json").read_text())
+    assert checkpoint["status"] == "failed"
+    assert checkpoint["total_validation"] == "mismatch"
+    assert checkpoint["records_acquired"] == checkpoint["records_written"] == 2
+
+
+def test_changed_total_header_marks_failed(tmp_path, monkeypatch):
+    interface = UniprotInterface()
+
+    def pages(*args, **kwargs):
+        yield {"payload": {"results": [_record(1)]}, "attempts": 1, "total_results": "2"}
+        yield {"payload": {"results": [_record(2)]}, "attempts": 1, "total_results": "3"}
+
+    monkeypatch.setattr(interface, "iter_search_pages", pages)
+    with pytest.raises(RuntimeError, match="header changed"):
+        acquire_uniprot_parts(
+            interface,
+            query="kinase",
+            fields="accession",
+            output_dir=tmp_path,
+            batch_size=5,
+        )
+    checkpoint = json.loads((tmp_path / "uniprot_incremental_checkpoint.json").read_text())
+    assert checkpoint["status"] == "failed"
+    assert checkpoint["total_validation"] == "changed"
+    assert checkpoint["records_written"] == 1
+
+
+def test_missing_accession_fails_without_final_output(tmp_path, monkeypatch):
+    interface = UniprotInterface()
+
+    def pages(*args, **kwargs):
+        yield {"payload": {"results": [{"sequence": {"value": "AAA"}}]}, "attempts": 1, "total_results": "1"}
+
+    monkeypatch.setattr(interface, "iter_search_pages", pages)
+    with pytest.raises(ValueError, match="no accession"):
+        acquire_uniprot_parts(
+            interface,
+            query="kinase",
+            fields="accession,sequence",
+            output_dir=tmp_path,
+            batch_size=5,
+        )
+    checkpoint = json.loads((tmp_path / "uniprot_incremental_checkpoint.json").read_text())
+    assert checkpoint["status"] == "failed"
+    assert checkpoint["records_written"] == 0
+    assert not list(tmp_path.glob("*.parquet"))
+
+
+def test_existing_output_directory_is_untouched(tmp_path):
+    interface = UniprotInterface()
+    output = tmp_path / "existing"
+    output.mkdir()
+    sentinel = output / "metadata.json"
+    sentinel.write_text("previous run")
+    with pytest.raises(ValueError, match="fresh, empty output"):
+        acquire_uniprot_parts(
+            interface,
+            query="kinase",
+            fields="accession",
+            output_dir=output,
+            batch_size=5,
+        )
+    assert sentinel.read_text() == "previous run"
+    assert list(output.iterdir()) == [sentinel]
+
+
+def test_writer_failure_never_publishes_incomplete_partition(tmp_path, monkeypatch):
+    interface = UniprotInterface()
+    monkeypatch.setattr(incremental_module, "_PROCESSING_BUFFER_SIZE", 2)
+    monkeypatch.setattr(interface, "iter_search_pages", lambda *args, **kwargs: _pages(5, 5))
+    real_writer = pq.ParquetWriter
+
+    class FailingWriter:
+        def __init__(self, *args, **kwargs):
+            self.inner = real_writer(*args, **kwargs)
+            self.writes = 0
+
+        def write_table(self, *args, **kwargs):
+            self.writes += 1
+            if self.writes == 2:
+                raise OSError("simulated write interruption")
+            self.inner.write_table(*args, **kwargs)
+
+        def close(self):
+            self.inner.close()
+
+    monkeypatch.setattr(pq, "ParquetWriter", FailingWriter)
+    with pytest.raises(OSError, match="simulated write interruption"):
+        acquire_uniprot_parts(
+            interface,
+            query="kinase",
+            fields="accession,sequence",
+            output_dir=tmp_path,
+            batch_size=5,
+        )
+    checkpoint = json.loads((tmp_path / "uniprot_incremental_checkpoint.json").read_text())
+    assert checkpoint["status"] == "failed"
+    assert checkpoint["records_written"] == 0
+    assert not list(tmp_path.glob("*.parquet"))
+    assert not list(tmp_path.glob("*.incomplete"))
+
+
+def test_progress_logging_reports_start_pages_parts_and_completion(tmp_path, monkeypatch, caplog):
+    interface = UniprotInterface()
+    monkeypatch.setattr(interface, "iter_search_pages", lambda *args, **kwargs: _pages(2, 2))
+    with caplog.at_level("INFO", logger="silkroute.workflow.incremental_uniprot"):
+        acquire_uniprot_parts(
+            interface,
+            query="kinase",
+            fields="accession",
+            output_dir=tmp_path,
+            batch_size=1,
+        )
+    messages = [record.message for record in caplog.records]
+    assert any("partitioned download started" in message for message in messages)
+    assert any("Page 1 received" in message for message in messages)
+    assert any("Part 000001 completed" in message for message in messages)
+    assert any("Checkpoint updated" in message for message in messages)
+    assert any("download completed" in message for message in messages)

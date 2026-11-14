@@ -208,6 +208,8 @@ supplies them.
 | Option                                     | Effect                                                                           |
 | ------------------------------------------ | -------------------------------------------------------------------------------- |
 | `-e, --export-format`                      | `csv` (default), `json`, `xml`, `parquet`                                        |
+| `--write-mode`                              | `single` (default) or `partitioned` for UniProt protein Parquet results          |
+| `--batch-size`                              | Final Parquet rows per partition in `workflow run` (default 5,000,000)          |
 | `--enrich / --no-enrich`                   | Toggle cross-reference enrichment                                                |
 | `-w, --max-workers`                        | Worker threads for API calls. More threads finish sooner and load the API harder |
 | `-r, --total-retries`                      | Retry attempts for failed calls                                                  |
@@ -216,11 +218,18 @@ supplies them.
 | `--include-isoform / --no-include-isoform` | Include UniProt isoforms                                                         |
 | `--debug`                                  | Debug logging                                                                    |
 
+Partitioned workflow downloads use a separate 2,000-record memory buffer and
+normally 500-record UniProt pages. `search uniprot by-ids --batch-size` instead
+controls IDs per mapping request. The old `--incremental --chunk-size N` form is
+supported as a deprecated alias for `N` rows per partition.
+
 ### Outputs
 
 | File                               | Contents                                                                                                          |
 | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | `*_results.{csv,json,xml,parquet}` | Retrieved workflow results                                                                                        |
+| `uniprot_results_part-*.parquet`   | Final, validated UniProt partitions when `--write-mode partitioned` is selected                                   |
+| `uniprot_incremental_checkpoint.json` | Partitioned acquisition status, counts, checksums, and completed parts                                          |
 | `{database}_{endpoint}.{ext}`      | Cross-referenced data, when enrichment produces output                                                            |
 | `metadata.json`                    | Workflow metadata, original descriptor sections, normalized executable values, generated files, reporting metrics |
 | `run_summary.yml`                  | Compact report: dataset and query, status, timings, export settings, row and column counts                        |

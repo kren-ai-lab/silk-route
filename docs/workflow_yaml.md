@@ -31,33 +31,48 @@ Valid `dataset.mode` values are:
 
 The CLI equivalent is `--mode` (or `-d`) with the same values.
 
-## Incremental UniProt Parquet output
+## UniProt Parquet write modes
 
 For a protein `query_first` descriptor with `export.format: parquet` and
-`execution.enrich: false`, add `--incremental` to write progressively:
+`execution.enrich: false`, use partitioned writing for large acquisitions:
 
 ```bash
-silkroute workflow run --config queries/Q01_DNA_POS_CURATED.yml --incremental --chunk-size 2000
+silkroute workflow run --config queries/Q01_DNA_POS_CURATED.yml --write-mode partitioned --batch-size 5000000
 ```
 
-`--chunk-size` defaults to 2000 parsed records per part. The feature is also
+`--write-mode single` is the default and keeps the existing one-file workflow.
+That path still aggregates records in memory. `--write-mode partitioned` writes
+final Parquet files with up to `--batch-size` records each (default 5,000,000).
+The in-memory processing buffer is 2,000 records and normal UniProt search pages
+are 500 records, regardless of `--batch-size`. File byte size varies with data
+and compression. The feature is also
 available without a YAML descriptor by passing `--modality protein --mode
 query_first --export-format parquet --no-enrich`. Structure downloads must be
-disabled. These are CLI-only options; `workflow-v1` has no incremental keys.
+disabled. These are CLI-only options; `workflow-v1` has no write-mode keys.
+
+`--incremental --chunk-size N` still works as a deprecated alias. For this old
+form, `N` keeps its meaning of records per part; its page and buffer sizes
+remain capped by `N`. `--chunk-size` alone or mixed with `--batch-size` is
+rejected. The alias will be removed in a future release. The `--batch-size`
+option of `search uniprot by-ids` instead controls IDs per mapping request.
 
 Each part is named `uniprot_results_part-000001.parquet`, etc. The output
 directory contains `uniprot_incremental_checkpoint.json` with acquired and
 written record counts, completed file paths and SHA-256 checksums, and a
 `running`, `completed`, `empty_result`, or `failed` status. The usual metadata
-and run summary describe all completed parts; provenance is written on success.
+and run summary describe all completed parts; provenance records success or failure.
 All parts have identical schemas. Nested biological annotations are JSON strings
-and null values stay null. The identifier column defaults to `record_id` in
-this mode so UniProt's `id` field can remain in the result.
+and null values stay null; `annotation_score` is Float64. The identifier column
+defaults to `record_id` in this mode so UniProt's `id` field can remain in the result.
 
-On a failed request, completed parts are retained and the checkpoint is marked
-`failed`. Automatic resume is not available: a later run needs a new output
-directory. This avoids treating a changed UniProt cursor or dataset snapshot as
-a continuation of the original acquisition.
+The writer fills an unfinished `.parquet.incomplete` file from small buffers.
+After closing it, SilkRoute validates its row count and schema, computes a
+checksum, and atomically publishes it as a final part. A process interruption
+may leave an incomplete file; it is not a final dataset file. On failure,
+completed parts remain and the checkpoint is marked `failed`. When UniProt
+provides a numeric total, the run detects a changed header or premature end.
+Without that header it cannot verify completeness. Automatic resume is not
+available; a later run needs a fresh, empty output directory.
 
 ## CLI Override Priority
 

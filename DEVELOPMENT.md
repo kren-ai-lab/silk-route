@@ -25,35 +25,51 @@ pip install -e ".[dev,tests]"
 The opt-in path is implemented by `UniprotInterface.iter_search_pages()`,
 `MainWorkflow.run_incremental_uniprot()`, and
 `core/workflow/incremental_uniprot.py`. It follows UniProt cursor links exactly,
-retries only the current page, parses one page at a time, and writes a Parquet
-part whenever `chunk_size` parsed records are buffered. The HTTP page size is
-`min(chunk_size, 500)`. Part files are written to a temporary file in the output
-directory and atomically renamed. The checkpoint is also replaced atomically.
+retries only the current page, parses one page at a time, and passes at most
+2,000 parsed records at once to a persistent PyArrow `ParquetWriter`. The
+normal HTTP page size is 500, independently of the final partition size.
+PyArrow is a runtime dependency but is imported only for partitioned runs.
 
 Run with a descriptor whose `dataset.modality` is `protein`, `dataset.mode` is
 `query_first`, `export.format` is `parquet`, and `execution.enrich` is `false`:
 
 ```bash
-silkroute workflow run --config queries/Q01_DNA_POS_CURATED.yml --incremental --chunk-size 2000
+silkroute workflow run --config queries/Q01_DNA_POS_CURATED.yml --write-mode partitioned --batch-size 5000000
 ```
 
-The same options work with CLI-only workflows when `--no-enrich` and
-`--export-format parquet` are supplied. The CLI options are not YAML keys, so
-the `workflow-v1` schema remains unchanged. Incremental output is a set of
+`--write-mode single` remains the default and uses the legacy aggregate path
+and one result file; it does not have bounded record memory. `--batch-size`
+means rows per final Parquet file, not rows held in memory. The same options
+work with CLI-only workflows when `--no-enrich` and `--export-format parquet`
+are supplied. The CLI options are not YAML keys, so `workflow-v1` is unchanged.
+Partitioned output is a set of final
 `uniprot_results_part-000001.parquet` files, plus
 `uniprot_incremental_checkpoint.json`, `metadata.json`, and `run_summary.yml`.
-The provenance sidecar is beside the output directory. All parts have the same
-columns and types. Nested annotations are JSON strings (decode with
-`json.loads`); absent values remain Parquet nulls. The incremental record key
-column defaults to `record_id` to avoid colliding with UniProt's biological
-`id` field. `harmonization.id_column` can rename it.
+The writer appends many small row groups to one `.parquet.incomplete` file,
+closes and validates its row count and schema, checksums it, then atomically
+publishes the final `.parquet` part. The provenance sidecar is beside the output
+directory. Nested annotations are JSON strings (decode with `json.loads`),
+absent values remain Parquet nulls, and `annotation_score` uses Float64 to
+retain fractional values. The record key column defaults to `record_id` to
+avoid colliding with UniProt's biological `id` field.
 
-The checkpoint records fetched pages, acquired and written records, per-field
-coverage, part paths, sizes, SHA-256 checksums, and status. On failure the run
-flushes completely parsed buffered rows, retains completed parts, and records
-`failed`. Automatic resume is unavailable because cursor validity and source
-snapshot stability cannot yet be guaranteed. A new run must use a new output
-directory; existing parts are never overwritten. Use the offline tests in
+The checkpoint records fetched pages, acquired and saved records, per-field
+coverage of saved rows, part paths, sizes, SHA-256 checksums, total-count
+validation, and status. If UniProt supplies a numeric total count, the run
+checks it at the end and rejects a changed header or mismatch. A missing total
+cannot prove completeness, and a stable count cannot prove an unchanged remote
+snapshot. On a handled request failure, valid buffered rows may be finalized
+as a part while the acquisition remains `failed`. A write failure discards the
+unfinished part. An abrupt process interruption may leave a `.parquet.incomplete`
+file; it is never listed as final output or claimed recoverable. Automatic
+resume is unavailable. Every new run requires a fresh, empty output directory.
+
+`--incremental --chunk-size N` is a deprecated compatibility alias: `N` still
+means rows per part, and its small page and buffer limits are retained. Remove
+the alias only in a later release. The `--batch-size` on `search uniprot by-ids`
+is a different option: it controls how many IDs are submitted per mapping batch.
+
+Use the offline tests in
 `tests/core/workflow/test_incremental_uniprot.py` and
 `tests/cli/test_incremental_workflow.py` to check pagination, partial failure,
 schema consistency, CLI reporting, and synthetic memory scaling.

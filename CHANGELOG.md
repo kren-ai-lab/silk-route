@@ -4,12 +4,14 @@
 
 ### Added
 
-- Opt-in `workflow run --incremental --chunk-size N` for UniProt protein `query_first` Parquet acquisitions without enrichment. Results are parsed by page and written atomically as fixed-schema Parquet parts.
-- Incremental checkpoint with page and record counts, completed part checksums, field coverage, and execution status. Failed runs retain completed parts and report failure.
+- `workflow run --write-mode partitioned --batch-size N` for UniProt protein `query_first` Parquet acquisitions without enrichment. `--batch-size` controls final file rows; a separate 2,000-record buffer and normally 500-record HTTP pages keep memory bounded.
+- Persistent PyArrow Parquet writing with schema validation and atomic publication of completed parts. The checkpoint records page and record counts, partition checksums, field coverage, total-count validation, and execution status.
+- Progress logging for pages, acquired records, completed partitions, and failures.
 
 ### Compatibility
 
-- The existing `submit_search()` aggregate API and default workflow path are unchanged. Automatic resume is not yet available.
+- `--write-mode single` is the default and retains the existing single-file workflow and `submit_search()` aggregate API.
+- `--incremental --chunk-size N` remains a deprecated compatibility alias; its partition-size and smaller-page behavior are preserved. Automatic resume is not yet available.
 
 ## 0.2.0
 
