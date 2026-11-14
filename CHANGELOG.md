@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Opt-in `workflow run --incremental --chunk-size N` for UniProt protein `query_first` Parquet acquisitions without enrichment. Results are parsed by page and written atomically as fixed-schema Parquet parts.
+- Incremental checkpoint with page and record counts, completed part checksums, field coverage, and execution status. Failed runs retain completed parts and report failure.
+
+### Compatibility
+
+- The existing `submit_search()` aggregate API and default workflow path are unchanged. Automatic resume is not yet available.
+
 ## 0.2.0
 
 Aligns the CLI with the shared ecosystem CLI contract.

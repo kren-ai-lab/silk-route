@@ -1038,6 +1038,62 @@ class UniprotInterface(BaseAPIInterface):
         )
         return aggregate, meta.to_dict()
 
+    def iter_search_pages(
+        self,
+        query: str,
+        fields: str,
+        sort: str = "accession asc",
+        include_isoform: bool = False,
+        method: str = "uniprotkb",
+        timeout: float | None = None,
+        page_size: int = SEARCH_PAGE_SIZE,
+    ) -> Iterator[dict[str, Any]]:
+        """Yield validated search pages, retaining only the current HTTP response.
+
+        Cursor URLs are followed exactly. A failed page is retried by
+        ``_request_search_page`` and raises without yielding an incomplete page.
+        ``submit_search`` remains the aggregate, backward compatible API.
+        """
+        if not 1 <= page_size <= SEARCH_PAGE_SIZE:
+            msg = f"page_size must be between 1 and {SEARCH_PAGE_SIZE}."
+            raise ValueError(msg)
+        effective_fields = ", ".join(get_effective_uniprot_return_fields(fields))
+        if not effective_fields:
+            msg = "UniProt return fields could not be resolved."
+            raise ValueError(msg)
+        params = {
+            "query": query,
+            "fields": effective_fields,
+            "sort": sort,
+            "includeIsoform": str(include_isoform),
+            "format": "json",
+            "size": str(page_size),
+        }
+        url: str | None = f"{API_URL}/{method}/search"
+        page_number = 0
+        while url:
+            response, attempts = self._request_search_page(
+                url,
+                params=params,
+                headers={"Accept": "application/json"},
+                timeout=self.timeout if timeout is None else timeout,
+                page_number=page_number + 1,
+            )
+            payload = response.json()
+            if not isinstance(payload, dict) or not isinstance(payload.get("results", []), list):
+                msg = f"UniProt search page {page_number + 1} returned invalid results."
+                raise RequestError(msg)
+            next_url = self.get_next_link(response.headers)
+            page_number += 1
+            yield {
+                "payload": payload,
+                "page_number": page_number,
+                "attempts": attempts,
+                "next_url": next_url,
+                "total_results": response.headers.get("x-total-results"),
+            }
+            url, params = next_url, None
+
     def adapt_field_map(
         self, field_map: dict[str, tuple[str, Callable[..., Any]]], use_prefix: bool = False
     ) -> dict[str, tuple[str, Callable[..., Any]]]:

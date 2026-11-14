@@ -36,6 +36,7 @@ from .chembl_query_parser import (
     is_chembl_prefixed_query,
     parse_chembl_query_builder_string,
 )
+from .incremental_uniprot import acquire_uniprot_parts
 from .pubchem_execution import execute_pubchem_request_plan
 from .pubchem_query_parser import is_pubchem_prefixed_query, parse_pubchem_query_builder_string
 from .query_interpreter import (
@@ -48,6 +49,7 @@ from .query_interpreter import (
 if TYPE_CHECKING:
     import logging
     from collections.abc import Iterable
+    from pathlib import Path
 
 log = get_logger("silkroute.core.workflow.main")
 
@@ -587,6 +589,29 @@ class MainWorkflow:
                 type(self.enricher).__name__,
                 self.default_export_format,
             )
+
+    def run_incremental_uniprot(
+        self,
+        *,
+        query: str,
+        fields: str | None,
+        output_dir: Path,
+        chunk_size: int = 2000,
+        id_column: str = "record_id",
+        include_isoform: bool = False,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        """Acquire a protein query as bounded Parquet parts and a checkpoint."""
+        return acquire_uniprot_parts(
+            self.uniprot,
+            query=query,
+            fields=fields,
+            output_dir=output_dir,
+            chunk_size=chunk_size,
+            id_column=id_column,
+            include_isoform=include_isoform,
+            timeout=timeout,
+        )
 
     # Public run entry that routes by workflow mode.
     def run(

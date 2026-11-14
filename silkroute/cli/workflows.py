@@ -1991,6 +1991,12 @@ def run_workflow(
         "--interaction-type",
         help="Interaction workflow type, when modality is interaction.",
     ),
+    incremental: bool = typer.Option(
+        False, "--incremental", help="Write UniProt query-first results as bounded Parquet parts."
+    ),
+    chunk_size: int = typer.Option(
+        2000, "--chunk-size", help="Maximum parsed records held before writing a Parquet part."
+    ),
 ) -> None:
     """Run a structured workflow descriptor or CLI-specified workflow."""
     logger = log
@@ -2015,6 +2021,35 @@ def run_workflow(
         )
         workflow_values = merge_workflow_recipe(cli_values, recipe_values)
         validate_merged_workflow_values(workflow_values)
+        if incremental:
+            if (workflow_values["modality"], workflow_values["mode"], workflow_values["export_format"]) != (
+                "protein",
+                "query_first",
+                "parquet",
+            ):
+                msg = "--incremental requires protein query_first with Parquet output."
+                raise ValueError(msg)  # noqa: TRY301
+            if (
+                workflow_values["enrich"]
+                or workflow_values["download_alphafold_structures"]
+                or workflow_values["download_pdb_structures"]
+            ):
+                msg = "--incremental requires --no-enrich and no structure downloads."
+                raise ValueError(msg)  # noqa: TRY301
+            if not isinstance(chunk_size, int) or chunk_size < 1:
+                msg = "--chunk-size must be a positive integer."
+                raise ValueError(msg)  # noqa: TRY301
+            output_path = Path(workflow_values["output"])
+            if (output_path / "uniprot_incremental_checkpoint.json").exists() or any(
+                output_path.glob("uniprot_results_part-*.parquet")
+            ):
+                msg = (
+                    "Incremental output already exists; choose a new output directory. "
+                    "Automatic resume is unavailable."
+                )
+                raise ValueError(msg)  # noqa: TRY301
+            workflow_values["id_column"] = workflow_values["id_column"] or "record_id"
+            workflow_values = sync_descriptor_from_workflow_values(workflow_values)
     except (TypeError, ValueError) as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=EXIT_USAGE) from None
@@ -2031,6 +2066,101 @@ def run_workflow(
     created_at = utc_now()
     started_at = dt.datetime.now(tz=dt.UTC).replace(microsecond=0).isoformat()
     start_time = time.perf_counter()
+
+    if incremental:
+        output_dir = Path(workflow_values["output"])
+        try:
+            checkpoint = wf.run_incremental_uniprot(
+                query=workflow_values["query"],
+                fields=workflow_values["fields"],
+                output_dir=output_dir,
+                chunk_size=chunk_size,
+                id_column=workflow_values["id_column"],
+                include_isoform=workflow_values["include_isoform"],
+                timeout=workflow_values["uniprot_timeout"],
+            )
+        except Exception as exc:
+            logger.exception("Incremental UniProt acquisition failed")
+            checkpoint_path = output_dir / "uniprot_incremental_checkpoint.json"
+            checkpoint = (
+                json.loads(checkpoint_path.read_text(encoding="utf-8"))
+                if checkpoint_path.exists()
+                else {"files": [], "error": str(exc)}
+            )
+            error = str(exc)
+        else:
+            error = None if checkpoint["status"] == "completed" else "UniProt query returned no records."
+        output_infos = [
+            {
+                "label": "uniprot",
+                "file": item["path"],
+                "path": str(output_dir / item["path"]),
+                "category": "result",
+                "rows": item["rows"],
+                "columns": len(checkpoint.get("parsed_fields", []))
+                + (checkpoint.get("id_column") != "accession"),
+                "sha256": item["sha256"],
+                "size_bytes": item["size_bytes"],
+            }
+            for item in checkpoint.get("files", [])
+        ]
+        finished_at = dt.datetime.now(tz=dt.UTC).replace(microsecond=0).isoformat()
+        duration_seconds = time.perf_counter() - start_time
+        reporting = calculate_reporting_metrics(workflow_values, {}, output_infos, duration_seconds)
+        status = "failed" if error else "success"
+        metadata_path = None
+        if workflow_values["include_metadata"]:
+            metadata_path = output_dir / workflow_values["manifest_file"]
+            write_json_file(
+                metadata_path,
+                build_metadata_document(
+                    workflow_metadata={"uniprot": {"incremental": checkpoint}},
+                    workflow_values=workflow_values,
+                    output_infos=output_infos,
+                    reporting=reporting,
+                    started_at=started_at,
+                    finished_at=finished_at,
+                    duration_seconds=duration_seconds,
+                    status=status,
+                    error=error,
+                ),
+            )
+        if workflow_values["include_summary"]:
+            summary_path = output_dir / workflow_values["summary_file"]
+            write_yaml_file(
+                summary_path,
+                build_summary_document(
+                    workflow_values=workflow_values,
+                    output_infos=output_infos,
+                    reporting=reporting,
+                    started_at=started_at,
+                    finished_at=finished_at,
+                    duration_seconds=duration_seconds,
+                    metadata_path=metadata_path,
+                    summary_path=summary_path,
+                    status=status,
+                    error=error,
+                ),
+            )
+        if error:
+            raise SilkRouteError(error)
+        provenance_parameters = {
+            key: value for key, value in workflow_values.items() if key not in PROVENANCE_EXCLUDED_VALUES
+        }
+        provenance_parameters.update({"incremental": True, "chunk_size": chunk_size})
+        write_provenance(
+            output_dir,
+            tool="silkroute",
+            version=__version__,
+            command="workflow run",
+            created_at=created_at,
+            parameters=provenance_parameters,
+            inputs=[config] if config else [],
+            packages=("silkroute", "polars"),
+            extensions={"status": status, "duration_seconds": round(duration_seconds, 3)},
+        )
+        typer.echo(f"Workflow completed. Results saved to '{output_dir}'")
+        return
 
     try:
         # Both modes call wf.run() with the same kwargs, differing only in how the

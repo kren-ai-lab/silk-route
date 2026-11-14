@@ -31,6 +31,34 @@ Valid `dataset.mode` values are:
 
 The CLI equivalent is `--mode` (or `-d`) with the same values.
 
+## Incremental UniProt Parquet output
+
+For a protein `query_first` descriptor with `export.format: parquet` and
+`execution.enrich: false`, add `--incremental` to write progressively:
+
+```bash
+silkroute workflow run --config queries/Q01_DNA_POS_CURATED.yml --incremental --chunk-size 2000
+```
+
+`--chunk-size` defaults to 2000 parsed records per part. The feature is also
+available without a YAML descriptor by passing `--modality protein --mode
+query_first --export-format parquet --no-enrich`. Structure downloads must be
+disabled. These are CLI-only options; `workflow-v1` has no incremental keys.
+
+Each part is named `uniprot_results_part-000001.parquet`, etc. The output
+directory contains `uniprot_incremental_checkpoint.json` with acquired and
+written record counts, completed file paths and SHA-256 checksums, and a
+`running`, `completed`, `empty_result`, or `failed` status. The usual metadata
+and run summary describe all completed parts; provenance is written on success.
+All parts have identical schemas. Nested biological annotations are JSON strings
+and null values stay null. The identifier column defaults to `record_id` in
+this mode so UniProt's `id` field can remain in the result.
+
+On a failed request, completed parts are retained and the checkpoint is marked
+`failed`. Automatic resume is not available: a later run needs a new output
+directory. This avoids treating a changed UniProt cursor or dataset snapshot as
+a continuation of the original acquisition.
+
 ## CLI Override Priority
 
 When a YAML descriptor and CLI options are both provided, values are resolved in this order:

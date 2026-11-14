@@ -20,6 +20,44 @@ Editable install with `pip` also works:
 pip install -e ".[dev,tests]"
 ```
 
+## Incremental UniProt acquisitions
+
+The opt-in path is implemented by `UniprotInterface.iter_search_pages()`,
+`MainWorkflow.run_incremental_uniprot()`, and
+`core/workflow/incremental_uniprot.py`. It follows UniProt cursor links exactly,
+retries only the current page, parses one page at a time, and writes a Parquet
+part whenever `chunk_size` parsed records are buffered. The HTTP page size is
+`min(chunk_size, 500)`. Part files are written to a temporary file in the output
+directory and atomically renamed. The checkpoint is also replaced atomically.
+
+Run with a descriptor whose `dataset.modality` is `protein`, `dataset.mode` is
+`query_first`, `export.format` is `parquet`, and `execution.enrich` is `false`:
+
+```bash
+silkroute workflow run --config queries/Q01_DNA_POS_CURATED.yml --incremental --chunk-size 2000
+```
+
+The same options work with CLI-only workflows when `--no-enrich` and
+`--export-format parquet` are supplied. The CLI options are not YAML keys, so
+the `workflow-v1` schema remains unchanged. Incremental output is a set of
+`uniprot_results_part-000001.parquet` files, plus
+`uniprot_incremental_checkpoint.json`, `metadata.json`, and `run_summary.yml`.
+The provenance sidecar is beside the output directory. All parts have the same
+columns and types. Nested annotations are JSON strings (decode with
+`json.loads`); absent values remain Parquet nulls. The incremental record key
+column defaults to `record_id` to avoid colliding with UniProt's biological
+`id` field. `harmonization.id_column` can rename it.
+
+The checkpoint records fetched pages, acquired and written records, per-field
+coverage, part paths, sizes, SHA-256 checksums, and status. On failure the run
+flushes completely parsed buffered rows, retains completed parts, and records
+`failed`. Automatic resume is unavailable because cursor validity and source
+snapshot stability cannot yet be guaranteed. A new run must use a new output
+directory; existing parts are never overwritten. Use the offline tests in
+`tests/core/workflow/test_incremental_uniprot.py` and
+`tests/cli/test_incremental_workflow.py` to check pagination, partial failure,
+schema consistency, CLI reporting, and synthetic memory scaling.
+
 ## Common Commands
 
 Run tests:

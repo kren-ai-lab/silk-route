@@ -8,6 +8,11 @@
   `fetch_single` calls instead of recording batch-granularity only.
 
 ## UniProt (`core/interfaces/uniprot.py`)
+- [ ] Add safe resume for incremental acquisitions after verifying cursor lifetime,
+  source snapshot stability, part checksums, and query fingerprints.
+- [ ] Extend incremental Parquet acquisition to enrichment and other workflow modes.
+- [ ] Store per-part checkpoint entries in a streaming manifest for extremely large
+  part counts and measure process RSS as well as Python allocation peaks.
 - [ ] Make `from_db`/`to_db` optional and only valid when `auto_db=False`.
 - [ ] Improve the `submit_stream` docstring for `include_isoform` / `download`.
 - [ ] Drop `bytes`/`str` from `parse`'s return type once the ElementTree path is assured.
