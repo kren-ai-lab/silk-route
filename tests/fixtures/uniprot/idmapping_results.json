@@ -11,9 +11,9 @@
         "uniProtkbId": "AATM_RABIT",
         "entryAudit": {
           "firstPublicDate": "1989-10-01",
-          "lastAnnotationUpdateDate": "2026-09-02",
+          "lastAnnotationUpdateDate": "2026-11-04",
           "lastSequenceUpdateDate": "2013-09-18",
-          "entryVersion": 150,
+          "entryVersion": 151,
           "sequenceVersion": 2
         },
         "annotationScore": 5.0,
@@ -1504,7 +1504,7 @@
           },
           {
             "database": "OMA",
-            "id": "VGACTIV",
+            "id": "AACVSTW",
             "properties": [
               {
                 "key": "Fingerprint",
@@ -1722,34 +1722,6 @@
             ]
           },
           {
-            "database": "FunFam",
-            "id": "3.90.1150.10:FF:000001",
-            "properties": [
-              {
-                "key": "EntryName",
-                "value": "Aspartate aminotransferase"
-              },
-              {
-                "key": "MatchStatus",
-                "value": "1"
-              }
-            ]
-          },
-          {
-            "database": "FunFam",
-            "id": "3.90.1150.10:FF:000160",
-            "properties": [
-              {
-                "key": "EntryName",
-                "value": "Similar to aspartate aminotransferase"
-              },
-              {
-                "key": "MatchStatus",
-                "value": "1"
-              }
-            ]
-          },
-          {
             "database": "Gene3D",
             "id": "3.90.1150.10",
             "properties": [
@@ -1803,7 +1775,7 @@
             "properties": [
               {
                 "key": "EntryName",
-                "value": "NHTrfase_class1_PyrdxlP-BS"
+                "value": "NHTrfase_class1_PLP_cs"
               }
             ]
           },

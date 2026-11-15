@@ -161,22 +161,22 @@
     ],
     "counters": {
       "subfamilies": 0,
-      "domain_architectures": 1219,
+      "domain_architectures": 1288,
       "interactions": 2,
-      "matches": 37639,
+      "matches": 38475,
       "pathways": 151,
-      "proteins": 19899,
-      "proteomes": 1414,
+      "proteins": 20384,
+      "proteomes": 1443,
       "sets": 0,
       "structural_models": {
-        "alphafold": 16862
+        "alphafold": 16855
       },
-      "structures": 136,
-      "taxa": 4644
+      "structures": 139,
+      "taxa": 4700
     },
     "entry_annotations": {
       "alignment:seed": 23,
-      "alignment:full": 29186
+      "alignment:full": 35489
     },
     "cross_references": {
       "prositedoc": {
